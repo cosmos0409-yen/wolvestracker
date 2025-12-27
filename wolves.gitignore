@@ -1,0 +1,25 @@
+--- 作業系統產生的檔案 (不需要上傳) ---
+
+.DS_Store
+Thumbs.db
+
+--- 編輯器設定檔 (不需要上傳) ---
+
+.vscode/
+.idea/
+
+--- 資安與隱私保護 ---
+
+忽略所有 JSON 備份檔，避免將您的數據紀錄上傳到 GitHub
+
+.json
+wolves_data_backup_.json
+
+雖然目前沒用到，但預防未來擴充時誤傳環境變數
+
+.env
+.env.local
+
+忽略 log 紀錄檔
+
+*.log
