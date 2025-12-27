@@ -19,27 +19,28 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // =================================================================
         //  設定區：wolves-traker
         // =================================================================
-const firebaseConfig = {
-    apiKey: "AIzaSyA3b09cIAwNnxBMLinKMP3sOP5ORR4xwo8",
-    authDomain: "wolves-traker.firebaseapp.com",
-    projectId: "wolves-traker",
-    storageBucket: "wolves-traker.firebasestorage.app",
-    messagingSenderId: "711518203108",
-    appId: "1:711518203108:web:26c7f17065cfec5eaed0f1"
-  };
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3b09cIAwNnxBMLinKMP3sOP5ORR4xwo8",
+            authDomain: "wolves-traker.firebaseapp.com",
+            projectId: "wolves-traker",
+            storageBucket: "wolves-traker.firebasestorage.app",
+            messagingSenderId: "711518203108",
+            appId: "1:711518203108:web:26c7f17065cfec5eaed0f1"
+        };
         // =================================================================
 
         try {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             window.db = getFirestore(app);
-            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
+            // 加入 writeBatch 支援批次寫入
+            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch };
             
             signInAnonymously(auth).then(() => {
                 console.log("✅ Firebase 連線成功 (匿名登入)");
@@ -197,27 +198,20 @@ const firebaseConfig = {
                 };
             }, []);
 
-            // Init & Sync Logic - FIX: Re-run when isCloud changes
+            // Init & Sync Logic
             useEffect(() => {
-                if (isCloud && window.db && window.firebaseModules) {
+                if (window.db && window.firebaseModules) {
                     const { collection, onSnapshot, query, orderBy } = window.firebaseModules;
-                    
-                    const unsubTeam = onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
+                    onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
                         if(data.length > 0) setTeamHistory(data);
                     });
-                    
-                    const unsubPlayer = onSnapshot(query(collection(window.db, "wolves_player_stats"), orderBy("date", "desc")), (snapshot) => {
+                    onSnapshot(query(collection(window.db, "wolves_player_stats"), orderBy("date", "desc")), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
                         if(data.length > 0) setPlayerHistory(data);
                     });
-
-                    return () => {
-                        unsubTeam();
-                        unsubPlayer();
-                    };
                 }
-            }, [isCloud]);
+            }, []);
 
             const copyToClipboard = (text) => {
                 const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
@@ -264,29 +258,51 @@ const firebaseConfig = {
             };
 
             // 匯入備份 (讀取JSON)
-            const handleImportBackup = () => {
+            const handleImportBackup = async () => {
                 if (!jsonInput.trim()) return alert("請貼上備份 JSON 內容");
                 try {
                     const parsed = JSON.parse(jsonInput);
                     if (!parsed.team || !parsed.player) throw new Error("格式錯誤：找不到 team 或 player 數據");
                     
-                    if (confirm(`確定要還原備份嗎？\n這將覆蓋目前的數據。\n\n備份日期: ${parsed.exportDate || '未知'}`)) {
-                        // Migration logic inside restore
+                    if (confirm(`確定要還原備份到雲端嗎？\n這將會把備份中的所有歷史紀錄逐一寫入雲端資料庫。\n\n備份日期: ${parsed.exportDate || '未知'}`)) {
+                        
+                        if (!window.db) return alert("錯誤：無法連線到雲端資料庫，無法執行還原。");
+                        
+                        // Migration logic
                         const teamData = parsed.team.map(entry => ({
                             ...entry,
                             stats: entry.stats.map(s => ({ ...s, side: s.side || 'offensive' }))
                         }));
                         const playerData = parsed.player.map(entry => {
                             const newStats = {};
+                            // Handle both array (flat) and object (grouped) structures if needed, 
+                            // but our backup format is consistent. Assuming grouped by player in backup?
+                            // Actually current backup format is whatever teamHistory/playerHistory state is.
+                            // playerHistory state structure: { date, stats: { "Ant": [...], ... } }
+                            // So we just need to ensure side property.
+                            const statsMap = {};
                             Object.keys(entry.stats).forEach(player => {
-                                newStats[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
+                                statsMap[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
                             });
-                            return { ...entry, stats: newStats };
+                            return { ...entry, stats: statsMap };
                         });
 
-                        setTeamHistory(teamData);
-                        setPlayerHistory(playerData);
-                        alert("✅ 數據還原成功！(注意：若處於 Cloud 模式，此還原僅暫存於記憶體，重新整理後將重新載入雲端數據)");
+                        const { doc, setDoc } = window.firebaseModules;
+                        let uploadCount = 0;
+
+                        // Batch upload team data
+                        for (const entry of teamData) {
+                            await setDoc(doc(window.db, "wolves_team_stats", entry.date), { stats: entry.stats, timestamp: entry.timestamp || Date.now() });
+                            uploadCount++;
+                        }
+
+                        // Batch upload player data
+                        for (const entry of playerData) {
+                            await setDoc(doc(window.db, "wolves_player_stats", entry.date), { stats: entry.stats, timestamp: entry.timestamp || Date.now() });
+                            uploadCount++;
+                        }
+
+                        alert(`✅ 雲端還原成功！\n共上傳 ${uploadCount} 筆單日紀錄。`);
                         setShowInputModal(false);
                         setJsonInput('');
                         setViewIndex(0);
@@ -319,7 +335,9 @@ const firebaseConfig = {
                             return;
                         }
 
-                        await saveDataToFirebase("wolves_team_stats", today, enrichedData);
+                        // Save Cloud
+                        if(window.isCloudEnabled) await saveDataToFirebase("wolves_team_stats", today, enrichedData);
+                        else alert("✅ 成功匯入 [球隊] 數據 (僅本機)！");
 
                     // --- PLAYER DATA ---
                     } else if (parsed.dataType === "PLAYER" || (Array.isArray(parsed) && parsed[0].playerName)) {
@@ -342,7 +360,9 @@ const firebaseConfig = {
                             }
                         }
 
-                        await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
+                        // Save Cloud
+                        if(window.isCloudEnabled) await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
+                        else alert("✅ 成功匯入 [球員] 數據 (僅本機)！");
 
                     } else { throw new Error("無法識別數據格式"); }
                     
@@ -482,7 +502,7 @@ const firebaseConfig = {
                     <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick} title="點擊查看連線詳情">DAILY TRACKER {isCloud ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
+                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick} title="點擊查看連線詳情">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
                             </div>
                             <div className="flex items-center gap-2"><a href="https://www.nba.com/stats/team/1610612750/onoffcourt-traditional" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border border-slate-700"><Icons.ExternalLink className="w-4 h-4" /> Team Info</a><button onClick={() => setShowInputModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#236192] hover:bg-[#1a4a70] text-white rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95"><Icons.PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">匯入數據</span><span className="sm:hidden">匯入</span></button></div>
                         </div>
@@ -533,7 +553,7 @@ const firebaseConfig = {
                                                     </div>
 
                                                     <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料</h4>
+                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料 (上傳雲端)</h4>
                                                         <p className="text-xs text-slate-400 mb-3">請將備份檔案 (.json) 的內容複製並貼在下方。</p>
                                                         <textarea className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 mb-3" placeholder='{"team": [...], "player": [...]}' value={jsonInput} onChange={(e) => setJsonInput(e.target.value)}></textarea>
                                                         <button onClick={handleImportBackup} className="w-full py-3 bg-[#236192] hover:bg-[#1a4a70] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
