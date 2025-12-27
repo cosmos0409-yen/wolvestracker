@@ -14,6 +14,7 @@
         window.isCloudEnabled = false;
         window.db = null;
         window.firebaseModules = null;
+        window.firebaseError = null; // 儲存錯誤物件
     </script>
 
     <script type="module">
@@ -35,31 +36,29 @@
         // =================================================================
 
         try {
-            // 雙重檢查：確保沒有用到範例 Key
-            if (firebaseConfig.apiKey.includes("EXAMPLE")) {
-                console.log("偵測到範例設定，使用本機模式");
-            } else {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                window.db = getFirestore(app);
-                window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
-                
-                // 嘗試匿名登入
-                signInAnonymously(auth).then(() => {
-                    console.log("✅ Firebase 連線成功 (匿名登入)");
-                    window.isCloudEnabled = true;
-                    window.dispatchEvent(new Event('firebase-ready'));
-                }).catch(e => {
-                    console.warn("Firebase 登入失敗:", e);
-                    const errLog = document.getElementById('error-log');
-                    if(errLog) {
-                        errLog.style.display = 'block';
-                        errLog.innerText = "連線失敗 (請檢查 Firebase Authentication 是否已啟用匿名登入):\n" + e.message;
-                    }
-                });
-            }
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            window.db = getFirestore(app);
+            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
+            
+            signInAnonymously(auth).then(() => {
+                console.log("✅ Firebase 連線成功 (匿名登入)");
+                window.isCloudEnabled = true;
+                window.firebaseError = null;
+                window.dispatchEvent(new Event('firebase-ready'));
+            }).catch(e => {
+                console.warn("Firebase 登入失敗:", e);
+                window.firebaseError = e;
+                window.dispatchEvent(new Event('firebase-error')); // 通知 React 更新錯誤狀態
+                const errLog = document.getElementById('error-log');
+                if(errLog) {
+                    errLog.style.display = 'block';
+                    errLog.innerText = "連線失敗: " + e.code + "\n(請點擊左上角 No Conn 查看詳情)";
+                }
+            });
         } catch (e) {
             console.error("Firebase 初始化失敗:", e);
+            window.firebaseError = e;
         }
     </script>
 
@@ -125,7 +124,8 @@
             Lock: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
             BarChart: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>,
             Cloud: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.2-2.3-2.2-4-4.5-4-2.1 0-3.9 1.5-4.4 3.6C2.6 15.8 1 17.7 1 20c0 2.2 1.8 4 4 4h12.5c2.5 0 4.5-2 4.5-4.5s-2-4.5-4.5-4.5z"/></svg>,
-            Code: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Code: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+            AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
         };
 
         const PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
@@ -186,18 +186,19 @@
                 }
 
                 const handleCloudReady = () => setIsCloud(true);
+                const handleCloudError = () => { /* User clicks diagnostics */ };
                 window.addEventListener('firebase-ready', handleCloudReady);
+                window.addEventListener('firebase-error', handleCloudError);
+                
                 if (window.isCloudEnabled) setIsCloud(true);
-                return () => window.removeEventListener('firebase-ready', handleCloudReady);
+                return () => {
+                    window.removeEventListener('firebase-ready', handleCloudReady);
+                    window.removeEventListener('firebase-error', handleCloudError);
+                };
             }, []);
 
             // Init & Sync Logic
             useEffect(() => {
-                // REMOVE Local Storage READ
-                /* const savedTeam = localStorage.getItem('wolves_playtype_real_v3');
-                ...
-                */
-
                 if (window.db && window.firebaseModules) {
                     const { collection, onSnapshot, query, orderBy } = window.firebaseModules;
                     onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
@@ -210,10 +211,6 @@
                     });
                 }
             }, []);
-
-            // REMOVE Local Storage WRITE
-            // useEffect(() => localStorage.setItem('wolves_playtype_real_v3', JSON.stringify(teamHistory)), [teamHistory]);
-            // useEffect(() => localStorage.setItem('wolves_player_playtype_v1', JSON.stringify(playerHistory)), [playerHistory]);
 
             const copyToClipboard = (text) => {
                 const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
@@ -238,6 +235,57 @@
                     console.error("Write Error", e);
                     alert("寫入失敗：" + e.message);
                     return false;
+                }
+            };
+
+            // 匯出備份 (JSON下載)
+            const handleExport = () => {
+                const data = {
+                    team: teamHistory,
+                    player: playerHistory,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `wolves_data_backup_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // 匯入備份 (讀取JSON)
+            const handleImportBackup = () => {
+                if (!jsonInput.trim()) return alert("請貼上備份 JSON 內容");
+                try {
+                    const parsed = JSON.parse(jsonInput);
+                    if (!parsed.team || !parsed.player) throw new Error("格式錯誤：找不到 team 或 player 數據");
+                    
+                    if (confirm(`確定要還原備份嗎？\n這將覆蓋目前的數據。\n\n備份日期: ${parsed.exportDate || '未知'}`)) {
+                        // Migration logic inside restore
+                        const teamData = parsed.team.map(entry => ({
+                            ...entry,
+                            stats: entry.stats.map(s => ({ ...s, side: s.side || 'offensive' }))
+                        }));
+                        const playerData = parsed.player.map(entry => {
+                            const newStats = {};
+                            Object.keys(entry.stats).forEach(player => {
+                                newStats[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
+                            });
+                            return { ...entry, stats: newStats };
+                        });
+
+                        setTeamHistory(teamData);
+                        setPlayerHistory(playerData);
+                        alert("✅ 數據還原成功！(注意：若處於 Cloud 模式，此還原僅暫存於記憶體，重新整理後將重新載入雲端數據)");
+                        setShowInputModal(false);
+                        setJsonInput('');
+                        setViewIndex(0);
+                    }
+                } catch (e) {
+                    alert("還原失敗：" + e.message);
                 }
             };
 
@@ -317,74 +365,26 @@
             const generateReleaseCode = () => { copyToClipboard(JSON.stringify(teamHistory)); alert("已複製代碼"); };
             const handleSimulation = (type, days=1) => { /* Disabled in Strict Cloud Mode to avoid pollution or confusion */ alert("嚴格雲端模式下已停用模擬功能。"); };
             const clearSimulation = () => { /* Disabled */ };
-            const handleExport = () => {
-                const data = {
-                    team: teamHistory,
-                    player: playerHistory,
-                    exportDate: new Date().toISOString()
-                };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `wolves_data_backup_${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            };
             
-            // New: Handle Import Backup (Cloud) with 12/26 condition
-            const handleImportBackup = async () => {
-                if (!jsonInput.trim()) return alert("請貼上備份 JSON 內容");
-                
-                if (!window.isCloudEnabled) {
-                    return alert("錯誤：尚未連線至雲端資料庫，無法執行還原操作。");
-                }
-
-                try {
-                    const parsed = JSON.parse(jsonInput);
-                    if (!parsed.team || !parsed.player) throw new Error("格式錯誤：找不到 team 或 player 數據");
-                    
-                    if (!confirm(`確定要將此備份匯入至雲端嗎？\n這將寫入 ${parsed.team.length} 筆球隊數據與 ${parsed.player.length} 筆球員數據。\n\n現有雲端數據若日期相同將被覆蓋。`)) return;
-
-                    const { doc, setDoc } = window.firebaseModules;
-                    let count = 0;
-
-                    // Upload Team Data with 12/26 condition
-                    for (const entry of parsed.team) {
-                        const isLegacy = entry.date <= "2025-12-26";
-                        const stats = entry.stats.map(s => ({ 
-                            ...s, 
-                            side: isLegacy ? 'offensive' : (s.side || 'offensive') 
-                        }));
-                        await setDoc(doc(window.db, "wolves_team_stats", entry.date), { stats: stats, timestamp: Date.now() });
-                        count++;
+            // 診斷按鈕的點擊事件
+            const handleStatusClick = () => {
+                if (!isCloud) {
+                    if (window.firebaseError) {
+                        const code = window.firebaseError.code;
+                        let tip = "";
+                        if (code === 'auth/unauthorized-domain') {
+                            tip = "💡 解決方法：\n請到 Firebase Console -> Authentication -> Settings -> Authorized Domains，將您的 GitHub 網址加入白名單。";
+                        } else if (code === 'auth/operation-not-allowed') {
+                            tip = "💡 解決方法：\n請到 Firebase Console -> Authentication -> Sign-in method，將 'Anonymous' (匿名) 設為啟用。";
+                        } else if (code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.') {
+                             tip = "💡 解決方法：\n您的 API Key 似乎無效，請檢查 index.html 中的 firebaseConfig 是否填寫正確。";
+                        }
+                        alert(`🔴 連線失敗\n\n錯誤代碼: ${code}\n錯誤訊息: ${window.firebaseError.message}\n\n${tip}`);
+                    } else {
+                        alert("🔴 連線失敗：\n\n尚未收到 Firebase 回應。請檢查您的網路，或按下 F12 查看 Console 是否有紅字錯誤。");
                     }
-
-                    // Upload Player Data
-                    // Assuming legacy player data should also be treated as offensive if date <= 12/26, although requirement specific to Team
-                    // But usually consistent. Let's apply same logic for safety or just keep default.
-                    // The prompt said "confirm data ... is TEAM offensive data", explicitly.
-                    // But implicitly player data from same era is likely offensive too.
-                    // I'll stick to default behavior for players but safer: default 'offensive'
-                    for (const entry of parsed.player) {
-                         const newStats = {};
-                         Object.keys(entry.stats).forEach(player => {
-                            newStats[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
-                         });
-                         await setDoc(doc(window.db, "wolves_player_stats", entry.date), { stats: newStats, timestamp: Date.now() });
-                         count++;
-                    }
-
-                    alert(`✅ 雲端還原成功！\n共處理了 ${count} 筆單日紀錄。\n(12/26 以前的球隊資料已強制設定為進攻數據)`);
-                    setShowInputModal(false);
-                    setJsonInput('');
-                    setViewIndex(0);
-
-                } catch (e) {
-                    console.error(e);
-                    alert("還原失敗：" + e.message);
+                } else {
+                    alert("🔵 連線正常：\n\n已成功連線至 Firestore 資料庫。");
                 }
             };
             
@@ -487,7 +487,7 @@
                     <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
+                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick} title="點擊查看連線詳情">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
                             </div>
                             <div className="flex items-center gap-2"><a href="https://www.nba.com/stats/team/1610612750/onoffcourt-traditional" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border border-slate-700"><Icons.ExternalLink className="w-4 h-4" /> Team Info</a><button onClick={() => setShowInputModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#236192] hover:bg-[#1a4a70] text-white rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95"><Icons.PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">匯入數據</span><span className="sm:hidden">匯入</span></button></div>
                         </div>
@@ -519,14 +519,32 @@
                                     <div className="p-10 flex flex-col items-center justify-center space-y-4"><div className="bg-slate-900 p-6 rounded-xl border border-slate-700 w-full max-w-sm text-center shadow-lg"><div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700"><Icons.Lock className="w-8 h-8 text-yellow-500" /></div><h3 className="text-white font-bold mb-4">管理員權限驗證</h3><p className="text-xs text-slate-400 mb-6">為防止數據誤刪，請輸入管理密碼以繼續。</p><input type="password" className="w-full bg-slate-950 border border-slate-600 rounded-lg p-3 text-sm text-white mb-4 focus:outline-none focus:border-yellow-500 text-center" placeholder="請輸入密碼" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} /><button onClick={handleLogin} className="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg transition-colors">驗證身分</button></div></div>
                                 ) : (
                                     <>
-                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('backup')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'backup' ? 'text-yellow-500 border-b-2 border-yellow-500 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>備份/還原</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
+                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('backup')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'backup' ? 'text-yellow-500 border-b-2 border-yellow-500 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>備份/還原</button><button onClick={() => setInputMode('publish')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'publish' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>發布工具</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
                                         <div className="p-6 overflow-y-auto space-y-6">
-                                            {inputMode === 'debug' ? (
+                                            {inputMode === 'publish' ? (
+                                                <div className="space-y-4">
+                                                    <div className="bg-purple-900/20 p-4 rounded-xl border border-purple-800/50"><h4 className="text-purple-400 font-bold mb-2 flex items-center gap-2"><Icons.Code className="w-4 h-4"/> 網站發布代碼產生器</h4><p className="text-xs text-slate-400 mb-4">若您要將數據發布到 GitHub Pages，請複製此代碼並取代 HTML 檔案最上方的 <code>PRELOADED_DATA</code>。</p><button onClick={generateReleaseCode} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><Icons.Clipboard className="w-4 h-4"/> 複製完整資料庫代碼</button></div>
+                                                </div>
+                                            ) : inputMode === 'debug' ? (
                                                 <div className="space-y-4"><div className="bg-red-900/20 p-4 rounded-xl border border-red-900/50"><h4 className="text-red-400 font-bold mb-2 flex items-center gap-2"><Icons.Bug className="w-4 h-4"/> 測試與清空</h4><p className="text-xs text-slate-400 mb-4">嚴格雲端模式下已停用模擬功能。</p><div className="space-y-2"><button onClick={() => clearHistory('ALL')} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Trash2 className="w-4 h-4"/> 清空雲端資料庫 (需手動確認)</button></div></div></div>
                                             ) : inputMode === 'backup' ? (
                                                 <div className="space-y-6">
-                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800"><h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Download className="w-4 h-4 text-green-400"/> 匯出資料 (備份)</h4><p className="text-xs text-slate-400 mb-3">將目前的球隊與球員數據下載為 JSON 檔案，以供備份或轉移至 Google Site。</p><button onClick={handleExport} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700 transition-colors flex items-center justify-center gap-2"><Icons.Save className="w-4 h-4"/> 下載備份檔案</button></div>
-                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800"><h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料至雲端</h4><p className="text-xs text-slate-400 mb-3">請將備份檔案 (.json) 的內容複製並貼在下方。此操作將把舊資料寫入 Firebase。</p><textarea className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 mb-3" placeholder='{"team": [...], "player": [...]}' value={jsonInput} onChange={(e) => setJsonInput(e.target.value)}></textarea><button onClick={handleImportBackup} className="w-full py-3 bg-[#236192] hover:bg-[#1a4a70] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><Icons.Upload className="w-4 h-4"/> 開始匯入</button></div>
+                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Download className="w-4 h-4 text-green-400"/> 匯出資料 (備份)</h4>
+                                                        <p className="text-xs text-slate-400 mb-3">將目前的球隊與球員數據下載為 JSON 檔案，以供備份或轉移至 Google Site。</p>
+                                                        <button onClick={handleExport} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700 transition-colors flex items-center justify-center gap-2">
+                                                            <Icons.Save className="w-4 h-4"/> 下載備份檔案
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料</h4>
+                                                        <p className="text-xs text-slate-400 mb-3">請將備份檔案 (.json) 的內容複製並貼在下方。</p>
+                                                        <textarea className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 mb-3" placeholder='{"team": [...], "player": [...]}' value={jsonInput} onChange={(e) => setJsonInput(e.target.value)}></textarea>
+                                                        <button onClick={handleImportBackup} className="w-full py-3 bg-[#236192] hover:bg-[#1a4a70] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                                                            <Icons.Upload className="w-4 h-4"/> 還原數據
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 /* Team/Player Tool section (same as before) */
@@ -550,4 +568,3 @@
     </script>
 </body>
 </html>
-
