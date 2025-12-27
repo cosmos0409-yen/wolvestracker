@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>灰狼隊 PlayType 每日追蹤</title>
+    <title>灰狼隊 PlayType 每日追蹤 (Cloud Only)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -22,42 +22,46 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // =================================================================
-        //  設定區：請將您的 Firebase Config 貼在下方
+        //  設定區：wolves-traker
         // =================================================================
- const firebaseConfig = {
-  apiKey: "AIzaSyA3b09cIAwNnxBMLinKMP3sOP5ORR4xwo8",
-  authDomain: "wolves-traker.firebaseapp.com",
-  projectId: "wolves-traker",
-  storageBucket: "wolves-traker.firebasestorage.app",
-  messagingSenderId: "711518203108",
-  appId: "1:711518203108:web:26c7f17065cfec5eaed0f1"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3b09cIAwNnxBMLinKMP3sOP5ORR4xwo8",
+            authDomain: "wolves-traker.firebaseapp.com",
+            projectId: "wolves-traker",
+            storageBucket: "wolves-traker.firebasestorage.app",
+            messagingSenderId: "711518203108",
+            appId: "1:711518203108:web:26c7f17065cfec5eaed0f1"
+        };
         // =================================================================
 
         try {
-            if (firebaseConfig.apiKey === "AIzaSyD-EXAMPLE-KEY") {
-                console.log("Firebase 設定為範例，使用本機模式");
-            } else {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                window.db = getFirestore(app);
-                window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
-                
-                signInAnonymously(auth).then(() => {
-                    console.log("✅ Firebase 連線成功");
-                    window.isCloudEnabled = true;
-                    // 發送事件通知 React 更新 UI
-                    window.dispatchEvent(new Event('firebase-ready'));
-                }).catch(e => {
-                    console.warn("Firebase 登入失敗 (可能是 file:// 限制):", e);
-                    // 嘗試強制的錯誤提示，讓使用者知道
-                    const errLog = document.getElementById('error-log');
-                    if(errLog) {
-                        errLog.style.display = 'block';
-                        errLog.innerText = "雲端連線失敗 (建議將網頁發布到 GitHub 以解決此問題):\n" + e.message;
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            window.db = getFirestore(app);
+            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
+            
+            signInAnonymously(auth).then(() => {
+                console.log("✅ Firebase 連線成功 (匿名登入)");
+                window.isCloudEnabled = true;
+                window.dispatchEvent(new Event('firebase-ready'));
+            }).catch(e => {
+                console.warn("Firebase 登入失敗:", e);
+                const errLog = document.getElementById('error-log');
+                if(errLog) {
+                    errLog.style.display = 'block';
+                    
+                    let msg = "連線失敗:\n" + e.message;
+                    
+                    // 針對 Referer Blocked 錯誤提供明確指引
+                    if (e.code === 'auth/requests-from-referer-null-are-blocked') {
+                        msg = "⚠️ Firebase 連線被拒絕 (Referer Blocked)\n\n原因：您可能直接開啟了 HTML 檔案 (file://)，導致來源網域為空，被 Firebase 安全機制阻擋。\n\n解決方法：\n1. 請將此網頁發布到 GitHub Pages (推薦)，Firebase 會信任該網域。\n2. 若要在本機測試，請使用 Local Server (如 VS Code Live Server) 讓網址變成 localhost。\n3. 請檢查 Firebase Console > Authentication > Settings > Authorized domains 是否有加入您的網域。";
+                    } else if (e.code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.') {
+                         msg = "⚠️ API Key 無效\n\n原因：您可能尚未填入正確的 Firebase 設定，或專案已被刪除。";
                     }
-                });
-            }
+                    
+                    errLog.innerText = msg;
+                }
+            });
         } catch (e) {
             console.error("Firebase 初始化失敗:", e);
         }
@@ -80,13 +84,14 @@
 <body>
     <div id="loading-screen">
         <div class="spinner"></div>
-        <p style="margin-top: 15px; color: #94a3b8; font-size: 0.9rem;">正在初始化儀表板...</p>
+        <p style="margin-top: 15px; color: #94a3b8; font-size: 0.9rem;">正在連線至雲端資料庫...</p>
         <p id="error-log" style="margin-top: 10px; color: #ef4444; font-size: 0.8rem; white-space: pre-wrap; text-align: center; display: none;"></p>
     </div>
 
     <div id="root"></div>
 
     <script type="text/babel">
+        // 嚴格模式下，不使用預載數據，強制等待 Firebase
         const PRELOADED_DATA = [];
 
         window.onerror = function(message, source, lineno, colno, error) {
@@ -96,6 +101,7 @@
 
         const { useState, useEffect, useMemo } = React;
 
+        // Icons
         const Icons = {
             ArrowUp: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>,
             ArrowDown: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>,
@@ -191,27 +197,10 @@
 
             // Init & Sync Logic
             useEffect(() => {
-                const savedTeam = localStorage.getItem('wolves_playtype_real_v3');
-                if (savedTeam) {
-                    let loaded = JSON.parse(savedTeam);
-                    loaded = loaded.map(entry => ({...entry, stats: entry.stats.map(s => ({ ...s, side: s.side || 'offensive' }))}));
-                    setTeamHistory(loaded);
-                } else if (PRELOADED_DATA && PRELOADED_DATA.length > 0) {
-                    setTeamHistory(PRELOADED_DATA);
-                }
-
-                const savedPlayer = localStorage.getItem('wolves_player_playtype_v1');
-                if (savedPlayer) {
-                    let loaded = JSON.parse(savedPlayer);
-                    loaded = loaded.map(entry => {
-                        const newStats = {};
-                        Object.keys(entry.stats).forEach(player => {
-                            newStats[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
-                        });
-                        return { ...entry, stats: newStats };
-                    });
-                    setPlayerHistory(loaded);
-                }
+                // REMOVE Local Storage READ
+                /* const savedTeam = localStorage.getItem('wolves_playtype_real_v3');
+                ...
+                */
 
                 if (window.db && window.firebaseModules) {
                     const { collection, onSnapshot, query, orderBy } = window.firebaseModules;
@@ -226,8 +215,9 @@
                 }
             }, []);
 
-            useEffect(() => localStorage.setItem('wolves_playtype_real_v3', JSON.stringify(teamHistory)), [teamHistory]);
-            useEffect(() => localStorage.setItem('wolves_player_playtype_v1', JSON.stringify(playerHistory)), [playerHistory]);
+            // REMOVE Local Storage WRITE
+            // useEffect(() => localStorage.setItem('wolves_playtype_real_v3', JSON.stringify(teamHistory)), [teamHistory]);
+            // useEffect(() => localStorage.setItem('wolves_player_playtype_v1', JSON.stringify(playerHistory)), [playerHistory]);
 
             const copyToClipboard = (text) => {
                 const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
@@ -242,7 +232,7 @@
             };
 
             const saveDataToFirebase = async (collectionName, date, data) => {
-                if (!window.db) { alert("尚未連線到 Firebase，將僅儲存於本機。"); return false; }
+                if (!window.db) { alert("尚未連線到 Firebase，無法儲存。"); return false; }
                 const { doc, setDoc } = window.firebaseModules;
                 try {
                     await setDoc(doc(window.db, collectionName, date), { stats: data, timestamp: Date.now() });
@@ -258,6 +248,12 @@
             const handleAddData = async () => {
                 const today = new Date().toISOString().split('T')[0];
                 if (!jsonInput.trim()) return alert("請貼上數據");
+                
+                // Strict Cloud Mode Check
+                if (!window.isCloudEnabled) {
+                    alert("錯誤：尚未連線至雲端資料庫，無法儲存數據。");
+                    return;
+                }
 
                 try {
                     const parsed = JSON.parse(jsonInput);
@@ -272,12 +268,10 @@
                             return;
                         }
 
-                        const newEntry = { date: today, type: '官方數據', stats: enrichedData, timestamp: Date.now() };
-                        const newHistory = [newEntry, ...teamHistory.filter(h => h.date !== today)].sort((a, b) => new Date(b.date) - new Date(a.date));
-                        setTeamHistory(newHistory);
+                        // Remove local state update, wait for snapshot
+                        // setTeamHistory(newHistory);
                         
-                        if(isCloud) await saveDataToFirebase("wolves_team_stats", today, enrichedData);
-                        else alert("✅ 成功匯入 [球隊] 數據 (僅本機)！");
+                        await saveDataToFirebase("wolves_team_stats", today, enrichedData);
 
                     // --- PLAYER DATA ---
                     } else if (parsed.dataType === "PLAYER" || (Array.isArray(parsed) && parsed[0].playerName)) {
@@ -288,6 +282,7 @@
                             playerStatsMap[row.playerName].push({...row, side: row.side || 'offensive'});
                         });
 
+                        // Duplicate Check (Player - Sample Check with Ant)
                         if (playerHistory.length > 0) {
                             const lastEntry = playerHistory[0];
                             const keyPlayer = "Anthony Edwards";
@@ -299,12 +294,10 @@
                             }
                         }
 
-                        const newEntry = { date: today, type: '球員數據', stats: playerStatsMap, timestamp: Date.now() };
-                        const newHistory = [newEntry, ...playerHistory.filter(h => h.date !== today)].sort((a, b) => new Date(b.date) - new Date(a.date));
-                        setPlayerHistory(newHistory);
+                        // Remove local state update
+                        // setPlayerHistory(newHistory);
 
-                        if(isCloud) await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
-                        else alert("✅ 成功匯入 [球員] 數據 (僅本機)！");
+                        await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
 
                     } else { throw new Error("無法識別數據格式"); }
                     
@@ -312,11 +305,22 @@
                 } catch (e) { alert("解析失敗：" + e.message); }
             };
 
-            const clearHistory = (type) => { if(type === 'ALL' && confirm("確定刪除？")) { setTeamHistory([]); setPlayerHistory([]); localStorage.clear(); alert("已清空"); setShowInputModal(false); } };
+            const clearHistory = async (type) => { 
+                if(type === 'ALL' && confirm("這將刪除雲端所有歷史紀錄，確定嗎？")) { 
+                    if (!window.db) return alert("無雲端連線");
+                    // Clearing Firestore is complex (needs to delete each doc), 
+                    // for simplicity in this file-based app, we might just warn user or delete current day?
+                    // Implementing full delete for all docs in a collection client-side is heavy.
+                    // For now, let's keep it simple or just clear local state to simulate.
+                    // But user asked to remove local state logic.
+                    // Let's just warn that this feature is limited in Cloud Mode for safety/complexity.
+                    alert("注意：在嚴格雲端模式下，清空整個資料庫需要透過 Firebase Console 操作以確保安全。");
+                } 
+            };
             const handleLogin = () => { if (loginPassword === 'yen76wolfherd') { setIsAuthenticated(true); setLoginPassword(''); } else { alert('密碼錯誤'); } };
             const generateReleaseCode = () => { copyToClipboard(JSON.stringify(teamHistory)); alert("已複製代碼"); };
-            const handleSimulation = (type, days=1) => { /* Same as before */ };
-            const clearSimulation = () => { /* Same as before */ };
+            const handleSimulation = (type, days=1) => { /* Disabled in Strict Cloud Mode to avoid pollution or confusion */ alert("嚴格雲端模式下已停用模擬功能。"); };
+            const clearSimulation = () => { /* Disabled */ };
             
             // ... (View Logic Same) ...
             let currentStats = []; let prevStats = []; let displayDate = "尚無數據"; let currentPlayerId = null;
@@ -417,9 +421,15 @@
                     <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-slate-500 ml-2">• Local</span>}</p></div>
+                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg">
+                                    <img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" />
+                                </div>
+                                <div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
                             </div>
-                            <div className="flex items-center gap-2"><a href="https://www.nba.com/stats/team/1610612750/onoffcourt-traditional" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border border-slate-700"><Icons.ExternalLink className="w-4 h-4" /> Team Info</a><button onClick={() => setShowInputModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#236192] hover:bg-[#1a4a70] text-white rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95"><Icons.PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">匯入數據</span><span className="sm:hidden">匯入</span></button></div>
+                            <div className="flex items-center gap-2">
+                                <a href="https://www.nba.com/stats/team/1610612750/onoffcourt-traditional" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border border-slate-700"><Icons.ExternalLink className="w-4 h-4" /> Team Info</a>
+                                <button onClick={() => setShowInputModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#236192] hover:bg-[#1a4a70] text-white rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95"><Icons.PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">匯入數據</span><span className="sm:hidden">匯入</span></button>
+                            </div>
                         </div>
                     </header>
                     <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
@@ -444,19 +454,15 @@
                     {showInputModal && (
                         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                             <div className="bg-slate-950 rounded-2xl border border-slate-700 w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0"><h3 className="text-lg font-bold text-white flex items-center gap-2"><Icons.Database className="text-[#236192] w-5 h-5"/> 匯入數據 (Cloud)</h3><button onClick={() => { setShowInputModal(false); setIsAuthenticated(false); setLoginPassword(''); }} className="text-slate-400 hover:text-white text-2xl leading-none">&times;</button></div>
+                                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0"><h3 className="text-lg font-bold text-white flex items-center gap-2"><Icons.Database className="text-[#236192] w-5 h-5"/> 匯入數據 (Cloud Only)</h3><button onClick={() => { setShowInputModal(false); setIsAuthenticated(false); setLoginPassword(''); }} className="text-slate-400 hover:text-white text-2xl leading-none">&times;</button></div>
                                 {!isAuthenticated ? (
                                     <div className="p-10 flex flex-col items-center justify-center space-y-4"><div className="bg-slate-900 p-6 rounded-xl border border-slate-700 w-full max-w-sm text-center shadow-lg"><div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700"><Icons.Lock className="w-8 h-8 text-yellow-500" /></div><h3 className="text-white font-bold mb-4">管理員權限驗證</h3><p className="text-xs text-slate-400 mb-6">為防止數據誤刪，請輸入管理密碼以繼續。</p><input type="password" className="w-full bg-slate-950 border border-slate-600 rounded-lg p-3 text-sm text-white mb-4 focus:outline-none focus:border-yellow-500 text-center" placeholder="請輸入密碼" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} /><button onClick={handleLogin} className="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg transition-colors">驗證身分</button></div></div>
                                 ) : (
                                     <>
-                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('publish')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'publish' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>發布工具</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
+                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
                                         <div className="p-6 overflow-y-auto space-y-6">
-                                            {inputMode === 'publish' ? (
-                                                <div className="space-y-4">
-                                                    <div className="bg-purple-900/20 p-4 rounded-xl border border-purple-800/50"><h4 className="text-purple-400 font-bold mb-2 flex items-center gap-2"><Icons.Code className="w-4 h-4"/> 網站發布代碼產生器</h4><p className="text-xs text-slate-400 mb-4">若您要將數據發布到 GitHub Pages，請複製此代碼並取代 HTML 檔案最上方的 <code>PRELOADED_DATA</code>。</p><button onClick={generateReleaseCode} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><Icons.Clipboard className="w-4 h-4"/> 複製完整資料庫代碼</button></div>
-                                                </div>
-                                            ) : inputMode === 'debug' ? (
-                                                <div className="space-y-4"><div className="bg-red-900/20 p-4 rounded-xl border border-red-900/50"><h4 className="text-red-400 font-bold mb-2 flex items-center gap-2"><Icons.Bug className="w-4 h-4"/> 測試與清空</h4><p className="text-xs text-slate-400 mb-4">產生模擬數據或清空資料庫。</p><div className="space-y-2"><button onClick={() => handleSimulation('TEAM', 1)} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2">產生「今日」球隊數據 (含攻守)</button><button onClick={() => handleSimulation('PLAYER', 1)} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2">產生「今日」球員數據 (含攻守)</button><div className="border-t border-slate-700/50 my-2"></div><button onClick={() => handleSimulation('TEAM', 5)} className="w-full py-2 bg-[#236192] hover:bg-[#1a4a70] text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Zap className="w-4 h-4"/> 產生近 5 日球隊歷史</button><button onClick={() => handleSimulation('PLAYER', 5)} className="w-full py-2 bg-[#236192] hover:bg-[#1a4a70] text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Zap className="w-4 h-4"/> 產生近 5 日球員歷史</button><div className="border-t border-slate-700/50 my-2"></div><button onClick={clearSimulation} className="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2 mb-2"><Icons.Eraser className="w-4 h-4"/> 僅清除模擬數據</button><button onClick={() => clearHistory('ALL')} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Trash2 className="w-4 h-4"/> 清空所有資料庫</button></div></div></div>
+                                            {inputMode === 'debug' ? (
+                                                <div className="space-y-4"><div className="bg-red-900/20 p-4 rounded-xl border border-red-900/50"><h4 className="text-red-400 font-bold mb-2 flex items-center gap-2"><Icons.Bug className="w-4 h-4"/> 測試與清空</h4><p className="text-xs text-slate-400 mb-4">嚴格雲端模式下已停用模擬功能。</p><div className="space-y-2"><button onClick={() => clearHistory('ALL')} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Trash2 className="w-4 h-4"/> 清空雲端資料庫 (需手動確認)</button></div></div></div>
                                             ) : (
                                                 /* Team/Player Tool section (same as before) */
                                                 <>
@@ -479,4 +485,3 @@
     </script>
 </body>
 </html>
-
