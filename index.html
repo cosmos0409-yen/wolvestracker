@@ -49,7 +49,7 @@
             }).catch(e => {
                 console.warn("Firebase 登入失敗:", e);
                 window.firebaseError = e;
-                window.dispatchEvent(new Event('firebase-error')); // 通知 React 更新錯誤狀態
+                window.dispatchEvent(new Event('firebase-error'));
                 const errLog = document.getElementById('error-log');
                 if(errLog) {
                     errLog.style.display = 'block';
@@ -197,20 +197,27 @@
                 };
             }, []);
 
-            // Init & Sync Logic
+            // Init & Sync Logic - FIX: Re-run when isCloud changes
             useEffect(() => {
-                if (window.db && window.firebaseModules) {
+                if (isCloud && window.db && window.firebaseModules) {
                     const { collection, onSnapshot, query, orderBy } = window.firebaseModules;
-                    onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
+                    
+                    const unsubTeam = onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
                         if(data.length > 0) setTeamHistory(data);
                     });
-                    onSnapshot(query(collection(window.db, "wolves_player_stats"), orderBy("date", "desc")), (snapshot) => {
+                    
+                    const unsubPlayer = onSnapshot(query(collection(window.db, "wolves_player_stats"), orderBy("date", "desc")), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
                         if(data.length > 0) setPlayerHistory(data);
                     });
+
+                    return () => {
+                        unsubTeam();
+                        unsubPlayer();
+                    };
                 }
-            }, []);
+            }, [isCloud]);
 
             const copyToClipboard = (text) => {
                 const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; textArea.style.left = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
@@ -312,9 +319,6 @@
                             return;
                         }
 
-                        // Remove local state update, wait for snapshot
-                        // setTeamHistory(newHistory);
-                        
                         await saveDataToFirebase("wolves_team_stats", today, enrichedData);
 
                     // --- PLAYER DATA ---
@@ -338,9 +342,6 @@
                             }
                         }
 
-                        // Remove local state update
-                        // setPlayerHistory(newHistory);
-
                         await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
 
                     } else { throw new Error("無法識別數據格式"); }
@@ -352,12 +353,6 @@
             const clearHistory = async (type) => { 
                 if(type === 'ALL' && confirm("這將刪除雲端所有歷史紀錄，確定嗎？")) { 
                     if (!window.db) return alert("無雲端連線");
-                    // Clearing Firestore is complex (needs to delete each doc), 
-                    // for simplicity in this file-based app, we might just warn user or delete current day?
-                    // Implementing full delete for all docs in a collection client-side is heavy.
-                    // For now, let's keep it simple or just clear local state to simulate.
-                    // But user asked to remove local state logic.
-                    // Let's just warn that this feature is limited in Cloud Mode for safety/complexity.
                     alert("注意：在嚴格雲端模式下，清空整個資料庫需要透過 Firebase Console 操作以確保安全。");
                 } 
             };
@@ -487,7 +482,7 @@
                     <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick} title="點擊查看連線詳情">DAILY TRACKER {window.isCloudEnabled ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
+                                <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Timberwolves PlayType</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick} title="點擊查看連線詳情">DAILY TRACKER {isCloud ? <span className="text-blue-400 ml-2 font-bold animate-pulse">• Cloud</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
                             </div>
                             <div className="flex items-center gap-2"><a href="https://www.nba.com/stats/team/1610612750/onoffcourt-traditional" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border border-slate-700"><Icons.ExternalLink className="w-4 h-4" /> Team Info</a><button onClick={() => setShowInputModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#236192] hover:bg-[#1a4a70] text-white rounded-lg text-sm font-bold transition-all shadow-lg active:scale-95"><Icons.PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">匯入數據</span><span className="sm:hidden">匯入</span></button></div>
                         </div>
