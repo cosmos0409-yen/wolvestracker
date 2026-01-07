@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>灰狼隊 PlayType 每日追蹤 (Cloud Only)</title>
+    <title>灰狼隊 PlayType 每日追蹤 </title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -14,12 +14,12 @@
         window.isCloudEnabled = false;
         window.db = null;
         window.firebaseModules = null;
-        window.firebaseError = null; // 儲存錯誤物件
+        window.firebaseError = null;
     </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // =================================================================
@@ -39,8 +39,7 @@
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             window.db = getFirestore(app);
-            // 加入 writeBatch 支援批次寫入
-            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch };
+            window.firebaseModules = { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy };
             
             signInAnonymously(auth).then(() => {
                 console.log("✅ Firebase 連線成功 (匿名登入)");
@@ -75,6 +74,8 @@
         .chart-dot:hover { r: 6; stroke-width: 3; cursor: pointer; }
         .fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* 日期選擇器樣式 */
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -126,7 +127,8 @@
             BarChart: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>,
             Cloud: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.2-2.3-2.2-4-4.5-4-2.1 0-3.9 1.5-4.4 3.6C2.6 15.8 1 17.7 1 20c0 2.2 1.8 4 4 4h12.5c2.5 0 4.5-2 4.5-4.5s-2-4.5-4.5-4.5z"/></svg>,
             Code: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
-            AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            AlertCircle: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Filter: ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
         };
 
         const PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
@@ -202,12 +204,14 @@
             useEffect(() => {
                 if (window.db && window.firebaseModules) {
                     const { collection, onSnapshot, query, orderBy } = window.firebaseModules;
-                    onSnapshot(query(collection(window.db, "wolves_team_stats"), orderBy("date", "desc")), (snapshot) => {
+                    onSnapshot(collection(window.db, "wolves_team_stats"), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
+                        data.sort((a, b) => new Date(b.date) - new Date(a.date));
                         if(data.length > 0) setTeamHistory(data);
                     });
-                    onSnapshot(query(collection(window.db, "wolves_player_stats"), orderBy("date", "desc")), (snapshot) => {
+                    onSnapshot(collection(window.db, "wolves_player_stats"), (snapshot) => {
                         const data = snapshot.docs.map(doc => ({ ...doc.data(), date: doc.id }));
+                        data.sort((a, b) => new Date(b.date) - new Date(a.date));
                         if(data.length > 0) setPlayerHistory(data);
                     });
                 }
@@ -258,51 +262,28 @@
             };
 
             // 匯入備份 (讀取JSON)
-            const handleImportBackup = async () => {
+            const handleImportBackup = () => {
                 if (!jsonInput.trim()) return alert("請貼上備份 JSON 內容");
                 try {
                     const parsed = JSON.parse(jsonInput);
                     if (!parsed.team || !parsed.player) throw new Error("格式錯誤：找不到 team 或 player 數據");
                     
-                    if (confirm(`確定要還原備份到雲端嗎？\n這將會把備份中的所有歷史紀錄逐一寫入雲端資料庫。\n\n備份日期: ${parsed.exportDate || '未知'}`)) {
-                        
-                        if (!window.db) return alert("錯誤：無法連線到雲端資料庫，無法執行還原。");
-                        
-                        // Migration logic
+                    if (confirm(`確定要還原備份嗎？\n這將覆蓋目前的數據。\n\n備份日期: ${parsed.exportDate || '未知'}`)) {
                         const teamData = parsed.team.map(entry => ({
                             ...entry,
                             stats: entry.stats.map(s => ({ ...s, side: s.side || 'offensive' }))
                         }));
                         const playerData = parsed.player.map(entry => {
                             const newStats = {};
-                            // Handle both array (flat) and object (grouped) structures if needed, 
-                            // but our backup format is consistent. Assuming grouped by player in backup?
-                            // Actually current backup format is whatever teamHistory/playerHistory state is.
-                            // playerHistory state structure: { date, stats: { "Ant": [...], ... } }
-                            // So we just need to ensure side property.
-                            const statsMap = {};
                             Object.keys(entry.stats).forEach(player => {
-                                statsMap[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
+                                newStats[player] = entry.stats[player].map(s => ({ ...s, side: s.side || 'offensive' }));
                             });
-                            return { ...entry, stats: statsMap };
+                            return { ...entry, stats: newStats };
                         });
 
-                        const { doc, setDoc } = window.firebaseModules;
-                        let uploadCount = 0;
-
-                        // Batch upload team data
-                        for (const entry of teamData) {
-                            await setDoc(doc(window.db, "wolves_team_stats", entry.date), { stats: entry.stats, timestamp: entry.timestamp || Date.now() });
-                            uploadCount++;
-                        }
-
-                        // Batch upload player data
-                        for (const entry of playerData) {
-                            await setDoc(doc(window.db, "wolves_player_stats", entry.date), { stats: entry.stats, timestamp: entry.timestamp || Date.now() });
-                            uploadCount++;
-                        }
-
-                        alert(`✅ 雲端還原成功！\n共上傳 ${uploadCount} 筆單日紀錄。`);
+                        setTeamHistory(teamData);
+                        setPlayerHistory(playerData);
+                        alert("✅ 數據還原成功！(注意：若處於 Cloud 模式，此還原僅暫存於記憶體，重新整理後將重新載入雲端數據)");
                         setShowInputModal(false);
                         setJsonInput('');
                         setViewIndex(0);
@@ -316,7 +297,6 @@
                 const today = new Date().toISOString().split('T')[0];
                 if (!jsonInput.trim()) return alert("請貼上數據");
                 
-                // Strict Cloud Mode Check
                 if (!window.isCloudEnabled) {
                     alert("錯誤：尚未連線至雲端資料庫，無法儲存數據。");
                     return;
@@ -325,7 +305,6 @@
                 try {
                     const parsed = JSON.parse(jsonInput);
                     
-                    // --- TEAM DATA ---
                     if (parsed.dataType === "TEAM" || (Array.isArray(parsed) && !parsed[0].playerName)) {
                         const data = parsed.dataType ? parsed.data : parsed;
                         const enrichedData = data.map(item => ({...item, side: item.side || 'offensive'}));
@@ -335,11 +314,11 @@
                             return;
                         }
 
-                        // Save Cloud
-                        if(window.isCloudEnabled) await saveDataToFirebase("wolves_team_stats", today, enrichedData);
-                        else alert("✅ 成功匯入 [球隊] 數據 (僅本機)！");
+                        // Remove local state update, wait for snapshot
+                        // setTeamHistory(newHistory);
+                        
+                        await saveDataToFirebase("wolves_team_stats", today, enrichedData);
 
-                    // --- PLAYER DATA ---
                     } else if (parsed.dataType === "PLAYER" || (Array.isArray(parsed) && parsed[0].playerName)) {
                         const data = parsed.dataType ? parsed.data : parsed;
                         const playerStatsMap = {};
@@ -348,7 +327,6 @@
                             playerStatsMap[row.playerName].push({...row, side: row.side || 'offensive'});
                         });
 
-                        // Duplicate Check (Player - Sample Check with Ant)
                         if (playerHistory.length > 0) {
                             const lastEntry = playerHistory[0];
                             const keyPlayer = "Anthony Edwards";
@@ -360,9 +338,10 @@
                             }
                         }
 
-                        // Save Cloud
-                        if(window.isCloudEnabled) await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
-                        else alert("✅ 成功匯入 [球員] 數據 (僅本機)！");
+                        // Remove local state update
+                        // setPlayerHistory(newHistory);
+
+                        await saveDataToFirebase("wolves_player_stats", today, playerStatsMap);
 
                     } else { throw new Error("無法識別數據格式"); }
                     
@@ -378,10 +357,9 @@
             };
             const handleLogin = () => { if (loginPassword === 'yen76wolfherd') { setIsAuthenticated(true); setLoginPassword(''); } else { alert('密碼錯誤'); } };
             const generateReleaseCode = () => { copyToClipboard(JSON.stringify(teamHistory)); alert("已複製代碼"); };
-            const handleSimulation = (type, days=1) => { /* Disabled in Strict Cloud Mode to avoid pollution or confusion */ alert("嚴格雲端模式下已停用模擬功能。"); };
+            const handleSimulation = (type, days=1) => { /* Disabled in Strict Cloud Mode */ alert("嚴格雲端模式下已停用模擬功能。"); };
             const clearSimulation = () => { /* Disabled */ };
             
-            // 診斷按鈕的點擊事件
             const handleStatusClick = () => {
                 if (!isCloud) {
                     if (window.firebaseError) {
@@ -403,7 +381,6 @@
                 }
             };
             
-            // ... (View Logic Same) ...
             let currentStats = []; let prevStats = []; let displayDate = "尚無數據"; let currentPlayerId = null;
             if (viewMode === 'TEAM') {
                 const current = teamHistory[viewIndex]; const prev = teamHistory[viewIndex + 1];
@@ -461,19 +438,48 @@
 
             const HistoryModal = ({ playType, onClose }) => {
                 const [chartMetric, setChartMetric] = useState(null); 
+                
+                // --- 新增：篩選狀態 ---
+                const [filterMode, setFilterMode] = useState('recent'); // 'recent' | 'range'
+                const [recentCount, setRecentCount] = useState(10);
+                const [dateStart, setDateStart] = useState('');
+                const [dateEnd, setDateEnd] = useState('');
+                // ---------------------
+
                 const targetHistory = viewMode === 'TEAM' ? teamHistory : playerHistory;
-                const recentStats = targetHistory
-                    .map(entry => {
+                
+                // 1. 基礎篩選 (只抓該 PlayType / Side)
+                const baseStats = useMemo(() => {
+                    return targetHistory.map(entry => {
                         let stat;
-                        if (viewMode === 'TEAM') stat = entry.stats.find(s => s.playType === playType && (s.side || 'offensive') === viewSide);
-                        else stat = entry.stats[selectedPlayer]?.find(s => s.playType === playType && (s.side || 'offensive') === viewSide);
+                        if (viewMode === 'TEAM') {
+                            stat = entry.stats.find(s => s.playType === playType && (s.side || 'offensive') === viewSide);
+                        } else {
+                            stat = entry.stats[selectedPlayer]?.find(s => s.playType === playType && (s.side || 'offensive') === viewSide);
+                        }
                         return { date: entry.date, stat };
-                    })
-                    .filter(item => item.stat)
-                    .slice(0, 10);
-                const chartData = [...recentStats].reverse();
+                    }).filter(item => item.stat);
+                }, [targetHistory, viewMode, selectedPlayer, playType, viewSide]);
+
+                // 2. 進階篩選 (日期範圍 / 筆數)
+                const displayedStats = useMemo(() => {
+                    let filtered = [...baseStats];
+
+                    if (filterMode === 'recent') {
+                        if (recentCount === 'ALL') return filtered;
+                        return filtered.slice(0, recentCount);
+                    } else {
+                        // Custom Range
+                        if (dateStart) filtered = filtered.filter(item => item.date >= dateStart);
+                        if (dateEnd) filtered = filtered.filter(item => item.date <= dateEnd);
+                        return filtered;
+                    }
+                }, [baseStats, filterMode, recentCount, dateStart, dateEnd]);
+
+                const chartData = [...displayedStats].reverse(); // Oldest first for chart
                 const isDefensive = viewSide === 'defensive';
                 const toggleChart = (metric) => { if (chartMetric === metric) setChartMetric(null); else setChartMetric(metric); };
+
                 return (
                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
                         <div className="bg-slate-950 rounded-2xl border border-slate-700 w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
@@ -484,13 +490,55 @@
                                 </h3>
                                 <button onClick={onClose} className="text-slate-400 hover:text-white"><Icons.X /></button>
                             </div>
+                            
+                            {/* --- 新增：篩選工具列 --- */}
+                            <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-3">
+                                <div className="flex bg-slate-800 rounded p-1">
+                                    {[5, 10, 20, 'ALL'].map(count => (
+                                        <button 
+                                            key={count}
+                                            onClick={() => { setFilterMode('recent'); setRecentCount(count); setDateStart(''); setDateEnd(''); }} 
+                                            className={`px-3 py-1 text-xs rounded transition-colors ${filterMode === 'recent' && recentCount === count ? 'bg-[#236192] text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            {count === 'ALL' ? '全部' : `近${count}場`}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="h-6 w-px bg-slate-700 mx-1"></div>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="date" 
+                                        value={dateStart} 
+                                        onChange={(e) => { setDateStart(e.target.value); setFilterMode('range'); }} 
+                                        className={`bg-slate-800 border ${filterMode === 'range' ? 'border-[#236192] text-white' : 'border-slate-700 text-slate-400'} text-xs px-2 py-1 rounded focus:outline-none focus:border-[#236192]`} 
+                                    />
+                                    <span className="text-slate-500 text-xs">to</span>
+                                    <input 
+                                        type="date" 
+                                        value={dateEnd} 
+                                        onChange={(e) => { setDateEnd(e.target.value); setFilterMode('range'); }} 
+                                        className={`bg-slate-800 border ${filterMode === 'range' ? 'border-[#236192] text-white' : 'border-slate-700 text-slate-400'} text-xs px-2 py-1 rounded focus:outline-none focus:border-[#236192]`} 
+                                    />
+                                </div>
+                            </div>
+                            {/* ----------------------- */}
+
                             <div className="p-4 bg-slate-900/50 border-b border-slate-800">
                                 <p className="text-xs text-slate-400 mb-2 flex items-center gap-2"><Icons.BarChart className="w-3 h-3"/> 點擊下方欄位標題可切換折線圖：</p>
-                                {chartMetric && (<div className="mb-4 fade-in"><h4 className="text-xs font-bold text-white mb-2 uppercase tracking-wider">{chartMetric} 走勢圖 (近10場)</h4><SimpleLineChart data={chartData} dataKey={chartMetric} color={isDefensive && (chartMetric === 'ppp' || chartMetric === 'fgPct') ? '#ef4444' : '#78BE20'} /></div>)}
+                                {chartMetric && (<div className="mb-4 fade-in"><h4 className="text-xs font-bold text-white mb-2 uppercase tracking-wider">{chartMetric} 走勢圖 ({filterMode === 'recent' ? (recentCount === 'ALL' ? '全部' : `近${recentCount}場`) : '自選區間'})</h4><SimpleLineChart data={chartData} dataKey={chartMetric} color={isDefensive && (chartMetric === 'ppp' || chartMetric === 'fgPct') ? '#ef4444' : '#78BE20'} /></div>)}
                             </div>
                             <div className="p-0 overflow-y-auto">
                                 <table className="w-full text-left text-sm text-slate-400"><thead className="bg-slate-900/50 text-xs uppercase font-bold text-slate-500 sticky top-0"><tr><th className="px-6 py-3">日期</th><th className={`px-6 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetric === 'ppp' ? 'text-white border-b-2 border-[#78BE20]' : ''}`} onClick={() => toggleChart('ppp')}>PPP</th><th className={`px-6 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetric === 'fgPct' ? 'text-white border-b-2 border-[#78BE20]' : ''}`} onClick={() => toggleChart('fgPct')}>FG%</th><th className={`px-6 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetric === 'percentile' ? 'text-white border-b-2 border-[#78BE20]' : ''}`} onClick={() => toggleChart('percentile')}>Percentile</th><th className={`px-6 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetric === 'poss' ? 'text-white border-b-2 border-[#78BE20]' : ''}`} onClick={() => toggleChart('poss')}>Poss</th></tr></thead>
-                                    <tbody className="divide-y divide-slate-800">{recentStats.map((item, idx) => { const prevItem = recentStats[idx + 1]; const pppDiff = prevItem ? (item.stat.ppp - prevItem.stat.ppp).toFixed(2) : 0; let isGood = false; let isBad = false; const numDiff = parseFloat(pppDiff); if (prevItem) { if (isDefensive) { if (numDiff < 0) isGood = true; else if (numDiff > 0) isBad = true; } else { if (numDiff > 0) isGood = true; else if (numDiff < 0) isBad = true; } } return (<tr key={item.date} className="hover:bg-slate-900/50 transition-colors"><td className="px-6 py-4 font-mono text-slate-300">{item.date}</td><td className="px-6 py-4"><div className="flex items-center gap-2"><span className={`font-bold font-mono text-lg ${isGood ? 'text-green-400' : isBad ? 'text-red-400' : 'text-white'}`}>{item.stat.ppp}</span>{prevItem && (isGood ? <Icons.ArrowUp className="w-3 h-3 text-green-500"/> : isBad ? <Icons.ArrowDown className="w-3 h-3 text-red-500"/> : <Icons.Minus className="w-3 h-3 text-slate-600"/>)}</div></td><td className="px-6 py-4 font-mono">{item.stat.fgPct}%</td><td className="px-6 py-4 font-mono">{item.stat.percentile}th</td><td className="px-6 py-4 font-mono">{item.stat.poss}</td></tr>); })}</tbody></table>
+                                    <tbody className="divide-y divide-slate-800">{displayedStats.map((item, idx) => { 
+                                        // 注意：在篩選模式下，"上一筆" (prevItem) 的比較對象是 "列表中的下一項"
+                                        // 這在日期連續時是準確的，但在日期跳躍（篩選）時，僅代表"顯示範圍內的上一筆"
+                                        const prevItem = displayedStats[idx + 1]; 
+                                        const pppDiff = prevItem ? (item.stat.ppp - prevItem.stat.ppp).toFixed(2) : 0; 
+                                        let isGood = false; let isBad = false; const numDiff = parseFloat(pppDiff); 
+                                        if (prevItem) { if (isDefensive) { if (numDiff < 0) isGood = true; else if (numDiff > 0) isBad = true; } else { if (numDiff > 0) isGood = true; else if (numDiff < 0) isBad = true; } } 
+                                        return (<tr key={item.date} className="hover:bg-slate-900/50 transition-colors"><td className="px-6 py-4 font-mono text-slate-300">{item.date}</td><td className="px-6 py-4"><div className="flex items-center gap-2"><span className={`font-bold font-mono text-lg ${isGood ? 'text-green-400' : isBad ? 'text-red-400' : 'text-white'}`}>{item.stat.ppp}</span>{prevItem && (isGood ? <Icons.ArrowUp className="w-3 h-3 text-green-500"/> : isBad ? <Icons.ArrowDown className="w-3 h-3 text-red-500"/> : <Icons.Minus className="w-3 h-3 text-slate-600"/>)}</div></td><td className="px-6 py-4 font-mono">{item.stat.fgPct}%</td><td className="px-6 py-4 font-mono">{item.stat.percentile}th</td><td className="px-6 py-4 font-mono">{item.stat.poss}</td></tr>); 
+                                    })}</tbody></table>
+                                    {displayedStats.length === 0 && <div className="p-8 text-center text-slate-500 text-xs">此區間無數據</div>}
                             </div>
                         </div>
                     </div>
@@ -534,32 +582,14 @@
                                     <div className="p-10 flex flex-col items-center justify-center space-y-4"><div className="bg-slate-900 p-6 rounded-xl border border-slate-700 w-full max-w-sm text-center shadow-lg"><div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700"><Icons.Lock className="w-8 h-8 text-yellow-500" /></div><h3 className="text-white font-bold mb-4">管理員權限驗證</h3><p className="text-xs text-slate-400 mb-6">為防止數據誤刪，請輸入管理密碼以繼續。</p><input type="password" className="w-full bg-slate-950 border border-slate-600 rounded-lg p-3 text-sm text-white mb-4 focus:outline-none focus:border-yellow-500 text-center" placeholder="請輸入密碼" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} /><button onClick={handleLogin} className="w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg transition-colors">驗證身分</button></div></div>
                                 ) : (
                                     <>
-                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('backup')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'backup' ? 'text-yellow-500 border-b-2 border-yellow-500 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>備份/還原</button><button onClick={() => setInputMode('publish')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'publish' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>發布工具</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
+                                        <div className="flex border-b border-slate-800 shrink-0"><button onClick={() => setInputMode('team_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'team_tool' ? 'text-[#78BE20] border-b-2 border-[#78BE20] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球隊數據</button><button onClick={() => setInputMode('player_tool')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'player_tool' ? 'text-[#236192] border-b-2 border-[#236192] bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>球員數據</button><button onClick={() => setInputMode('backup')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'backup' ? 'text-yellow-500 border-b-2 border-yellow-500 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>備份/還原</button><button onClick={() => setInputMode('debug')} className={`flex-1 py-3 text-sm font-bold transition-colors ${inputMode === 'debug' ? 'text-red-400 border-b-2 border-red-400 bg-slate-900' : 'text-slate-500 hover:text-slate-300'}`}>測試/清空</button></div>
                                         <div className="p-6 overflow-y-auto space-y-6">
-                                            {inputMode === 'publish' ? (
-                                                <div className="space-y-4">
-                                                    <div className="bg-purple-900/20 p-4 rounded-xl border border-purple-800/50"><h4 className="text-purple-400 font-bold mb-2 flex items-center gap-2"><Icons.Code className="w-4 h-4"/> 網站發布代碼產生器</h4><p className="text-xs text-slate-400 mb-4">若您要將數據發布到 GitHub Pages，請複製此代碼並取代 HTML 檔案最上方的 <code>PRELOADED_DATA</code>。</p><button onClick={generateReleaseCode} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><Icons.Clipboard className="w-4 h-4"/> 複製完整資料庫代碼</button></div>
-                                                </div>
-                                            ) : inputMode === 'debug' ? (
+                                            {inputMode === 'debug' ? (
                                                 <div className="space-y-4"><div className="bg-red-900/20 p-4 rounded-xl border border-red-900/50"><h4 className="text-red-400 font-bold mb-2 flex items-center gap-2"><Icons.Bug className="w-4 h-4"/> 測試與清空</h4><p className="text-xs text-slate-400 mb-4">嚴格雲端模式下已停用模擬功能。</p><div className="space-y-2"><button onClick={() => clearHistory('ALL')} className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors flex items-center justify-center gap-2"><Icons.Trash2 className="w-4 h-4"/> 清空雲端資料庫 (需手動確認)</button></div></div></div>
                                             ) : inputMode === 'backup' ? (
                                                 <div className="space-y-6">
-                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Download className="w-4 h-4 text-green-400"/> 匯出資料 (備份)</h4>
-                                                        <p className="text-xs text-slate-400 mb-3">將目前的球隊與球員數據下載為 JSON 檔案，以供備份或轉移至 Google Site。</p>
-                                                        <button onClick={handleExport} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700 transition-colors flex items-center justify-center gap-2">
-                                                            <Icons.Save className="w-4 h-4"/> 下載備份檔案
-                                                        </button>
-                                                    </div>
-
-                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                                                        <h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料 (上傳雲端)</h4>
-                                                        <p className="text-xs text-slate-400 mb-3">請將備份檔案 (.json) 的內容複製並貼在下方。</p>
-                                                        <textarea className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 mb-3" placeholder='{"team": [...], "player": [...]}' value={jsonInput} onChange={(e) => setJsonInput(e.target.value)}></textarea>
-                                                        <button onClick={handleImportBackup} className="w-full py-3 bg-[#236192] hover:bg-[#1a4a70] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
-                                                            <Icons.Upload className="w-4 h-4"/> 還原數據
-                                                        </button>
-                                                    </div>
+                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800"><h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Download className="w-4 h-4 text-green-400"/> 匯出資料 (備份)</h4><p className="text-xs text-slate-400 mb-3">將目前的球隊與球員數據下載為 JSON 檔案，以供備份或轉移至 Google Site。</p><button onClick={handleExport} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700 transition-colors flex items-center justify-center gap-2"><Icons.Save className="w-4 h-4"/> 下載備份檔案</button></div>
+                                                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800"><h4 className="text-white font-bold mb-2 flex items-center gap-2"><Icons.Upload className="w-4 h-4 text-blue-400"/> 還原資料</h4><p className="text-xs text-slate-400 mb-3">請將備份檔案 (.json) 的內容複製並貼在下方。</p><textarea className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 mb-3" placeholder='{"team": [...], "player": [...]}' value={jsonInput} onChange={(e) => setJsonInput(e.target.value)}></textarea><button onClick={handleImportBackup} className="w-full py-3 bg-[#236192] hover:bg-[#1a4a70] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"><Icons.Upload className="w-4 h-4"/> 還原數據</button></div>
                                                 </div>
                                             ) : (
                                                 /* Team/Player Tool section (same as before) */
@@ -583,4 +613,3 @@
     </script>
 </body>
 </html>
-
