@@ -1,4 +1,4 @@
-import requests
+from curl_cffi import requests
 import json
 import os
 import time
@@ -31,8 +31,8 @@ USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
 ]
 
-# 使用 Session 維持 TCP/TLS 連線，行為更像瀏覽器
-SESSION = requests.Session()
+# 使用 curl_cffi 模擬真實瀏覽器 TLS 指紋，避免被 NBA API 阻擋
+SESSION = requests.Session(impersonate="chrome110")
 SESSION.headers.update({
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'en-US,en;q=0.9',
@@ -50,7 +50,7 @@ SESSION.headers.update({
 def nba_get(url):
     """發送帶有隨機 User-Agent 的 GET 請求，timeout=15s"""
     SESSION.headers['User-Agent'] = random.choice(USER_AGENTS)
-    return SESSION.get(url, timeout=15)
+    return SESSION.get(url, timeout=30)
 
 def safe_col(row, headers_list, col_name, default=0, pct=False):
     """安全取得欄位值，若欄位不存在則回傳 default"""
