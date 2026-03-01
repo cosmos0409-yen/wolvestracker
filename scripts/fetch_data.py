@@ -48,9 +48,9 @@ SESSION.headers.update({
 })
 
 def nba_get(url):
-    """發送帶有隨機 User-Agent 的 GET 請求，timeout=30s"""
+    """發送帶有隨機 User-Agent 的 GET 請求，timeout=15s"""
     SESSION.headers['User-Agent'] = random.choice(USER_AGENTS)
-    return SESSION.get(url, timeout=30)
+    return SESSION.get(url, timeout=15)
 
 def safe_col(row, headers_list, col_name, default=0, pct=False):
     """安全取得欄位值，若欄位不存在則回傳 default"""
@@ -273,6 +273,11 @@ def main():
     
     print("=== 資料整理完成，準備寫入 Firebase ===")
     
+    # 防止 API 抓取失敗導致洗掉資料庫
+    if not team_synergy and not player_synergy:
+        print("❌ 警告：未成功抓取任何 Synergy 數據，可能遭到 NBA API 阻擋，本次終止寫入。")
+        return
+
     db = init_firebase()
     if db:
         today = get_today_str()

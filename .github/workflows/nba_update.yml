@@ -17,7 +17,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11'
         cache: 'pip' # 啟用 pip 快取加速執行
 
     - name: Install dependencies
@@ -30,4 +30,5 @@ jobs:
         # 將 Firebase 憑證放在 GitHub Secrets 裡
         FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       run: |
-        python scripts/fetch_data.py
+        # 加上 -u 參數強制 Python 不做輸出緩衝
+        python -u scripts/fetch_data.py
