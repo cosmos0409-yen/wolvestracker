@@ -13,7 +13,7 @@
 
     <!-- Recharts Dependencies & CDN -->
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    <script crossorigin src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <script crossorigin src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"></script>
 
     <script>
         window.isCloudEnabled = false;
@@ -188,8 +188,8 @@
         };
 
         const PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
-        const KEY_PLAYERS = ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Jaden McDaniels", "Naz Reid", "Donte DiVincenzo", "Mike Conley", "Rob Dillingham", "Terrence Shannon Jr.", "Joan Beringer", "Bones Hyland", "Joe Ingles", "Leonard Miller", "Jaylen Clark", "Johnny Juzang", "Rocco Zikarsky", "Enrique Freeman"];
-        const PLAYER_IDS = { "Anthony Edwards": "1630162", "Julius Randle": "203944", "Rudy Gobert": "203497", "Jaden McDaniels": "1630183", "Naz Reid": "1629675", "Donte DiVincenzo": "1628978", "Mike Conley": "201144", "Rob Dillingham": "1642265", "Terrence Shannon Jr.": "1642275", "Bones Hyland": "1630691", "Joe Ingles": "204060", "Leonard Miller": "1631165", "Jaylen Clark": "1631115", "Johnny Juzang": "1630548", "Enrique Freeman": "1642278" };
+        // 核心球員排序參考 (如果數據中有這些人則排前面，其餘字母排序)
+        const STARTER_SORT_WEIGHT = ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Jaden McDaniels", "Mike Conley", "Naz Reid", "Donte DiVincenzo"];
 
         // Components
         const TrendValue = ({ value, prevValue, unit = "", label, reverseColor = false }) => {
@@ -303,7 +303,7 @@
             const [playerHistory, setPlayerHistory] = useState([]);
             const [viewMode, setViewMode] = useState('TEAM');
             const [viewSide, setViewSide] = useState('offensive');
-            const [selectedPlayer, setSelectedPlayer] = useState(KEY_PLAYERS[0]);
+            const [selectedPlayer, setSelectedPlayer] = useState("");
             const [viewIndex, setViewIndex] = useState(0);
 
             // selectedCard: { type: 'playtype'|'tracking', id: string }
@@ -363,8 +363,31 @@
                     prevStats = prev.stats?.[selectedPlayer] || [];
                     prevTracking = prev.tracking?.[selectedPlayer] || {};
                 }
-                if (!currentPlayerId) currentPlayerId = PLAYER_IDS[selectedPlayer]; // Fallback ID map
             }
+
+            // 動態取得當前數據中有的球員清單
+            const availablePlayers = useMemo(() => {
+                const currentData = playerHistory[viewIndex];
+                if (!currentData || !currentData.stats) return [];
+                const names = Object.keys(currentData.stats);
+                return names.sort((a, b) => {
+                    const weightA = STARTER_SORT_WEIGHT.indexOf(a);
+                    const weightB = STARTER_SORT_WEIGHT.indexOf(b);
+                    if (weightA !== -1 && weightB !== -1) return weightA - weightB;
+                    if (weightA !== -1) return -1;
+                    if (weightB !== -1) return 1;
+                    return a.localeCompare(b);
+                });
+            }, [playerHistory, viewIndex]);
+
+            // 自動修正 selectedPlayer
+            useEffect(() => {
+                if (viewMode === 'PLAYER' && availablePlayers.length > 0) {
+                    if (!selectedPlayer || !availablePlayers.includes(selectedPlayer)) {
+                        setSelectedPlayer(availablePlayers[0]);
+                    }
+                }
+            }, [viewMode, availablePlayers]);
             const maxIndex = (viewMode === 'TEAM' ? teamHistory.length : playerHistory.length) - 1;
             const goPrev = () => { if (viewIndex < maxIndex) setViewIndex(viewIndex + 1); };
             const goNext = () => { if (viewIndex > 0) setViewIndex(viewIndex - 1); };
@@ -561,12 +584,19 @@
                                     </div>
                                     {viewMode === 'PLAYER' && (
                                         <div className="max-h-[300px] overflow-y-auto pr-2 rounded mt-2 border border-slate-800/50 p-2">
-                                            {KEY_PLAYERS.map(player => (
-                                                <button key={player} onClick={() => { setSelectedPlayer(player); setViewIndex(0); }} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#78BE20]/20 border border-[#78BE20]/50 text-[#78BE20] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-                                                    <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${PLAYER_IDS[player] || 0}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
-                                                    {player}
-                                                </button>
-                                            ))}
+                                            {availablePlayers.length === 0 && <p className="text-slate-500 text-xs p-2">當日無球員數據</p>}
+                                            {availablePlayers.map(player => {
+                                                const pStats = (playerHistory[viewIndex]?.stats?.[player]) || [];
+                                                const pTrack = (playerHistory[viewIndex]?.tracking?.[player]) || {};
+                                                const pId = pStats[0]?.playerId || pTrack.playerId || "0";
+                                                
+                                                return (
+                                                    <button key={player} onClick={() => { setSelectedPlayer(player); setViewIndex(0); }} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#78BE20]/20 border border-[#78BE20]/50 text-[#78BE20] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                                        <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${pId}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
+                                                        {player}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
