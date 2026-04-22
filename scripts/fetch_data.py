@@ -6,11 +6,70 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
 
+
+# ==========================================
+# Dedup 比對工具：避免連續兩天寫入完全相同的資料
+# ==========================================
+def _normalize(value):
+    """遞迴標準化供比對使用；list 內若全為 dict，依 JSON 字串排序，避免順序差異造成誤判"""
+    if isinstance(value, dict):
+        return {k: _normalize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        norm = [_normalize(x) for x in value]
+        if norm and all(isinstance(x, dict) for x in norm):
+            try:
+                norm.sort(key=lambda x: json.dumps(x, sort_keys=True, ensure_ascii=False))
+            except TypeError:
+                pass
+        return norm
+    if isinstance(value, float):
+        return round(value, 4)
+    return value
+
+
+def _data_equal(a, b):
+    return _normalize(a) == _normalize(b)
+
+
+def find_latest_existing(db, collection, today_str, lookback_days=14):
+    """從今天往回找最多 lookback_days 天，回傳第一個存在的 doc dict，找不到回 None"""
+    today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    for delta in range(1, lookback_days + 1):
+        check_date = (today_dt - timedelta(days=delta)).strftime("%Y-%m-%d")
+        doc = db.collection(collection).document(check_date).get()
+        if doc.exists:
+            data = doc.to_dict()
+            data["_doc_id"] = check_date
+            return data
+    return None
+
+
+def should_skip_write(db, collection, today_str, new_data):
+    """與最近一筆既存文件比對 stats + tracking，相同回傳 (True, prev_doc_id)"""
+    prev = find_latest_existing(db, collection, today_str)
+    if prev is None:
+        return False, None
+    if _data_equal(prev.get("stats"), new_data.get("stats")) and \
+       _data_equal(prev.get("tracking"), new_data.get("tracking")):
+        return True, prev["_doc_id"]
+    return False, prev["_doc_id"]
+
 # ==========================================
 # 參數與常數設定
 # ==========================================
 TEAM_ID = 1610612750 # 灰狼隊
 SEASON = "2025-26"
+
+# 例行賽: 10/20 ~ 4/15，季後賽: 4/16 ~ 6/20
+def get_season_type():
+    east_time = datetime.utcnow() - timedelta(hours=5)
+    m, d = east_time.month, east_time.day
+    if (m == 10 and d >= 20) or m in [11, 12, 1, 2, 3] or (m == 4 and d <= 15):
+        return "Regular+Season", "例行賽"
+    elif (m == 4 and d >= 16) or m == 5 or (m == 6 and d <= 20):
+        return "Playoffs", "季後賽"
+    else:
+        return None, None  # 休賽期
 
 PLAY_TYPES = [
     "Transition", "Isolation", "PRBallHandler", "PRRollMan", 
@@ -111,7 +170,7 @@ def fetch_synergy_data(player_or_team="T"):
             if side == "defensive" and (ptype == "Cut" or ptype == "Misc"):
                 continue # 防守沒有這兩項
             
-            url = f"https://stats.nba.com/stats/synergyplaytypes?LeagueID=00&PerMode=PerGame&PlayType={ptype}&PlayerOrTeam={player_or_team}&SeasonType=Regular%20Season&SeasonYear={SEASON}&TypeGrouping={side}"
+            url = f"https://stats.nba.com/stats/synergyplaytypes?LeagueID=00&PerMode=PerGame&PlayType={ptype}&PlayerOrTeam={player_or_team}&SeasonType={SEASON_TYPE_API}&SeasonYear={SEASON}&TypeGrouping={side}"
             
             # 加入 Retry 機制防禦 NBA 官網 API
             max_retries = 3
@@ -175,7 +234,7 @@ def fetch_tracking_data(player_or_team="Team"):
     for measure_type in TRACKING_TYPES:
         # 若抓取球員，將 TeamID 設為 0 以抓取全聯盟球員，解決季中轉隊數據歸屬未更新的問題
         team_id_param = TEAM_ID if player_or_team == "Team" else 0
-        url = f"https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam={player_or_team}&PtMeasureType={measure_type}&Season={SEASON}&SeasonSegment=&SeasonType=Regular%20Season&StarterBench=&TeamID={team_id_param}&VsConference=&VsDivision=&Weight="
+        url = f"https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam={player_or_team}&PtMeasureType={measure_type}&Season={SEASON}&SeasonSegment=&SeasonType={SEASON_TYPE_API}&StarterBench=&TeamID={team_id_param}&VsConference=&VsDivision=&Weight="
         
         max_retries = 3
         for attempt in range(max_retries):
@@ -279,8 +338,15 @@ def fetch_roster():
 # 主程式
 # ==========================================
 def main():
-    print("=== 開始抓取灰狼隊 Synergy 與 Tracking 數據 ===")
-    
+    global SEASON_TYPE_API, SEASON_TYPE_LABEL
+
+    SEASON_TYPE_API, SEASON_TYPE_LABEL = get_season_type()
+    if SEASON_TYPE_API is None:
+        print("目前為休賽期，不需要抓取數據，結束執行。")
+        return
+
+    print(f"=== 開始抓取灰狼隊數據（{SEASON_TYPE_LABEL}）===")
+
     # 1. 抓取球隊資料
     team_synergy = fetch_synergy_data("T")
     team_tracking = fetch_tracking_data("Team")
@@ -289,6 +355,7 @@ def main():
     final_team_data = {
         "date": get_today_str(),
         "type": "官方數據",
+        "seasonType": SEASON_TYPE_LABEL,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,      # Array
         "tracking": team_tracking_data # Dict
@@ -331,6 +398,7 @@ def main():
     final_player_data = {
         "date": get_today_str(),
         "type": "官方數據",
+        "seasonType": SEASON_TYPE_LABEL,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": player_stats_map,      # Dict of Arrays
         "tracking": final_tracking       # Dict of Dicts
@@ -346,15 +414,23 @@ def main():
     db = init_firebase()
     if db:
         today = get_today_str()
-        
-        # 覆寫當天數據或新增
-        team_doc_ref = db.collection('wolves_team_stats').document(today)
-        team_doc_ref.set(final_team_data)
-        print(f"✅ 球隊數據已寫入 Document: {today}")
-        
-        player_doc_ref = db.collection('wolves_player_stats').document(today)
-        player_doc_ref.set(final_player_data)
-        print(f"✅ 球員數據已寫入 Document: {today}")
+
+        # Dedup：若與最近一筆既存資料完全相同，跳過寫入（節省 Firestore 用量 & 避免 UI 出現多日相同點）
+        skip_team, prev_team = should_skip_write(db, 'wolves_team_stats', today, final_team_data)
+        if skip_team:
+            print(f"⏭️  球隊數據與 {prev_team} 完全相同，跳過寫入 {today}")
+        else:
+            team_doc_ref = db.collection('wolves_team_stats').document(today)
+            team_doc_ref.set(final_team_data)
+            print(f"✅ 球隊數據已寫入 Document: {today}（前一筆：{prev_team or '無'}）")
+
+        skip_player, prev_player = should_skip_write(db, 'wolves_player_stats', today, final_player_data)
+        if skip_player:
+            print(f"⏭️  球員數據與 {prev_player} 完全相同，跳過寫入 {today}")
+        else:
+            player_doc_ref = db.collection('wolves_player_stats').document(today)
+            player_doc_ref.set(final_player_data)
+            print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
         
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
     with open("local_test_data.json", "w", encoding="utf-8") as f:
