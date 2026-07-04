@@ -25,6 +25,7 @@ window.Icons = Icons;
 // ---------- constants.js ----------
 // 全域常數
 window.PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
+window.CURRENT_SEASON = "2025-26"; // 投籃熱圖 doc id 用，需與 scripts/fetch_data.py 的 SEASON 一致
 
 // 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照
 window.SEASON_OPTIONS = [
@@ -83,9 +84,52 @@ window.trackingDefs = [
     {
         id: 'Rebounding', title: '籃板掌握 (Rebounding)', metrics: [
             { key: 'REB', label: '籃板數', englishLabel: 'REB' },
+            { key: 'OREB', label: '進攻籃板', englishLabel: 'OREB' },
+            { key: 'DREB', label: '防守籃板', englishLabel: 'DREB' },
             { key: 'REB_CHANCES', label: '籃板機會', englishLabel: 'REB Chances' },
-            { key: 'REB_COL_PCT', label: '籃板掌握率', englishLabel: 'REB Col%', unit: '%' },
-            { key: 'REB_CONTEST_PCT', label: '防守干擾籃板率', englishLabel: 'REB Contest%', unit: '%' },
+            { key: 'REB_COL_PCT', label: '籃板掌握率', englishLabel: 'REB Chance%', unit: '%' },
+            { key: 'REB_CONTEST', label: '競爭籃板', englishLabel: 'Contested REB' },
+            { key: 'REB_CONTEST_PCT', label: '競爭籃板率', englishLabel: 'Contested REB%', unit: '%' },
+            { key: 'AVG_REB_DIST', label: '平均籃板距離(呎)', englishLabel: 'Avg REB Dist' },
+        ]
+    },
+];
+
+// 投籃數據卡片定義（資料來源為 doc.shooting，經由 leaguedash*shotlocations / *ptshot 抓取）
+window.shootingDefs = [
+    {
+        id: 'ShotZones', title: '分區命中率 (Shot Zones)', metrics: [
+            { key: 'RA_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area FG%', unit: '%' },
+            { key: 'PAINT_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA) FG%', unit: '%' },
+            { key: 'MID_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range FG%', unit: '%' },
+            { key: 'C3_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3 FG%', unit: '%' },
+            { key: 'AB3_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3 FG%', unit: '%' },
+        ]
+    },
+    {
+        id: 'ShotProfile', title: '投籃拆分 (Shot Profile)', metrics: [
+            { key: 'FGA', label: '出手次數', englishLabel: 'FGA' },
+            { key: 'EFG_PCT', label: '有效命中率', englishLabel: 'eFG%', unit: '%' },
+            { key: 'FG2A_FREQ', label: '兩分出手佔比', englishLabel: '2PA Freq', unit: '%' },
+            { key: 'FG2_PCT', label: '兩分命中率', englishLabel: '2P%', unit: '%' },
+            { key: 'FG3A_FREQ', label: '三分出手佔比', englishLabel: '3PA Freq', unit: '%' },
+            { key: 'FG3_PCT', label: '三分命中率', englishLabel: '3P%', unit: '%' },
+        ]
+    },
+];
+
+// 關鍵時刻卡片定義（資料來源為 doc.clutch，最後 5 分鐘分差 5 分內）
+window.clutchDefs = [
+    {
+        id: 'Clutch', title: '關鍵時刻 (Clutch — 最後5分鐘分差5分內)', metrics: [
+            { key: 'PTS', label: '得分', englishLabel: 'PTS' },
+            { key: 'FG_PCT', label: '命中率', englishLabel: 'FG%', unit: '%' },
+            { key: 'FG3_PCT', label: '三分命中率', englishLabel: '3P%', unit: '%' },
+            { key: 'FT_PCT', label: '罰球命中率', englishLabel: 'FT%', unit: '%' },
+            { key: 'AST', label: '助攻', englishLabel: 'AST' },
+            { key: 'TOV', label: '失誤', englishLabel: 'TOV', betterIsLarger: false },
+            { key: 'REB', label: '籃板', englishLabel: 'REB' },
+            { key: 'PLUS_MINUS', label: '正負值', englishLabel: '+/-' },
         ]
     },
 ];
@@ -272,11 +316,12 @@ window.PlayTypeCard = PlayTypeCard;
 
 // ---------- TrackingCardRow.js ----------
 // Tracking 卡片群組元件
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick }) => {
+// source: 資料在快照文件中的欄位名（'tracking' | 'shooting' | 'clutch'），供 HistoryModal 取數
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking' }) => {
     if (!current) return null;
     const Icons = window.Icons;
     return (
-        <div onClick={() => onClick({ type: 'tracking', id: category })} className="bg-[#1a202c] border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-slate-600 transition-colors group mb-4">
+        <div onClick={() => onClick({ type: 'tracking', id: category, source })} className="bg-[#1a202c] border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-slate-600 transition-colors group mb-4">
             <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-sm font-bold text-[#cbd5e0]">
                 {title}
                 <Icons.ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -297,6 +342,123 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick }) =
 window.TrackingCardRow = TrackingCardRow;
 
 
+// ---------- ShotChart.js ----------
+// 投籃熱圖元件：讀取 wolves_shotcharts/{playerId}_{season}_{type}，以 SVG 半場圖繪出手點
+// 座標系：NBA 官方 shotchartdetail（單位 0.1 呎，籃框在原點），SVG y 軸取負值翻轉
+const ShotChart = ({ playerId, playerName }) => {
+    const { useState, useEffect } = React;
+    const [shots, setShots] = useState(null);   // null=載入中, []=無資料
+    const [filter, setFilter] = useState('all'); // 'all' | 'made' | 'missed'
+
+    const season = window.CURRENT_SEASON;
+    // 依目前賽季階段選 doc；季後賽讀不到時退回例行賽
+    const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
+    const preferredTypes = phase.type === 'playoffs' ? ['playoffs', 'regular'] : ['regular'];
+
+    useEffect(() => {
+        if (!playerId || !window.db || !window.firebaseModules) return;
+        let cancelled = false;
+        setShots(null);
+        (async () => {
+            const cache = (window.__shotchartCache = window.__shotchartCache || {});
+            const { doc: docFn, getDoc } = window.firebaseModules;
+            for (const typeKey of preferredTypes) {
+                const docId = `${playerId}_${season}_${typeKey}`;
+                if (cache[docId] !== undefined) {
+                    if (cache[docId] && !cancelled) { setShots(cache[docId]); return; }
+                    continue; // 快取記錄此 doc 不存在，試下一個
+                }
+                try {
+                    const snap = await getDoc(docFn(window.db, 'wolves_shotcharts', docId));
+                    cache[docId] = snap.exists() ? (snap.data().shots || []) : null;
+                    if (cache[docId] && !cancelled) { setShots(cache[docId]); return; }
+                } catch (e) {
+                    console.error('shotchart fetch fail', docId, e);
+                }
+            }
+            if (!cancelled) setShots([]);
+        })();
+        return () => { cancelled = true; };
+    }, [playerId, season]);
+
+    if (!playerId) return null;
+
+    const made = shots ? shots.filter(s => s.made === 1).length : 0;
+    const total = shots ? shots.length : 0;
+    const fgPct = total > 0 ? ((made / total) * 100).toFixed(1) : '-';
+    const visible = shots ? shots.filter(s =>
+        filter === 'all' || (filter === 'made' ? s.made === 1 : s.made !== 1)
+    ) : [];
+
+    const lineStyle = { stroke: '#334155', strokeWidth: 3, fill: 'none' };
+
+    return (
+        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
+            <div className="flex flex-wrap justify-between items-center border-b-2 border-slate-700 pb-2 mb-4 gap-2">
+                <h2 className="text-xl font-bold">投籃熱圖 (Shot Chart)</h2>
+                <div className="flex items-center gap-3">
+                    {total > 0 && (
+                        <span className="text-xs text-slate-400 font-mono">{made}/{total}（{fgPct}%）</span>
+                    )}
+                    <div className="flex bg-slate-800 rounded p-1">
+                        {[
+                            { k: 'all', l: '全部' },
+                            { k: 'made', l: '命中' },
+                            { k: 'missed', l: '未中' },
+                        ].map(opt => (
+                            <button key={opt.k} onClick={() => setFilter(opt.k)}
+                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#78BE20] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
+                                {opt.l}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            {shots === null && (
+                <div className="h-[300px] flex items-center justify-center text-slate-500 text-sm animate-pulse">載入投籃資料中...</div>
+            )}
+            {shots !== null && total === 0 && (
+                <div className="h-[120px] flex items-center justify-center text-slate-500 text-sm">
+                    {playerName} 尚無投籃座標資料（每週更新一次）
+                </div>
+            )}
+            {shots !== null && total > 0 && (
+                <div className="flex flex-col items-center">
+                    <svg viewBox="-250 -470 500 522" className="w-full max-w-[480px]">
+                        {/* 出手點（先畫，讓球場線壓在上面） */}
+                        {visible.map((s, i) => (
+                            s.made === 1
+                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#78BE20" fillOpacity="0.55" />
+                                : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
+                                    <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
+                                    <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
+                                </g>
+                        ))}
+                        {/* 球場線（NBA 半場，單位 0.1 呎） */}
+                        <rect x="-250" y="-470" width="500" height="517.5" {...lineStyle} />
+                        <rect x="-80" y="-142.5" width="160" height="190" {...lineStyle} />
+                        <circle cx="0" cy="-142.5" r="60" {...lineStyle} />
+                        <path d="M -40 0 A 40 40 0 0 1 40 0" {...lineStyle} />
+                        <line x1="-30" y1="12.5" x2="30" y2="12.5" stroke="#475569" strokeWidth="4" />
+                        <circle cx="0" cy="0" r="7.5" stroke="#475569" strokeWidth="3" fill="none" />
+                        <line x1="-220" y1="47.5" x2="-220" y2="-89.5" {...lineStyle} />
+                        <line x1="220" y1="47.5" x2="220" y2="-89.5" {...lineStyle} />
+                        <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
+                    </svg>
+                    <div className="flex gap-4 mt-2 text-xs text-slate-400">
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#78BE20]"></span> 命中</span>
+                        <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>
+                        <span className="text-slate-500">每週更新</span>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+window.ShotChart = ShotChart;
+
+
 // ---------- App.js ----------
 // 主應用元件
 const { useState, useEffect, useMemo } = React;
@@ -307,7 +469,9 @@ const App = () => {
     const PlayTypesList = window.PlayTypesList;
     const STARTER_SORT_WEIGHT = window.STARTER_SORT_WEIGHT;
     const trackingDefs = window.trackingDefs;
-    const { PlayTypeCard, TrackingCardRow, SimpleLineChart, MultiLineChart } = window;
+    const shootingDefs = window.shootingDefs || [];
+    const clutchDefs = window.clutchDefs || [];
+    const { PlayTypeCard, TrackingCardRow, SimpleLineChart, MultiLineChart, ShotChart } = window;
 
     // 偏好持久化 helper
     const loadPref = (key, fallback) => {
@@ -538,6 +702,9 @@ const App = () => {
     // Derive Stats
     let currentStats = []; let currentTracking = {};
     let prevStats = []; let prevTracking = {};
+    let currentShooting = {}; let prevShooting = {};
+    let currentClutch = {}; let prevClutch = {};
+    let currentLineups = [];
     let displayDate = "尚無數據"; let currentPlayerId = null;
     let currentSeason = null; let currentSeasonType = null;
 
@@ -545,20 +712,29 @@ const App = () => {
         const current = teamHistory[viewIndex]; const prev = teamHistory[viewIndex + 1];
         if (current) {
             currentStats = current.stats || []; currentTracking = current.tracking || {}; displayDate = current.date;
+            currentShooting = current.shooting || {}; currentClutch = current.clutch || {};
+            currentLineups = current.lineups || [];
             currentSeason = current.season; currentSeasonType = current.seasonType;
         }
-        if (prev) { prevStats = prev.stats || []; prevTracking = prev.tracking || {}; }
+        if (prev) {
+            prevStats = prev.stats || []; prevTracking = prev.tracking || {};
+            prevShooting = prev.shooting || {}; prevClutch = prev.clutch || {};
+        }
     } else {
         const current = playerHistory[viewIndex]; const prev = playerHistory[viewIndex + 1];
         if (current) { currentSeason = current.season; currentSeasonType = current.seasonType; }
         if (current && current.stats?.[selectedPlayer]) {
             currentStats = current.stats[selectedPlayer]; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
+            currentShooting = current.shooting?.[selectedPlayer] || {};
+            currentClutch = current.clutch?.[selectedPlayer] || {};
             if (currentStats.length > 0 && currentStats[0].playerId) currentPlayerId = currentStats[0].playerId;
             else if (currentTracking.playerId) currentPlayerId = currentTracking.playerId;
         }
         if (prev) {
             prevStats = prev.stats?.[selectedPlayer] || [];
             prevTracking = prev.tracking?.[selectedPlayer] || {};
+            prevShooting = prev.shooting?.[selectedPlayer] || {};
+            prevClutch = prev.clutch?.[selectedPlayer] || {};
         }
     }
 
@@ -711,6 +887,8 @@ const App = () => {
         const [crossMetrics, setCrossMetrics] = useState([]); // array
 
         const targetHistory = viewMode === 'TEAM' ? teamHistory : playerHistory;
+        // tracking 類卡片的資料來源欄位（'tracking' | 'shooting' | 'clutch'）
+        const srcKey = cardInfo.source || 'tracking';
 
         // 進入 cross 分頁時補載所有歷史 doc
         useEffect(() => {
@@ -723,10 +901,10 @@ const App = () => {
                 let stat, trackingDat;
                 if (viewMode === 'TEAM') {
                     if (cardInfo.type === 'playtype') stat = entry.stats?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                    else trackingDat = entry.tracking || {};
+                    else trackingDat = entry[srcKey] || {};
                 } else {
                     if (cardInfo.type === 'playtype') stat = entry.stats?.[selectedPlayer]?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                    else trackingDat = entry.tracking?.[selectedPlayer] || {};
+                    else trackingDat = entry[srcKey]?.[selectedPlayer] || {};
                 }
                 return { date: entry.date, seasonType: entry.seasonType, stat, tracking: trackingDat };
             }).filter(item => (cardInfo.type === 'playtype' ? item.stat : Object.keys(item.tracking || {}).length > 0));
@@ -755,7 +933,7 @@ const App = () => {
             title = `${cardInfo.id} (${viewSide === 'offensive' ? '進攻' : '防守'})`;
             cols = [{ k: 'ppp', l: 'PPP' }, { k: 'fgPct', l: 'FG%' }, { k: 'percentile', l: 'Percentile' }, { k: 'poss', l: 'Poss' }];
         } else {
-            const def = trackingDefs.find(t => t.id === cardInfo.id);
+            const def = [...trackingDefs, ...shootingDefs, ...clutchDefs].find(t => t.id === cardInfo.id);
             title = def?.title || cardInfo.id;
             cols = def ? def.metrics.map(m => ({ k: m.key, l: m.label })) : [];
         }
@@ -766,10 +944,10 @@ const App = () => {
             let stat = null, tracking = {};
             if (viewMode === 'TEAM') {
                 if (cardInfo.type === 'playtype') stat = entry.stats?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                else tracking = entry.tracking || {};
+                else tracking = entry[srcKey] || {};
             } else {
                 if (cardInfo.type === 'playtype') stat = entry.stats?.[selectedPlayer]?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                else tracking = entry.tracking?.[selectedPlayer] || {};
+                else tracking = entry[srcKey]?.[selectedPlayer] || {};
             }
             return { stat, tracking };
         };
@@ -1166,6 +1344,77 @@ const App = () => {
                                     />
                                 ))}
                             </div>
+                        )}
+
+                        {/* 投籃數據（歷史快照無此資料時整區隱藏） */}
+                        {viewSide === 'offensive' && Object.keys(currentShooting).length > 0 && (
+                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
+                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-6">投籃數據 (Shooting)</h2>
+                                {shootingDefs.map(def => (
+                                    <TrackingCardRow
+                                        key={def.id} title={def.title} category={def.id} source="shooting"
+                                        metrics={def.metrics} current={currentShooting} prev={prevShooting}
+                                        onClick={setSelectedCard}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 關鍵時刻 */}
+                        {viewSide === 'offensive' && Object.keys(currentClutch).length > 0 && (
+                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-amber-500">
+                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-6">關鍵時刻 (Clutch)</h2>
+                                {clutchDefs.map(def => (
+                                    <TrackingCardRow
+                                        key={def.id} title={def.title} category={def.id} source="clutch"
+                                        metrics={def.metrics} current={currentClutch} prev={prevClutch}
+                                        onClick={setSelectedCard}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 陣容（球隊模式） */}
+                        {viewMode === 'TEAM' && viewSide === 'offensive' && currentLineups.length > 0 && (
+                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
+                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-4">五人陣容 (Lineups)</h2>
+                                <p className="text-xs text-slate-500 mb-3">依上場時間排序（進階效率為每 100 回合）</p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm text-slate-400">
+                                        <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
+                                            <tr>
+                                                <th className="px-4 py-3">陣容</th>
+                                                <th className="px-3 py-3 text-right">場次</th>
+                                                <th className="px-3 py-3 text-right">分鐘</th>
+                                                <th className="px-3 py-3 text-right">進攻效率</th>
+                                                <th className="px-3 py-3 text-right">防守效率</th>
+                                                <th className="px-3 py-3 text-right">淨效率</th>
+                                                <th className="px-3 py-3 text-right">TS%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800">
+                                            {currentLineups.map((lu, i) => (
+                                                <tr key={i} className="hover:bg-slate-800/70 transition-colors">
+                                                    <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lu.players}</td>
+                                                    <td className="px-3 py-3 text-right font-mono">{lu.GP}</td>
+                                                    <td className="px-3 py-3 text-right font-mono">{lu.MIN}</td>
+                                                    <td className="px-3 py-3 text-right font-mono">{lu.OFF_RATING}</td>
+                                                    <td className="px-3 py-3 text-right font-mono">{lu.DEF_RATING}</td>
+                                                    <td className={`px-3 py-3 text-right font-mono font-bold ${lu.NET_RATING > 0 ? 'text-[#78BE20]' : lu.NET_RATING < 0 ? 'text-red-400' : ''}`}>
+                                                        {lu.NET_RATING > 0 ? '+' : ''}{lu.NET_RATING}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right font-mono">{lu.TS_PCT}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 投籃熱圖（球員模式，當季） */}
+                        {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
+                            <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
                         )}
                     </div>
                     )}

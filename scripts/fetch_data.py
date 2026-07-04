@@ -1,10 +1,36 @@
-from curl_cffi import requests
+# -*- coding: utf-8 -*-
+"""
+Wolves Tracker - 每日當季數據抓取
+
+抓取灰狼隊當季 Synergy 戰術 / Tracking / 投籃 / Clutch / 陣容數據，
+寫入 Firestore（wolves_team_stats / wolves_player_stats，doc id 為日期）。
+共用抓取邏輯與欄位設定表見 nba_common.py。
+"""
+
 import json
+import sys
 import os
-import time
-import firebase_admin
-from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from nba_common import (
+    TEAM_ID,
+    get_today_str,
+    get_season_type,
+    init_firebase,
+    fetch_roster_with_ids,
+    fetch_synergy_data,
+    fetch_tracking_data,
+    fetch_shot_locations,
+    fetch_pt_shots,
+    fetch_clutch,
+    fetch_lineups,
+)
+
+SEASON = "2025-26"
+
+# 每日快照文件中參與去重比對的資料欄位
+DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups"]
 
 
 # ==========================================
@@ -45,367 +71,114 @@ def find_latest_existing(db, collection, today_str, lookback_days=14):
 
 
 def should_skip_write(db, collection, today_str, new_data):
-    """與最近一筆既存文件比對 stats + tracking，相同回傳 (True, prev_doc_id)"""
+    """與最近一筆既存文件比對 DATA_KEYS 各欄位，全部相同回傳 (True, prev_doc_id)"""
     prev = find_latest_existing(db, collection, today_str)
     if prev is None:
         return False, None
-    if _data_equal(prev.get("stats"), new_data.get("stats")) and \
-       _data_equal(prev.get("tracking"), new_data.get("tracking")):
+    if all(_data_equal(prev.get(k), new_data.get(k)) for k in DATA_KEYS):
         return True, prev["_doc_id"]
     return False, prev["_doc_id"]
 
-# ==========================================
-# 參數與常數設定
-# ==========================================
-TEAM_ID = 1610612750 # 灰狼隊
-SEASON = "2025-26"
-
-# 例行賽: 10/20 ~ 4/15，季後賽: 4/16 ~ 6/20
-def get_season_type():
-    east_time = datetime.utcnow() - timedelta(hours=5)
-    m, d = east_time.month, east_time.day
-    if (m == 10 and d >= 20) or m in [11, 12, 1, 2, 3] or (m == 4 and d <= 15):
-        return "Regular+Season", "例行賽"
-    elif (m == 4 and d >= 16) or m == 5 or (m == 6 and d <= 20):
-        return "Playoffs", "季後賽"
-    else:
-        return None, None  # 休賽期
-
-PLAY_TYPES = [
-    "Transition", "Isolation", "PRBallHandler", "PRRollMan", 
-    "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"
-]
-
-TRACKING_TYPES = [
-    "Drives", "CatchShoot", "PullUpShot", "Passing", "Possessions", "Rebounding"
-]
-
-import random
-
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-]
-
-# 使用 curl_cffi 模擬真實瀏覽器 TLS 指紋，避免被 NBA API 阻擋
-SESSION = requests.Session(impersonate="chrome110")
-SESSION.headers.update({
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br, zstd',
-    'x-nba-stats-origin': 'stats',
-    'x-nba-stats-token': 'true',
-    'Referer': 'https://www.nba.com/',
-    'Origin': 'https://www.nba.com',
-    'Connection': 'keep-alive',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-site',
-})
-
-def nba_get(url):
-    """發送帶有隨機 User-Agent 的 GET 請求，timeout=15s"""
-    SESSION.headers['User-Agent'] = random.choice(USER_AGENTS)
-    return SESSION.get(url, timeout=30)
-
-def safe_col(row, headers_list, col_name, default=0, pct=False):
-    """安全取得欄位值，若欄位不存在則回傳 default"""
-    if col_name not in headers_list:
-        return default
-    val = row[headers_list.index(col_name)]
-    if val is None:
-        return default
-    if pct:
-        return round(val * 100, 1)
-    return val
-
-# 記錄日期的輔助函式 (為了搭配前端的時區觀念)
-def get_today_str():
-    # 使用 UTC-5 (美東時間) 來作為基準，確保賽事日期的正確性
-    east_time = datetime.utcnow() - timedelta(hours=5)
-    return east_time.strftime('%Y-%m-%d')
-
 
 # ==========================================
-# Firebase 初始化
+# 資料整形
 # ==========================================
-def init_firebase():
-    """使用儲存在 GitHub Secrets 的 Service Account 或本地的 firebase-key.json 進行初始化"""
-    firebase_cred_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-    
-    if firebase_cred_json:
-        # 來自 GitHub Actions 或是環境變數
-        cred_dict = json.loads(firebase_cred_json)
-        cred = credentials.Certificate(cred_dict)
-    elif os.path.exists("firebase-key.json"):
-        # 來自本地端手動更新備案
-        cred = credentials.Certificate("firebase-key.json")
-        print("🔑 使用本地 firebase-key.json 進行 Firebase 驗證")
-    else:
-        print("沒有找到 FIREBASE_SERVICE_ACCOUNT 環境變數或本地 firebase-key.json。這將於本地測試時跳過 Firebase 寫入。")
-        return None
-    
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-    
-    return firestore.client()
-
-
-# ==========================================
-# API 抓取邏輯：Synergy PlayType (攻守)
-# ==========================================
-def fetch_synergy_data(player_or_team="T"):
+def to_name_keyed(pid_map, normalized_active):
     """
-    抓取 Synergy 戰術數據 (包含進攻與防守)
-    player_or_team: 'T' 查球隊, 'P' 查球員
+    將 PlayerID 為 key 的 dict 轉為球員名稱為 key（每日快照的既有格式），
+    並以現役名單過濾；名單為空時不過濾。
     """
-    results = []
-    sides = ["offensive", "defensive"]
-    
-    for side in sides:
-        for ptype in PLAY_TYPES:
-            if side == "defensive" and (ptype == "Cut" or ptype == "Misc"):
-                continue # 防守沒有這兩項
-            
-            url = f"https://stats.nba.com/stats/synergyplaytypes?LeagueID=00&PerMode=PerGame&PlayType={ptype}&PlayerOrTeam={player_or_team}&SeasonType={SEASON_TYPE_API}&SeasonYear={SEASON}&TypeGrouping={side}"
-            
-            # 加入 Retry 機制防禦 NBA 官網 API
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    print(f"Fetching PlayType: {ptype} ({side}) [{player_or_team}] (Attempt {attempt+1}/{max_retries})")
-                    res = nba_get(url)
-                    res.raise_for_status()
-                    data = res.json()
-                    
-                    headers_list = data['resultSets'][0]['headers']
-                    rows = data['resultSets'][0]['rowSet']
-                    
-                    # 若為查詢球隊，只保留灰狼隊；若是查球員，則保留全部，交由後續的現役名單過濾
-                    if player_or_team == "P":
-                        filtered_rows = rows
-                    else:
-                        filtered_rows = [r for r in rows if r[headers_list.index("TEAM_ID")] == TEAM_ID]
-                    
-                    for row in filtered_rows:
-                        # 門檻過濾：只要有任何球權資料 (POSS > 0) 就算達到門檻
-                        poss = row[headers_list.index("POSS")]
-                        if poss <= 0:
-                            continue
+    out = {}
+    for pid_str, data in pid_map.items():
+        data = dict(data)
+        name = (data.pop("playerName", "") or "").strip()
+        if not name:
+            continue
+        if normalized_active and name.lower() not in normalized_active:
+            continue
+        out[name] = {"playerId": int(pid_str), **data}
+    return out
 
-                        item = {
-                            "playType": ptype,
-                            "side": side,
-                            "poss": poss,
-                            "freq": round(row[headers_list.index("POSS_PCT")] * 100, 1),
-                            "ppp": round(row[headers_list.index("PPP")], 2),
-                            "fgPct": round(row[headers_list.index("FG_PCT")] * 100, 1) if row[headers_list.index("FG_PCT")] is not None else 0,
-                            "percentile": round(row[headers_list.index("PERCENTILE")] * 100, 1) if row[headers_list.index("PERCENTILE")] is not None else 0
-                        }
-                        
-                        if player_or_team == "P":
-                            item["playerName"] = row[headers_list.index("PLAYER_NAME")]
-                            item["playerId"] = row[headers_list.index("PLAYER_ID")]
-                            
-                        results.append(item)
-                    break # 成功抓取跳出 retry loop
-                        
-                except Exception as e:
-                    print(f"Error fetching {ptype} ({side}): {e}")
-                    time.sleep(3) # 失敗休息 3 秒再試
-            
-            time.sleep(2) # 每個 Request 中間休息 2 秒，防擋
-                
-    return results
 
-# ==========================================
-# API 抓取邏輯：Tracking (進階數據)
-# ==========================================
-def fetch_tracking_data(player_or_team="Team"):
-    """
-    抓取 Tracking 進階數據 (Drives, Catch & Shoot, ...)
-    player_or_team: 'Team' 查球隊, 'Player' 查球員
-    """
-    results = {}
-    
-    for measure_type in TRACKING_TYPES:
-        # 若抓取球員，將 TeamID 設為 0 以抓取全聯盟球員，解決季中轉隊數據歸屬未更新的問題
-        team_id_param = TEAM_ID if player_or_team == "Team" else 0
-        url = f"https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=&DateTo=&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=PerGame&PlayerExperience=&PlayerOrTeam={player_or_team}&PtMeasureType={measure_type}&Season={SEASON}&SeasonSegment=&SeasonType={SEASON_TYPE_API}&StarterBench=&TeamID={team_id_param}&VsConference=&VsDivision=&Weight="
-        
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                print(f"Fetching Tracking: {measure_type} [{player_or_team}] (Attempt {attempt+1}/{max_retries})")
-                res = nba_get(url)
-                res.raise_for_status()
-                data = res.json()
-                
-                headers_list = data['resultSets'][0]['headers']
-                rows = data['resultSets'][0]['rowSet']
-                
-                # API 已經加上 TeamID 條件，理論上出來的都是灰狼
-                for row in rows:
-                    if player_or_team == "Player":
-                        player_name = row[headers_list.index("PLAYER_NAME")]
-                        player_id = row[headers_list.index("PLAYER_ID")]
-                        ident = player_name
-                    else:
-                        ident = "MIN" # Team
-                        player_id = None
-                    
-                    if ident not in results:
-                        results[ident] = {"playerId": player_id}
-                    
-                    # 依據 MeasureType 寫入核心欄位
-                    if measure_type == "Drives":
-                        results[ident]["DRIVES"] = safe_col(row, headers_list, "DRIVES")
-                        results[ident]["DRIVE_FGM"] = safe_col(row, headers_list, "DRIVE_FGM")
-                        results[ident]["DRIVE_FG_PCT"] = safe_col(row, headers_list, "DRIVE_FG_PCT", pct=True)
-                        results[ident]["DRIVE_PTS_PCT"] = safe_col(row, headers_list, "DRIVE_PTS_PCT", pct=True)
-                        results[ident]["DRIVE_AST_PCT"] = safe_col(row, headers_list, "DRIVE_AST_PCT", pct=True)
-                        results[ident]["DRIVE_TOV_PCT"] = safe_col(row, headers_list, "DRIVE_TOV_PCT", pct=True)
-                    
-                    elif measure_type == "CatchShoot":
-                        results[ident]["CATCH_SHOOT_FGA"] = safe_col(row, headers_list, "CATCH_SHOOT_FGA")
-                        results[ident]["CATCH_SHOOT_FG3_PCT"] = safe_col(row, headers_list, "CATCH_SHOOT_FG3_PCT", pct=True)
-                        results[ident]["CATCH_SHOOT_EFG_PCT"] = safe_col(row, headers_list, "CATCH_SHOOT_EFG_PCT", pct=True)
-                    
-                    elif measure_type == "PullUpShot":
-                        results[ident]["PULL_UP_FGA"] = safe_col(row, headers_list, "PULL_UP_FGA")
-                        results[ident]["PULL_UP_FG3_PCT"] = safe_col(row, headers_list, "PULL_UP_FG3_PCT", pct=True)
-                        results[ident]["PULL_UP_EFG_PCT"] = safe_col(row, headers_list, "PULL_UP_EFG_PCT", pct=True)
-                    
-                    elif measure_type == "Passing":
-                        results[ident]["PASSES_MADE"] = safe_col(row, headers_list, "PASSES_MADE")
-                        results[ident]["AST"] = safe_col(row, headers_list, "AST")
-                        results[ident]["POTENTIAL_AST"] = safe_col(row, headers_list, "POTENTIAL_AST")
-                        results[ident]["AST_PTS_CREATED"] = safe_col(row, headers_list, "AST_POINTS_CREATED")
-                        results[ident]["SECONDARY_AST"] = safe_col(row, headers_list, "SECONDARY_AST")
-                    
-                    elif measure_type == "Possessions":
-                        results[ident]["TOUCHES"] = safe_col(row, headers_list, "TOUCHES")
-                        results[ident]["FRONT_CT_TOUCHES"] = safe_col(row, headers_list, "FRONT_CT_TOUCHES")
-                        results[ident]["TIME_OF_POSS"] = safe_col(row, headers_list, "TIME_OF_POSS")
-                        results[ident]["PTS_PER_TOUCH"] = safe_col(row, headers_list, "PTS_PER_TOUCH")
-                    
-                    elif measure_type == "Rebounding":
-                        results[ident]["REB"] = safe_col(row, headers_list, "REB")
-                        results[ident]["REB_CHANCES"] = safe_col(row, headers_list, "REB_CHANCES")
-                        results[ident]["REB_COL_PCT"] = safe_col(row, headers_list, "REB_COLLECT_PCT", pct=True)
-                        results[ident]["REB_CONTEST_PCT"] = safe_col(row, headers_list, "REB_CONTEST_PCT", pct=True)
-                
-                break # 成功跳出
-            except Exception as e:
-                print(f"Error fetching {measure_type}: {e}")
-                if hasattr(e, 'response') and e.response is not None:
-                    print(f"Response Body: {e.response.text}")
-                time.sleep(3)
-        
-        time.sleep(2) # 每一種暫停2秒
-            
-    return results
+def merge_maps(*maps):
+    """合併多個同 key 結構的 dict（後者欄位補進前者）"""
+    merged = {}
+    for m in maps:
+        for ident, data in m.items():
+            merged.setdefault(ident, {}).update(data)
+    return merged
 
-# ==========================================
-# API 抓取邏輯：目前球隊名單
-# ==========================================
-def fetch_roster():
-    """抓取目前最新的球隊球員名單"""
-    url = f"https://stats.nba.com/stats/commonteamroster?LeagueID=00&Season={SEASON}&TeamID={TEAM_ID}"
-    # commonteamroster 用 safari15_5 比較不會被擋
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            print(f"Fetching Active Roster (Attempt {attempt+1}/{max_retries})...")
-            # 不用原本的 Session，改用臨時 request 改變 impersonate
-            res = requests.get(url, headers=SESSION.headers, impersonate="safari15_5", timeout=15)
-            res.raise_for_status()
-            data = res.json()
-            headers_list = data['resultSets'][0]['headers']
-            rows = data['resultSets'][0]['rowSet']
-            active_players = [row[headers_list.index("PLAYER")] for row in rows]
-            print(f"✅ 找到 {len(active_players)} 位現役球員: {', '.join(active_players)}")
-            return active_players
-        except Exception as e:
-            print(f"Error fetching roster: {e}")
-            time.sleep(3)
-    return []
 
 # ==========================================
 # 主程式
 # ==========================================
 def main():
-    global SEASON_TYPE_API, SEASON_TYPE_LABEL
-
-    SEASON_TYPE_API, SEASON_TYPE_LABEL = get_season_type()
-    if SEASON_TYPE_API is None:
+    season_type_api, season_type_label = get_season_type()
+    if season_type_api is None:
         print("目前為休賽期，不需要抓取數據，結束執行。")
         return
 
-    print(f"=== 開始抓取灰狼隊數據（{SEASON_TYPE_LABEL}）===")
+    print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
 
     # 1. 抓取球隊資料
-    team_synergy = fetch_synergy_data("T")
-    team_tracking = fetch_tracking_data("Team")
-    team_tracking_data = team_tracking.get("MIN", {})
-    
+    team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
+    team_tracking = fetch_tracking_data(SEASON, season_type_api, "Team").get("MIN", {})
+    team_shooting = merge_maps(
+        fetch_shot_locations(SEASON, season_type_api, "Team"),
+        fetch_pt_shots(SEASON, season_type_api, "Team"),
+    ).get("MIN", {})
+    team_clutch = fetch_clutch(SEASON, season_type_api, "Team").get("MIN", {})
+    team_lineups = fetch_lineups(SEASON, season_type_api)
+
     final_team_data = {
         "date": get_today_str(),
         "type": "官方數據",
-        "seasonType": SEASON_TYPE_LABEL,
+        "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,      # Array
-        "tracking": team_tracking_data # Dict
+        "tracking": team_tracking,  # Dict
+        "shooting": team_shooting,  # Dict
+        "clutch": team_clutch,      # Dict
+        "lineups": team_lineups,    # Array
     }
-    
-    # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
-    active_roster = fetch_roster()
 
-    # 3. 抓取球員資料
-    player_synergy = fetch_synergy_data("P")
-    player_tracking = fetch_tracking_data("Player")
-    
-    # 標準化名單方便比對 (低標 & 去除空格)
+    # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
+    active_roster = [p["name"] for p in fetch_roster_with_ids(SEASON)]
     normalized_active = [p.strip().lower() for p in active_roster]
+
+    # 3. 抓取球員資料（全聯盟後以現役名單過濾）
+    player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
+    player_tracking = to_name_keyed(
+        fetch_tracking_data(SEASON, season_type_api, "Player"), normalized_active)
+    player_shooting = to_name_keyed(merge_maps(
+        fetch_shot_locations(SEASON, season_type_api, "Player"),
+        fetch_pt_shots(SEASON, season_type_api, "Player"),
+    ), normalized_active)
+    player_clutch = to_name_keyed(
+        fetch_clutch(SEASON, season_type_api, "Player"), normalized_active)
 
     # 將 Synergy 資料轉換以球員名稱為 key 的 dict
     player_stats_map = {}
     for item in player_synergy:
-        pname = item.pop("playerName")
-        ident = pname.strip()
-        
-        # 過濾現役名單
+        item.pop("playerId", None)
+        ident = item.pop("playerName").strip()
         if normalized_active and ident.lower() not in normalized_active:
             continue
-            
-        if ident not in player_stats_map:
-            player_stats_map[ident] = []
-        player_stats_map[ident].append(item)
-        
-    # 同樣過濾 Tracking 資料，並確保以 stripped name 為 key
-    final_tracking = {}
-    if active_roster:
-        for pname, track_data in player_tracking.items():
-            ident = pname.strip()
-            if ident.lower() in normalized_active:
-                final_tracking[ident] = track_data
-    else:
-        final_tracking = player_tracking
+        player_stats_map.setdefault(ident, []).append(item)
 
     final_player_data = {
         "date": get_today_str(),
         "type": "官方數據",
-        "seasonType": SEASON_TYPE_LABEL,
+        "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
-        "stats": player_stats_map,      # Dict of Arrays
-        "tracking": final_tracking       # Dict of Dicts
+        "stats": player_stats_map,    # Dict of Arrays
+        "tracking": player_tracking,  # Dict of Dicts
+        "shooting": player_shooting,  # Dict of Dicts
+        "clutch": player_clutch,      # Dict of Dicts
     }
-    
+
     print("=== 資料整理完成，準備寫入 Firebase ===")
-    
+
     # 防止 API 抓取失敗導致洗掉資料庫
     if not team_synergy and not player_synergy:
         print("❌ 警告：未成功抓取任何 Synergy 數據，可能遭到 NBA API 阻擋，本次終止寫入。")
@@ -420,18 +193,16 @@ def main():
         if skip_team:
             print(f"⏭️  球隊數據與 {prev_team} 完全相同，跳過寫入 {today}")
         else:
-            team_doc_ref = db.collection('wolves_team_stats').document(today)
-            team_doc_ref.set(final_team_data)
+            db.collection('wolves_team_stats').document(today).set(final_team_data)
             print(f"✅ 球隊數據已寫入 Document: {today}（前一筆：{prev_team or '無'}）")
 
         skip_player, prev_player = should_skip_write(db, 'wolves_player_stats', today, final_player_data)
         if skip_player:
             print(f"⏭️  球員數據與 {prev_player} 完全相同，跳過寫入 {today}")
         else:
-            player_doc_ref = db.collection('wolves_player_stats').document(today)
-            player_doc_ref.set(final_player_data)
+            db.collection('wolves_player_stats').document(today).set(final_player_data)
             print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
-        
+
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
     with open("local_test_data.json", "w", encoding="utf-8") as f:
         json.dump({
@@ -439,6 +210,7 @@ def main():
             "player": final_player_data
         }, f, ensure_ascii=False, indent=2)
     print("📁 已更新 local_test_data.json")
+
 
 if __name__ == "__main__":
     main()

@@ -22,6 +22,7 @@ ORDER = [
     "MetricComponents.js",
     "PlayTypeCard.js",
     "TrackingCardRow.js",
+    "ShotChart.js",
     "App.js",
 ]
 

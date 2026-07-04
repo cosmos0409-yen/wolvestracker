@@ -34,4 +34,4 @@ test_*.py
 rad.json
 *.g.xlf
 *.flf
-TestResults.xml
+TestResults.xmllocal_shotchart_summary.json
