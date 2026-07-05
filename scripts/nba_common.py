@@ -198,6 +198,14 @@ LEAGUE_DASH_COMMON = (
 )
 
 
+def _with_date(url, game_date):
+    """把 leaguedash URL 的空 DateFrom/DateTo 換成指定單日（MM/DD/YYYY）以抓單場；
+    game_date=None 時原樣回傳（不過濾）。Synergy 不吃日期，不適用此函式。"""
+    if not game_date:
+        return url
+    return url.replace("DateFrom=&DateTo=", f"DateFrom={game_date}&DateTo={game_date}")
+
+
 def nba_get(url, timeout=30):
     """發送帶有隨機 User-Agent 的 GET 請求"""
     SESSION.headers['User-Agent'] = random.choice(USER_AGENTS)
@@ -362,19 +370,20 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
 # ==========================================
 # Tracking（leaguedashptstats 進階數據）
 # ==========================================
-def fetch_tracking_data(season, season_type_api, player_or_team="Team"):
+def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_date=None):
     """
     抓取 Tracking 進階數據（欄位由 TRACKING_FIELDS 設定表決定）
     球員模式回傳 dict，key 為 PlayerID 字串，值含 playerName（抓全聯盟，由呼叫端過濾）
     球隊模式回傳 dict，key 為 'MIN'
+    game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）
     """
     results = {}
     for measure_type in TRACKING_TYPES:
         # 球員模式抓全聯盟（TeamID=0），解決季中轉隊數據歸屬未更新的問題
         team_id_param = TEAM_ID if player_or_team == "Team" else 0
-        url = (f"https://stats.nba.com/stats/leaguedashptstats?{LEAGUE_DASH_COMMON}"
+        url = _with_date((f"https://stats.nba.com/stats/leaguedashptstats?{LEAGUE_DASH_COMMON}"
                f"&PlayerOrTeam={player_or_team}&PtMeasureType={measure_type}"
-               f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+               f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
         data = fetch_with_retry(url, f"Tracking {measure_type} [{player_or_team}]")
         if data is None:
             continue
@@ -395,19 +404,20 @@ def fetch_tracking_data(season, season_type_api, player_or_team="Team"):
 # ==========================================
 # 投籃數據：分區命中率 + 投籃拆分
 # ==========================================
-def fetch_shot_locations(season, season_type_api, player_or_team="Player"):
+def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_date=None):
     """
     抓取分區投籃數據（leaguedash{player|team}shotlocations, DistanceRange=By Zone）
     此 endpoint 的 resultSets 為 dict 且 headers 為雙層（區域層 + 欄位層），需獨立解析。
     回傳結構同 fetch_tracking_data：球員以 PlayerID 字串為 key，球隊為 'MIN'。
     輸出欄位：{區域前綴}_FGM / _FGA / _FG_PCT（見 SHOT_ZONES）
+    game_date（MM/DD/YYYY）指定時抓該單場
     """
     endpoint = "leaguedashplayershotlocations" if player_or_team == "Player" else "leaguedashteamshotlocations"
     team_id_param = TEAM_ID if player_or_team == "Team" else 0
-    url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+    url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&DistanceRange=By+Zone&MeasureType=Base&PaceAdjust=N&PlusMinus=N&Rank=N"
            f"&Period=0&ShotClockRange=&GameSegment="
-           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
     results = {}
     data = fetch_with_retry(url, f"ShotLocations [{player_or_team}]")
     if data is None:
@@ -522,18 +532,19 @@ def fetch_lineups(season, season_type_api, top_n=10):
 # ==========================================
 # 防守：對位防守（leaguedashptdefend，僅球員）
 # ==========================================
-def fetch_matchup_defense(season, season_type_api):
+def fetch_matchup_defense(season, season_type_api, game_date=None):
     """
     對位防守（被該球員防守時對手的命中率）。此 endpoint 以 defender 為主鍵，僅球員層級。
     合併 Overall 與 3 Pointers 兩類。回傳 {PlayerID字串: {playerName, ...}}。
+    game_date（MM/DD/YYYY）指定時抓該單場
     """
     results = {}
     for category, fields, label in [
         ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
         ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
     ]:
-        url = (f"https://stats.nba.com/stats/leaguedashptdefend?{LEAGUE_DASH_COMMON}"
-               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+        url = _with_date((f"https://stats.nba.com/stats/leaguedashptdefend?{LEAGUE_DASH_COMMON}"
+               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}"), game_date)
         data = fetch_with_retry(url, f"MatchupDefense {label}")
         if data is None:
             continue
@@ -549,12 +560,13 @@ def fetch_matchup_defense(season, season_type_api):
 # ==========================================
 # 防守：Hustle 拼勁（leaguehustlestats{player|team}）
 # ==========================================
-def fetch_hustle(season, season_type_api, player_or_team="Player"):
-    """抓取拼勁數據。球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。"""
+def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=None):
+    """抓取拼勁數據。球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
+    game_date（MM/DD/YYYY）指定時抓該單場。"""
     endpoint = "leaguehustlestatsplayer" if player_or_team == "Player" else "leaguehustlestatsteam"
     team_id_param = TEAM_ID if player_or_team == "Team" else 0
-    url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
-           f"&PlayerOrTeam={player_or_team}&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+    url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+           f"&PlayerOrTeam={player_or_team}&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
     results = {}
     data = fetch_with_retry(url, f"Hustle [{player_or_team}]")
     if data is None:
