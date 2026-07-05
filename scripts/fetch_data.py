@@ -25,12 +25,16 @@ from nba_common import (
     fetch_pt_shots,
     fetch_clutch,
     fetch_lineups,
+    fetch_matchup_defense,
+    fetch_hustle,
+    fetch_defense_box,
+    fetch_opp_shot_locations,
 )
 
 SEASON = "2025-26"
 
 # 每日快照文件中參與去重比對的資料欄位
-DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups"]
+DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups", "defense"]
 
 
 # ==========================================
@@ -129,6 +133,11 @@ def main():
     ).get("MIN", {})
     team_clutch = fetch_clutch(SEASON, season_type_api, "Team").get("MIN", {})
     team_lineups = fetch_lineups(SEASON, season_type_api)
+    team_defense = merge_maps(
+        fetch_hustle(SEASON, season_type_api, "Team"),
+        fetch_defense_box(SEASON, season_type_api, "Team"),
+        fetch_opp_shot_locations(SEASON, season_type_api),
+    ).get("MIN", {})
 
     final_team_data = {
         "date": get_today_str(),
@@ -140,6 +149,7 @@ def main():
         "shooting": team_shooting,  # Dict
         "clutch": team_clutch,      # Dict
         "lineups": team_lineups,    # Array
+        "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區）
     }
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
@@ -156,6 +166,11 @@ def main():
     ), normalized_active)
     player_clutch = to_name_keyed(
         fetch_clutch(SEASON, season_type_api, "Player"), normalized_active)
+    player_defense = to_name_keyed(merge_maps(
+        fetch_matchup_defense(SEASON, season_type_api),
+        fetch_hustle(SEASON, season_type_api, "Player"),
+        fetch_defense_box(SEASON, season_type_api, "Player"),
+    ), normalized_active)
 
     # 將 Synergy 資料轉換以球員名稱為 key 的 dict
     player_stats_map = {}
@@ -175,6 +190,7 @@ def main():
         "tracking": player_tracking,  # Dict of Dicts
         "shooting": player_shooting,  # Dict of Dicts
         "clutch": player_clutch,      # Dict of Dicts
+        "defense": player_defense,    # Dict of Dicts（對位防守 + Hustle + 防守 box）
     }
 
     print("=== 資料整理完成，準備寫入 Firebase ===")

@@ -128,6 +128,43 @@ LINEUP_FIELDS = [
     ("TS_PCT", "TS_PCT", True),
 ]
 
+# ── 防守數據欄位設定表 ──
+# leaguedashptdefend 對位防守：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
+MATCHUP_OVERALL_FIELDS = [
+    ("D_FGA", "D_FGA", False),
+    ("D_FG_PCT", "D_FG_PCT", True),
+    ("NORMAL_FG_PCT", "NORMAL_FG_PCT", True),
+    ("PCT_PLUSMINUS", "PCT_PLUSMINUS", True),
+]
+# leaguedashptdefend 對位防守：3 Pointers（NS_FG3_PCT = 對手平常三分命中率）
+MATCHUP_3PT_FIELDS = [
+    ("D_FG3A", "FG3A", False),
+    ("D_FG3_PCT", "FG3_PCT", True),
+    ("NORMAL_FG3_PCT", "NS_FG3_PCT", True),
+    ("D_FG3_PLUSMINUS", "PLUSMINUS", True),
+]
+# leaguehustlestats{player|team} 拼勁數據（皆為每場計數，非百分比）
+HUSTLE_FIELDS = [
+    ("CONTESTED_SHOTS", "CONTESTED_SHOTS", False),
+    ("CONTESTED_3PT", "CONTESTED_SHOTS_3PT", False),
+    ("DEFLECTIONS", "DEFLECTIONS", False),
+    ("CHARGES_DRAWN", "CHARGES_DRAWN", False),
+    ("SCREEN_ASSISTS", "SCREEN_ASSISTS", False),
+    ("LOOSE_BALLS", "LOOSE_BALLS_RECOVERED", False),
+    ("BOX_OUTS", "BOX_OUTS", False),
+]
+# leaguedash{player|team}stats?MeasureType=Defense 防守 box
+DEFENSE_BOX_FIELDS = [
+    ("DEF_RATING", "DEF_RATING", False),
+    ("STL", "STL", False),
+    ("BLK", "BLK", False),
+    ("DREB", "DREB", False),
+    ("DREB_PCT", "DREB_PCT", True),
+    ("OPP_PTS_PAINT", "OPP_PTS_PAINT", False),
+    ("OPP_PTS_FB", "OPP_PTS_FB", False),
+    ("OPP_PTS_2ND", "OPP_PTS_2ND_CHANCE", False),
+]
+
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -480,3 +517,115 @@ def fetch_lineups(season, season_type_api, top_n=10):
         results.append(item)
     results.sort(key=lambda x: x.get("MIN", 0), reverse=True)
     return results[:top_n]
+
+
+# ==========================================
+# 防守：對位防守（leaguedashptdefend，僅球員）
+# ==========================================
+def fetch_matchup_defense(season, season_type_api):
+    """
+    對位防守（被該球員防守時對手的命中率）。此 endpoint 以 defender 為主鍵，僅球員層級。
+    合併 Overall 與 3 Pointers 兩類。回傳 {PlayerID字串: {playerName, ...}}。
+    """
+    results = {}
+    for category, fields, label in [
+        ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
+        ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
+    ]:
+        url = (f"https://stats.nba.com/stats/leaguedashptdefend?{LEAGUE_DASH_COMMON}"
+               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+        data = fetch_with_retry(url, f"MatchupDefense {label}")
+        if data is None:
+            continue
+        headers_list = data['resultSets'][0]['headers']
+        for row in data['resultSets'][0]['rowSet']:
+            ident = str(row[headers_list.index("CLOSE_DEF_PERSON_ID")])
+            if ident not in results:
+                results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+            apply_fields(results[ident], row, headers_list, fields)
+    return results
+
+
+# ==========================================
+# 防守：Hustle 拼勁（leaguehustlestats{player|team}）
+# ==========================================
+def fetch_hustle(season, season_type_api, player_or_team="Player"):
+    """抓取拼勁數據。球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。"""
+    endpoint = "leaguehustlestatsplayer" if player_or_team == "Player" else "leaguehustlestatsteam"
+    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+           f"&PlayerOrTeam={player_or_team}&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+    results = {}
+    data = fetch_with_retry(url, f"Hustle [{player_or_team}]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        if player_or_team == "Player":
+            ident = str(row[headers_list.index("PLAYER_ID")])
+            results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+        else:
+            ident = "MIN"
+            results[ident] = {}
+        apply_fields(results[ident], row, headers_list, HUSTLE_FIELDS)
+    return results
+
+
+# ==========================================
+# 防守：防守 box（leaguedash{player|team}stats?MeasureType=Defense）
+# ==========================================
+def fetch_defense_box(season, season_type_api, player_or_team="Player"):
+    """防守 box（防守效率、抄截、阻攻、對手各類得分）。回傳結構同 fetch_hustle。"""
+    endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
+    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Defense&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+    results = {}
+    data = fetch_with_retry(url, f"DefenseBox [{player_or_team}]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        if player_or_team == "Player":
+            ident = str(row[headers_list.index("PLAYER_ID")])
+            results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+        else:
+            ident = "MIN"
+            results[ident] = {}
+        apply_fields(results[ident], row, headers_list, DEFENSE_BOX_FIELDS)
+    return results
+
+
+# ==========================================
+# 防守：對手分區命中（leaguedashteamshotlocations?MeasureType=Opponent，僅球隊）
+# ==========================================
+def fetch_opp_shot_locations(season, season_type_api):
+    """
+    對手在各區的出手與命中率（球隊防守熱圖用）。雙層 header，比照 fetch_shot_locations。
+    輸出 {'MIN': {區域前綴_OPP_FGA / _OPP_FG_PCT}}。
+    """
+    url = (f"https://stats.nba.com/stats/leaguedashteamshotlocations?{LEAGUE_DASH_COMMON}"
+           f"&DistanceRange=By+Zone&MeasureType=Opponent&PaceAdjust=N&PlusMinus=N&Rank=N"
+           f"&Period=0&ShotClockRange=&GameSegment="
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+    results = {}
+    data = fetch_with_retry(url, "OppShotLocations [Team]")
+    if data is None:
+        return results
+    rs = data['resultSets']
+    zone_header = rs['headers'][0]
+    skip = zone_header['columnsToSkip']
+    span = zone_header['columnSpan']
+    zone_names = zone_header['columnNames']
+    for row in rs['rowSet']:
+        results["MIN"] = {}
+        for prefix, zone_name in SHOT_ZONES:
+            if zone_name not in zone_names:
+                continue
+            offset = skip + zone_names.index(zone_name) * span
+            fga, fg_pct = row[offset + 1], row[offset + 2]  # OPP_FGM, OPP_FGA, OPP_FG_PCT
+            results["MIN"][f"{prefix}_OPP_FGA"] = fga if fga is not None else 0
+            results["MIN"][f"{prefix}_OPP_FG_PCT"] = round(fg_pct * 100, 1) if fg_pct is not None else 0
+    return results
