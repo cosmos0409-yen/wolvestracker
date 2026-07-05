@@ -11,9 +11,9 @@
 | 3 | 前端 UI 全面改寫 | ✅ | 雷達圖、Tracking 卡片、球員頭像、賽季標籤 |
 | 4 | 反爬蟲機制 | ✅ | curl_cffi 瀏覽器 TLS 模擬 + retry |
 | 5 | 賽季類型自動判斷 | ✅ | `get_season_type()`（後端）+ `getSeasonPhase()`（前端） |
-| 6 | Windows 排程器自動執行 | ✅ | 14:00 抓當日（`WolvesTracker`），15:00 跑 backfill queue（`WolvesBackfill`） |
+| 6 | Windows 排程器自動執行 | ✅ | 每日 14:00 抓當日（`WolvesTracker`）、每週一 14:30 抓熱圖（`WolvesShotchart`）；詳見「自動化排程」 |
 | 7 | `seasonType` / `season` 欄位 | ✅ | 所有文件含「例行賽 / 季後賽」標籤 |
-| 8 | **Phase 0：前端元件拆檔（bundle 模式）** | ✅ | components/ 6 檔；`scripts/bundle.py` 合併為 `dist/components-bundle.js` |
+| 8 | **Phase 0：前端元件拆檔（bundle 模式）** | ✅ | components/ 9 檔；`scripts/bundle.py` 合併為 `dist/components-bundle.js` |
 | 9 | **Phase 1：歷史賽季回補** | ✅ | 22-23 / 23-24 / 24-25 × 例行 / 季後 共 12 個 history 文件 |
 | 10 | **Phase 1：寫入前去重** | ✅ | `fetch_data.py` 比對前一筆，相同則跳過寫入 |
 | 11 | **Phase 1：歷史標籤清理** | ✅ | `cleanup_and_tag.py` 補貼舊文件 `seasonType` 並刪重複日 |
@@ -65,14 +65,16 @@ wolvestracker/
 │   ├── TrackingCardRow.js           ← 數據卡片群組（source 參數:tracking/shooting/clutch/defense）
 │   ├── ShotChart.js                 ← 投籃熱圖（SVG 半場點雲，teamMode 讀 TEAM_ doc）
 │   ├── DefenseHeatmap.js            ← 防守熱圖（半場 5 區依對手命中率偏差著色）
-│   └── App.js                       ← 主容器、Firebase 連線、HistoryModal、雷達圖、跨賽季比較
+│   ├── SingleGamePanel.js           ← 單場數據面板（選日期看單場，只渲染有資料的群組）
+│   └── App.js                       ← 主容器、Firebase 連線、HistoryModal、雷達圖、跨賽季/球員比較、單場面板掛載
 ├── dist/
 │   └── components-bundle.js         ← 自動產生，勿手改
 ├── scripts/
 │   ├── nba_common.py                ← 共用模組：SESSION/重試/欄位設定表/所有抓取函式
 │   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重）
 │   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common）
-│   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員）
+│   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
+│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
 │   └── bundle.py                    ← 元件打包工具
@@ -239,11 +241,18 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 切換到歷史賽季優先讀 localStorage；讀到才呼 Firestore（Iter 1）
 - 跨賽季比較分頁進入時，逐個歷史賽季走相同邏輯（共用 cache）
 
-### 雷達跨賽季 overlay
-- `compareKeys` state：使用者勾選的歷史賽季（最多 2 個，加主賽季共 3 條雷達）
+### 雷達 overlay（跨賽季 + 球員互相比較）
+- `compareKeys` state：勾選的歷史賽季（最多 2 個，加主賽季共 3 條雷達）
+- `comparePlayers` state：勾選的同季其他球員（Phase D，球員 + 當季模式；資料已在 `playerHistory`，無需額外抓取）
+- `radarSeries` = 主序列 + `compareKeys` 賽季 + `comparePlayers` 球員；比較時主序列標籤改用球員名
 - `compareCache` state：已載入的歷史 doc，多源共用
-- 主色：進攻綠 / 防守紅；比較色盤：藍 / 黃 / 粉
+- 主色：進攻綠 / 防守紅；比較色盤：藍 / 黃 / 粉（賽季與球員共用索引）
 - 球員模式才顯示
+
+### 單場數據面板（`SingleGamePanel.js`）
+- 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_regular`（`gamesIndex` state，一份 doc + localStorage 快取）
+- 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
+- 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
 
 ### Modal 跨賽季比較分頁
 - 每張卡片皆可用，含 PlayType 與 Tracking
@@ -270,7 +279,7 @@ Google Cloud Console 的 API Key 白名單沒加 `http://localhost:8000/*`。
 Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安全規則」整段重新發佈。
 
 ### Q: NBA API 跑失敗
-`fetch_log.txt` / `backfill_log.txt` 看細節。腳本有 3 次 retry，通常等隔天即可。
+看對應 log：`fetch_log.txt`（每日）/ `shotchart_log.txt`（熱圖）/ `backfill_games_log*.txt`（單場回補）。搜 `[FAILED]` 看缺哪項；腳本有 3 次 retry，通常等隔天即可。
 
 ### Q: Backfill 進度怎麼看
 看 `scripts/backfill_queue.txt` 還剩幾行。Phase 1 已完成、queue 已清空。
