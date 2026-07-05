@@ -97,7 +97,7 @@ wolvestracker/
 Babel Standalone 對 `<script type="text/babel" src="...">` 是平行 fetch、依完成順序執行（非文件順序），會導致 App.js 在依賴前執行而崩潰。離線打包成單一 bundle 同時解決此問題與 file:// 直開時 fetch 被擋的問題。
 
 ### bundle.py 合併順序
-`Icons → constants → MetricComponents → PlayTypeCard → TrackingCardRow → ShotChart → DefenseHeatmap → App`，依序拼接寫入 `dist/components-bundle.js`。
+`Icons → constants → MetricComponents → PlayTypeCard → TrackingCardRow → ShotChart → DefenseHeatmap → SingleGamePanel → App`，依序拼接寫入 `dist/components-bundle.js`。
 
 ---
 
@@ -140,6 +140,9 @@ service cloud.firestore {
     match /wolves_team_history/{docId}     { allow read: if request.auth != null; allow write: if false; }
     match /wolves_player_history/{docId}   { allow read: if request.auth != null; allow write: if false; }
     match /wolves_shotcharts/{docId}       { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_player_games/{date}      { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_team_games/{date}        { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_games_index/{docId}      { allow read: if request.auth != null; allow write: if false; }
   }
 }
 ```
@@ -187,7 +190,7 @@ wolves_team_games/{YYYY-MM-DD}     球隊單場（stats:{...}）
 ```
 含 Tracking(6) + 對位防守 + Hustle + 分區投籃的單場值（`DateFrom=DateTo` 抓）。不含 Clutch（單日不穩）與 Synergy（不支援日期）。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
-- 前端單場模式（G-c）尚未做；`wolves_*_games` 需在 Firestore 規則加 read 白名單後前端才讀得到。
+- 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
 
 ### 歷史賽季快照（`backfill_history.py` 寫入）
 ```
