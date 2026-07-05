@@ -114,6 +114,34 @@ def merge_maps(*maps):
 
 
 # ==========================================
+# 單場擷取（G2）：每日順抓當天單場 → wolves_*_games（未來賽季免回補）
+# ==========================================
+def capture_single_game(db, season, season_type_api, season_type_label, today, normalized_active):
+    """抓當天單場(DateFrom=DateTo=today)寫入 games collection；當天無比賽則 sg 為空、不寫。"""
+    api_date = datetime.strptime(today, "%Y-%m-%d").strftime("%m/%d/%Y")
+    player = to_name_keyed(merge_maps(
+        fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
+        fetch_matchup_defense(season, season_type_api, game_date=api_date),
+        fetch_hustle(season, season_type_api, "Player", game_date=api_date),
+        fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
+    ), normalized_active)
+    team = merge_maps(
+        fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
+        fetch_hustle(season, season_type_api, "Team", game_date=api_date),
+        fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
+    ).get("MIN", {})
+    if not player and not team:
+        print(f"（{today} 當天無單場資料，不寫 games）")
+        return
+    ts = int(datetime.now().timestamp() * 1000)
+    db.collection("wolves_player_games").document(today).set(
+        {"date": today, "seasonType": season_type_label, "type": "單場", "timestamp": ts, "players": player})
+    db.collection("wolves_team_games").document(today).set(
+        {"date": today, "seasonType": season_type_label, "type": "單場", "timestamp": ts, "stats": team})
+    print(f"✅ 單場已寫入 wolves_*_games/{today}（球員 {len(player)} 人）")
+
+
+# ==========================================
 # 主程式
 # ==========================================
 def main():
@@ -218,6 +246,10 @@ def main():
         else:
             db.collection('wolves_player_stats').document(today).set(final_player_data)
             print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
+
+        # G2：僅在累積數據有變動（= 今天有比賽）時擷取當天單場，避免非比賽日浪費請求
+        if not skip_player:
+            capture_single_game(db, SEASON, season_type_api, season_type_label, today, normalized_active)
 
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
     with open("local_test_data.json", "w", encoding="utf-8") as f:

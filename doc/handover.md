@@ -180,6 +180,15 @@ wolves_shotcharts/TEAM_{season}_{regular|playoffs}         全隊出手（Player
 ```
 欄位：`playerId`, `playerName`, `season`, `seasonType`, `timestamp`, `shots[]`（每筆 `{x, y, made, dist, zone}`，座標單位 0.1 呎、籃框在原點）。整季覆寫，非每日快照。全隊約 7,000+ 點、約 0.5 MB（單文件上限 1 MiB）。
 
+### 單場數據（`backfill_games.py` 回補 / `fetch_data.py` 每日順抓，G2/G3）
+```
+wolves_player_games/{YYYY-MM-DD}   球員單場（僅輪換 GP>=20；欄位 players:{name:{...}}）
+wolves_team_games/{YYYY-MM-DD}     球隊單場（stats:{...}）
+```
+含 Tracking(6) + 對位防守 + Hustle + 分區投籃的單場值（`DateFrom=DateTo` 抓）。不含 Clutch（單日不穩）與 Synergy（不支援日期）。
+- **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
+- 前端單場模式（G-c）尚未做；`wolves_*_games` 需在 Firestore 規則加 read 白名單後前端才讀得到。
+
 ### 歷史賽季快照（`backfill_history.py` 寫入）
 ```
 wolves_team_history/{season}_{type}      例：2022-23_regular

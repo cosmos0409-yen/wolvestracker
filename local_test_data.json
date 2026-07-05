@@ -3,7 +3,7 @@
     "date": "2026-07-05",
     "type": "官方數據",
     "seasonType": "例行賽",
-    "timestamp": 1783237029292,
+    "timestamp": 1783253721290,
     "stats": [
       {
         "playType": "Transition",
@@ -12,7 +12,12 @@
         "freq": 19.0,
         "ppp": 1.17,
         "fgPct": 59.0,
-        "percentile": 75.9
+        "percentile": 75.9,
+        "gp": 79,
+        "possTotal": 1710,
+        "ptsTotal": 1995,
+        "fgmTotal": 767,
+        "fgaTotal": 1301
       },
       {
         "playType": "Isolation",
@@ -21,7 +26,12 @@
         "freq": 9.6,
         "ppp": 0.96,
         "fgPct": 43.7,
-        "percentile": 82.8
+        "percentile": 82.8,
+        "gp": 79,
+        "possTotal": 867,
+        "ptsTotal": 837,
+        "fgmTotal": 301,
+        "fgaTotal": 689
       },
       {
         "playType": "PRBallHandler",
@@ -30,7 +40,12 @@
         "freq": 13.1,
         "ppp": 0.88,
         "fgPct": 39.9,
-        "percentile": 62.1
+        "percentile": 62.1,
+        "gp": 79,
+        "possTotal": 1180,
+        "ptsTotal": 1041,
+        "fgmTotal": 366,
+        "fgaTotal": 917
       },
       {
         "playType": "PRRollMan",
@@ -39,7 +54,12 @@
         "freq": 4.2,
         "ppp": 1.16,
         "fgPct": 56.0,
-        "percentile": 72.4
+        "percentile": 72.4,
+        "gp": 79,
+        "possTotal": 377,
+        "ptsTotal": 439,
+        "fgmTotal": 169,
+        "fgaTotal": 302
       },
       {
         "playType": "Postup",
@@ -48,7 +68,12 @@
         "freq": 4.1,
         "ppp": 0.99,
         "fgPct": 54.3,
-        "percentile": 51.7
+        "percentile": 51.7,
+        "gp": 79,
+        "possTotal": 371,
+        "ptsTotal": 367,
+        "fgmTotal": 151,
+        "fgaTotal": 278
       },
       {
         "playType": "Spotup",
@@ -57,7 +82,12 @@
         "freq": 22.9,
         "ppp": 1.12,
         "fgPct": 42.9,
-        "percentile": 93.1
+        "percentile": 93.1,
+        "gp": 79,
+        "possTotal": 2064,
+        "ptsTotal": 2307,
+        "fgmTotal": 794,
+        "fgaTotal": 1852
       },
       {
         "playType": "Handoff",
@@ -66,7 +96,12 @@
         "freq": 5.7,
         "ppp": 0.98,
         "fgPct": 40.5,
-        "percentile": 82.8
+        "percentile": 82.8,
+        "gp": 79,
+        "possTotal": 518,
+        "ptsTotal": 510,
+        "fgmTotal": 174,
+        "fgaTotal": 430
       },
       {
         "playType": "Cut",
@@ -75,7 +110,12 @@
         "freq": 5.2,
         "ppp": 1.18,
         "fgPct": 63.4,
-        "percentile": 0.0
+        "percentile": 0.0,
+        "gp": 79,
+        "possTotal": 471,
+        "ptsTotal": 554,
+        "fgmTotal": 225,
+        "fgaTotal": 355
       },
       {
         "playType": "OffScreen",
@@ -84,7 +124,12 @@
         "freq": 5.0,
         "ppp": 0.95,
         "fgPct": 38.6,
-        "percentile": 34.5
+        "percentile": 34.5,
+        "gp": 79,
+        "possTotal": 452,
+        "ptsTotal": 428,
+        "fgmTotal": 148,
+        "fgaTotal": 383
       },
       {
         "playType": "OffRebound",
@@ -93,7 +138,12 @@
         "freq": 5.6,
         "ppp": 1.16,
         "fgPct": 60.1,
-        "percentile": 62.1
+        "percentile": 62.1,
+        "gp": 79,
+        "possTotal": 506,
+        "ptsTotal": 587,
+        "fgmTotal": 246,
+        "fgaTotal": 409
       },
       {
         "playType": "Misc",
@@ -102,7 +152,12 @@
         "freq": 5.5,
         "ppp": 0.49,
         "fgPct": 29.4,
-        "percentile": 44.8
+        "percentile": 44.8,
+        "gp": 79,
+        "possTotal": 493,
+        "ptsTotal": 241,
+        "fgmTotal": 40,
+        "fgaTotal": 136
       },
       {
         "playType": "Transition",
@@ -111,7 +166,12 @@
         "freq": 19.0,
         "ppp": 1.12,
         "fgPct": 53.6,
-        "percentile": 55.2
+        "percentile": 55.2,
+        "gp": 79,
+        "possTotal": 1730,
+        "ptsTotal": 1947,
+        "fgmTotal": 708,
+        "fgaTotal": 1321
       },
       {
         "playType": "Isolation",
@@ -120,7 +180,12 @@
         "freq": 7.4,
         "ppp": 0.86,
         "fgPct": 41.5,
-        "percentile": 93.1
+        "percentile": 93.1,
+        "gp": 79,
+        "possTotal": 673,
+        "ptsTotal": 582,
+        "fgmTotal": 214,
+        "fgaTotal": 516
       },
       {
         "playType": "PRBallHandler",
@@ -129,7 +194,12 @@
         "freq": 18.1,
         "ppp": 0.88,
         "fgPct": 41.5,
-        "percentile": 51.7
+        "percentile": 51.7,
+        "gp": 79,
+        "possTotal": 1654,
+        "ptsTotal": 1460,
+        "fgmTotal": 529,
+        "fgaTotal": 1274
       },
       {
         "playType": "PRRollMan",
@@ -138,7 +208,12 @@
         "freq": 5.7,
         "ppp": 1.09,
         "fgPct": 50.8,
-        "percentile": 58.6
+        "percentile": 58.6,
+        "gp": 79,
+        "possTotal": 520,
+        "ptsTotal": 567,
+        "fgmTotal": 225,
+        "fgaTotal": 443
       },
       {
         "playType": "Postup",
@@ -147,7 +222,12 @@
         "freq": 2.3,
         "ppp": 1.12,
         "fgPct": 58.6,
-        "percentile": 0.0
+        "percentile": 0.0,
+        "gp": 79,
+        "possTotal": 209,
+        "ptsTotal": 235,
+        "fgmTotal": 92,
+        "fgaTotal": 157
       },
       {
         "playType": "Spotup",
@@ -156,7 +236,12 @@
         "freq": 20.4,
         "ppp": 1.03,
         "fgPct": 39.0,
-        "percentile": 69.0
+        "percentile": 69.0,
+        "gp": 79,
+        "possTotal": 1856,
+        "ptsTotal": 1912,
+        "fgmTotal": 656,
+        "fgaTotal": 1680
       },
       {
         "playType": "Handoff",
@@ -165,7 +250,12 @@
         "freq": 5.2,
         "ppp": 0.97,
         "fgPct": 43.5,
-        "percentile": 37.9
+        "percentile": 37.9,
+        "gp": 79,
+        "possTotal": 473,
+        "ptsTotal": 460,
+        "fgmTotal": 175,
+        "fgaTotal": 402
       },
       {
         "playType": "OffScreen",
@@ -174,7 +264,12 @@
         "freq": 4.2,
         "ppp": 0.9,
         "fgPct": 38.0,
-        "percentile": 79.3
+        "percentile": 79.3,
+        "gp": 79,
+        "possTotal": 382,
+        "ptsTotal": 345,
+        "fgmTotal": 122,
+        "fgaTotal": 321
       },
       {
         "playType": "OffRebound",
@@ -183,7 +278,12 @@
         "freq": 5.1,
         "ppp": 1.03,
         "fgPct": 52.3,
-        "percentile": 100.0
+        "percentile": 100.0,
+        "gp": 79,
+        "possTotal": 466,
+        "ptsTotal": 479,
+        "fgmTotal": 202,
+        "fgaTotal": 386
       }
     ],
     "tracking": {
@@ -378,7 +478,7 @@
     "date": "2026-07-05",
     "type": "官方數據",
     "seasonType": "例行賽",
-    "timestamp": 1783237130031,
+    "timestamp": 1783253819778,
     "stats": {
       "Jaden McDaniels": [
         {
@@ -388,7 +488,12 @@
           "freq": 28.8,
           "ppp": 1.15,
           "fgPct": 58.5,
-          "percentile": 52.7
+          "percentile": 52.7,
+          "gp": 70,
+          "possTotal": 282,
+          "ptsTotal": 323,
+          "fgmTotal": 124,
+          "fgaTotal": 212
         },
         {
           "playType": "Isolation",
@@ -397,7 +502,12 @@
           "freq": 3.0,
           "ppp": 0.9,
           "fgPct": 40.9,
-          "percentile": 50.9
+          "percentile": 50.9,
+          "gp": 70,
+          "possTotal": 29,
+          "ptsTotal": 26,
+          "fgmTotal": 9,
+          "fgaTotal": 22
         },
         {
           "playType": "PRBallHandler",
@@ -406,7 +516,12 @@
           "freq": 12.1,
           "ppp": 0.86,
           "fgPct": 44.3,
-          "percentile": 55.2
+          "percentile": 55.2,
+          "gp": 70,
+          "possTotal": 118,
+          "ptsTotal": 102,
+          "fgmTotal": 43,
+          "fgaTotal": 97
         },
         {
           "playType": "PRRollMan",
@@ -415,7 +530,12 @@
           "freq": 1.3,
           "ppp": 0.92,
           "fgPct": 44.4,
-          "percentile": 23.1
+          "percentile": 23.1,
+          "gp": 70,
+          "possTotal": 13,
+          "ptsTotal": 12,
+          "fgmTotal": 4,
+          "fgaTotal": 9
         },
         {
           "playType": "Spotup",
@@ -424,7 +544,12 @@
           "freq": 32.8,
           "ppp": 1.11,
           "fgPct": 47.1,
-          "percentile": 67.4
+          "percentile": 67.4,
+          "gp": 70,
+          "possTotal": 321,
+          "ptsTotal": 356,
+          "fgmTotal": 132,
+          "fgaTotal": 280
         },
         {
           "playType": "Handoff",
@@ -433,7 +558,12 @@
           "freq": 5.1,
           "ppp": 0.82,
           "fgPct": 41.5,
-          "percentile": 34.9
+          "percentile": 34.9,
+          "gp": 70,
+          "possTotal": 50,
+          "ptsTotal": 41,
+          "fgmTotal": 17,
+          "fgaTotal": 41
         },
         {
           "playType": "Cut",
@@ -442,7 +572,12 @@
           "freq": 4.5,
           "ppp": 1.23,
           "fgPct": 69.4,
-          "percentile": 31.3
+          "percentile": 31.3,
+          "gp": 70,
+          "possTotal": 44,
+          "ptsTotal": 54,
+          "fgmTotal": 25,
+          "fgaTotal": 36
         },
         {
           "playType": "OffScreen",
@@ -451,7 +586,12 @@
           "freq": 4.2,
           "ppp": 1.37,
           "fgPct": 60.0,
-          "percentile": 92.5
+          "percentile": 92.5,
+          "gp": 70,
+          "possTotal": 41,
+          "ptsTotal": 56,
+          "fgmTotal": 21,
+          "fgaTotal": 35
         },
         {
           "playType": "OffRebound",
@@ -460,7 +600,12 @@
           "freq": 3.6,
           "ppp": 1.29,
           "fgPct": 67.7,
-          "percentile": 80.1
+          "percentile": 80.1,
+          "gp": 70,
+          "possTotal": 35,
+          "ptsTotal": 45,
+          "fgmTotal": 21,
+          "fgaTotal": 31
         },
         {
           "playType": "Misc",
@@ -469,7 +614,12 @@
           "freq": 3.8,
           "ppp": 0.54,
           "fgPct": 30.0,
-          "percentile": 55.6
+          "percentile": 55.6,
+          "gp": 70,
+          "possTotal": 37,
+          "ptsTotal": 20,
+          "fgmTotal": 3,
+          "fgaTotal": 10
         },
         {
           "playType": "Isolation",
@@ -478,7 +628,12 @@
           "freq": 6.2,
           "ppp": 0.91,
           "fgPct": 39.6,
-          "percentile": 52.8
+          "percentile": 52.8,
+          "gp": 71,
+          "possTotal": 69,
+          "ptsTotal": 63,
+          "fgmTotal": 19,
+          "fgaTotal": 48
         },
         {
           "playType": "PRBallHandler",
@@ -487,7 +642,12 @@
           "freq": 41.3,
           "ppp": 0.97,
           "fgPct": 43.8,
-          "percentile": 20.8
+          "percentile": 20.8,
+          "gp": 71,
+          "possTotal": 457,
+          "ptsTotal": 443,
+          "fgmTotal": 151,
+          "fgaTotal": 345
         },
         {
           "playType": "PRRollMan",
@@ -496,7 +656,12 @@
           "freq": 9.1,
           "ppp": 1.19,
           "fgPct": 55.8,
-          "percentile": 36.9
+          "percentile": 36.9,
+          "gp": 71,
+          "possTotal": 101,
+          "ptsTotal": 120,
+          "fgmTotal": 48,
+          "fgaTotal": 86
         },
         {
           "playType": "Postup",
@@ -505,7 +670,12 @@
           "freq": 2.1,
           "ppp": 1.04,
           "fgPct": 56.3,
-          "percentile": 42.8
+          "percentile": 42.8,
+          "gp": 71,
+          "possTotal": 23,
+          "ptsTotal": 24,
+          "fgmTotal": 9,
+          "fgaTotal": 16
         },
         {
           "playType": "Spotup",
@@ -514,7 +684,12 @@
           "freq": 21.9,
           "ppp": 0.91,
           "fgPct": 35.3,
-          "percentile": 86.4
+          "percentile": 86.4,
+          "gp": 71,
+          "possTotal": 242,
+          "ptsTotal": 221,
+          "fgmTotal": 78,
+          "fgaTotal": 221
         },
         {
           "playType": "Handoff",
@@ -523,7 +698,12 @@
           "freq": 8.8,
           "ppp": 1.0,
           "fgPct": 45.0,
-          "percentile": 41.8
+          "percentile": 41.8,
+          "gp": 71,
+          "possTotal": 97,
+          "ptsTotal": 97,
+          "fgmTotal": 36,
+          "fgaTotal": 80
         },
         {
           "playType": "OffScreen",
@@ -532,7 +712,12 @@
           "freq": 7.7,
           "ppp": 0.95,
           "fgPct": 42.7,
-          "percentile": 55.1
+          "percentile": 55.1,
+          "gp": 71,
+          "possTotal": 85,
+          "ptsTotal": 81,
+          "fgmTotal": 32,
+          "fgaTotal": 75
         }
       ],
       "Julius Randle": [
@@ -543,7 +728,12 @@
           "freq": 16.6,
           "ppp": 1.13,
           "fgPct": 61.1,
-          "percentile": 49.8
+          "percentile": 49.8,
+          "gp": 76,
+          "possTotal": 262,
+          "ptsTotal": 297,
+          "fgmTotal": 110,
+          "fgaTotal": 180
         },
         {
           "playType": "Isolation",
@@ -552,7 +742,12 @@
           "freq": 16.6,
           "ppp": 0.94,
           "fgPct": 44.3,
-          "percentile": 60.1
+          "percentile": 60.1,
+          "gp": 76,
+          "possTotal": 262,
+          "ptsTotal": 247,
+          "fgmTotal": 89,
+          "fgaTotal": 201
         },
         {
           "playType": "PRBallHandler",
@@ -561,7 +756,12 @@
           "freq": 9.4,
           "ppp": 0.88,
           "fgPct": 41.0,
-          "percentile": 58.1
+          "percentile": 58.1,
+          "gp": 76,
+          "possTotal": 148,
+          "ptsTotal": 130,
+          "fgmTotal": 48,
+          "fgaTotal": 117
         },
         {
           "playType": "PRRollMan",
@@ -570,7 +770,12 @@
           "freq": 6.4,
           "ppp": 1.2,
           "fgPct": 53.2,
-          "percentile": 68.0
+          "percentile": 68.0,
+          "gp": 76,
+          "possTotal": 100,
+          "ptsTotal": 120,
+          "fgmTotal": 42,
+          "fgaTotal": 79
         },
         {
           "playType": "Postup",
@@ -579,7 +784,12 @@
           "freq": 9.9,
           "ppp": 0.95,
           "fgPct": 51.8,
-          "percentile": 39.9
+          "percentile": 39.9,
+          "gp": 76,
+          "possTotal": 156,
+          "ptsTotal": 149,
+          "fgmTotal": 59,
+          "fgaTotal": 114
         },
         {
           "playType": "Spotup",
@@ -588,7 +798,12 @@
           "freq": 21.2,
           "ppp": 1.09,
           "fgPct": 42.5,
-          "percentile": 64.2
+          "percentile": 64.2,
+          "gp": 76,
+          "possTotal": 333,
+          "ptsTotal": 364,
+          "fgmTotal": 119,
+          "fgaTotal": 280
         },
         {
           "playType": "Handoff",
@@ -597,7 +812,12 @@
           "freq": 2.3,
           "ppp": 0.97,
           "fgPct": 34.8,
-          "percentile": 57.8
+          "percentile": 57.8,
+          "gp": 76,
+          "possTotal": 36,
+          "ptsTotal": 35,
+          "fgmTotal": 8,
+          "fgaTotal": 23
         },
         {
           "playType": "Cut",
@@ -606,7 +826,12 @@
           "freq": 5.1,
           "ppp": 1.04,
           "fgPct": 50.0,
-          "percentile": 8.6
+          "percentile": 8.6,
+          "gp": 76,
+          "possTotal": 80,
+          "ptsTotal": 83,
+          "fgmTotal": 29,
+          "fgaTotal": 58
         },
         {
           "playType": "OffScreen",
@@ -615,7 +840,12 @@
           "freq": 2.9,
           "ppp": 0.83,
           "fgPct": 36.6,
-          "percentile": 32.2
+          "percentile": 32.2,
+          "gp": 76,
+          "possTotal": 46,
+          "ptsTotal": 38,
+          "fgmTotal": 15,
+          "fgaTotal": 41
         },
         {
           "playType": "OffRebound",
@@ -624,7 +854,12 @@
           "freq": 5.2,
           "ppp": 1.26,
           "fgPct": 64.5,
-          "percentile": 73.0
+          "percentile": 73.0,
+          "gp": 76,
+          "possTotal": 82,
+          "ptsTotal": 103,
+          "fgmTotal": 40,
+          "fgaTotal": 62
         },
         {
           "playType": "Misc",
@@ -633,7 +868,12 @@
           "freq": 4.4,
           "ppp": 0.64,
           "fgPct": 36.4,
-          "percentile": 69.8
+          "percentile": 69.8,
+          "gp": 76,
+          "possTotal": 69,
+          "ptsTotal": 44,
+          "fgmTotal": 4,
+          "fgaTotal": 11
         },
         {
           "playType": "Isolation",
@@ -642,7 +882,12 @@
           "freq": 12.6,
           "ppp": 0.84,
           "fgPct": 41.2,
-          "percentile": 67.4
+          "percentile": 67.4,
+          "gp": 76,
+          "possTotal": 122,
+          "ptsTotal": 103,
+          "fgmTotal": 40,
+          "fgaTotal": 97
         },
         {
           "playType": "PRBallHandler",
@@ -651,7 +896,12 @@
           "freq": 41.2,
           "ppp": 0.94,
           "fgPct": 44.5,
-          "percentile": 27.5
+          "percentile": 27.5,
+          "gp": 76,
+          "possTotal": 398,
+          "ptsTotal": 376,
+          "fgmTotal": 133,
+          "fgaTotal": 299
         },
         {
           "playType": "PRRollMan",
@@ -660,7 +910,12 @@
           "freq": 8.6,
           "ppp": 1.35,
           "fgPct": 68.2,
-          "percentile": 15.6
+          "percentile": 15.6,
+          "gp": 76,
+          "possTotal": 83,
+          "ptsTotal": 112,
+          "fgmTotal": 45,
+          "fgaTotal": 66
         },
         {
           "playType": "Postup",
@@ -669,7 +924,12 @@
           "freq": 2.9,
           "ppp": 0.64,
           "fgPct": 36.4,
-          "percentile": 95.4
+          "percentile": 95.4,
+          "gp": 76,
+          "possTotal": 28,
+          "ptsTotal": 18,
+          "fgmTotal": 8,
+          "fgaTotal": 22
         },
         {
           "playType": "Spotup",
@@ -678,7 +938,12 @@
           "freq": 20.7,
           "ppp": 1.19,
           "fgPct": 42.7,
-          "percentile": 14.4
+          "percentile": 14.4,
+          "gp": 76,
+          "possTotal": 200,
+          "ptsTotal": 237,
+          "fgmTotal": 76,
+          "fgaTotal": 178
         },
         {
           "playType": "Handoff",
@@ -687,7 +952,12 @@
           "freq": 6.0,
           "ppp": 1.24,
           "fgPct": 54.7,
-          "percentile": 11.5
+          "percentile": 11.5,
+          "gp": 76,
+          "possTotal": 58,
+          "ptsTotal": 72,
+          "fgmTotal": 29,
+          "fgaTotal": 53
         },
         {
           "playType": "OffScreen",
@@ -696,7 +966,12 @@
           "freq": 5.9,
           "ppp": 0.61,
           "fgPct": 28.3,
-          "percentile": 92.4
+          "percentile": 92.4,
+          "gp": 76,
+          "possTotal": 57,
+          "ptsTotal": 35,
+          "fgmTotal": 13,
+          "fgaTotal": 46
         }
       ],
       "Anthony Edwards": [
@@ -707,7 +982,12 @@
           "freq": 14.7,
           "ppp": 1.29,
           "fgPct": 63.1,
-          "percentile": 81.6
+          "percentile": 81.6,
+          "gp": 58,
+          "possTotal": 220,
+          "ptsTotal": 283,
+          "fgmTotal": 101,
+          "fgaTotal": 160
         },
         {
           "playType": "Isolation",
@@ -716,7 +996,12 @@
           "freq": 23.8,
           "ppp": 1.04,
           "fgPct": 45.1,
-          "percentile": 80.9
+          "percentile": 80.9,
+          "gp": 58,
+          "possTotal": 357,
+          "ptsTotal": 370,
+          "fgmTotal": 134,
+          "fgaTotal": 297
         },
         {
           "playType": "PRBallHandler",
@@ -725,7 +1010,12 @@
           "freq": 23.5,
           "ppp": 1.0,
           "fgPct": 43.6,
-          "percentile": 84.7
+          "percentile": 84.7,
+          "gp": 58,
+          "possTotal": 353,
+          "ptsTotal": 354,
+          "fgmTotal": 116,
+          "fgaTotal": 266
         },
         {
           "playType": "Postup",
@@ -734,7 +1024,12 @@
           "freq": 5.8,
           "ppp": 1.08,
           "fgPct": 55.9,
-          "percentile": 66.2
+          "percentile": 66.2,
+          "gp": 58,
+          "possTotal": 87,
+          "ptsTotal": 94,
+          "fgmTotal": 38,
+          "fgaTotal": 68
         },
         {
           "playType": "Spotup",
@@ -743,7 +1038,12 @@
           "freq": 12.8,
           "ppp": 1.31,
           "fgPct": 52.7,
-          "percentile": 95.5
+          "percentile": 95.5,
+          "gp": 58,
+          "possTotal": 192,
+          "ptsTotal": 251,
+          "fgmTotal": 88,
+          "fgaTotal": 167
         },
         {
           "playType": "Handoff",
@@ -752,7 +1052,12 @@
           "freq": 7.7,
           "ppp": 1.09,
           "fgPct": 43.4,
-          "percentile": 76.7
+          "percentile": 76.7,
+          "gp": 58,
+          "possTotal": 115,
+          "ptsTotal": 125,
+          "fgmTotal": 43,
+          "fgaTotal": 99
         },
         {
           "playType": "Cut",
@@ -761,7 +1066,12 @@
           "freq": 1.6,
           "ppp": 1.29,
           "fgPct": 58.8,
-          "percentile": 47.3
+          "percentile": 47.3,
+          "gp": 58,
+          "possTotal": 24,
+          "ptsTotal": 31,
+          "fgmTotal": 10,
+          "fgaTotal": 17
         },
         {
           "playType": "OffScreen",
@@ -770,7 +1080,12 @@
           "freq": 4.5,
           "ppp": 1.1,
           "fgPct": 46.9,
-          "percentile": 72.9
+          "percentile": 72.9,
+          "gp": 58,
+          "possTotal": 67,
+          "ptsTotal": 74,
+          "fgmTotal": 23,
+          "fgaTotal": 49
         },
         {
           "playType": "OffRebound",
@@ -779,7 +1094,12 @@
           "freq": 1.3,
           "ppp": 0.9,
           "fgPct": 40.0,
-          "percentile": 18.4
+          "percentile": 18.4,
+          "gp": 58,
+          "possTotal": 19,
+          "ptsTotal": 17,
+          "fgmTotal": 6,
+          "fgaTotal": 15
         },
         {
           "playType": "Misc",
@@ -788,7 +1108,12 @@
           "freq": 4.1,
           "ppp": 0.52,
           "fgPct": 30.8,
-          "percentile": 51.7
+          "percentile": 51.7,
+          "gp": 58,
+          "possTotal": 62,
+          "ptsTotal": 32,
+          "fgmTotal": 8,
+          "fgaTotal": 26
         },
         {
           "playType": "Isolation",
@@ -797,7 +1122,12 @@
           "freq": 5.4,
           "ppp": 0.97,
           "fgPct": 46.7,
-          "percentile": 40.7
+          "percentile": 40.7,
+          "gp": 58,
+          "possTotal": 35,
+          "ptsTotal": 34,
+          "fgmTotal": 14,
+          "fgaTotal": 30
         },
         {
           "playType": "PRBallHandler",
@@ -806,7 +1136,12 @@
           "freq": 34.2,
           "ppp": 0.86,
           "fgPct": 40.2,
-          "percentile": 56.5
+          "percentile": 56.5,
+          "gp": 58,
+          "possTotal": 223,
+          "ptsTotal": 193,
+          "fgmTotal": 72,
+          "fgaTotal": 179
         },
         {
           "playType": "PRRollMan",
@@ -815,7 +1150,12 @@
           "freq": 7.8,
           "ppp": 0.86,
           "fgPct": 41.9,
-          "percentile": 94.5
+          "percentile": 94.5,
+          "gp": 58,
+          "possTotal": 51,
+          "ptsTotal": 44,
+          "fgmTotal": 18,
+          "fgaTotal": 43
         },
         {
           "playType": "Postup",
@@ -824,7 +1164,12 @@
           "freq": 4.1,
           "ppp": 1.37,
           "fgPct": 71.4,
-          "percentile": 6.4
+          "percentile": 6.4,
+          "gp": 58,
+          "possTotal": 27,
+          "ptsTotal": 37,
+          "fgmTotal": 15,
+          "fgaTotal": 21
         },
         {
           "playType": "Spotup",
@@ -833,7 +1178,12 @@
           "freq": 35.7,
           "ppp": 1.19,
           "fgPct": 43.8,
-          "percentile": 15.1
+          "percentile": 15.1,
+          "gp": 58,
+          "possTotal": 233,
+          "ptsTotal": 276,
+          "fgmTotal": 95,
+          "fgaTotal": 217
         },
         {
           "playType": "Handoff",
@@ -842,7 +1192,12 @@
           "freq": 6.7,
           "ppp": 0.64,
           "fgPct": 29.7,
-          "percentile": 91.9
+          "percentile": 91.9,
+          "gp": 58,
+          "possTotal": 44,
+          "ptsTotal": 28,
+          "fgmTotal": 11,
+          "fgaTotal": 37
         },
         {
           "playType": "OffScreen",
@@ -851,7 +1206,12 @@
           "freq": 4.4,
           "ppp": 0.59,
           "fgPct": 24.0,
-          "percentile": 93.9
+          "percentile": 93.9,
+          "gp": 58,
+          "possTotal": 29,
+          "ptsTotal": 17,
+          "fgmTotal": 6,
+          "fgaTotal": 25
         }
       ],
       "Ayo Dosunmu": [
@@ -862,7 +1222,12 @@
           "freq": 33.7,
           "ppp": 1.21,
           "fgPct": 56.4,
-          "percentile": 65.2
+          "percentile": 65.2,
+          "gp": 43,
+          "possTotal": 189,
+          "ptsTotal": 228,
+          "fgmTotal": 88,
+          "fgaTotal": 156
         },
         {
           "playType": "Isolation",
@@ -871,7 +1236,12 @@
           "freq": 2.1,
           "ppp": 1.0,
           "fgPct": 55.6,
-          "percentile": 74.8
+          "percentile": 74.8,
+          "gp": 43,
+          "possTotal": 12,
+          "ptsTotal": 12,
+          "fgmTotal": 5,
+          "fgaTotal": 9
         },
         {
           "playType": "PRBallHandler",
@@ -880,7 +1250,12 @@
           "freq": 22.1,
           "ppp": 0.99,
           "fgPct": 48.5,
-          "percentile": 81.2
+          "percentile": 81.2,
+          "gp": 43,
+          "possTotal": 124,
+          "ptsTotal": 123,
+          "fgmTotal": 48,
+          "fgaTotal": 99
         },
         {
           "playType": "PRBallHandler",
@@ -889,7 +1264,12 @@
           "freq": 16.7,
           "ppp": 0.92,
           "fgPct": 41.9,
-          "percentile": 66.8
+          "percentile": 66.8,
+          "gp": 24,
+          "possTotal": 52,
+          "ptsTotal": 48,
+          "fgmTotal": 18,
+          "fgaTotal": 43
         },
         {
           "playType": "Spotup",
@@ -898,7 +1278,12 @@
           "freq": 29.2,
           "ppp": 1.24,
           "fgPct": 46.1,
-          "percentile": 89.5
+          "percentile": 89.5,
+          "gp": 43,
+          "possTotal": 164,
+          "ptsTotal": 203,
+          "fgmTotal": 70,
+          "fgaTotal": 152
         },
         {
           "playType": "Handoff",
@@ -907,7 +1292,12 @@
           "freq": 9.0,
           "ppp": 1.25,
           "fgPct": 57.7,
-          "percentile": 93.8
+          "percentile": 93.8,
+          "gp": 24,
+          "possTotal": 28,
+          "ptsTotal": 35,
+          "fgmTotal": 15,
+          "fgaTotal": 26
         },
         {
           "playType": "Handoff",
@@ -916,7 +1306,12 @@
           "freq": 2.3,
           "ppp": 0.69,
           "fgPct": 33.3,
-          "percentile": 19.8
+          "percentile": 19.8,
+          "gp": 43,
+          "possTotal": 13,
+          "ptsTotal": 9,
+          "fgmTotal": 3,
+          "fgaTotal": 9
         },
         {
           "playType": "Cut",
@@ -925,7 +1320,12 @@
           "freq": 2.9,
           "ppp": 1.31,
           "fgPct": 66.7,
-          "percentile": 53.0
+          "percentile": 53.0,
+          "gp": 43,
+          "possTotal": 16,
+          "ptsTotal": 21,
+          "fgmTotal": 10,
+          "fgaTotal": 15
         },
         {
           "playType": "OffRebound",
@@ -934,7 +1334,12 @@
           "freq": 2.1,
           "ppp": 1.5,
           "fgPct": 62.5,
-          "percentile": 97.6
+          "percentile": 97.6,
+          "gp": 43,
+          "possTotal": 12,
+          "ptsTotal": 18,
+          "fgmTotal": 5,
+          "fgaTotal": 8
         },
         {
           "playType": "Misc",
@@ -943,7 +1348,12 @@
           "freq": 2.9,
           "ppp": 0.44,
           "fgPct": 50.0,
-          "percentile": 40.9
+          "percentile": 40.9,
+          "gp": 43,
+          "possTotal": 16,
+          "ptsTotal": 7,
+          "fgmTotal": 2,
+          "fgaTotal": 4
         },
         {
           "playType": "Isolation",
@@ -952,7 +1362,12 @@
           "freq": 6.4,
           "ppp": 0.68,
           "fgPct": 25.0,
-          "percentile": 91.1
+          "percentile": 91.1,
+          "gp": 42,
+          "possTotal": 25,
+          "ptsTotal": 17,
+          "fgmTotal": 5,
+          "fgaTotal": 20
         },
         {
           "playType": "PRBallHandler",
@@ -961,7 +1376,12 @@
           "freq": 30.8,
           "ppp": 0.72,
           "fgPct": 35.2,
-          "percentile": 96.1
+          "percentile": 96.1,
+          "gp": 42,
+          "possTotal": 121,
+          "ptsTotal": 87,
+          "fgmTotal": 32,
+          "fgaTotal": 91
         },
         {
           "playType": "PRRollMan",
@@ -970,7 +1390,12 @@
           "freq": 10.4,
           "ppp": 1.02,
           "fgPct": 51.6,
-          "percentile": 76.3
+          "percentile": 76.3,
+          "gp": 42,
+          "possTotal": 41,
+          "ptsTotal": 42,
+          "fgmTotal": 16,
+          "fgaTotal": 31
         },
         {
           "playType": "Postup",
@@ -979,7 +1404,12 @@
           "freq": 3.3,
           "ppp": 1.23,
           "fgPct": 70.0,
-          "percentile": 16.6
+          "percentile": 16.6,
+          "gp": 42,
+          "possTotal": 13,
+          "ptsTotal": 16,
+          "fgmTotal": 7,
+          "fgaTotal": 10
         },
         {
           "playType": "Spotup",
@@ -988,7 +1418,12 @@
           "freq": 32.6,
           "ppp": 0.73,
           "fgPct": 28.0,
-          "percentile": 97.8
+          "percentile": 97.8,
+          "gp": 42,
+          "possTotal": 128,
+          "ptsTotal": 94,
+          "fgmTotal": 33,
+          "fgaTotal": 118
         },
         {
           "playType": "Handoff",
@@ -997,7 +1432,12 @@
           "freq": 8.9,
           "ppp": 1.14,
           "fgPct": 57.7,
-          "percentile": 19.7
+          "percentile": 19.7,
+          "gp": 42,
+          "possTotal": 35,
+          "ptsTotal": 40,
+          "fgmTotal": 15,
+          "fgaTotal": 26
         },
         {
           "playType": "OffScreen",
@@ -1006,7 +1446,12 @@
           "freq": 4.6,
           "ppp": 0.39,
           "fgPct": 17.6,
-          "percentile": 98.4
+          "percentile": 98.4,
+          "gp": 42,
+          "possTotal": 18,
+          "ptsTotal": 7,
+          "fgmTotal": 3,
+          "fgaTotal": 17
         }
       ],
       "Naz Reid": [
@@ -1017,7 +1462,12 @@
           "freq": 18.0,
           "ppp": 1.19,
           "fgPct": 57.4,
-          "percentile": 63.2
+          "percentile": 63.2,
+          "gp": 74,
+          "possTotal": 182,
+          "ptsTotal": 217,
+          "fgmTotal": 85,
+          "fgaTotal": 148
         },
         {
           "playType": "Isolation",
@@ -1026,7 +1476,12 @@
           "freq": 3.7,
           "ppp": 0.76,
           "fgPct": 40.0,
-          "percentile": 23.7
+          "percentile": 23.7,
+          "gp": 74,
+          "possTotal": 37,
+          "ptsTotal": 28,
+          "fgmTotal": 10,
+          "fgaTotal": 25
         },
         {
           "playType": "PRBallHandler",
@@ -1035,7 +1490,12 @@
           "freq": 4.6,
           "ppp": 0.72,
           "fgPct": 31.7,
-          "percentile": 23.7
+          "percentile": 23.7,
+          "gp": 74,
+          "possTotal": 46,
+          "ptsTotal": 33,
+          "fgmTotal": 13,
+          "fgaTotal": 41
         },
         {
           "playType": "PRRollMan",
@@ -1044,7 +1504,12 @@
           "freq": 8.7,
           "ppp": 0.98,
           "fgPct": 42.3,
-          "percentile": 30.2
+          "percentile": 30.2,
+          "gp": 74,
+          "possTotal": 88,
+          "ptsTotal": 86,
+          "fgmTotal": 33,
+          "fgaTotal": 78
         },
         {
           "playType": "Postup",
@@ -1053,7 +1518,12 @@
           "freq": 8.9,
           "ppp": 0.96,
           "fgPct": 54.9,
-          "percentile": 40.5
+          "percentile": 40.5,
+          "gp": 74,
+          "possTotal": 90,
+          "ptsTotal": 86,
+          "fgmTotal": 39,
+          "fgaTotal": 71
         },
         {
           "playType": "Spotup",
@@ -1062,7 +1532,12 @@
           "freq": 29.9,
           "ppp": 1.05,
           "fgPct": 41.2,
-          "percentile": 52.6
+          "percentile": 52.6,
+          "gp": 74,
+          "possTotal": 302,
+          "ptsTotal": 318,
+          "fgmTotal": 114,
+          "fgaTotal": 277
         },
         {
           "playType": "Handoff",
@@ -1071,7 +1546,12 @@
           "freq": 4.6,
           "ppp": 1.02,
           "fgPct": 37.8,
-          "percentile": 67.6
+          "percentile": 67.6,
+          "gp": 74,
+          "possTotal": 46,
+          "ptsTotal": 47,
+          "fgmTotal": 14,
+          "fgaTotal": 37
         },
         {
           "playType": "Cut",
@@ -1080,7 +1560,12 @@
           "freq": 2.9,
           "ppp": 1.0,
           "fgPct": 52.0,
-          "percentile": 5.2
+          "percentile": 5.2,
+          "gp": 74,
+          "possTotal": 29,
+          "ptsTotal": 29,
+          "fgmTotal": 13,
+          "fgaTotal": 25
         },
         {
           "playType": "OffScreen",
@@ -1089,7 +1574,12 @@
           "freq": 9.7,
           "ppp": 0.9,
           "fgPct": 36.4,
-          "percentile": 40.2
+          "percentile": 40.2,
+          "gp": 74,
+          "possTotal": 98,
+          "ptsTotal": 88,
+          "fgmTotal": 32,
+          "fgaTotal": 88
         },
         {
           "playType": "OffRebound",
@@ -1098,7 +1588,12 @@
           "freq": 4.7,
           "ppp": 1.38,
           "fgPct": 68.3,
-          "percentile": 90.0
+          "percentile": 90.0,
+          "gp": 74,
+          "possTotal": 47,
+          "ptsTotal": 65,
+          "fgmTotal": 28,
+          "fgaTotal": 41
         },
         {
           "playType": "Misc",
@@ -1107,7 +1602,12 @@
           "freq": 4.5,
           "ppp": 0.36,
           "fgPct": 42.9,
-          "percentile": 27.9
+          "percentile": 27.9,
+          "gp": 74,
+          "possTotal": 45,
+          "ptsTotal": 16,
+          "fgmTotal": 3,
+          "fgaTotal": 7
         },
         {
           "playType": "Isolation",
@@ -1116,7 +1616,12 @@
           "freq": 14.1,
           "ppp": 0.79,
           "fgPct": 34.2,
-          "percentile": 78.5
+          "percentile": 78.5,
+          "gp": 73,
+          "possTotal": 95,
+          "ptsTotal": 75,
+          "fgmTotal": 25,
+          "fgaTotal": 73
         },
         {
           "playType": "PRBallHandler",
@@ -1125,7 +1630,12 @@
           "freq": 32.2,
           "ppp": 0.9,
           "fgPct": 41.6,
-          "percentile": 42.0
+          "percentile": 42.0,
+          "gp": 73,
+          "possTotal": 217,
+          "ptsTotal": 195,
+          "fgmTotal": 72,
+          "fgaTotal": 173
         },
         {
           "playType": "PRRollMan",
@@ -1134,7 +1644,12 @@
           "freq": 10.8,
           "ppp": 1.11,
           "fgPct": 54.4,
-          "percentile": 57.4
+          "percentile": 57.4,
+          "gp": 73,
+          "possTotal": 73,
+          "ptsTotal": 81,
+          "fgmTotal": 31,
+          "fgaTotal": 57
         },
         {
           "playType": "Postup",
@@ -1143,7 +1658,12 @@
           "freq": 1.6,
           "ppp": 1.64,
           "fgPct": 80.0,
-          "percentile": 1.2
+          "percentile": 1.2,
+          "gp": 73,
+          "possTotal": 11,
+          "ptsTotal": 18,
+          "fgmTotal": 8,
+          "fgaTotal": 10
         },
         {
           "playType": "Spotup",
@@ -1152,7 +1672,12 @@
           "freq": 32.2,
           "ppp": 1.11,
           "fgPct": 43.9,
-          "percentile": 34.0
+          "percentile": 34.0,
+          "gp": 73,
+          "possTotal": 217,
+          "ptsTotal": 240,
+          "fgmTotal": 83,
+          "fgaTotal": 189
         },
         {
           "playType": "Handoff",
@@ -1161,7 +1686,12 @@
           "freq": 4.0,
           "ppp": 1.0,
           "fgPct": 45.5,
-          "percentile": 41.8
+          "percentile": 41.8,
+          "gp": 73,
+          "possTotal": 27,
+          "ptsTotal": 27,
+          "fgmTotal": 10,
+          "fgaTotal": 22
         },
         {
           "playType": "OffScreen",
@@ -1170,7 +1700,12 @@
           "freq": 3.3,
           "ppp": 1.0,
           "fgPct": 29.4,
-          "percentile": 48.8
+          "percentile": 48.8,
+          "gp": 73,
+          "possTotal": 22,
+          "ptsTotal": 22,
+          "fgmTotal": 5,
+          "fgaTotal": 17
         }
       ],
       "Donte DiVincenzo": [
@@ -1181,7 +1716,12 @@
           "freq": 17.7,
           "ppp": 1.01,
           "fgPct": 47.4,
-          "percentile": 25.2
+          "percentile": 25.2,
+          "gp": 79,
+          "possTotal": 169,
+          "ptsTotal": 170,
+          "fgmTotal": 65,
+          "fgaTotal": 137
         },
         {
           "playType": "Isolation",
@@ -1190,7 +1730,12 @@
           "freq": 1.9,
           "ppp": 0.67,
           "fgPct": 33.3,
-          "percentile": 10.5
+          "percentile": 10.5,
+          "gp": 79,
+          "possTotal": 18,
+          "ptsTotal": 12,
+          "fgmTotal": 4,
+          "fgaTotal": 12
         },
         {
           "playType": "PRBallHandler",
@@ -1199,7 +1744,12 @@
           "freq": 11.5,
           "ppp": 0.79,
           "fgPct": 31.5,
-          "percentile": 39.3
+          "percentile": 39.3,
+          "gp": 79,
+          "possTotal": 110,
+          "ptsTotal": 87,
+          "fgmTotal": 28,
+          "fgaTotal": 89
         },
         {
           "playType": "Spotup",
@@ -1208,7 +1758,12 @@
           "freq": 33.0,
           "ppp": 1.19,
           "fgPct": 41.0,
-          "percentile": 82.7
+          "percentile": 82.7,
+          "gp": 79,
+          "possTotal": 316,
+          "ptsTotal": 377,
+          "fgmTotal": 125,
+          "fgaTotal": 305
         },
         {
           "playType": "Handoff",
@@ -1217,7 +1772,12 @@
           "freq": 13.5,
           "ppp": 0.89,
           "fgPct": 35.8,
-          "percentile": 43.6
+          "percentile": 43.6,
+          "gp": 79,
+          "possTotal": 129,
+          "ptsTotal": 115,
+          "fgmTotal": 39,
+          "fgaTotal": 109
         },
         {
           "playType": "Cut",
@@ -1226,7 +1786,12 @@
           "freq": 1.3,
           "ppp": 1.5,
           "fgPct": 72.7,
-          "percentile": 86.7
+          "percentile": 86.7,
+          "gp": 79,
+          "possTotal": 12,
+          "ptsTotal": 18,
+          "fgmTotal": 8,
+          "fgaTotal": 11
         },
         {
           "playType": "OffScreen",
@@ -1235,7 +1800,12 @@
           "freq": 13.8,
           "ppp": 1.01,
           "fgPct": 38.9,
-          "percentile": 59.2
+          "percentile": 59.2,
+          "gp": 79,
+          "possTotal": 132,
+          "ptsTotal": 134,
+          "fgmTotal": 44,
+          "fgaTotal": 113
         },
         {
           "playType": "OffRebound",
@@ -1244,7 +1814,12 @@
           "freq": 2.4,
           "ppp": 0.74,
           "fgPct": 41.2,
-          "percentile": 6.4
+          "percentile": 6.4,
+          "gp": 79,
+          "possTotal": 23,
+          "ptsTotal": 17,
+          "fgmTotal": 7,
+          "fgaTotal": 17
         },
         {
           "playType": "Misc",
@@ -1253,7 +1828,12 @@
           "freq": 4.1,
           "ppp": 0.59,
           "fgPct": 62.5,
-          "percentile": 62.3
+          "percentile": 62.3,
+          "gp": 79,
+          "possTotal": 39,
+          "ptsTotal": 23,
+          "fgmTotal": 5,
+          "fgaTotal": 8
         },
         {
           "playType": "Isolation",
@@ -1262,7 +1842,12 @@
           "freq": 6.8,
           "ppp": 0.78,
           "fgPct": 41.0,
-          "percentile": 81.7
+          "percentile": 81.7,
+          "gp": 78,
+          "possTotal": 54,
+          "ptsTotal": 42,
+          "fgmTotal": 16,
+          "fgaTotal": 39
         },
         {
           "playType": "PRBallHandler",
@@ -1271,7 +1856,12 @@
           "freq": 35.6,
           "ppp": 0.89,
           "fgPct": 44.3,
-          "percentile": 44.4
+          "percentile": 44.4,
+          "gp": 78,
+          "possTotal": 282,
+          "ptsTotal": 251,
+          "fgmTotal": 97,
+          "fgaTotal": 219
         },
         {
           "playType": "PRRollMan",
@@ -1280,7 +1870,12 @@
           "freq": 8.3,
           "ppp": 1.18,
           "fgPct": 54.4,
-          "percentile": 39.3
+          "percentile": 39.3,
+          "gp": 78,
+          "possTotal": 66,
+          "ptsTotal": 78,
+          "fgmTotal": 31,
+          "fgaTotal": 57
         },
         {
           "playType": "Postup",
@@ -1289,7 +1884,12 @@
           "freq": 2.9,
           "ppp": 1.26,
           "fgPct": 68.8,
-          "percentile": 14.6
+          "percentile": 14.6,
+          "gp": 78,
+          "possTotal": 23,
+          "ptsTotal": 29,
+          "fgmTotal": 11,
+          "fgaTotal": 16
         },
         {
           "playType": "Spotup",
@@ -1298,7 +1898,12 @@
           "freq": 29.8,
           "ppp": 0.83,
           "fgPct": 32.7,
-          "percentile": 93.8
+          "percentile": 93.8,
+          "gp": 78,
+          "possTotal": 236,
+          "ptsTotal": 197,
+          "fgmTotal": 71,
+          "fgaTotal": 217
         },
         {
           "playType": "Handoff",
@@ -1307,7 +1912,12 @@
           "freq": 9.1,
           "ppp": 1.07,
           "fgPct": 49.2,
-          "percentile": 33.0
+          "percentile": 33.0,
+          "gp": 78,
+          "possTotal": 72,
+          "ptsTotal": 77,
+          "fgmTotal": 29,
+          "fgaTotal": 59
         },
         {
           "playType": "OffScreen",
@@ -1316,7 +1926,12 @@
           "freq": 6.1,
           "ppp": 1.1,
           "fgPct": 40.5,
-          "percentile": 32.9
+          "percentile": 32.9,
+          "gp": 78,
+          "possTotal": 48,
+          "ptsTotal": 53,
+          "fgmTotal": 15,
+          "fgaTotal": 37
         }
       ],
       "Bones Hyland": [
@@ -1327,7 +1942,12 @@
           "freq": 24.1,
           "ppp": 1.15,
           "fgPct": 55.9,
-          "percentile": 52.5
+          "percentile": 52.5,
+          "gp": 70,
+          "possTotal": 138,
+          "ptsTotal": 158,
+          "fgmTotal": 62,
+          "fgaTotal": 111
         },
         {
           "playType": "Isolation",
@@ -1336,7 +1956,12 @@
           "freq": 10.8,
           "ppp": 0.9,
           "fgPct": 40.0,
-          "percentile": 53.7
+          "percentile": 53.7,
+          "gp": 70,
+          "possTotal": 62,
+          "ptsTotal": 56,
+          "fgmTotal": 20,
+          "fgaTotal": 50
         },
         {
           "playType": "PRBallHandler",
@@ -1345,7 +1970,12 @@
           "freq": 22.7,
           "ppp": 1.02,
           "fgPct": 42.9,
-          "percentile": 87.3
+          "percentile": 87.3,
+          "gp": 70,
+          "possTotal": 130,
+          "ptsTotal": 133,
+          "fgmTotal": 45,
+          "fgaTotal": 105
         },
         {
           "playType": "Spotup",
@@ -1354,7 +1984,12 @@
           "freq": 21.3,
           "ppp": 1.23,
           "fgPct": 42.6,
-          "percentile": 88.7
+          "percentile": 88.7,
+          "gp": 70,
+          "possTotal": 122,
+          "ptsTotal": 150,
+          "fgmTotal": 49,
+          "fgaTotal": 115
         },
         {
           "playType": "Handoff",
@@ -1363,7 +1998,12 @@
           "freq": 9.4,
           "ppp": 1.04,
           "fgPct": 41.3,
-          "percentile": 68.7
+          "percentile": 68.7,
+          "gp": 70,
+          "possTotal": 54,
+          "ptsTotal": 56,
+          "fgmTotal": 19,
+          "fgaTotal": 46
         },
         {
           "playType": "OffScreen",
@@ -1372,7 +2012,12 @@
           "freq": 4.5,
           "ppp": 0.81,
           "fgPct": 30.4,
-          "percentile": 28.5
+          "percentile": 28.5,
+          "gp": 70,
+          "possTotal": 26,
+          "ptsTotal": 21,
+          "fgmTotal": 7,
+          "fgaTotal": 23
         },
         {
           "playType": "Misc",
@@ -1381,7 +2026,12 @@
           "freq": 4.7,
           "ppp": 0.48,
           "fgPct": 50.0,
-          "percentile": 47.7
+          "percentile": 47.7,
+          "gp": 70,
+          "possTotal": 27,
+          "ptsTotal": 13,
+          "fgmTotal": 3,
+          "fgaTotal": 6
         },
         {
           "playType": "Isolation",
@@ -1390,7 +2040,12 @@
           "freq": 7.1,
           "ppp": 1.11,
           "fgPct": 56.5,
-          "percentile": 15.8
+          "percentile": 15.8,
+          "gp": 64,
+          "possTotal": 35,
+          "ptsTotal": 39,
+          "fgmTotal": 13,
+          "fgaTotal": 23
         },
         {
           "playType": "PRBallHandler",
@@ -1399,7 +2054,12 @@
           "freq": 39.0,
           "ppp": 0.8,
           "fgPct": 38.5,
-          "percentile": 78.5
+          "percentile": 78.5,
+          "gp": 64,
+          "possTotal": 193,
+          "ptsTotal": 155,
+          "fgmTotal": 55,
+          "fgaTotal": 143
         },
         {
           "playType": "PRRollMan",
@@ -1408,7 +2068,12 @@
           "freq": 9.5,
           "ppp": 1.28,
           "fgPct": 65.0,
-          "percentile": 22.9
+          "percentile": 22.9,
+          "gp": 64,
+          "possTotal": 47,
+          "ptsTotal": 60,
+          "fgmTotal": 26,
+          "fgaTotal": 40
         },
         {
           "playType": "Postup",
@@ -1417,7 +2082,12 @@
           "freq": 2.8,
           "ppp": 1.36,
           "fgPct": 72.7,
-          "percentile": 7.0
+          "percentile": 7.0,
+          "gp": 64,
+          "possTotal": 14,
+          "ptsTotal": 19,
+          "fgmTotal": 8,
+          "fgaTotal": 11
         },
         {
           "playType": "Spotup",
@@ -1426,7 +2096,12 @@
           "freq": 24.6,
           "ppp": 1.13,
           "fgPct": 41.1,
-          "percentile": 27.0
+          "percentile": 27.0,
+          "gp": 64,
+          "possTotal": 122,
+          "ptsTotal": 138,
+          "fgmTotal": 46,
+          "fgaTotal": 112
         },
         {
           "playType": "Handoff",
@@ -1435,7 +2110,12 @@
           "freq": 8.9,
           "ppp": 0.61,
           "fgPct": 29.3,
-          "percentile": 93.3
+          "percentile": 93.3,
+          "gp": 64,
+          "possTotal": 44,
+          "ptsTotal": 27,
+          "fgmTotal": 12,
+          "fgaTotal": 41
         },
         {
           "playType": "OffScreen",
@@ -1444,7 +2124,12 @@
           "freq": 4.6,
           "ppp": 0.91,
           "fgPct": 33.3,
-          "percentile": 59.2
+          "percentile": 59.2,
+          "gp": 64,
+          "possTotal": 23,
+          "ptsTotal": 21,
+          "fgmTotal": 7,
+          "fgaTotal": 21
         }
       ],
       "Rudy Gobert": [
@@ -1455,7 +2140,12 @@
           "freq": 12.9,
           "ppp": 1.46,
           "fgPct": 84.8,
-          "percentile": 96.3
+          "percentile": 96.3,
+          "gp": 73,
+          "possTotal": 91,
+          "ptsTotal": 133,
+          "fgmTotal": 56,
+          "fgaTotal": 66
         },
         {
           "playType": "PRRollMan",
@@ -1464,7 +2154,12 @@
           "freq": 15.7,
           "ppp": 1.27,
           "fgPct": 70.9,
-          "percentile": 79.1
+          "percentile": 79.1,
+          "gp": 73,
+          "possTotal": 111,
+          "ptsTotal": 141,
+          "fgmTotal": 56,
+          "fgaTotal": 79
         },
         {
           "playType": "Postup",
@@ -1473,7 +2168,12 @@
           "freq": 2.5,
           "ppp": 0.83,
           "fgPct": 62.5,
-          "percentile": 20.9
+          "percentile": 20.9,
+          "gp": 73,
+          "possTotal": 18,
+          "ptsTotal": 15,
+          "fgmTotal": 5,
+          "fgaTotal": 8
         },
         {
           "playType": "Spotup",
@@ -1482,7 +2182,12 @@
           "freq": 1.7,
           "ppp": 0.25,
           "fgPct": 9.1,
-          "percentile": 0.0
+          "percentile": 0.0,
+          "gp": 73,
+          "possTotal": 12,
+          "ptsTotal": 3,
+          "fgmTotal": 1,
+          "fgaTotal": 11
         },
         {
           "playType": "Cut",
@@ -1491,7 +2196,12 @@
           "freq": 27.8,
           "ppp": 1.21,
           "fgPct": 70.7,
-          "percentile": 29.4
+          "percentile": 29.4,
+          "gp": 73,
+          "possTotal": 196,
+          "ptsTotal": 238,
+          "fgmTotal": 99,
+          "fgaTotal": 140
         },
         {
           "playType": "OffRebound",
@@ -1500,7 +2210,12 @@
           "freq": 28.3,
           "ppp": 1.21,
           "fgPct": 64.4,
-          "percentile": 66.0
+          "percentile": 66.0,
+          "gp": 73,
+          "possTotal": 200,
+          "ptsTotal": 242,
+          "fgmTotal": 103,
+          "fgaTotal": 160
         },
         {
           "playType": "Misc",
@@ -1509,7 +2224,12 @@
           "freq": 10.6,
           "ppp": 0.32,
           "fgPct": 40.0,
-          "percentile": 20.6
+          "percentile": 20.6,
+          "gp": 73,
+          "possTotal": 75,
+          "ptsTotal": 24,
+          "fgmTotal": 2,
+          "fgaTotal": 5
         },
         {
           "playType": "Isolation",
@@ -1518,7 +2238,12 @@
           "freq": 8.2,
           "ppp": 0.81,
           "fgPct": 39.8,
-          "percentile": 74.0
+          "percentile": 74.0,
+          "gp": 72,
+          "possTotal": 112,
+          "ptsTotal": 91,
+          "fgmTotal": 37,
+          "fgaTotal": 93
         },
         {
           "playType": "PRBallHandler",
@@ -1527,7 +2252,12 @@
           "freq": 58.9,
           "ppp": 0.88,
           "fgPct": 40.4,
-          "percentile": 52.2
+          "percentile": 52.2,
+          "gp": 72,
+          "possTotal": 806,
+          "ptsTotal": 705,
+          "fgmTotal": 263,
+          "fgaTotal": 651
         },
         {
           "playType": "PRRollMan",
@@ -1536,7 +2266,12 @@
           "freq": 14.6,
           "ppp": 1.06,
           "fgPct": 50.3,
-          "percentile": 69.1
+          "percentile": 69.1,
+          "gp": 72,
+          "possTotal": 200,
+          "ptsTotal": 212,
+          "fgmTotal": 89,
+          "fgaTotal": 177
         },
         {
           "playType": "Postup",
@@ -1545,7 +2280,12 @@
           "freq": 2.2,
           "ppp": 0.77,
           "fgPct": 40.9,
-          "percentile": 84.5
+          "percentile": 84.5,
+          "gp": 72,
+          "possTotal": 30,
+          "ptsTotal": 23,
+          "fgmTotal": 9,
+          "fgaTotal": 22
         },
         {
           "playType": "Spotup",
@@ -1554,7 +2294,12 @@
           "freq": 12.6,
           "ppp": 0.95,
           "fgPct": 34.4,
-          "percentile": 79.4
+          "percentile": 79.4,
+          "gp": 72,
+          "possTotal": 172,
+          "ptsTotal": 163,
+          "fgmTotal": 53,
+          "fgaTotal": 154
         },
         {
           "playType": "Handoff",
@@ -1563,7 +2308,12 @@
           "freq": 0.7,
           "ppp": 0.7,
           "fgPct": 25.0,
-          "percentile": 84.4
+          "percentile": 84.4,
+          "gp": 72,
+          "possTotal": 10,
+          "ptsTotal": 7,
+          "fgmTotal": 2,
+          "fgaTotal": 8
         },
         {
           "playType": "OffScreen",
@@ -1572,7 +2322,12 @@
           "freq": 1.7,
           "ppp": 1.35,
           "fgPct": 54.5,
-          "percentile": 10.8
+          "percentile": 10.8,
+          "gp": 72,
+          "possTotal": 23,
+          "ptsTotal": 31,
+          "fgmTotal": 12,
+          "fgaTotal": 22
         }
       ],
       "Terrence Shannon Jr.": [
@@ -1583,7 +2338,12 @@
           "freq": 23.9,
           "ppp": 1.11,
           "fgPct": 57.1,
-          "percentile": 44.9
+          "percentile": 44.9,
+          "gp": 42,
+          "possTotal": 53,
+          "ptsTotal": 59,
+          "fgmTotal": 20,
+          "fgaTotal": 35
         },
         {
           "playType": "Isolation",
@@ -1592,7 +2352,12 @@
           "freq": 12.6,
           "ppp": 1.21,
           "fgPct": 61.1,
-          "percentile": 96.1
+          "percentile": 96.1,
+          "gp": 42,
+          "possTotal": 28,
+          "ptsTotal": 34,
+          "fgmTotal": 11,
+          "fgaTotal": 18
         },
         {
           "playType": "PRBallHandler",
@@ -1601,7 +2366,12 @@
           "freq": 18.5,
           "ppp": 0.95,
           "fgPct": 43.8,
-          "percentile": 74.5
+          "percentile": 74.5,
+          "gp": 42,
+          "possTotal": 41,
+          "ptsTotal": 39,
+          "fgmTotal": 14,
+          "fgaTotal": 32
         },
         {
           "playType": "Spotup",
@@ -1610,7 +2380,12 @@
           "freq": 28.4,
           "ppp": 0.89,
           "fgPct": 30.4,
-          "percentile": 19.6
+          "percentile": 19.6,
+          "gp": 42,
+          "possTotal": 63,
+          "ptsTotal": 56,
+          "fgmTotal": 17,
+          "fgaTotal": 56
         },
         {
           "playType": "Handoff",
@@ -1619,7 +2394,12 @@
           "freq": 7.2,
           "ppp": 0.75,
           "fgPct": 28.6,
-          "percentile": 25.3
+          "percentile": 25.3,
+          "gp": 42,
+          "possTotal": 16,
+          "ptsTotal": 12,
+          "fgmTotal": 4,
+          "fgaTotal": 14
         },
         {
           "playType": "Misc",
@@ -1628,7 +2408,12 @@
           "freq": 7.2,
           "ppp": 1.31,
           "fgPct": 75.0,
-          "percentile": 99.7
+          "percentile": 99.7,
+          "gp": 42,
+          "possTotal": 16,
+          "ptsTotal": 21,
+          "fgmTotal": 3,
+          "fgaTotal": 4
         },
         {
           "playType": "Isolation",
@@ -1637,7 +2422,12 @@
           "freq": 8.7,
           "ppp": 1.67,
           "fgPct": 76.9,
-          "percentile": 0.3
+          "percentile": 0.3,
+          "gp": 35,
+          "possTotal": 15,
+          "ptsTotal": 25,
+          "fgmTotal": 10,
+          "fgaTotal": 13
         },
         {
           "playType": "PRBallHandler",
@@ -1646,7 +2436,12 @@
           "freq": 39.5,
           "ppp": 1.06,
           "fgPct": 52.7,
-          "percentile": 6.6
+          "percentile": 6.6,
+          "gp": 35,
+          "possTotal": 68,
+          "ptsTotal": 72,
+          "fgmTotal": 29,
+          "fgaTotal": 55
         },
         {
           "playType": "Spotup",
@@ -1655,7 +2450,12 @@
           "freq": 26.2,
           "ppp": 0.91,
           "fgPct": 36.1,
-          "percentile": 86.6
+          "percentile": 86.6,
+          "gp": 35,
+          "possTotal": 45,
+          "ptsTotal": 41,
+          "fgmTotal": 13,
+          "fgaTotal": 36
         },
         {
           "playType": "Handoff",
@@ -1664,7 +2464,12 @@
           "freq": 7.6,
           "ppp": 1.15,
           "fgPct": 50.0,
-          "percentile": 17.7
+          "percentile": 17.7,
+          "gp": 35,
+          "possTotal": 13,
+          "ptsTotal": 15,
+          "fgmTotal": 5,
+          "fgaTotal": 10
         },
         {
           "playType": "OffScreen",
@@ -1673,7 +2478,12 @@
           "freq": 9.3,
           "ppp": 0.69,
           "fgPct": 36.4,
-          "percentile": 86.7
+          "percentile": 86.7,
+          "gp": 35,
+          "possTotal": 16,
+          "ptsTotal": 11,
+          "fgmTotal": 4,
+          "fgaTotal": 11
         }
       ],
       "Jaylen Clark": [
@@ -1684,7 +2494,12 @@
           "freq": 19.9,
           "ppp": 1.0,
           "fgPct": 51.2,
-          "percentile": 23.5
+          "percentile": 23.5,
+          "gp": 65,
+          "possTotal": 53,
+          "ptsTotal": 53,
+          "fgmTotal": 22,
+          "fgaTotal": 43
         },
         {
           "playType": "PRBallHandler",
@@ -1693,7 +2508,12 @@
           "freq": 6.7,
           "ppp": 0.5,
           "fgPct": 21.4,
-          "percentile": 4.1
+          "percentile": 4.1,
+          "gp": 65,
+          "possTotal": 18,
+          "ptsTotal": 9,
+          "fgmTotal": 3,
+          "fgaTotal": 14
         },
         {
           "playType": "Spotup",
@@ -1702,7 +2522,12 @@
           "freq": 44.9,
           "ppp": 1.02,
           "fgPct": 38.0,
-          "percentile": 45.4
+          "percentile": 45.4,
+          "gp": 65,
+          "possTotal": 120,
+          "ptsTotal": 123,
+          "fgmTotal": 41,
+          "fgaTotal": 108
         },
         {
           "playType": "Cut",
@@ -1711,7 +2536,12 @@
           "freq": 6.0,
           "ppp": 1.44,
           "fgPct": 69.2,
-          "percentile": 77.2
+          "percentile": 77.2,
+          "gp": 65,
+          "possTotal": 16,
+          "ptsTotal": 23,
+          "fgmTotal": 9,
+          "fgaTotal": 13
         },
         {
           "playType": "OffRebound",
@@ -1720,7 +2550,12 @@
           "freq": 11.2,
           "ppp": 1.03,
           "fgPct": 56.0,
-          "percentile": 35.4
+          "percentile": 35.4,
+          "gp": 65,
+          "possTotal": 30,
+          "ptsTotal": 31,
+          "fgmTotal": 14,
+          "fgaTotal": 25
         },
         {
           "playType": "Misc",
@@ -1729,7 +2564,12 @@
           "freq": 5.2,
           "ppp": 0.93,
           "fgPct": 66.7,
-          "percentile": 94.7
+          "percentile": 94.7,
+          "gp": 65,
+          "possTotal": 14,
+          "ptsTotal": 13,
+          "fgmTotal": 4,
+          "fgaTotal": 6
         },
         {
           "playType": "Isolation",
@@ -1738,7 +2578,12 @@
           "freq": 10.2,
           "ppp": 0.86,
           "fgPct": 40.0,
-          "percentile": 63.8
+          "percentile": 63.8,
+          "gp": 60,
+          "possTotal": 37,
+          "ptsTotal": 32,
+          "fgmTotal": 12,
+          "fgaTotal": 30
         },
         {
           "playType": "PRBallHandler",
@@ -1747,7 +2592,12 @@
           "freq": 40.4,
           "ppp": 0.99,
           "fgPct": 47.7,
-          "percentile": 17.6
+          "percentile": 17.6,
+          "gp": 60,
+          "possTotal": 146,
+          "ptsTotal": 144,
+          "fgmTotal": 51,
+          "fgaTotal": 107
         },
         {
           "playType": "PRRollMan",
@@ -1756,7 +2606,12 @@
           "freq": 6.4,
           "ppp": 1.0,
           "fgPct": 47.4,
-          "percentile": 82.0
+          "percentile": 82.0,
+          "gp": 60,
+          "possTotal": 23,
+          "ptsTotal": 23,
+          "fgmTotal": 9,
+          "fgaTotal": 19
         },
         {
           "playType": "Postup",
@@ -1765,7 +2620,12 @@
           "freq": 3.3,
           "ppp": 1.67,
           "fgPct": 71.4,
-          "percentile": 0.6
+          "percentile": 0.6,
+          "gp": 60,
+          "possTotal": 12,
+          "ptsTotal": 20,
+          "fgmTotal": 5,
+          "fgaTotal": 7
         },
         {
           "playType": "Spotup",
@@ -1774,7 +2634,12 @@
           "freq": 23.3,
           "ppp": 0.89,
           "fgPct": 34.6,
-          "percentile": 88.5
+          "percentile": 88.5,
+          "gp": 60,
+          "possTotal": 84,
+          "ptsTotal": 75,
+          "fgmTotal": 27,
+          "fgaTotal": 78
         },
         {
           "playType": "Handoff",
@@ -1783,7 +2648,12 @@
           "freq": 6.9,
           "ppp": 1.0,
           "fgPct": 45.5,
-          "percentile": 41.8
+          "percentile": 41.8,
+          "gp": 60,
+          "possTotal": 25,
+          "ptsTotal": 25,
+          "fgmTotal": 10,
+          "fgaTotal": 22
         },
         {
           "playType": "OffScreen",
@@ -1792,7 +2662,12 @@
           "freq": 6.1,
           "ppp": 0.68,
           "fgPct": 31.6,
-          "percentile": 87.7
+          "percentile": 87.7,
+          "gp": 60,
+          "possTotal": 22,
+          "ptsTotal": 15,
+          "fgmTotal": 6,
+          "fgaTotal": 19
         }
       ],
       "Mike Conley": [
@@ -1803,7 +2678,12 @@
           "freq": 16.3,
           "ppp": 1.07,
           "fgPct": 40.0,
-          "percentile": 36.5
+          "percentile": 36.5,
+          "gp": 51,
+          "possTotal": 42,
+          "ptsTotal": 45,
+          "fgmTotal": 14,
+          "fgaTotal": 35
         },
         {
           "playType": "PRBallHandler",
@@ -1812,7 +2692,12 @@
           "freq": 22.9,
           "ppp": 0.61,
           "fgPct": 22.5,
-          "percentile": 11.6
+          "percentile": 11.6,
+          "gp": 51,
+          "possTotal": 59,
+          "ptsTotal": 36,
+          "fgmTotal": 9,
+          "fgaTotal": 40
         },
         {
           "playType": "Spotup",
@@ -1821,7 +2706,12 @@
           "freq": 33.3,
           "ppp": 1.22,
           "fgPct": 41.3,
-          "percentile": 87.5
+          "percentile": 87.5,
+          "gp": 51,
+          "possTotal": 86,
+          "ptsTotal": 105,
+          "fgmTotal": 33,
+          "fgaTotal": 80
         },
         {
           "playType": "Handoff",
@@ -1830,7 +2720,12 @@
           "freq": 11.6,
           "ppp": 0.97,
           "fgPct": 37.5,
-          "percentile": 56.2
+          "percentile": 56.2,
+          "gp": 51,
+          "possTotal": 30,
+          "ptsTotal": 29,
+          "fgmTotal": 9,
+          "fgaTotal": 24
         },
         {
           "playType": "OffScreen",
@@ -1839,7 +2734,12 @@
           "freq": 5.4,
           "ppp": 0.0,
           "fgPct": 0.0,
-          "percentile": 0.0
+          "percentile": 0.0,
+          "gp": 51,
+          "possTotal": 14,
+          "ptsTotal": 0,
+          "fgmTotal": 0,
+          "fgaTotal": 14
         },
         {
           "playType": "Misc",
@@ -1848,7 +2748,12 @@
           "freq": 7.0,
           "ppp": 0.5,
           "fgPct": 0.0,
-          "percentile": 49.6
+          "percentile": 49.6,
+          "gp": 51,
+          "possTotal": 18,
+          "ptsTotal": 9,
+          "fgmTotal": 0,
+          "fgaTotal": 1
         },
         {
           "playType": "Isolation",
@@ -1857,7 +2762,12 @@
           "freq": 9.1,
           "ppp": 0.81,
           "fgPct": 45.8,
-          "percentile": 75.8
+          "percentile": 75.8,
+          "gp": 49,
+          "possTotal": 31,
+          "ptsTotal": 25,
+          "fgmTotal": 11,
+          "fgaTotal": 24
         },
         {
           "playType": "PRBallHandler",
@@ -1866,7 +2776,12 @@
           "freq": 33.9,
           "ppp": 0.65,
           "fgPct": 34.2,
-          "percentile": 99.3
+          "percentile": 99.3,
+          "gp": 49,
+          "possTotal": 116,
+          "ptsTotal": 75,
+          "fgmTotal": 27,
+          "fgaTotal": 79
         },
         {
           "playType": "PRRollMan",
@@ -1875,7 +2790,12 @@
           "freq": 8.5,
           "ppp": 1.1,
           "fgPct": 47.8,
-          "percentile": 59.0
+          "percentile": 59.0,
+          "gp": 49,
+          "possTotal": 29,
+          "ptsTotal": 32,
+          "fgmTotal": 11,
+          "fgaTotal": 23
         },
         {
           "playType": "Postup",
@@ -1884,7 +2804,12 @@
           "freq": 4.1,
           "ppp": 0.93,
           "fgPct": 36.4,
-          "percentile": 62.6
+          "percentile": 62.6,
+          "gp": 49,
+          "possTotal": 14,
+          "ptsTotal": 13,
+          "fgmTotal": 4,
+          "fgaTotal": 11
         },
         {
           "playType": "Spotup",
@@ -1893,7 +2818,12 @@
           "freq": 30.1,
           "ppp": 1.16,
           "fgPct": 43.0,
-          "percentile": 20.1
+          "percentile": 20.1,
+          "gp": 49,
+          "possTotal": 103,
+          "ptsTotal": 119,
+          "fgmTotal": 40,
+          "fgaTotal": 93
         },
         {
           "playType": "Handoff",
@@ -1902,7 +2832,12 @@
           "freq": 6.7,
           "ppp": 1.09,
           "fgPct": 42.9,
-          "percentile": 29.8
+          "percentile": 29.8,
+          "gp": 49,
+          "possTotal": 23,
+          "ptsTotal": 25,
+          "fgmTotal": 9,
+          "fgaTotal": 21
         },
         {
           "playType": "OffScreen",
@@ -1911,7 +2846,12 @@
           "freq": 4.7,
           "ppp": 0.88,
           "fgPct": 40.0,
-          "percentile": 66.8
+          "percentile": 66.8,
+          "gp": 49,
+          "possTotal": 16,
+          "ptsTotal": 14,
+          "fgmTotal": 6,
+          "fgaTotal": 15
         }
       ],
       "Kyle Anderson": [
@@ -1922,16 +2862,26 @@
           "freq": 16.8,
           "ppp": 1.21,
           "fgPct": 70.0,
-          "percentile": 66.1
+          "percentile": 66.1,
+          "gp": 20,
+          "possTotal": 24,
+          "ptsTotal": 29,
+          "fgmTotal": 14,
+          "fgaTotal": 20
         },
         {
           "playType": "Isolation",
           "side": "offensive",
-          "poss": 1.0,
+          "poss": 0.9,
           "freq": 13.3,
           "ppp": 0.84,
           "fgPct": 30.8,
-          "percentile": 38.7
+          "percentile": 38.7,
+          "gp": 20,
+          "possTotal": 19,
+          "ptsTotal": 16,
+          "fgmTotal": 4,
+          "fgaTotal": 13
         },
         {
           "playType": "PRBallHandler",
@@ -1940,7 +2890,12 @@
           "freq": 7.0,
           "ppp": 1.4,
           "fgPct": 60.0,
-          "percentile": 100.0
+          "percentile": 100.0,
+          "gp": 20,
+          "possTotal": 10,
+          "ptsTotal": 14,
+          "fgmTotal": 6,
+          "fgaTotal": 10
         },
         {
           "playType": "PRBallHandler",
@@ -1949,7 +2904,12 @@
           "freq": 13.1,
           "ppp": 0.85,
           "fgPct": 44.4,
-          "percentile": 51.3
+          "percentile": 51.3,
+          "gp": 19,
+          "possTotal": 13,
+          "ptsTotal": 11,
+          "fgmTotal": 4,
+          "fgaTotal": 9
         },
         {
           "playType": "PRRollMan",
@@ -1958,7 +2918,12 @@
           "freq": 7.0,
           "ppp": 1.2,
           "fgPct": 60.0,
-          "percentile": 68.0
+          "percentile": 68.0,
+          "gp": 20,
+          "possTotal": 10,
+          "ptsTotal": 12,
+          "fgmTotal": 6,
+          "fgaTotal": 10
         },
         {
           "playType": "Spotup",
@@ -1967,7 +2932,12 @@
           "freq": 18.2,
           "ppp": 0.96,
           "fgPct": 42.9,
-          "percentile": 33.6
+          "percentile": 33.6,
+          "gp": 20,
+          "possTotal": 26,
+          "ptsTotal": 25,
+          "fgmTotal": 9,
+          "fgaTotal": 21
         },
         {
           "playType": "Cut",
@@ -1976,7 +2946,12 @@
           "freq": 14.7,
           "ppp": 1.05,
           "fgPct": 53.3,
-          "percentile": 8.9
+          "percentile": 8.9,
+          "gp": 20,
+          "possTotal": 21,
+          "ptsTotal": 22,
+          "fgmTotal": 8,
+          "fgaTotal": 15
         },
         {
           "playType": "OffRebound",
@@ -1985,7 +2960,12 @@
           "freq": 7.7,
           "ppp": 0.91,
           "fgPct": 50.0,
-          "percentile": 20.3
+          "percentile": 20.3,
+          "gp": 20,
+          "possTotal": 11,
+          "ptsTotal": 10,
+          "fgmTotal": 5,
+          "fgaTotal": 10
         },
         {
           "playType": "Misc",
@@ -1994,7 +2974,12 @@
           "freq": 9.8,
           "ppp": 0.43,
           "fgPct": 33.3,
-          "percentile": 38.3
+          "percentile": 38.3,
+          "gp": 20,
+          "possTotal": 14,
+          "ptsTotal": 6,
+          "fgmTotal": 1,
+          "fgaTotal": 3
         },
         {
           "playType": "Isolation",
@@ -2003,7 +2988,12 @@
           "freq": 11.0,
           "ppp": 1.47,
           "fgPct": 90.9,
-          "percentile": 1.0
+          "percentile": 1.0,
+          "gp": 19,
+          "possTotal": 17,
+          "ptsTotal": 25,
+          "fgmTotal": 10,
+          "fgaTotal": 11
         },
         {
           "playType": "PRBallHandler",
@@ -2012,7 +3002,12 @@
           "freq": 43.9,
           "ppp": 0.71,
           "fgPct": 29.2,
-          "percentile": 97.6
+          "percentile": 97.6,
+          "gp": 19,
+          "possTotal": 68,
+          "ptsTotal": 48,
+          "fgmTotal": 14,
+          "fgaTotal": 48
         },
         {
           "playType": "PRRollMan",
@@ -2021,7 +3016,12 @@
           "freq": 7.1,
           "ppp": 1.18,
           "fgPct": 57.1,
-          "percentile": 39.3
+          "percentile": 39.3,
+          "gp": 19,
+          "possTotal": 11,
+          "ptsTotal": 13,
+          "fgmTotal": 4,
+          "fgaTotal": 7
         },
         {
           "playType": "Spotup",
@@ -2030,7 +3030,12 @@
           "freq": 28.4,
           "ppp": 1.07,
           "fgPct": 39.5,
-          "percentile": 45.1
+          "percentile": 45.1,
+          "gp": 19,
+          "possTotal": 44,
+          "ptsTotal": 47,
+          "fgmTotal": 15,
+          "fgaTotal": 38
         }
       ]
     },

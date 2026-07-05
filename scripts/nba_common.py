@@ -329,6 +329,10 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
     抓取 Synergy 戰術數據（進攻與防守）
     player_or_team: 'T' 查球隊（過濾出灰狼）, 'P' 查球員（保留全聯盟，由呼叫端以名單過濾）
     回傳 list，球員項目含 playerId / playerName
+
+    使用 PerMode=Totals 抓整數總量（gp/possTotal/ptsTotal/fgmTotal/fgaTotal），
+    供未來單場 PlayType 相減還原；顯示用的 poss（每場）由總量 / GP 推導，
+    比率（freq/ppp/fgPct/percentile）與 PerGame 模式相同。Synergy 不支援日期篩選。
     """
     results = []
     for side in ["offensive", "defensive"]:
@@ -336,7 +340,7 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
             if side == "defensive" and (ptype == "Cut" or ptype == "Misc"):
                 continue  # 防守沒有這兩項
             url = (f"https://stats.nba.com/stats/synergyplaytypes"
-                   f"?LeagueID=00&PerMode=PerGame&PlayType={ptype}"
+                   f"?LeagueID=00&PerMode=Totals&PlayType={ptype}"
                    f"&PlayerOrTeam={player_or_team}&SeasonType={season_type_api}"
                    f"&SeasonYear={season}&TypeGrouping={side}")
             data = fetch_with_retry(url, f"Synergy {ptype} ({side}) [{player_or_team}]")
@@ -347,18 +351,25 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
             if player_or_team == "T":
                 rows = [r for r in rows if r[headers_list.index("TEAM_ID")] == TEAM_ID]
             for row in rows:
-                # 門檻過濾：只要有任何球權資料 (POSS > 0) 就算達到門檻
-                poss = row[headers_list.index("POSS")]
-                if poss <= 0:
+                # 門檻過濾：只要有任何球權（POSS 總量 > 0）就算達到門檻
+                poss_total = row[headers_list.index("POSS")]
+                if poss_total <= 0:
                     continue
+                gp = safe_col(row, headers_list, "GP")
                 item = {
                     "playType": ptype,
                     "side": side,
-                    "poss": poss,
+                    "poss": round(poss_total / gp, 1) if gp else 0,  # 顯示用每場球權
                     "freq": round(row[headers_list.index("POSS_PCT")] * 100, 1),
                     "ppp": round(row[headers_list.index("PPP")], 2),
                     "fgPct": safe_col(row, headers_list, "FG_PCT", pct=True),
                     "percentile": safe_col(row, headers_list, "PERCENTILE", pct=True),
+                    # 單場相減還原用整數總量
+                    "gp": gp,
+                    "possTotal": poss_total,
+                    "ptsTotal": safe_col(row, headers_list, "PTS"),
+                    "fgmTotal": safe_col(row, headers_list, "FGM"),
+                    "fgaTotal": safe_col(row, headers_list, "FGA"),
                 }
                 if player_or_team == "P":
                     item["playerId"] = row[headers_list.index("PLAYER_ID")]
