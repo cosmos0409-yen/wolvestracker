@@ -9,6 +9,8 @@ const App = () => {
     const trackingDefs = window.trackingDefs;
     const shootingDefs = window.shootingDefs || [];
     const clutchDefs = window.clutchDefs || [];
+    const defenseDefs = window.defenseDefs || [];
+    const oppZonesDefs = window.oppZonesDefs || [];
     const { PlayTypeCard, TrackingCardRow, SimpleLineChart, MultiLineChart, ShotChart } = window;
 
     // 偏好持久化 helper
@@ -242,6 +244,7 @@ const App = () => {
     let prevStats = []; let prevTracking = {};
     let currentShooting = {}; let prevShooting = {};
     let currentClutch = {}; let prevClutch = {};
+    let currentDefense = {}; let prevDefense = {};
     let currentLineups = [];
     let displayDate = "尚無數據"; let currentPlayerId = null;
     let currentSeason = null; let currentSeasonType = null;
@@ -251,12 +254,14 @@ const App = () => {
         if (current) {
             currentStats = current.stats || []; currentTracking = current.tracking || {}; displayDate = current.date;
             currentShooting = current.shooting || {}; currentClutch = current.clutch || {};
+            currentDefense = current.defense || {};
             currentLineups = current.lineups || [];
             currentSeason = current.season; currentSeasonType = current.seasonType;
         }
         if (prev) {
             prevStats = prev.stats || []; prevTracking = prev.tracking || {};
             prevShooting = prev.shooting || {}; prevClutch = prev.clutch || {};
+            prevDefense = prev.defense || {};
         }
     } else {
         const current = playerHistory[viewIndex]; const prev = playerHistory[viewIndex + 1];
@@ -265,6 +270,7 @@ const App = () => {
             currentStats = current.stats[selectedPlayer]; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
             currentShooting = current.shooting?.[selectedPlayer] || {};
             currentClutch = current.clutch?.[selectedPlayer] || {};
+            currentDefense = current.defense?.[selectedPlayer] || {};
             if (currentStats.length > 0 && currentStats[0].playerId) currentPlayerId = currentStats[0].playerId;
             else if (currentTracking.playerId) currentPlayerId = currentTracking.playerId;
         }
@@ -273,6 +279,7 @@ const App = () => {
             prevTracking = prev.tracking?.[selectedPlayer] || {};
             prevShooting = prev.shooting?.[selectedPlayer] || {};
             prevClutch = prev.clutch?.[selectedPlayer] || {};
+            prevDefense = prev.defense?.[selectedPlayer] || {};
         }
     }
 
@@ -471,7 +478,7 @@ const App = () => {
             title = `${cardInfo.id} (${viewSide === 'offensive' ? '進攻' : '防守'})`;
             cols = [{ k: 'ppp', l: 'PPP' }, { k: 'fgPct', l: 'FG%' }, { k: 'percentile', l: 'Percentile' }, { k: 'poss', l: 'Poss' }];
         } else {
-            const def = [...trackingDefs, ...shootingDefs, ...clutchDefs].find(t => t.id === cardInfo.id);
+            const def = [...trackingDefs, ...shootingDefs, ...clutchDefs, ...defenseDefs, ...oppZonesDefs].find(t => t.id === cardInfo.id);
             title = def?.title || cardInfo.id;
             cols = def ? def.metrics.map(m => ({ k: m.key, l: m.label })) : [];
         }
@@ -947,6 +954,23 @@ const App = () => {
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* 防守數據（防守側；歷史快照無 defense 欄位時自動隱藏） */}
+                        {viewSide === 'defensive' && Object.keys(currentDefense).length > 0 && (
+                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-red-500">
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
+                                {(viewMode === 'PLAYER'
+                                    ? defenseDefs
+                                    : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]
+                                ).map(def => (
+                                    <TrackingCardRow
+                                        key={def.id} title={def.title} category={def.id} source="defense"
+                                        metrics={def.metrics} current={currentDefense} prev={prevDefense}
+                                        onClick={setSelectedCard}
+                                    />
+                                ))}
                             </div>
                         )}
 

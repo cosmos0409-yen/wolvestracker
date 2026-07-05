@@ -109,6 +109,52 @@ window.clutchDefs = [
     },
 ];
 
+// 防守數據卡片定義（資料來源為 doc.defense）— 顯示於「防守」側
+// 對位防守/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
+window.defenseDefs = [
+    {
+        id: 'MatchupDefense', title: '對位防守 (Matchup Defense)', metrics: [
+            { key: 'D_FGA', label: '被挑戰出手', englishLabel: 'Defended FGA' },
+            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'Opp FG%', unit: '%', betterIsLarger: false },
+            { key: 'PCT_PLUSMINUS', label: '命中率增減', englishLabel: 'FG% Diff', unit: '%', betterIsLarger: false },
+            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'Opp 3P%', unit: '%', betterIsLarger: false },
+        ]
+    },
+    {
+        id: 'Hustle', title: '拼勁數據 (Hustle)', metrics: [
+            { key: 'CONTESTED_SHOTS', label: '干擾投籃', englishLabel: 'Contested Shots' },
+            { key: 'DEFLECTIONS', label: '抄截干擾', englishLabel: 'Deflections' },
+            { key: 'CHARGES_DRAWN', label: '製造進攻犯規', englishLabel: 'Charges Drawn' },
+            { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
+            { key: 'LOOSE_BALLS', label: '地板球', englishLabel: 'Loose Balls' },
+            { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
+        ]
+    },
+    {
+        id: 'DefenseBox', title: '防守 Box (Defense)', metrics: [
+            { key: 'DEF_RATING', label: '防守效率', englishLabel: 'Def Rating', betterIsLarger: false },
+            { key: 'STL', label: '抄截', englishLabel: 'Steals' },
+            { key: 'BLK', label: '阻攻', englishLabel: 'Blocks' },
+            { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
+            { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp Pts Paint', betterIsLarger: false },
+            { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp Pts FB', betterIsLarger: false },
+        ]
+    },
+];
+
+// 對手分區命中（僅球隊防守側，資料來源 doc.defense 的 *_OPP_* 欄位）
+window.oppZonesDefs = [
+    {
+        id: 'OppZones', title: '對手分區命中 (Opponent Shooting by Zone)', metrics: [
+            { key: 'RA_OPP_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area', unit: '%', betterIsLarger: false },
+            { key: 'PAINT_OPP_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA)', unit: '%', betterIsLarger: false },
+            { key: 'MID_OPP_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range', unit: '%', betterIsLarger: false },
+            { key: 'C3_OPP_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3', unit: '%', betterIsLarger: false },
+            { key: 'AB3_OPP_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3', unit: '%', betterIsLarger: false },
+        ]
+    },
+];
+
 // 賽季階段判斷（前端版本，對應 fetch_data.py 的 get_season_type()）
 // 使用美東時間 UTC-5（不處理 DST，誤差可忍）
 window.getSeasonPhase = function (date) {
