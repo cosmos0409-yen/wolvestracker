@@ -35,3 +35,4 @@ rad.json
 *.g.xlf
 *.flf
 TestResults.xmllocal_shotchart_summary.json
+backfill_games_log*.txt
