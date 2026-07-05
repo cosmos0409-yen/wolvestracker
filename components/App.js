@@ -35,6 +35,7 @@ const App = () => {
     const [selectedSeasonKey, setSelectedSeasonKey] = useState(() => loadPref('selectedSeasonKey', 'current'));
     const [historyLoading, setHistoryLoading] = useState(false);
     const [compareKeys, setCompareKeys] = useState(() => loadPref('compareKeys', [])); // 疊加的歷史賽季 keys
+    const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
 
     // 同步偏好回 localStorage
@@ -43,6 +44,7 @@ const App = () => {
     useEffect(() => savePref('selectedPlayer', selectedPlayer), [selectedPlayer]);
     useEffect(() => savePref('selectedSeasonKey', selectedSeasonKey), [selectedSeasonKey]);
     useEffect(() => savePref('compareKeys', compareKeys), [compareKeys]);
+    useEffect(() => savePref('comparePlayers', comparePlayers), [comparePlayers]);
 
     const isHistoryMode = selectedSeasonKey !== 'current';
     const SEASON_OPTIONS = window.SEASON_OPTIONS || [];
@@ -205,6 +207,15 @@ const App = () => {
             if (prev.includes(k)) return prev.filter(x => x !== k);
             if (prev.length >= MAX_COMPARE) return prev;
             return [...prev, k];
+        });
+    };
+
+    const toggleComparePlayer = (name) => {
+        if (name === selectedPlayer) return;
+        setComparePlayers(prev => {
+            if (prev.includes(name)) return prev.filter(x => x !== name);
+            if (prev.length >= MAX_COMPARE) return prev;
+            return [...prev, name];
         });
     };
 
@@ -399,13 +410,27 @@ const App = () => {
     const primaryLabel = isHistoryMode
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
         : '當季';
+    // 同季其他球員疊加（僅球員模式 + 當季；資料已在 playerHistory[viewIndex]，無需額外抓取）
+    const currentPlayerDoc = playerHistory[viewIndex];
+    const playerCompareSeries = (viewMode === 'PLAYER' && !isHistoryMode ? comparePlayers : [])
+        .filter(name => name !== selectedPlayer && currentPlayerDoc?.stats?.[name])
+        .map((name, i) => ({
+            key: 'p_' + name, label: name,
+            stats: currentPlayerDoc.stats[name],
+            tracking: currentPlayerDoc.tracking?.[name] || {},
+            color: COMPARE_COLORS[(compareKeys.length + i) % COMPARE_COLORS.length],
+        }));
+
+    // 比較球員時主序列標籤改用球員名，避免與其他球員並列時「當季」不清楚
+    const resolvedPrimaryLabel = (viewMode === 'PLAYER' && playerCompareSeries.length > 0) ? selectedPlayer : primaryLabel;
     const radarSeries = [
-        { key: '__primary__', label: primaryLabel, stats: currentStats, tracking: currentTracking, color: primaryColor },
+        { key: '__primary__', label: resolvedPrimaryLabel, stats: currentStats, tracking: currentTracking, color: primaryColor },
         ...compareKeys.map((k, idx) => {
             const e = getCompareEntry(k);
             if (!e) return null;
             return { key: e.key, label: e.label, stats: e.stats, tracking: e.tracking, color: COMPARE_COLORS[idx % COMPARE_COLORS.length] };
         }).filter(Boolean),
+        ...playerCompareSeries,
     ];
 
     const radarData = radarAxes.map(subject => {
@@ -775,6 +800,37 @@ const App = () => {
                                     <p className="text-[10px] text-slate-500 mt-1">僅雷達圖會疊加（球員模式）</p>
                                 )}
                             </div>
+                            {/* 球員互相比較（僅球員 + 當季，雷達疊加同季其他球員） */}
+                            {viewMode === 'PLAYER' && !isHistoryMode && availablePlayers.length > 1 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs text-slate-400 font-bold tracking-wide">比較球員</label>
+                                        <span className="text-[10px] text-slate-500">{comparePlayers.filter(n => n !== selectedPlayer).length}/{MAX_COMPARE}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
+                                        {availablePlayers.filter(n => n !== selectedPlayer).map(name => {
+                                            const active = comparePlayers.includes(name);
+                                            const colorIdx = compareKeys.length + comparePlayers.filter(n => n !== selectedPlayer).indexOf(name);
+                                            const chipColor = active ? COMPARE_COLORS[colorIdx % COMPARE_COLORS.length] : null;
+                                            const disabled = !active && comparePlayers.filter(n => n !== selectedPlayer).length >= MAX_COMPARE;
+                                            return (
+                                                <button
+                                                    key={name}
+                                                    onClick={() => toggleComparePlayer(name)}
+                                                    disabled={disabled}
+                                                    style={active ? { borderColor: chipColor, color: chipColor } : {}}
+                                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+                                                >
+                                                    {name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {comparePlayers.filter(n => n !== selectedPlayer).length > 0 && (
+                                        <p className="text-[10px] text-slate-500 mt-1">與 {selectedPlayer} 疊加於雷達圖</p>
+                                    )}
+                                </div>
+                            )}
                             <div className="flex gap-2 bg-slate-950 p-1 rounded border border-slate-800">
                                 <button onClick={() => { setViewMode('TEAM'); setViewIndex(0); }} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'TEAM' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.Users className="w-4 h-4" /> 球隊</button>
                                 <button onClick={() => { setViewMode('PLAYER'); setViewIndex(0); }} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'PLAYER' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.User className="w-4 h-4" /> 球員</button>
