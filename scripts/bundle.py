@@ -23,6 +23,7 @@ ORDER = [
     "PlayTypeCard.js",
     "TrackingCardRow.js",
     "ShotChart.js",
+    "DefenseHeatmap.js",
     "App.js",
 ]
 

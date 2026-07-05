@@ -978,6 +978,17 @@ const App = () => {
                         {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
                             <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
                         )}
+
+                        {/* 投籃熱圖（球隊模式，進攻側，當季） */}
+                        {viewMode === 'TEAM' && viewSide === 'offensive' && !isHistoryMode && ShotChart && (
+                            <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
+                        )}
+
+                        {/* 防守熱圖（球隊防守側：對手在各區的命中率） */}
+                        {viewMode === 'TEAM' && viewSide === 'defensive' && window.DefenseHeatmap
+                            && Object.keys(currentDefense).length > 0 && (
+                            <window.DefenseHeatmap defense={currentDefense} />
+                        )}
                     </div>
                     )}
                 </div>

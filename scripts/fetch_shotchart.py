@@ -30,7 +30,7 @@ SEASON = "2025-26"
 
 def fetch_player_shotchart(player_id, player_name, season, season_type_api):
     """
-    抓取單一球員整季出手座標。
+    抓取出手座標。player_id=0 時搭配 TeamID 抓「全隊」出手（球隊熱圖用）。
     回傳 list of dict：x/y 為場地座標（0.1 呎），made 為是否命中，
     dist 為出手距離（呎），zone 為 NBA 官方分區名。
     """
@@ -76,6 +76,26 @@ def main():
 
     db = init_firebase()
     summary = {}
+
+    # 先抓全隊出手（PlayerID=0 + TeamID）→ 球隊熱圖
+    team_shots = fetch_player_shotchart(0, "灰狼全隊", SEASON, season_type_api)
+    if team_shots is None:
+        summary["TEAM"] = "FAILED"
+    else:
+        summary["TEAM"] = len(team_shots)
+        if db:
+            doc_id = f"TEAM_{SEASON}_{type_key}"
+            db.collection("wolves_shotcharts").document(doc_id).set({
+                "playerId": 0,
+                "playerName": "Minnesota Timberwolves",
+                "season": SEASON,
+                "seasonType": season_type_label,
+                "timestamp": int(datetime.now().timestamp() * 1000),
+                "shots": team_shots,
+            })
+            print(f"✅ 全隊: {len(team_shots)} 次出手已寫入 wolves_shotcharts/{doc_id}")
+    time.sleep(1)
+
     for p in roster:
         shots = fetch_player_shotchart(p["id"], p["name"], SEASON, season_type_api)
         if shots is None:

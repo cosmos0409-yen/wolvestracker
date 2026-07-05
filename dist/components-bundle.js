@@ -391,25 +391,27 @@ window.TrackingCardRow = TrackingCardRow;
 // ---------- ShotChart.js ----------
 // 投籃熱圖元件：讀取 wolves_shotcharts/{playerId}_{season}_{type}，以 SVG 半場圖繪出手點
 // 座標系：NBA 官方 shotchartdetail（單位 0.1 呎，籃框在原點），SVG y 軸取負值翻轉
-const ShotChart = ({ playerId, playerName }) => {
+// teamMode=true 時讀 wolves_shotcharts/TEAM_{season}_{type}（全隊出手）
+const ShotChart = ({ playerId, playerName, teamMode = false }) => {
     const { useState, useEffect } = React;
     const [shots, setShots] = useState(null);   // null=載入中, []=無資料
     const [filter, setFilter] = useState('all'); // 'all' | 'made' | 'missed'
 
     const season = window.CURRENT_SEASON;
+    const idPart = teamMode ? 'TEAM' : playerId;
     // 依目前賽季階段選 doc；季後賽讀不到時退回例行賽
     const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
     const preferredTypes = phase.type === 'playoffs' ? ['playoffs', 'regular'] : ['regular'];
 
     useEffect(() => {
-        if (!playerId || !window.db || !window.firebaseModules) return;
+        if ((!playerId && !teamMode) || !window.db || !window.firebaseModules) return;
         let cancelled = false;
         setShots(null);
         (async () => {
             const cache = (window.__shotchartCache = window.__shotchartCache || {});
             const { doc: docFn, getDoc } = window.firebaseModules;
             for (const typeKey of preferredTypes) {
-                const docId = `${playerId}_${season}_${typeKey}`;
+                const docId = `${idPart}_${season}_${typeKey}`;
                 if (cache[docId] !== undefined) {
                     if (cache[docId] && !cancelled) { setShots(cache[docId]); return; }
                     continue; // 快取記錄此 doc 不存在，試下一個
@@ -425,9 +427,9 @@ const ShotChart = ({ playerId, playerName }) => {
             if (!cancelled) setShots([]);
         })();
         return () => { cancelled = true; };
-    }, [playerId, season]);
+    }, [playerId, season, teamMode]);
 
-    if (!playerId) return null;
+    if (!playerId && !teamMode) return null;
 
     const made = shots ? shots.filter(s => s.made === 1).length : 0;
     const total = shots ? shots.length : 0;
@@ -471,15 +473,21 @@ const ShotChart = ({ playerId, playerName }) => {
             {shots !== null && total > 0 && (
                 <div className="flex flex-col items-center">
                     <svg viewBox="-250 -470 500 522" className="w-full max-w-[480px]">
-                        {/* 出手點（先畫，讓球場線壓在上面） */}
-                        {visible.map((s, i) => (
-                            s.made === 1
-                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#12A150" fillOpacity="0.55" />
-                                : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
-                                    <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
-                                    <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
-                                </g>
-                        ))}
+                        {/* 出手點（先畫，讓球場線壓在上面）；球隊模式點多，統一用小圓點避免上萬 SVG 節點卡頓 */}
+                        {teamMode
+                            ? visible.map((s, i) => (
+                                <circle key={i} cx={s.x} cy={-s.y} r="2.5"
+                                    fill={s.made === 1 ? '#12A150' : '#ef4444'}
+                                    fillOpacity={s.made === 1 ? 0.5 : 0.3} />
+                            ))
+                            : visible.map((s, i) => (
+                                s.made === 1
+                                    ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#12A150" fillOpacity="0.55" />
+                                    : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
+                                        <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
+                                        <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
+                                    </g>
+                            ))}
                         {/* 球場線（NBA 半場，單位 0.1 呎） */}
                         <rect x="-250" y="-470" width="500" height="517.5" {...lineStyle} />
                         <rect x="-80" y="-142.5" width="160" height="190" {...lineStyle} />
@@ -493,7 +501,9 @@ const ShotChart = ({ playerId, playerName }) => {
                     </svg>
                     <div className="flex gap-4 mt-2 text-xs text-slate-400">
                         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#12A150]"></span> 命中</span>
-                        <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>
+                        {teamMode
+                            ? <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#ef4444]"></span> 未命中</span>
+                            : <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>}
                         <span className="text-slate-500">每週更新</span>
                     </div>
                 </div>
@@ -503,6 +513,77 @@ const ShotChart = ({ playerId, playerName }) => {
 };
 
 window.ShotChart = ShotChart;
+
+
+// ---------- DefenseHeatmap.js ----------
+// 防守熱圖：半場 5 區依「對手命中率 − 該區聯盟約略均值」上色
+// 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則禁區永遠最紅、失去防守意義）
+// 座標系同 ShotChart（0.1 呎，籃框在原點，y 取負向上）
+const DefenseHeatmap = ({ defense }) => {
+    // 各區聯盟約略均值(對手命中率 %)，供偏差著色的基準；隨賽季略有漂移，可微調
+    const ZONE_REF = { RA: 63, PAINT: 42, MID: 41, C3: 39, AB3: 36 };
+
+    // 偏差 → 顏色（+ = 對手投更準 = 守得差 = 紅；− = 守得好 = 綠）
+    const devColor = (pct, ref) => {
+        if (pct == null) return '#1e293b';
+        const d = pct - ref;
+        if (d <= -3) return '#15803d';   // 明顯優於均值
+        if (d <= -1) return '#4ade80';   // 略優
+        if (d < 1) return '#475569';     // 約略均值
+        if (d < 3) return '#f87171';     // 略差
+        return '#dc2626';                // 明顯差
+    };
+
+    const zone = (z) => defense[`${z}_OPP_FG_PCT`];
+    const fill = (z) => ({ fill: devColor(zone(z), ZONE_REF[z]), fillOpacity: 0.55 });
+    const lineStyle = { stroke: '#334155', strokeWidth: 3, fill: 'none' };
+    const pctLabel = (z) => (zone(z) == null ? '-' : `${zone(z)}%`);
+
+    // 標籤：對手命中率 + 中文區名（zoneKey 對應 ZONE_REF 的 key）
+    const Label = ({ x, y, name, zoneKey }) => (
+        <g>
+            <text x={x} y={y} textAnchor="middle" fill="#f1f5f9" fontSize="15" fontWeight="bold">{pctLabel(zoneKey)}</text>
+            <text x={x} y={y + 16} textAnchor="middle" fill="#cbd5e0" fontSize="11">{name}</text>
+        </g>
+    );
+
+    return (
+        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-red-500">
+            <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">防守熱圖 (對手分區命中率)</h2>
+            <p className="text-xs text-slate-500 mb-3">綠 = 守得比聯盟平均好，紅 = 較差（依對手命中率與該區均值的偏差著色）</p>
+            <div className="flex flex-col items-center">
+                <svg viewBox="-250 -470 500 522" className="w-full max-w-[480px]">
+                    {/* 分區色塊（由外而內疊，內層蓋外層） */}
+                    <rect x="-250" y="-470" width="500" height="517.5" {...fill('AB3')} />
+                    <path d="M -220 47.5 L -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5 L 220 47.5 Z" {...fill('MID')} />
+                    <rect x="-250" y="-89.5" width="30" height="137" {...fill('C3')} />
+                    <rect x="220" y="-89.5" width="30" height="137" {...fill('C3')} />
+                    <rect x="-80" y="-142.5" width="160" height="190" {...fill('PAINT')} />
+                    <path d="M -60 0 A 60 60 0 0 1 60 0 L 60 47.5 L -60 47.5 Z" {...fill('RA')} />
+
+                    {/* 球場線 */}
+                    <rect x="-250" y="-470" width="500" height="517.5" {...lineStyle} />
+                    <rect x="-80" y="-142.5" width="160" height="190" {...lineStyle} />
+                    <circle cx="0" cy="-142.5" r="60" {...lineStyle} />
+                    <line x1="-30" y1="12.5" x2="30" y2="12.5" stroke="#94a3b8" strokeWidth="4" />
+                    <circle cx="0" cy="0" r="7.5" stroke="#94a3b8" strokeWidth="3" fill="none" />
+                    <line x1="-220" y1="47.5" x2="-220" y2="-89.5" {...lineStyle} />
+                    <line x1="220" y1="47.5" x2="220" y2="-89.5" {...lineStyle} />
+                    <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
+
+                    {/* 標籤 */}
+                    <Label x={0} y={-8} name="禁區" zoneKey="RA" />
+                    <Label x={0} y={-95} name="油漆區" zoneKey="PAINT" />
+                    <Label x={0} y={-215} name="中距離" zoneKey="MID" />
+                    <Label x={0} y={-370} name="弧頂三分" zoneKey="AB3" />
+                    <Label x={-235} y={-15} name="角落" zoneKey="C3" />
+                </svg>
+            </div>
+        </div>
+    );
+};
+
+window.DefenseHeatmap = DefenseHeatmap;
 
 
 // ---------- App.js ----------
@@ -1485,6 +1566,17 @@ const App = () => {
                         {/* 投籃熱圖（球員模式，當季） */}
                         {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
                             <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
+                        )}
+
+                        {/* 投籃熱圖（球隊模式，進攻側，當季） */}
+                        {viewMode === 'TEAM' && viewSide === 'offensive' && !isHistoryMode && ShotChart && (
+                            <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
+                        )}
+
+                        {/* 防守熱圖（球隊防守側：對手在各區的命中率） */}
+                        {viewMode === 'TEAM' && viewSide === 'defensive' && window.DefenseHeatmap
+                            && Object.keys(currentDefense).length > 0 && (
+                            <window.DefenseHeatmap defense={currentDefense} />
                         )}
                     </div>
                     )}
