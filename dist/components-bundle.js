@@ -877,7 +877,8 @@ const App = () => {
         if (isHistoryMode) return null;
         const phase = window.getSeasonPhase ? window.getSeasonPhase() : { inSeason: true, label: '' };
         if (!phase.inSeason) {
-            return { kind: 'offseason', message: '目前為休賽期，下次數據更新預計 10/20' };
+            const s = window.CURRENT_SEASON || '';
+            return { kind: 'offseason', message: `目前為休賽期，以下為 ${s} 賽季最終數據（非即時），下次更新預計 10/20` };
         }
         const latest = (viewMode === 'TEAM' ? teamHistory[0] : playerHistory[0])?.date;
         if (!latest) return null;
@@ -1282,7 +1283,7 @@ const App = () => {
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#C4CED2] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div>
-                        <div><h1 className="text-xl font-bold text-white tracking-tight">Wolves PlayType & Tracking</h1><p className="text-xs text-[#12A150] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick}>DAILY TRACKER {isCloud ? <span className="text-blue-400 ml-2 animate-pulse">• Cloud Live</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
+                        <div><h1 className="text-xl font-bold text-white tracking-tight">Wolves PlayType & Tracking</h1><p className="text-xs text-[#12A150] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick}>DAILY TRACKER {!isCloud ? <span className="text-red-500 ml-2">• No Conn</span> : seasonStatus?.kind === 'offseason' ? <span className="text-amber-400 ml-2">• 休賽期</span> : <span className="text-blue-400 ml-2 animate-pulse">• Cloud Live</span>}</p></div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {(currentSeason || currentSeasonType) && (
