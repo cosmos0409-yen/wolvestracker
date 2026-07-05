@@ -72,13 +72,20 @@ Default to surfacing uncertainty, not hiding it.
 - 前端打包：改 `components/*.js` 後必跑 `python scripts/bundle.py`（勿手改 dist/）
 - 本地預覽：`python -m http.server 8000`
 
+## 色票（灰狼新品牌，hex 直接寫在元件；改色用 sed 全域替換）
+- 主色（進攻/選中/圖表主線/命中）：`#12A150`  · 結構藍（切換/連結）：`#236192`
+- 底色：`#0A1626`  · 月光銀（logo 環/標題底線 `/30`）：`#C4CED2`  · 防守/未命中/負值：`#EF4444`
+
 ## 硬性約束
 - 抓取邏輯與欄位對應集中在 `scripts/nba_common.py`——**新增數據改設定表（`*_FIELDS`），不要在 fetch_data.py / backfill_history.py 寫重複邏輯**
+- 加防守/新數據三情境見 handover「Q: 想新增數據」；前端對應 `constants.js` 的 `*Defs` + `TrackingCardRow` 的 `source` 參數
 - 每日快照球員以 playerName 為 key；歷史快照以 PlayerID 為 key（前端 normalizeHistoryPlayer 對齊），勿更動
+- 每日文件欄位：stats/tracking/shooting/clutch/defense/lineups，新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）
 - 新 Firestore 集合需在 Firebase Console 安全規則加 read 白名單（見 doc/handover.md）
 - .bat 檔必須 CRLF、`chcp 65001`、無中文註解
 - 不用 GitHub Actions（機房 IP 被 NBA 擋）；正式排程為 Windows Task Scheduler
-- 逐球員 endpoint（shotchartdetail）只能低頻執行（每週），避免被 NBA 封鎖
+- 逐球員 endpoint（shotchartdetail）只能低頻執行（每週），避免被 NBA 封鎖；Synergy 不支援日期篩選（單場只能相減還原）
+- Pages 部署偶發 `Deployment failed, try again later`（GitHub 暫時性）→ `gh run rerun <id>` 重跑即可
 
 ## 規格文件
 - `doc/handover.md`：交接手冊（架構/排程/資料結構/FAQ）

@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-07-02（爬蟲重構 + 投籃/Clutch/陣容/熱圖數據擴充完成）
+> 最後更新：2026-07-05（配色改版新品牌 + 防守數據 + 球隊/防守熱圖完成）
 
 ## 已完成項目
 
@@ -28,6 +28,11 @@
 | 20 | **投籃 / Clutch / 陣容每日抓取** | ✅ | shotlocations + ptshot + clutch + lineups，每日 +7 個 request |
 | 21 | **投籃熱圖（每週）** | ✅ | `fetch_shotchart.py` 逐球員出手座標 → `wolves_shotcharts`；前端 SVG 半場圖 |
 | 22 | **移除 GitHub Actions 遺留** | ✅ | 刪除 `nba_update.yml`（datacenter IP 被擋，實際早已改用本機排程） |
+| 23 | **配色改版（灰狼新品牌）** | ✅ | 翠綠 `#12A150`（官方 Aurora Green 提亮版）+ 午夜藍底 `#0A1626` + 月光銀 `#C4CED2`；取代舊萊姆綠 |
+| 24 | **防守數據（每日）** | ✅ | 對位防守 `leaguedashptdefend` + Hustle + 防守 box + 對手分區；`nba_common.py` 4 支 `fetch_*` + 設定表 |
+| 25 | **防守側前端** | ✅ | 修進攻/防守不對稱；`defenseDefs`/`oppZonesDefs`；`doc.defense` 欄位 |
+| 26 | **球隊投籃熱圖** | ✅ | `fetch_shotchart.py` `PlayerID=0` 全隊 → `wolves_shotcharts/TEAM_*`；`ShotChart teamMode` |
+| 27 | **防守熱圖** | ✅ | `DefenseHeatmap.js` 半場 5 區依「對手命中率 − 該區聯盟均值」著色 |
 
 ---
 
@@ -52,11 +57,12 @@ wolvestracker/
 ├── index.html                       ← HTML 骨架 + Firebase 初始化，引用 dist/components-bundle.js
 ├── components/                      ← React 元件原始碼（編輯這裡）
 │   ├── Icons.js                     ← SVG icon set，掛 window.Icons
-│   ├── constants.js                 ← PlayTypesList / STARTER_SORT_WEIGHT / trackingDefs / SEASON_OPTIONS / getSeasonPhase
+│   ├── constants.js                 ← PlayTypesList / 色票 / trackingDefs / shootingDefs / clutchDefs / defenseDefs / oppZonesDefs / SEASON_OPTIONS / getSeasonPhase
 │   ├── MetricComponents.js          ← TrendValue / SimpleLineChart / SimpleMetricCard
 │   ├── PlayTypeCard.js              ← PlayType 卡片
-│   ├── TrackingCardRow.js           ← Tracking 卡片群組（source 參數決定資料來源欄位）
-│   ├── ShotChart.js                 ← 投籃熱圖（SVG 半場圖，讀 wolves_shotcharts）
+│   ├── TrackingCardRow.js           ← 數據卡片群組（source 參數:tracking/shooting/clutch/defense）
+│   ├── ShotChart.js                 ← 投籃熱圖（SVG 半場點雲，teamMode 讀 TEAM_ doc）
+│   ├── DefenseHeatmap.js            ← 防守熱圖（半場 5 區依對手命中率偏差著色）
 │   └── App.js                       ← 主容器、Firebase 連線、HistoryModal、雷達圖、跨賽季比較
 ├── dist/
 │   └── components-bundle.js         ← 自動產生，勿手改
@@ -91,7 +97,7 @@ wolvestracker/
 Babel Standalone 對 `<script type="text/babel" src="...">` 是平行 fetch、依完成順序執行（非文件順序），會導致 App.js 在依賴前執行而崩潰。離線打包成單一 bundle 同時解決此問題與 file:// 直開時 fetch 被擋的問題。
 
 ### bundle.py 合併順序
-`Icons → constants → MetricComponents → PlayTypeCard → TrackingCardRow → ShotChart → App`，依序拼接寫入 `dist/components-bundle.js`。
+`Icons → constants → MetricComponents → PlayTypeCard → TrackingCardRow → ShotChart → DefenseHeatmap → App`，依序拼接寫入 `dist/components-bundle.js`。
 
 ---
 
@@ -162,15 +168,17 @@ service cloud.firestore {
 wolves_team_stats/{YYYY-MM-DD}
 wolves_player_stats/{YYYY-MM-DD}
 ```
-欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `tracking`, `shooting`, `clutch`, `lineups`（lineups 僅球隊文件）
+欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `tracking`, `shooting`, `clutch`, `defense`, `lineups`（lineups 僅球隊文件）
 
-球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` 皆為 `{playerName: {...}}` 同構。
+球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` / `defense` 皆為 `{playerName: {...}}` 同構。
+- `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）。
 
 ### 投籃熱圖（`fetch_shotchart.py` 寫入，每週）
 ```
 wolves_shotcharts/{playerId}_{season}_{regular|playoffs}   例：1630162_2025-26_regular
+wolves_shotcharts/TEAM_{season}_{regular|playoffs}         全隊出手（PlayerID=0，前端球隊熱圖用）
 ```
-欄位：`playerId`, `playerName`, `season`, `seasonType`, `timestamp`, `shots[]`（每筆 `{x, y, made, dist, zone}`，座標單位 0.1 呎、籃框在原點）。整季覆寫，非每日快照。
+欄位：`playerId`, `playerName`, `season`, `seasonType`, `timestamp`, `shots[]`（每筆 `{x, y, made, dist, zone}`，座標單位 0.1 呎、籃框在原點）。整季覆寫，非每日快照。全隊約 7,000+ 點、約 0.5 MB（單文件上限 1 MiB）。
 
 ### 歷史賽季快照（`backfill_history.py` 寫入）
 ```
@@ -182,7 +190,26 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 前端 `App.js` 內 `normalizeHistoryPlayer()` 把 PlayerID-keyed 結構轉成 playerName-keyed，與每日快照相容。
 
 ### 寫入前去重
-`fetch_data.py` 寫入前會抓最近 14 天最新一筆，深度比對 `DATA_KEYS`（stats / tracking / shooting / clutch / lineups），完全相同則跳過寫入避免堆積無意義文件。
+`fetch_data.py` 寫入前會抓最近 14 天最新一筆，深度比對 `DATA_KEYS`（stats / tracking / shooting / clutch / lineups / defense），完全相同則跳過寫入避免堆積無意義文件。
+
+### Firestore 免費方案（Spark）用量
+按「文件讀寫次數」計費，非大小。新增數據是往同一份每日文件加欄位（非新增文件），故寫入次數不變（每天約 2 份 + 熱圖每週約 19 份）。球員每日文件約 52 KB（單文件上限 1 MiB 的 5%），一整季約 4.7 MB（儲存上限 1 GiB）。唯一隨流量成長的是「讀取次數」（前端 onSnapshot 讀整個當季 collection），個人用量離 50,000/天 很遠。
+
+---
+
+## 配色（灰狼新品牌，2026-07 改版）
+
+色值目前以 hex 直接寫在各元件（Tailwind arbitrary values），未抽 CSS 變數。要改配色用 `sed` 全域替換 + 對照下表。
+
+| 用途 | 色碼 | 說明 |
+|---|---|---|
+| 主色（進攻/選中/圖表主線/命中） | `#12A150` | 官方 Aurora Green 提亮版（官方 `#009A4C` 深底小字偏暗） |
+| 結構藍（球隊/球員切換、連結） | `#236192` | Lake Blue |
+| 底色 | `#0A1626` | 午夜藍（`index.html` body + loading） |
+| 月光銀（logo 環、區塊標題底線） | `#C4CED2` | 標題底線用 `border-[#C4CED2]/30` |
+| 防守/未命中/負值 | `#EF4444` | 功能色（非品牌） |
+
+> header logo 圖仍是舊 Logo（`i.imgur.com/HSY3cX7.png`）；要換新 Logo 需一張透明 PNG（不宜熱連 IG CDN）。
 
 ---
 
