@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-07-05（配色改版新品牌 + 防守數據 + 球隊/防守熱圖完成）
+> 最後更新：2026-07-06（配色 + 防守 + 熱圖 + 球員比較 + 單場數據全部完成；新增「給下一位 Agent 的維護重點」章節）
 
 ## 已完成項目
 
@@ -46,7 +46,9 @@
 | Phase 1 | 歷史賽季數據回補（22-23 至 24-25） | ✅ 完成 |
 | Phase 2 | UI 賽季標籤、分類篩選、Tracking 中英對照 | ✅ 完成 |
 | Phase 3 | 跨賽季比較功能 | ✅ 完成 |
-| Phase 4 | 行動裝置響應與細節優化 | ⏳ 待執行 |
+| Phase 4 | 行動裝置響應與細節優化 | ✅ 完成 |
+
+（2026-07 後續批次：配色改版、防守數據、球隊/防守熱圖、球員互相比較、休賽期標示、單場數據回補+面板——詳見「已完成項目」23–27 與「給下一位 Agent 的維護重點」。）
 
 ---
 
@@ -301,3 +303,48 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **歷史賽季只存終點快照**：每季 1 個文件，省 Firestore 讀寫額度；逐日 backfill 約需 5,600 次 API call，目前不做
 - **歷史賽季用 localStorage 永久快取**：免費版 Firestore 每日讀取上限 50,000，靜態歷史數據只讀 1 次
 - **跨賽季折線圖以賽季為 X 軸**：歷史賽季只有終點快照，無法畫逐日；用「賽季順序軸」串接歷史終點 + 當季最新
+
+---
+
+## 給下一位 Agent 的維護重點（2026-07 交接）
+
+> 這一節專門寫給接手的 Agent。前面章節是「怎麼運作」，這節是「動它之前要知道什麼、下一步可以做什麼」。
+
+### A. PlayType (Synergy) 維護
+
+- **資料來源**：`fetch_synergy_data()`（`nba_common.py`），11 種進攻 + 9 種防守（防守跳過 Cut/Misc）。PlayType 清單 `PLAY_TYPES` 是 NBA 固定的，**不能自訂新增**。
+- **已改用 `PerMode=Totals`**：每個 stats item 除了顯示欄位（poss/freq/ppp/fgPct/percentile），還存整數總量 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`。顯示的 `poss` 是 `possTotal/GP` 推導、比率欄位與 PerGame 模式相同。**動這支函式時，顯示欄位與總量欄位都要保留**（總量是單場還原的唯一材料）。
+- **Synergy 不支援 `DateFrom/DateTo`**（實測參數被忽略）→ 這是 PlayType 沒有單場資料的根本原因，也是為何 `_with_date()` 不套用在 Synergy。
+- **PERCENTILE 是全聯盟相對排名**：只在賽季累積下有意義，無法相減、無法還原單場、單場也沒有百分位。
+- 前端顯示：`PlayTypeCard.js` + `App.js` 的 Synergy 區塊 + 雷達圖（用 percentile）。
+
+### B. 下一步：PlayType 單場還原（G3 的收尾，尚未做）
+
+材料已經每天在存（見 A 的整數總量），但**還原邏輯與 UI 都還沒寫**。要做的話：
+1. 後端或前端取「兩份 GP 差=1 的每日快照」，同一 playType 的 `possTotal/ptsTotal/fgmTotal/fgaTotal` 相減 → 得單場整數 → 算單場 `ppp = ΔPTS/ΔPOSS`、`fgPct = ΔFGM/ΔFGA`、`freq = 該類ΔPOSS / 全類ΔPOSS`。**因為存的是整數，相減無捨入誤差**。
+2. `PERCENTILE` 略過（無法還原）；`GP` 差≠1 時標示為「N 場合計」不可拆。
+3. 前端可把還原出的單場 PlayType 併進 `SingleGamePanel`（目前面板只有 Tracking/防守/分區投籃，缺 PlayType）。
+4. 只對**未來賽季**有效：2025-26 當時存的是舊結構（無整數總量），無法回溯還原；2026-27 起每天都有材料。
+
+### C. 常見雷區（都踩過，務必記得）
+
+- **新 Firestore 集合 = 必加 read 規則**：每加一個集合，都要去 Firebase Console 在 `match /databases/{database}/documents { ... }` **大括號內**加 `allow read: if request.auth != null`。這個 session 踩了兩次（`wolves_shotcharts`、`wolves_*_games`），症狀都是前端 `Missing or insufficient permissions`。放到大括號外會靜默失效。
+- **`.bat` / 重導向輸出要 `PYTHONIOENCODING=utf-8`**：腳本裡有 emoji（🔑✅），Windows 預設 cp950 會在 `print` 時崩潰。正式 `.bat` 已設；手動 `python x.py > log.txt` 也要設，否則死在第一個 emoji。
+- **新每日欄位要加進 `DATA_KEYS`**（`fetch_data.py`）：否則去重不會比對它，可能漏寫或誤判相同。
+- **改 `components/*.js` 後一定要 `python scripts/bundle.py`**：前端讀的是 `dist/components-bundle.js`；新元件還要加進 `bundle.py` 的 `ORDER`（放在 `App.js` 之前）。
+- **GitHub Pages 偶發 `Deployment failed, try again later`**：GitHub 暫時性，`gh run rerun <id>` 重跑即可，不是程式問題。
+
+### D. 效能與擴充強化點
+
+- **讀取配額是唯一會隨流量成長的**：前端當季用 `onSnapshot(collection(...))` 每次載入讀**整個當季 collection**（季末約 82 份/collection）。個人用量離免費上限 50,000/天 很遠，但若之後流量變大，優化方向：當季只讀最近 N 天、或分頁、或改 `getDocs` + 日期範圍。寫入/儲存都極寬鬆（見「Firestore 免費方案用量」）。
+- **每日請求預算**：目前約 53/天（含防守）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **單場資料是累積欄位的子集**：`backfill_games.py` / `capture_single_game()` 只抓 tracking + 對位防守 + Hustle + 分區投籃。想讓單場也有投籃拆分 / 防守 box / 對手分區，要在**這兩處**都加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
+- **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
+- **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`（`backfill_games.py --index-only` 產生）。每季回補完記得跑一次 `--index-only` 更新索引；否則選單不會有新賽季。
+
+### E. 可清理 / 待整理（低優先）
+
+- 專案根目錄有早期開發遺留的 `debug_*.py` / `test_*.py`（約 10 個），可清。
+- `scripts/backfill_queue.txt`、`run_backfill_next.bat`、`cleanup_and_tag.py` 是 Phase 1 一次性產物，queue 已空、`WolvesBackfill` 排程已刪，可視需要移除。
+- G2 每日單場「有比賽才抓」是靠去重信號（`not skip_player`）判斷；若哪天去重邏輯改動，記得這個相依關係。
+- `capture_single_game`（每日）沒存 matchup/wl，`backfill_games` 有；若要每日單場也顯示對手/勝負，補上即可（可從 `teamgamelog` 或索引查）。
