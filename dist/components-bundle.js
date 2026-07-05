@@ -166,7 +166,7 @@ const TrendValue = ({ value, prevValue, unit = "", label, reverseColor = false }
     return (<div><span className="block text-slate-500">{label}</span><div className="flex items-center gap-1"><span className={`font-mono text-sm font-bold ${colorClass}`}>{value}{unit}</span>{Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}</div></div>);
 };
 
-const SimpleLineChart = ({ data, dataKey, color = "#78BE20", xLabels = null, valueGetter = null }) => {
+const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, valueGetter = null }) => {
     if (!data || data.length < 2) return <div className="h-40 flex items-center justify-center text-slate-500 text-xs">數據不足，無法繪製趨勢圖</div>;
     const height = 150; const width = 500; const padding = 20; const paddingLeft = 40;
     const values = data.map(d => parseFloat(valueGetter ? valueGetter(d) : (d.stat?.[dataKey] ?? d.tracking?.[dataKey] ?? 0)));
@@ -208,7 +208,7 @@ const MultiLineChart = ({ data, metrics, xLabels = null }) => {
         return <div className="h-40 flex items-center justify-center text-slate-500 text-xs">資料不足</div>;
     }
     const height = 180, width = 500, padding = 20, paddingLeft = 40;
-    const COLORS = ['#78BE20', '#60a5fa', '#f59e0b', '#ec4899', '#a78bfa'];
+    const COLORS = ['#12A150', '#60a5fa', '#f59e0b', '#ec4899', '#a78bfa'];
     const seriesList = metrics.map((m, i) => {
         const values = data.map(d => parseFloat(d.stat?.[m.key] ?? d.tracking?.[m.key] ?? 0));
         const min = Math.min(...values), max = Math.max(...values);
@@ -393,8 +393,8 @@ const ShotChart = ({ playerId, playerName }) => {
     const lineStyle = { stroke: '#334155', strokeWidth: 3, fill: 'none' };
 
     return (
-        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
-            <div className="flex flex-wrap justify-between items-center border-b-2 border-slate-700 pb-2 mb-4 gap-2">
+        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
+            <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
                 <h2 className="text-xl font-bold">投籃熱圖 (Shot Chart)</h2>
                 <div className="flex items-center gap-3">
                     {total > 0 && (
@@ -407,7 +407,7 @@ const ShotChart = ({ playerId, playerName }) => {
                             { k: 'missed', l: '未中' },
                         ].map(opt => (
                             <button key={opt.k} onClick={() => setFilter(opt.k)}
-                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#78BE20] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
+                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
                                 {opt.l}
                             </button>
                         ))}
@@ -428,7 +428,7 @@ const ShotChart = ({ playerId, playerName }) => {
                         {/* 出手點（先畫，讓球場線壓在上面） */}
                         {visible.map((s, i) => (
                             s.made === 1
-                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#78BE20" fillOpacity="0.55" />
+                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#12A150" fillOpacity="0.55" />
                                 : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
                                     <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
                                     <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
@@ -446,7 +446,7 @@ const ShotChart = ({ playerId, playerName }) => {
                         <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
                     </svg>
                     <div className="flex gap-4 mt-2 text-xs text-slate-400">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#78BE20]"></span> 命中</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#12A150]"></span> 命中</span>
                         <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>
                         <span className="text-slate-500">每週更新</span>
                     </div>
@@ -784,7 +784,7 @@ const App = () => {
 
     const SkeletonBlock = () => (
         <div className="md:col-span-3 space-y-6 animate-pulse">
-            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#78BE20]">
+            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                 <div className="h-6 w-56 bg-slate-800 rounded mb-6"></div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {Array.from({ length: 8 }).map((_, i) => (
@@ -849,7 +849,7 @@ const App = () => {
         : ['單打防禦 (Iso Def)', '定點防線 (Spotup Def)', '擋拆防守 (P&R Def)', '干擾籃板 (Contest Reb)'];
 
     // Series 列表：primary + compare
-    const primaryColor = viewSide === 'offensive' ? '#78BE20' : '#ef4444';
+    const primaryColor = viewSide === 'offensive' ? '#12A150' : '#ef4444';
     const primaryLabel = isHistoryMode
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
         : '當季';
@@ -1007,7 +1007,7 @@ const App = () => {
                             <button
                                 key={t.k}
                                 onClick={() => setTab(t.k)}
-                                className={`px-4 py-2 text-xs font-bold rounded-t border-b-2 transition-colors ${tab === t.k ? 'border-[#78BE20] text-[#78BE20] bg-slate-950' : 'border-transparent text-slate-400 hover:text-white'}`}
+                                className={`px-4 py-2 text-xs font-bold rounded-t border-b-2 transition-colors ${tab === t.k ? 'border-[#12A150] text-[#12A150] bg-slate-950' : 'border-transparent text-slate-400 hover:text-white'}`}
                             >
                                 {t.l}
                             </button>
@@ -1018,7 +1018,7 @@ const App = () => {
                     <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-3">
                         <div className="flex bg-slate-800 rounded p-1">
                             {[5, 10, 20, 'ALL'].map(count => (
-                                <button key={count} onClick={() => { setFilterMode('recent'); setRecentCount(count); setDateStart(''); setDateEnd(''); }} className={`px-3 py-1 text-xs rounded transition-colors ${filterMode === 'recent' && recentCount === count ? 'bg-[#78BE20] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
+                                <button key={count} onClick={() => { setFilterMode('recent'); setRecentCount(count); setDateStart(''); setDateEnd(''); }} className={`px-3 py-1 text-xs rounded transition-colors ${filterMode === 'recent' && recentCount === count ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
                                     {count === 'ALL' ? '全部' : `近${count}場`}
                                 </button>
                             ))}
@@ -1030,7 +1030,7 @@ const App = () => {
                                     { k: '例行賽', l: '例行賽' },
                                     { k: '季後賽', l: '季後賽' },
                                 ].map(opt => (
-                                    <button key={opt.k} onClick={() => setSeasonTypeFilter(opt.k)} className={`px-3 py-1 text-xs rounded transition-colors ${seasonTypeFilter === opt.k ? (opt.k === '季後賽' ? 'bg-[#78BE20] text-[#0C2340] font-bold shadow' : 'bg-[#236192] text-white font-bold shadow') : 'text-slate-400 hover:text-white'}`}>
+                                    <button key={opt.k} onClick={() => setSeasonTypeFilter(opt.k)} className={`px-3 py-1 text-xs rounded transition-colors ${seasonTypeFilter === opt.k ? (opt.k === '季後賽' ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'bg-[#236192] text-white font-bold shadow') : 'text-slate-400 hover:text-white'}`}>
                                         {opt.l}
                                     </button>
                                 ))}
@@ -1046,7 +1046,7 @@ const App = () => {
 
                     <div className="p-4 bg-slate-900/50 border-b border-slate-800">
                         <p className="text-xs text-slate-400 flex items-center gap-2 mb-2"><Icons.BarChart className="w-3 h-3" /> 點擊下方表格標題切換折線圖（可多選疊加）</p>
-                        {chartMetrics.length === 1 && (<div className="mb-4 fade-in"><SimpleLineChart data={chartData} dataKey={chartMetrics[0]} color="#78BE20" /></div>)}
+                        {chartMetrics.length === 1 && (<div className="mb-4 fade-in"><SimpleLineChart data={chartData} dataKey={chartMetrics[0]} color="#12A150" /></div>)}
                         {chartMetrics.length >= 2 && (<div className="mb-4 fade-in"><MultiLineChart data={chartData} metrics={cols.filter(c => chartMetrics.includes(c.k)).map(c => ({ key: c.k, label: c.l }))} /></div>)}
                     </div>
 
@@ -1056,7 +1056,7 @@ const App = () => {
                                 <tr>
                                     <th className="px-6 py-3">日期</th>
                                     {cols.map(c => (
-                                        <th key={c.k} className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetrics.includes(c.k) ? 'text-white border-b-2 border-[#78BE20]' : ''}`} onClick={() => toggleChart(c.k)}>
+                                        <th key={c.k} className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetrics.includes(c.k) ? 'text-white border-b-2 border-[#12A150]' : ''}`} onClick={() => toggleChart(c.k)}>
                                             {c.l}
                                         </th>
                                     ))}
@@ -1090,7 +1090,7 @@ const App = () => {
                                     <SimpleLineChart
                                         data={crossRows.map(r => ({ stat: r.stat, tracking: r.tracking, date: r.shortLabel }))}
                                         dataKey={crossMetrics[0]}
-                                        color="#78BE20"
+                                        color="#12A150"
                                         xLabels={crossRows.map(r => r.shortLabel)}
                                     />
                                 </div>
@@ -1115,7 +1115,7 @@ const App = () => {
                                         <th className="px-6 py-3">賽季</th>
                                         {cols.map(c => (
                                             <th key={c.k}
-                                                className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${crossMetrics.includes(c.k) ? 'text-white border-b-2 border-[#78BE20]' : ''}`}
+                                                className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${crossMetrics.includes(c.k) ? 'text-white border-b-2 border-[#12A150]' : ''}`}
                                                 onClick={() => toggleCrossChart(c.k)}>
                                                 {c.l}
                                             </th>
@@ -1124,8 +1124,8 @@ const App = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-800">
                                     {crossRows.map(r => (
-                                        <tr key={r.key} className={`hover:bg-slate-800/70 transition-colors ${r.isPrimary ? 'bg-[#78BE20]/5' : ''}`}>
-                                            <td className={`px-6 py-4 ${r.isPrimary ? 'text-[#78BE20] font-bold' : 'text-slate-300'}`}>{r.label}</td>
+                                        <tr key={r.key} className={`hover:bg-slate-800/70 transition-colors ${r.isPrimary ? 'bg-[#12A150]/5' : ''}`}>
+                                            <td className={`px-6 py-4 ${r.isPrimary ? 'text-[#12A150] font-bold' : 'text-slate-300'}`}>{r.label}</td>
                                             {cols.map(c => {
                                                 const val = cardInfo.type === 'playtype' ? r.stat?.[c.k] : r.tracking?.[c.k];
                                                 return <td key={c.k} className="px-4 py-4 font-mono">{val ?? '-'}</td>
@@ -1147,23 +1147,23 @@ const App = () => {
             <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#78BE20] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div>
-                        <div><h1 className="text-xl font-bold text-white tracking-tight">Wolves PlayType & Tracking</h1><p className="text-xs text-[#78BE20] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick}>DAILY TRACKER {isCloud ? <span className="text-blue-400 ml-2 animate-pulse">• Cloud Live</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
+                        <div className="w-12 h-12 rounded-full bg-[#0C2340] border-2 border-[#C4CED2] flex items-center justify-center overflow-hidden shadow-lg"><img src="https://i.imgur.com/HSY3cX7.png" alt="Timberwolves Logo" className="w-full h-full object-cover" /></div>
+                        <div><h1 className="text-xl font-bold text-white tracking-tight">Wolves PlayType & Tracking</h1><p className="text-xs text-[#12A150] font-medium tracking-wide cursor-pointer hover:underline" onClick={handleStatusClick}>DAILY TRACKER {isCloud ? <span className="text-blue-400 ml-2 animate-pulse">• Cloud Live</span> : <span className="text-red-500 ml-2">• No Conn</span>}</p></div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {(currentSeason || currentSeasonType) && (
-                            <div className={`px-3 py-1.5 rounded-md text-xs font-bold border ${currentSeasonType === '季後賽' ? 'bg-[#78BE20]/15 border-[#78BE20]/40 text-[#78BE20]' : 'bg-[#236192]/20 border-[#236192]/50 text-blue-300'}`}>
+                            <div className={`px-3 py-1.5 rounded-md text-xs font-bold border ${currentSeasonType === '季後賽' ? 'bg-[#12A150]/15 border-[#12A150]/40 text-[#12A150]' : 'bg-[#236192]/20 border-[#236192]/50 text-blue-300'}`}>
                                 {currentSeason || ''} {currentSeasonType || ''}
                             </div>
                         )}
                         {isHistoryMode ? (
-                            <div className="px-4 py-2 bg-slate-950 rounded-lg border border-slate-800 font-mono font-bold text-[#78BE20]">
+                            <div className="px-4 py-2 bg-slate-950 rounded-lg border border-slate-800 font-mono font-bold text-[#12A150]">
                                 {historyLoading ? '載入中...' : displayDate}
                             </div>
                         ) : (
                             <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800">
                                 <button onClick={goPrev} disabled={viewIndex >= maxIndex} className="p-2 rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"><Icons.ChevronLeft className="w-5 h-5" /></button>
-                                <div className="px-4 font-mono font-bold text-[#78BE20]">{displayDate}</div>
+                                <div className="px-4 font-mono font-bold text-[#12A150]">{displayDate}</div>
                                 <button onClick={goNext} disabled={viewIndex === 0} className="p-2 rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"><Icons.ChevronRight className="w-5 h-5" /></button>
                             </div>
                         )}
@@ -1191,7 +1191,7 @@ const App = () => {
                                 <select
                                     value={selectedSeasonKey}
                                     onChange={(e) => setSelectedSeasonKey(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-[#78BE20]"
+                                    className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-[#12A150]"
                                 >
                                     {SEASON_OPTIONS.map(opt => (
                                         <option key={opt.key} value={opt.key}>{opt.label}</option>
@@ -1234,7 +1234,7 @@ const App = () => {
                                 <button onClick={() => { setViewMode('PLAYER'); setViewIndex(0); }} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'PLAYER' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.User className="w-4 h-4" /> 球員</button>
                             </div>
                             <div className="flex gap-2 bg-slate-950 p-1 rounded border border-slate-800">
-                                <button onClick={() => setViewSide('offensive')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewSide === 'offensive' ? 'bg-[#78BE20] text-[#0C2340] shadow' : 'text-slate-400'}`}><Icons.Sword className="w-4 h-4" /> 進攻</button>
+                                <button onClick={() => setViewSide('offensive')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewSide === 'offensive' ? 'bg-[#12A150] text-[#0C2340] shadow' : 'text-slate-400'}`}><Icons.Sword className="w-4 h-4" /> 進攻</button>
                                 <button onClick={() => setViewSide('defensive')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewSide === 'defensive' ? 'bg-red-700 text-white shadow' : 'text-slate-400'}`}><Icons.Shield className="w-4 h-4" /> 防守</button>
                             </div>
                             {viewMode === 'PLAYER' && (
@@ -1246,7 +1246,7 @@ const App = () => {
                                         const pId = pStats[0]?.playerId || pTrack.playerId || "0";
 
                                         return (
-                                            <button key={player} onClick={() => { setSelectedPlayer(player); setViewIndex(0); }} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#78BE20]/20 border border-[#78BE20]/50 text-[#78BE20] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                            <button key={player} onClick={() => { setSelectedPlayer(player); setViewIndex(0); }} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#12A150]/20 border border-[#12A150]/50 text-[#12A150] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
                                                 <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${pId}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
                                                 {player}
                                             </button>
@@ -1317,9 +1317,9 @@ const App = () => {
                     {/* Right Content */}
                     {showSkeleton ? <SkeletonBlock /> : (
                     <div className="md:col-span-3 space-y-6">
-                        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
+                        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 flex-grow">
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
                                     {viewMode === 'PLAYER' ? selectedPlayer : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
                                 </h2>
                             </div>
@@ -1335,7 +1335,7 @@ const App = () => {
                         {/* Tracking */}
                         {viewSide === 'offensive' && (
                             <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
-                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-6">進階數據 (Tracking)</h2>
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">進階數據 (Tracking)</h2>
                                 {trackingDefs.map(def => (
                                     <TrackingCardRow
                                         key={def.id} title={def.title} category={def.id}
@@ -1348,8 +1348,8 @@ const App = () => {
 
                         {/* 投籃數據（歷史快照無此資料時整區隱藏） */}
                         {viewSide === 'offensive' && Object.keys(currentShooting).length > 0 && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
-                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-6">投籃數據 (Shooting)</h2>
+                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">投籃數據 (Shooting)</h2>
                                 {shootingDefs.map(def => (
                                     <TrackingCardRow
                                         key={def.id} title={def.title} category={def.id} source="shooting"
@@ -1363,7 +1363,7 @@ const App = () => {
                         {/* 關鍵時刻 */}
                         {viewSide === 'offensive' && Object.keys(currentClutch).length > 0 && (
                             <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-amber-500">
-                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-6">關鍵時刻 (Clutch)</h2>
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">關鍵時刻 (Clutch)</h2>
                                 {clutchDefs.map(def => (
                                     <TrackingCardRow
                                         key={def.id} title={def.title} category={def.id} source="clutch"
@@ -1377,7 +1377,7 @@ const App = () => {
                         {/* 陣容（球隊模式） */}
                         {viewMode === 'TEAM' && viewSide === 'offensive' && currentLineups.length > 0 && (
                             <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
-                                <h2 className="text-xl font-bold border-b-2 border-slate-700 pb-2 mb-4">五人陣容 (Lineups)</h2>
+                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">五人陣容 (Lineups)</h2>
                                 <p className="text-xs text-slate-500 mb-3">依上場時間排序（進階效率為每 100 回合）</p>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-sm text-slate-400">
@@ -1400,7 +1400,7 @@ const App = () => {
                                                     <td className="px-3 py-3 text-right font-mono">{lu.MIN}</td>
                                                     <td className="px-3 py-3 text-right font-mono">{lu.OFF_RATING}</td>
                                                     <td className="px-3 py-3 text-right font-mono">{lu.DEF_RATING}</td>
-                                                    <td className={`px-3 py-3 text-right font-mono font-bold ${lu.NET_RATING > 0 ? 'text-[#78BE20]' : lu.NET_RATING < 0 ? 'text-red-400' : ''}`}>
+                                                    <td className={`px-3 py-3 text-right font-mono font-bold ${lu.NET_RATING > 0 ? 'text-[#12A150]' : lu.NET_RATING < 0 ? 'text-red-400' : ''}`}>
                                                         {lu.NET_RATING > 0 ? '+' : ''}{lu.NET_RATING}
                                                     </td>
                                                     <td className="px-3 py-3 text-right font-mono">{lu.TS_PCT}</td>

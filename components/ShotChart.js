@@ -48,8 +48,8 @@ const ShotChart = ({ playerId, playerName }) => {
     const lineStyle = { stroke: '#334155', strokeWidth: 3, fill: 'none' };
 
     return (
-        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#78BE20]">
-            <div className="flex flex-wrap justify-between items-center border-b-2 border-slate-700 pb-2 mb-4 gap-2">
+        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
+            <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
                 <h2 className="text-xl font-bold">投籃熱圖 (Shot Chart)</h2>
                 <div className="flex items-center gap-3">
                     {total > 0 && (
@@ -62,7 +62,7 @@ const ShotChart = ({ playerId, playerName }) => {
                             { k: 'missed', l: '未中' },
                         ].map(opt => (
                             <button key={opt.k} onClick={() => setFilter(opt.k)}
-                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#78BE20] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
+                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
                                 {opt.l}
                             </button>
                         ))}
@@ -83,7 +83,7 @@ const ShotChart = ({ playerId, playerName }) => {
                         {/* 出手點（先畫，讓球場線壓在上面） */}
                         {visible.map((s, i) => (
                             s.made === 1
-                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#78BE20" fillOpacity="0.55" />
+                                ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#12A150" fillOpacity="0.55" />
                                 : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
                                     <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
                                     <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
@@ -101,7 +101,7 @@ const ShotChart = ({ playerId, playerName }) => {
                         <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
                     </svg>
                     <div className="flex gap-4 mt-2 text-xs text-slate-400">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#78BE20]"></span> 命中</span>
+                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#12A150]"></span> 命中</span>
                         <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>
                         <span className="text-slate-500">每週更新</span>
                     </div>

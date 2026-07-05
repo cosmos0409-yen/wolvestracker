@@ -12,7 +12,7 @@ const TrendValue = ({ value, prevValue, unit = "", label, reverseColor = false }
     return (<div><span className="block text-slate-500">{label}</span><div className="flex items-center gap-1"><span className={`font-mono text-sm font-bold ${colorClass}`}>{value}{unit}</span>{Icon && <Icon className={`w-3 h-3 ${colorClass}`} />}</div></div>);
 };
 
-const SimpleLineChart = ({ data, dataKey, color = "#78BE20", xLabels = null, valueGetter = null }) => {
+const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, valueGetter = null }) => {
     if (!data || data.length < 2) return <div className="h-40 flex items-center justify-center text-slate-500 text-xs">數據不足，無法繪製趨勢圖</div>;
     const height = 150; const width = 500; const padding = 20; const paddingLeft = 40;
     const values = data.map(d => parseFloat(valueGetter ? valueGetter(d) : (d.stat?.[dataKey] ?? d.tracking?.[dataKey] ?? 0)));
@@ -54,7 +54,7 @@ const MultiLineChart = ({ data, metrics, xLabels = null }) => {
         return <div className="h-40 flex items-center justify-center text-slate-500 text-xs">資料不足</div>;
     }
     const height = 180, width = 500, padding = 20, paddingLeft = 40;
-    const COLORS = ['#78BE20', '#60a5fa', '#f59e0b', '#ec4899', '#a78bfa'];
+    const COLORS = ['#12A150', '#60a5fa', '#f59e0b', '#ec4899', '#a78bfa'];
     const seriesList = metrics.map((m, i) => {
         const values = data.map(d => parseFloat(d.stat?.[m.key] ?? d.tracking?.[m.key] ?? 0));
         const min = Math.min(...values), max = Math.max(...values);
