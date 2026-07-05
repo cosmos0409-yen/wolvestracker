@@ -37,6 +37,7 @@ const App = () => {
     const [compareKeys, setCompareKeys] = useState(() => loadPref('compareKeys', [])); // 疊加的歷史賽季 keys
     const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
+    const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
 
     // 同步偏好回 localStorage
     useEffect(() => savePref('viewMode', viewMode), [viewMode]);
@@ -65,6 +66,26 @@ const App = () => {
         });
         return { ...doc, stats, tracking };
     };
+
+    // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
+    useEffect(() => {
+        if (!window.db || !window.firebaseModules) return;
+        const indexId = `${window.CURRENT_SEASON}_regular`;
+        const cacheKey = `wt_games_index_${indexId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) { try { setGamesIndex(JSON.parse(cached)); return; } catch (e) { /* fall through */ } }
+        (async () => {
+            const { doc: docFn, getDoc } = window.firebaseModules;
+            try {
+                const snap = await getDoc(docFn(window.db, 'wolves_games_index', indexId));
+                if (snap.exists()) {
+                    const games = snap.data().games || [];
+                    localStorage.setItem(cacheKey, JSON.stringify(games));
+                    setGamesIndex(games);
+                }
+            } catch (e) { console.error('games index fetch fail', e); }
+        })();
+    }, [isCloud]);
 
     // Mount-time setup：移除 loading 畫面、監聽 Firebase ready
     useEffect(() => {
@@ -1036,9 +1057,17 @@ const App = () => {
                             <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
                         )}
 
-                        {/* 投籃熱圖（球隊模式，進攻側，當季） */}
+                        {/* 投籃熱圖（球隊模式，進攻側,當季） */}
                         {viewMode === 'TEAM' && viewSide === 'offensive' && !isHistoryMode && ShotChart && (
                             <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
+                        )}
+
+                        {/* 單場數據面板（當季，球員/球隊） */}
+                        {!isHistoryMode && window.SingleGamePanel && gamesIndex.length > 0 && (
+                            <window.SingleGamePanel
+                                viewMode={viewMode} playerName={selectedPlayer}
+                                viewSide={viewSide} gamesIndex={gamesIndex}
+                            />
                         )}
 
                         {/* 防守熱圖（球隊防守側：對手在各區的命中率） */}

@@ -87,6 +87,7 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 場（0=全部）")
     parser.add_argument("--start", type=int, default=0, help="從第幾場開始（分批用）")
     parser.add_argument("--min-gp", type=int, default=DEFAULT_MIN_GP, help="輪換門檻出賽數")
+    parser.add_argument("--index-only", action="store_true", help="只寫比賽索引(前端日期選單用)後結束")
     args = parser.parse_args()
 
     season = args.season
@@ -102,12 +103,25 @@ def main():
         print("❌ 無法取得比賽日期，終止")
         sys.exit(1)
     total = len(games)
+
+    db = nc.init_firebase()
+    # 寫比賽索引（前端單場日期選單用，避免讀 82 份文件）
+    if db:
+        index_id = f"{season}_{args.type}"
+        db.collection("wolves_games_index").document(index_id).set({
+            "season": season, "seasonType": season_type_label,
+            "games": [{"date": d, "matchup": m, "wl": w} for d, _, m, w in games],
+        })
+        print(f"✅ 已寫入比賽索引 wolves_games_index/{index_id}（{total} 場）")
+    if args.index_only:
+        print("（--index-only：只寫索引，結束）")
+        return
+
     games = games[args.start:]
     if args.limit:
         games = games[:args.limit]
     print(f"共 {total} 場，本次處理 {len(games)} 場（start={args.start}, limit={args.limit or '全部'}）")
 
-    db = nc.init_firebase()
     done = 0
     for doc_date, api_date, matchup, wl in games:
         print(f"\n--- {doc_date} {matchup} {wl} ---")
