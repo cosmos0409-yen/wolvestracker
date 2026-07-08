@@ -147,6 +147,8 @@ service cloud.firestore {
     match /wolves_player_games/{date}      { allow read: if request.auth != null; allow write: if false; }
     match /wolves_team_games/{date}        { allow read: if request.auth != null; allow write: if false; }
     match /wolves_games_index/{docId}      { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_games_bundle/{docId}     { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_pgames_bundle/{docId}    { allow read: if request.auth != null; allow write: if false; }
   }
 }
 ```

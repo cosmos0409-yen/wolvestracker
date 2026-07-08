@@ -39,6 +39,7 @@ const App = () => {
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
     const [activeTab, setActiveTab] = useState(() => loadPref('activeTab', 'overview')); // 右欄分頁
+    const [splitsGames, setSplitsGames] = useState(null); // Splits 分頁的逐場 bundle；null=載入中
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -320,6 +321,31 @@ const App = () => {
             prevDefense = prev.defense?.[selectedPlayer] || {};
         }
     }
+
+    // Splits 分頁逐場 bundle：僅在 Splits 分頁作用時載入（lazy），依賽季/攻守實體/球員切換
+    useEffect(() => {
+        if (activeTab !== 'splits' || !isCloud || !window.loadSeasonGames) return;
+        let cancelled = false;
+        setSplitsGames(null);
+        (async () => {
+            let combos = [];
+            if (selectedSeasonKey === 'current') {
+                combos = [[window.CURRENT_SEASON, 'regular'], [window.CURRENT_SEASON, 'playoffs']];
+            } else {
+                const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
+                if (opt && opt.season) combos = [[opt.season, opt.type]];
+            }
+            const pid = viewMode === 'PLAYER' ? currentPlayerId : null;
+            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSplitsGames([]); return; }
+            const all = [];
+            for (const [s, t] of combos) {
+                try { const { games } = await window.loadSeasonGames(s, t, viewMode, pid); all.push(...games); }
+                catch (e) { console.error('splits bundle load fail', s, t, e); }
+            }
+            if (!cancelled) setSplitsGames(all);
+        })();
+        return () => { cancelled = true; };
+    }, [activeTab, selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
 
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
@@ -976,27 +1002,12 @@ const App = () => {
                             />
                         )}
 
-                        {/* Splits（暫用既有進階/投籃卡片牆，完整篩選版建置中） */}
-                        {activeTab === 'splits' && (
-                            <div className="space-y-6">
-                                <div className="px-4 py-2 rounded-lg text-xs border bg-slate-800/50 border-slate-700 text-slate-400">完整 Splits（篩選器 + 趨勢折線）建置中；以下為整季累積卡片</div>
-                                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
-                                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">進階數據 (Tracking)</h2>
-                                    {trackingDefs.map(def => (
-                                        <TrackingCardRow key={def.id} title={def.title} category={def.id}
-                                            metrics={def.metrics} current={currentTracking} prev={prevTracking} onClick={setSelectedCard} />
-                                    ))}
-                                </div>
-                                {Object.keys(currentShooting).length > 0 && (
-                                    <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
-                                        <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">投籃數據 (Shooting)</h2>
-                                        {shootingDefs.map(def => (
-                                            <TrackingCardRow key={def.id} title={def.title} category={def.id} source="shooting"
-                                                metrics={def.metrics} current={currentShooting} prev={prevShooting} onClick={setSelectedCard} />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                        {/* Splits（逐場 bundle → 期間篩選 + 卡片牆 + 趨勢折線） */}
+                        {activeTab === 'splits' && window.SplitsTab && (
+                            <window.SplitsTab
+                                games={splitsGames} seasonLabel={primaryLabel}
+                                isPlayoffs={isHistoryMode && currentSeasonType === '季後賽'}
+                            />
                         )}
 
                         {/* 投籃（熱圖；卡片化版建置中） */}
