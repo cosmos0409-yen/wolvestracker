@@ -6,7 +6,7 @@ Wolves Tracker - 單場比賽數據回補（非 Synergy）
     wolves_player_games/{YYYY-MM-DD}   球員單場（僅輪換球員）
     wolves_team_games/{YYYY-MM-DD}     球隊單場
 
-只含可靠的單場數據：Tracking(6) + 對位防守 + Hustle + 分區投籃。
+只含可靠的單場數據：Base(傳統基本) + Tracking(6) + 對位防守 + Hustle + 分區投籃。
 不含 Clutch（單場多為 0、端點單日不穩）與 Synergy（不支援日期，僅能相減還原）。
 
 Usage:
@@ -24,7 +24,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nba_common as nc
 
-DEFAULT_MIN_GP = 20  # 輪換門檻：整季出賽 >= 此值才回補（過濾邊緣球員）
+DEFAULT_MIN_GP = 0  # 門檻：整季出賽 >= 此值才回補（0 = 全名單球員都存）
 
 
 def merge_maps(*maps):
@@ -45,24 +45,6 @@ def pid_to_name(pid_map, keep_names):
         if not name or (keep_names and name not in keep_names):
             continue
         out[name] = {"playerId": int(pid_str), **data}
-    return out
-
-
-def fetch_game_dates(season, season_type_api):
-    """回傳 [(YYYY-MM-DD, MM/DD/YYYY, MATCHUP, WL), ...]，依時間由舊到新"""
-    url = (f"https://stats.nba.com/stats/teamgamelog?LeagueID=00&Season={season}"
-           f"&SeasonType={season_type_api}&TeamID={nc.TEAM_ID}")
-    data = nc.fetch_with_retry(url, "TeamGameLog")
-    if data is None:
-        return []
-    h = data['resultSets'][0]['headers']
-    rows = data['resultSets'][0]['rowSet']
-    out = []
-    for r in rows:
-        gd = datetime.strptime(r[h.index("GAME_DATE")], "%b %d, %Y")
-        out.append((gd.strftime("%Y-%m-%d"), gd.strftime("%m/%d/%Y"),
-                    r[h.index("MATCHUP")], r[h.index("WL")]))
-    out.reverse()  # 由舊到新
     return out
 
 
@@ -98,7 +80,7 @@ def main():
     rotation = fetch_rotation_names(season, season_type_api, args.min_gp)
     print(f"輪換球員（GP>={args.min_gp}）：{len(rotation)} 人 — {', '.join(sorted(rotation))}")
 
-    games = fetch_game_dates(season, season_type_api)
+    games = nc.fetch_team_game_log(season, season_type_api)
     if not games:
         print("❌ 無法取得比賽日期，終止")
         sys.exit(1)
@@ -126,12 +108,14 @@ def main():
     for doc_date, api_date, matchup, wl in games:
         print(f"\n--- {doc_date} {matchup} {wl} ---")
         player = pid_to_name(merge_maps(
+            nc.fetch_base_box(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_matchup_defense(season, season_type_api, game_date=api_date),
             nc.fetch_hustle(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
         ), rotation)
         team = merge_maps(
+            nc.fetch_base_box(season, season_type_api, "Team", game_date=api_date),
             nc.fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
             nc.fetch_hustle(season, season_type_api, "Team", game_date=api_date),
             nc.fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),

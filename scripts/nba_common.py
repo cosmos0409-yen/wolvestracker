@@ -40,18 +40,29 @@ TRACKING_FIELDS = {
     "Drives": [
         ("DRIVES", "DRIVES", False),
         ("DRIVE_FGM", "DRIVE_FGM", False),
+        ("DRIVE_FGA", "DRIVE_FGA", False),        # 分母（供區間加權重算 DRIVE_FG_PCT）
         ("DRIVE_FG_PCT", "DRIVE_FG_PCT", True),
+        ("DRIVE_PTS", "DRIVE_PTS", False),        # 分子（供區間加權）
         ("DRIVE_PTS_PCT", "DRIVE_PTS_PCT", True),
         ("DRIVE_AST_PCT", "DRIVE_AST_PCT", True),
+        ("DRIVE_TOV", "DRIVE_TOV", False),        # 分子（供區間加權）
         ("DRIVE_TOV_PCT", "DRIVE_TOV_PCT", True),
     ],
     "CatchShoot": [
+        ("CATCH_SHOOT_FGM", "CATCH_SHOOT_FGM", False),      # 分子（eFG 加權）
         ("CATCH_SHOOT_FGA", "CATCH_SHOOT_FGA", False),
+        ("CATCH_SHOOT_FG3M", "CATCH_SHOOT_FG3M", False),    # 分子（eFG 加權）
+        ("CATCH_SHOOT_FG3A", "CATCH_SHOOT_FG3A", False),
+        ("CATCH_SHOOT_PTS", "CATCH_SHOOT_PTS", False),
         ("CATCH_SHOOT_FG3_PCT", "CATCH_SHOOT_FG3_PCT", True),
         ("CATCH_SHOOT_EFG_PCT", "CATCH_SHOOT_EFG_PCT", True),
     ],
     "PullUpShot": [
+        ("PULL_UP_FGM", "PULL_UP_FGM", False),      # 分子（eFG 加權）
         ("PULL_UP_FGA", "PULL_UP_FGA", False),
+        ("PULL_UP_FG3M", "PULL_UP_FG3M", False),    # 分子（eFG 加權）
+        ("PULL_UP_FG3A", "PULL_UP_FG3A", False),
+        ("PULL_UP_PTS", "PULL_UP_PTS", False),
         ("PULL_UP_FG3_PCT", "PULL_UP_FG3_PCT", True),
         ("PULL_UP_EFG_PCT", "PULL_UP_EFG_PCT", True),
     ],
@@ -82,6 +93,41 @@ TRACKING_FIELDS = {
         ("AVG_REB_DIST", "AVG_REB_DIST", False),
     ],
 }
+
+# leaguedash{player|team}stats?MeasureType=Base 傳統基本數據（單場/區間加總的主體）
+# 皆為每場計數（PerMode=PerGame），百分比欄位 *100
+BASE_FIELDS = [
+    ("MIN", "MIN", False),
+    ("PTS", "PTS", False),
+    ("FGM", "FGM", False),
+    ("FGA", "FGA", False),
+    ("FG_PCT", "FG_PCT", True),
+    ("FG3M", "FG3M", False),
+    ("FG3A", "FG3A", False),
+    ("FG3_PCT", "FG3_PCT", True),
+    ("FTM", "FTM", False),
+    ("FTA", "FTA", False),
+    ("FT_PCT", "FT_PCT", True),
+    ("OREB", "OREB", False),
+    ("DREB", "DREB", False),
+    ("REB", "REB", False),
+    ("AST", "AST", False),
+    ("STL", "STL", False),
+    ("BLK", "BLK", False),
+    ("TOV", "TOV", False),
+    ("PF", "PF", False),
+    ("PLUS_MINUS", "PLUS_MINUS", False),
+]
+
+# teamplayeronoffdetails?MeasureType=Advanced 在場/不在場（球員專屬；非百分比，效率值原樣）
+# fetch_onoff 會為 On/Off 兩態各加前綴 ON_ / OFF_
+ONOFF_FIELDS = [
+    ("OFF_RATING", "OFF_RATING", False),
+    ("DEF_RATING", "DEF_RATING", False),
+    ("NET_RATING", "NET_RATING", False),
+    ("PACE", "PACE", False),
+    ("MIN", "MIN", False),
+]
 
 # leaguedash{player|team}ptshot（投籃拆分）欄位
 PT_SHOT_FIELDS = [
@@ -131,6 +177,7 @@ LINEUP_FIELDS = [
 # ── 防守數據欄位設定表 ──
 # leaguedashptdefend 對位防守：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
 MATCHUP_OVERALL_FIELDS = [
+    ("D_FGM", "D_FGM", False),        # 分子（供區間加權重算 D_FG_PCT）
     ("D_FGA", "D_FGA", False),
     ("D_FG_PCT", "D_FG_PCT", True),
     ("NORMAL_FG_PCT", "NORMAL_FG_PCT", True),
@@ -138,6 +185,7 @@ MATCHUP_OVERALL_FIELDS = [
 ]
 # leaguedashptdefend 對位防守：3 Pointers（NS_FG3_PCT = 對手平常三分命中率）
 MATCHUP_3PT_FIELDS = [
+    ("D_FG3M", "FG3M", False),        # 分子（供區間加權重算 D_FG3_PCT）
     ("D_FG3A", "FG3A", False),
     ("D_FG3_PCT", "FG3_PCT", True),
     ("NORMAL_FG3_PCT", "NS_FG3_PCT", True),
@@ -319,6 +367,25 @@ def fetch_roster_with_ids(season):
             time.sleep(3)
     print(f"[FAILED] {season} 灰狼名單: 3 次重試皆失敗")
     return []
+
+
+def fetch_team_game_log(season, season_type_api):
+    """灰狼賽程（teamgamelog），回傳 [(doc_date 'YYYY-MM-DD', api_date 'MM/DD/YYYY', matchup, wl), ...]，由舊到新。
+    供單場回補（每場日期）與每日單場擷取（找當天 matchup/wl + 寫比賽索引）共用。"""
+    url = (f"https://stats.nba.com/stats/teamgamelog?LeagueID=00&Season={season}"
+           f"&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+    data = fetch_with_retry(url, "TeamGameLog")
+    if data is None:
+        return []
+    h = data['resultSets'][0]['headers']
+    rows = data['resultSets'][0]['rowSet']
+    out = []
+    for r in rows:
+        gd = datetime.strptime(r[h.index("GAME_DATE")], "%b %d, %Y")
+        out.append((gd.strftime("%Y-%m-%d"), gd.strftime("%m/%d/%Y"),
+                    r[h.index("MATCHUP")], r[h.index("WL")]))
+    out.reverse()  # 由舊到新
+    return out
 
 
 # ==========================================
@@ -618,6 +685,62 @@ def fetch_defense_box(season, season_type_api, player_or_team="Player"):
             ident = "MIN"
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, DEFENSE_BOX_FIELDS)
+    return results
+
+
+# ==========================================
+# 傳統基本數據（leaguedash{player|team}stats?MeasureType=Base）
+# ==========================================
+def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=None):
+    """傳統基本數據（PTS/REB/AST/FG% 等，欄位見 BASE_FIELDS）。
+    球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
+    game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）。"""
+    endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
+    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Base&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
+    results = {}
+    data = fetch_with_retry(url, f"BaseBox [{player_or_team}]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        if player_or_team == "Player":
+            ident = str(row[headers_list.index("PLAYER_ID")])
+            results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+        else:
+            ident = "MIN"
+            results[ident] = {}
+        apply_fields(results[ident], row, headers_list, BASE_FIELDS)
+    return results
+
+
+# ==========================================
+# 在場/不在場進階效率（teamplayeronoffdetails，僅球員）
+# ==========================================
+def fetch_onoff(season, season_type_api):
+    """在場/不在場進階效率（球隊在該球員上/下場時的 OFF/DEF/NET_RATING/PACE）。
+    回傳 {PlayerID字串: {ON_OFF_RATING, ON_DEF_RATING, ..., OFF_OFF_RATING, ...}}。
+    此 endpoint 的 PLAYER_NAME 為 'Last, First' 格式，故不回傳 playerName，
+    由呼叫端以 PlayerID 對照名單取名（避免與其他 endpoint 的 'First Last' 不一致）。
+    Synergy 不吃日期，此 endpoint 亦僅取整季，無單場版本。"""
+    url = (f"https://stats.nba.com/stats/teamplayeronoffdetails?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+    results = {}
+    data = fetch_with_retry(url, "OnOff [Team]")
+    if data is None:
+        return results
+    # resultSets[1]=在場(On), [2]=不在場(Off)；皆以 VS_PLAYER_ID 為主鍵
+    for rs, prefix in [(data['resultSets'][1], "ON"), (data['resultSets'][2], "OFF")]:
+        headers_list = rs['headers']
+        prefixed = [(f"{prefix}_{out}", api, pct) for out, api, pct in ONOFF_FIELDS]
+        for row in rs['rowSet']:
+            ident = str(row[headers_list.index("VS_PLAYER_ID")])
+            results.setdefault(ident, {})
+            apply_fields(results[ident], row, headers_list, prefixed)
     return results
 
 

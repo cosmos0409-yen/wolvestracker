@@ -19,6 +19,7 @@ from nba_common import (
     get_season_type,
     init_firebase,
     fetch_roster_with_ids,
+    fetch_team_game_log,
     fetch_synergy_data,
     fetch_tracking_data,
     fetch_shot_locations,
@@ -29,12 +30,14 @@ from nba_common import (
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
+    fetch_base_box,
+    fetch_onoff,
 )
 
 SEASON = "2025-26"
 
 # 每日快照文件中參與去重比對的資料欄位
-DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups", "defense"]
+DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
 
 
 # ==========================================
@@ -117,15 +120,18 @@ def merge_maps(*maps):
 # 單場擷取（G2）：每日順抓當天單場 → wolves_*_games（未來賽季免回補）
 # ==========================================
 def capture_single_game(db, season, season_type_api, season_type_label, today, normalized_active):
-    """抓當天單場(DateFrom=DateTo=today)寫入 games collection；當天無比賽則 sg 為空、不寫。"""
+    """抓當天單場(DateFrom=DateTo=today)寫入 games collection；當天無比賽則 sg 為空、不寫。
+    同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用，未來賽季免另跑回補）。"""
     api_date = datetime.strptime(today, "%Y-%m-%d").strftime("%m/%d/%Y")
     player = to_name_keyed(merge_maps(
+        fetch_base_box(season, season_type_api, "Player", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
         fetch_matchup_defense(season, season_type_api, game_date=api_date),
         fetch_hustle(season, season_type_api, "Player", game_date=api_date),
         fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
     ), normalized_active)
     team = merge_maps(
+        fetch_base_box(season, season_type_api, "Team", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
         fetch_hustle(season, season_type_api, "Team", game_date=api_date),
         fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
@@ -133,12 +139,27 @@ def capture_single_game(db, season, season_type_api, season_type_label, today, n
     if not player and not team:
         print(f"（{today} 當天無單場資料，不寫 games）")
         return
+    # 取賽程：找當天 matchup/wl，並重建整季索引（idempotent，永遠反映最新已打場次）
+    game_log = fetch_team_game_log(season, season_type_api)
+    matchup, wl = "", ""
+    for d, _api, m, w in game_log:
+        if d == today:
+            matchup, wl = m, w
+            break
     ts = int(datetime.now().timestamp() * 1000)
     db.collection("wolves_player_games").document(today).set(
-        {"date": today, "seasonType": season_type_label, "type": "單場", "timestamp": ts, "players": player})
+        {"date": today, "seasonType": season_type_label, "type": "單場",
+         "matchup": matchup, "wl": wl, "timestamp": ts, "players": player})
     db.collection("wolves_team_games").document(today).set(
-        {"date": today, "seasonType": season_type_label, "type": "單場", "timestamp": ts, "stats": team})
-    print(f"✅ 單場已寫入 wolves_*_games/{today}（球員 {len(player)} 人）")
+        {"date": today, "seasonType": season_type_label, "type": "單場",
+         "matchup": matchup, "wl": wl, "timestamp": ts, "stats": team})
+    if game_log:
+        type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+        db.collection("wolves_games_index").document(f"{season}_{type_key}").set({
+            "season": season, "seasonType": season_type_label,
+            "games": [{"date": d, "matchup": m, "wl": w} for d, _api, m, w in game_log],
+        })
+    print(f"✅ 單場已寫入 wolves_*_games/{today}（球員 {len(player)} 人）+ 更新比賽索引")
 
 
 # ==========================================
@@ -181,8 +202,11 @@ def main():
     }
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
-    active_roster = [p["name"] for p in fetch_roster_with_ids(SEASON)]
+    roster_full = fetch_roster_with_ids(SEASON)
+    active_roster = [p["name"] for p in roster_full]
     normalized_active = [p.strip().lower() for p in active_roster]
+    # On/Off endpoint 的球員名為 'Last, First'，改以 PlayerID 對照名單取正規名稱
+    id2name = {str(p["id"]): p["name"] for p in roster_full}
 
     # 3. 抓取球員資料（全聯盟後以現役名單過濾）
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
@@ -199,6 +223,9 @@ def main():
         fetch_hustle(SEASON, season_type_api, "Player"),
         fetch_defense_box(SEASON, season_type_api, "Player"),
     ), normalized_active)
+    # On/Off（在場/不在場效率）：以 PlayerID 對照名單轉為球員名 key
+    onoff_raw = fetch_onoff(SEASON, season_type_api)
+    player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
 
     # 將 Synergy 資料轉換以球員名稱為 key 的 dict
     player_stats_map = {}
@@ -219,6 +246,7 @@ def main():
         "shooting": player_shooting,  # Dict of Dicts
         "clutch": player_clutch,      # Dict of Dicts
         "defense": player_defense,    # Dict of Dicts（對位防守 + Hustle + 防守 box）
+        "onoff": player_onoff,        # Dict of Dicts（在場/不在場效率，球員專屬）
     }
 
     print("=== 資料整理完成，準備寫入 Firebase ===")
