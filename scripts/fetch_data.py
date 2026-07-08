@@ -10,6 +10,7 @@ Wolves Tracker - 每日當季數據抓取
 import json
 import sys
 import os
+import argparse
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -166,12 +167,25 @@ def capture_single_game(db, season, season_type_api, season_type_label, today, n
 # 主程式
 # ==========================================
 def main():
-    season_type_api, season_type_label = get_season_type()
-    if season_type_api is None:
-        print("目前為休賽期，不需要抓取數據，結束執行。")
-        return
+    parser = argparse.ArgumentParser(description="Wolves Tracker 每日數據抓取")
+    parser.add_argument("--force-type", choices=["regular", "playoffs"],
+                        help="繞過休賽期，強制指定賽別（一次性補期末完整快照用）")
+    parser.add_argument("--date", help="強制快照 doc id 日期 YYYY-MM-DD（配合 --force-type）")
+    args = parser.parse_args()
 
-    print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
+    force = bool(args.force_type)
+    if force:
+        season_type_api = "Regular+Season" if args.force_type == "regular" else "Playoffs"
+        season_type_label = "例行賽" if args.force_type == "regular" else "季後賽"
+        today = args.date or get_today_str()
+        print(f"=== 強制模式：補寫 {season_type_label} 期末完整快照 doc={today} ===")
+    else:
+        season_type_api, season_type_label = get_season_type()
+        if season_type_api is None:
+            print("目前為休賽期，不需要抓取數據，結束執行。")
+            return
+        today = get_today_str()
+        print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
 
     # 1. 抓取球隊資料
     team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
@@ -189,7 +203,7 @@ def main():
     ).get("MIN", {})
 
     final_team_data = {
-        "date": get_today_str(),
+        "date": today,
         "type": "官方數據",
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
@@ -237,7 +251,7 @@ def main():
         player_stats_map.setdefault(ident, []).append(item)
 
     final_player_data = {
-        "date": get_today_str(),
+        "date": today,
         "type": "官方數據",
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
@@ -258,17 +272,16 @@ def main():
 
     db = init_firebase()
     if db:
-        today = get_today_str()
-
+        # 強制模式（補期末快照）一律寫入，不做 dedup、不擷取單場
         # Dedup：若與最近一筆既存資料完全相同，跳過寫入（節省 Firestore 用量 & 避免 UI 出現多日相同點）
-        skip_team, prev_team = should_skip_write(db, 'wolves_team_stats', today, final_team_data)
+        skip_team, prev_team = (False, None) if force else should_skip_write(db, 'wolves_team_stats', today, final_team_data)
         if skip_team:
             print(f"⏭️  球隊數據與 {prev_team} 完全相同，跳過寫入 {today}")
         else:
             db.collection('wolves_team_stats').document(today).set(final_team_data)
             print(f"✅ 球隊數據已寫入 Document: {today}（前一筆：{prev_team or '無'}）")
 
-        skip_player, prev_player = should_skip_write(db, 'wolves_player_stats', today, final_player_data)
+        skip_player, prev_player = (False, None) if force else should_skip_write(db, 'wolves_player_stats', today, final_player_data)
         if skip_player:
             print(f"⏭️  球員數據與 {prev_player} 完全相同，跳過寫入 {today}")
         else:
@@ -276,7 +289,8 @@ def main():
             print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
 
         # G2：僅在累積數據有變動（= 今天有比賽）時擷取當天單場，避免非比賽日浪費請求
-        if not skip_player:
+        # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）
+        if not skip_player and not force:
             capture_single_game(db, SEASON, season_type_api, season_type_label, today, normalized_active)
 
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
