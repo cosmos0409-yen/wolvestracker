@@ -146,10 +146,10 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
     );
 };
 
-// 簡易 SVG 折線：逐點值 + 全季均線
+// 簡易 SVG 折線：逐點值 + 全季均線；hover 顯示精確值、上方圖例、虛線右端標基準值
 const TrendChart = ({ points, baseline }) => {
     if (!points || points.length < 1) return <div className="h-[120px] flex items-center justify-center text-slate-500 text-xs">無足夠資料繪製趨勢</div>;
-    const W = 640, H = 160, padL = 34, padR = 10, padT = 12, padB = 22;
+    const W = 640, H = 160, padL = 34, padR = 46, padT = 12, padB = 22; // padR 加大留基準標籤空間
     const vals = points.map(p => p.value);
     let lo = Math.min(...vals, baseline != null ? baseline : Infinity);
     let hi = Math.max(...vals, baseline != null ? baseline : -Infinity);
@@ -159,22 +159,32 @@ const TrendChart = ({ points, baseline }) => {
     const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
     const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
     return (
-        <div className="overflow-x-auto">
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }}>
-                {[0, 0.5, 1].map(f => { const v = lo + (hi - lo) * (1 - f); return (
-                    <g key={f}><line x1={padL} x2={W - padR} y1={padT + f * (H - padT - padB)} y2={padT + f * (H - padT - padB)} stroke="#1e293b" />
-                        <text x={4} y={padT + f * (H - padT - padB) + 3} fill="#64748b" fontSize="9">{v.toFixed(1)}</text></g>); })}
-                {baseline != null && (
-                    <line x1={padL} x2={W - padR} y1={y(baseline)} y2={y(baseline)} stroke="#236192" strokeDasharray="4 3" strokeWidth="1" />
-                )}
-                <path d={line} fill="none" stroke="#12A150" strokeWidth="2" />
-                {points.map((p, i) => (
-                    <g key={i}><circle cx={x(i)} cy={y(p.value)} r="2.5" fill="#12A150" />
-                        {points.length <= 16 && <text x={x(i)} y={H - 8} fill="#64748b" fontSize="8" textAnchor="middle">{String(p.label).slice(5)}</text>}
-                    </g>
-                ))}
-            </svg>
-            {baseline != null && <p className="text-[10px] text-slate-500 mt-1">藍虛線 = 全季平均 {baseline}</p>}
+        <div>
+            {/* 圖例 */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-1 text-[10px] text-slate-400">
+                <span className="flex items-center gap-1"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#12A150" strokeWidth="2" /></svg>逐點值</span>
+                {baseline != null && <span className="flex items-center gap-1"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#236192" strokeWidth="1.5" strokeDasharray="4 3" /></svg>全季平均 {baseline}</span>}
+                <span className="text-slate-600">滑鼠移到點看數值</span>
+            </div>
+            <div className="overflow-x-auto">
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }}>
+                    {[0, 0.5, 1].map(f => { const v = lo + (hi - lo) * (1 - f); return (
+                        <g key={f}><line x1={padL} x2={W - padR} y1={padT + f * (H - padT - padB)} y2={padT + f * (H - padT - padB)} stroke="#1e293b" />
+                            <text x={4} y={padT + f * (H - padT - padB) + 3} fill="#64748b" fontSize="9">{v.toFixed(1)}</text></g>); })}
+                    {baseline != null && (<g>
+                        <line x1={padL} x2={W - padR} y1={y(baseline)} y2={y(baseline)} stroke="#236192" strokeDasharray="4 3" strokeWidth="1" />
+                        <text x={W - padR + 4} y={y(baseline) + 3} fill="#60a5fa" fontSize="9" fontWeight="bold">{baseline}</text>
+                    </g>)}
+                    <path d={line} fill="none" stroke="#12A150" strokeWidth="2" />
+                    {points.map((p, i) => (
+                        <g key={i}>
+                            <circle cx={x(i)} cy={y(p.value)} r="2.5" fill="#12A150" />
+                            <circle cx={x(i)} cy={y(p.value)} r="10" fill="transparent" style={{ cursor: 'pointer' }}><title>{p.label}：{p.value}</title></circle>
+                            {points.length <= 16 && <text x={x(i)} y={H - 8} fill="#64748b" fontSize="8" textAnchor="middle">{String(p.label).slice(5)}</text>}
+                        </g>
+                    ))}
+                </svg>
+            </div>
         </div>
     );
 };
