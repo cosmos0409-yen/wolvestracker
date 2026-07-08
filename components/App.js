@@ -61,18 +61,22 @@ const App = () => {
     const MAX_COMPARE = 2;
 
     // 將歷史 player doc（PlayerID-keyed）轉成與 daily 同構（playerName-keyed）
+    // 各類別（tracking/base/shooting/clutch/defense/onoff）皆以球員名展開
+    const HISTORY_CATS = ['tracking', 'base', 'shooting', 'clutch', 'defense', 'onoff'];
     const normalizeHistoryPlayer = (doc) => {
         if (!doc) return doc;
-        const stats = {};
-        const tracking = {};
+        const out = { stats: {} };
+        HISTORY_CATS.forEach(c => { out[c] = {}; });
         Object.entries(doc.stats || {}).forEach(([pid, p]) => {
             const name = p.playerName;
             if (!name) return;
             const pidNum = parseInt(pid, 10);
-            stats[name] = (p.stats || []).map(s => ({ ...s, playerId: pidNum }));
-            tracking[name] = { ...(p.tracking || {}), playerId: pidNum, isCurrentRoster: p.isCurrentRoster };
+            out.stats[name] = (p.stats || []).map(s => ({ ...s, playerId: pidNum }));
+            HISTORY_CATS.forEach(c => {
+                out[c][name] = { ...(p[c] || {}), playerId: pidNum, isCurrentRoster: p.isCurrentRoster };
+            });
         });
-        return { ...doc, stats, tracking };
+        return { ...doc, ...out };
     };
 
     // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
@@ -135,7 +139,7 @@ const App = () => {
         const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
         if (!opt || !opt.season) return;
         const docId = `${opt.season}_${opt.type}`;
-        const cacheKey = `wt_history_${docId}`;
+        const cacheKey = `wt_history_v2_${docId}`;
 
         const apply = (teamData, playerData) => {
             const dateLabel = opt.label;
@@ -174,13 +178,46 @@ const App = () => {
         })();
     }, [selectedSeasonKey, isCloud]);
 
-    // 通用歷史 doc 載入（localStorage → Firestore），結果存入 compareCache
+    // 依 docId 直接載入歷史終點快照（localStorage → Firestore），結果存入 compareCache
+    const loadHistoryByDocId = async (docId) => {
+        if (!docId) return null;
+        if (compareCache[docId]) return compareCache[docId];
+        const cacheKey = `wt_history_v2_${docId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                const v = { team: parsed.team, player: normalizeHistoryPlayer(parsed.player) };
+                setCompareCache(prev => ({ ...prev, [docId]: v }));
+                return v;
+            } catch (e) { /* fall through */ }
+        }
+        if (!window.db || !window.firebaseModules) return null;
+        const { doc: docFn, getDoc } = window.firebaseModules;
+        try {
+            const [teamSnap, playerSnap] = await Promise.all([
+                getDoc(docFn(window.db, 'wolves_team_history', docId)),
+                getDoc(docFn(window.db, 'wolves_player_history', docId)),
+            ]);
+            const team = teamSnap.exists() ? teamSnap.data() : null;
+            const player = playerSnap.exists() ? playerSnap.data() : null;
+            if (team || player) localStorage.setItem(cacheKey, JSON.stringify({ team, player }));
+            const v = { team, player: normalizeHistoryPlayer(player) };
+            setCompareCache(prev => ({ ...prev, [docId]: v }));
+            return v;
+        } catch (e) {
+            console.error('history fetch fail', docId, e);
+            return null;
+        }
+    };
+
+    // 通用歷史 doc 載入（雷達疊加用；以 SEASON_OPTIONS 的 key 對應 docId）
     const loadHistoryDoc = async (k) => {
         const opt = SEASON_OPTIONS.find(o => o.key === k);
         if (!opt || !opt.season) return null;
         const docId = `${opt.season}_${opt.type}`;
         if (compareCache[docId]) return compareCache[docId];
-        const cacheKey = `wt_history_${docId}`;
+        const cacheKey = `wt_history_v2_${docId}`;
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
             try {
@@ -790,6 +827,18 @@ const App = () => {
     const gameMeta = {};
     (seasonGames || []).forEach(g => { if (g.date) gameMeta[g.date] = { wl: g.wl, matchup: g.matchup }; });
 
+    // 跨季比較的可選賽季（皆讀 wolves_*_history 終點快照）
+    const comparisonSeasons = [];
+    ['2025-26', '2024-25', '2023-24', '2022-23'].forEach(s => {
+        ['regular', 'playoffs'].forEach(t => {
+            comparisonSeasons.push({
+                key: `${s}_${t}`, label: `${s} ${t === 'regular' ? '例行賽' : '季後賽'}`,
+                short: `${s.slice(2)}${t === 'regular' ? '例' : '季'}`,
+                order: parseInt(s.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),
+            });
+        });
+    });
+
     // 右欄分頁定義
     const TABS = [
         { key: 'overview', label: '總覽' },
@@ -1096,9 +1145,14 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* 跨季比較（建置中） */}
-                        {activeTab === 'comparison' && (
-                            <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">跨季比較分頁建置中（資料已備妥：2022-23 起各季完整終點快照）</div>
+                        {/* 跨季比較 */}
+                        {activeTab === 'comparison' && window.ComparisonTab && (
+                            (viewMode === 'PLAYER' && !selectedPlayer)
+                                ? <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">請先選擇球員</div>
+                                : <window.ComparisonTab
+                                    viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                    seasons={comparisonSeasons} loadSeason={loadHistoryByDocId}
+                                />
                         )}
                     </div>
                     )}

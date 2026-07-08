@@ -1419,6 +1419,147 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 window.ShootingTab = ShootingTab;
 
 
+// ---------- ComparisonTab.js ----------
+// 跨季比較分頁：多選賽季 × 數據類別 → 並列各季終點值表格 + 點指標畫逐季折線
+// seasons：可選賽季清單 [{key,label,short,order}]；loadSeason(key)→{team,player}（normalized）
+const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
+    const { useState, useEffect } = React;
+    const trackingDefs = window.trackingDefs || [];
+    const shootingDefs = window.shootingDefs || [];
+    const defenseDefs = window.defenseDefs || [];
+    const PLAY = window.PlayTypesList || [];
+    const TrendChart = window.TrendChart;
+
+    const [selected, setSelected] = useState([]);
+    const [data, setData] = useState({});
+    const [cat, setCat] = useState('base');
+    const [openMetric, setOpenMetric] = useState(null);
+
+    // 預設選最近兩季
+    useEffect(() => {
+        if (!selected.length && seasons.length) setSelected(seasons.slice(0, 2).map(s => s.key));
+    }, [seasons]);
+
+    // 載入選取賽季資料
+    useEffect(() => {
+        let cancelled = false;
+        selected.forEach(async k => {
+            if (data[k]) return;
+            const v = await loadSeason(k);
+            if (!cancelled) setData(prev => prev[k] ? prev : { ...prev, [k]: v || { team: null, player: null } });
+        });
+        return () => { cancelled = true; };
+    }, [selected]);
+
+    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: m.label, pct: m.unit === '%' }))), []);
+    const CATS = {
+        base: { label: '基本', metrics: [
+            { k: 'PTS', l: '得分' }, { k: 'REB', l: '籃板' }, { k: 'AST', l: '助攻' },
+            { k: 'FG_PCT', l: 'FG%', pct: true }, { k: 'FG3_PCT', l: '3P%', pct: true }, { k: 'FT_PCT', l: 'FT%', pct: true },
+            { k: 'STL', l: '抄截' }, { k: 'BLK', l: '阻攻' }, { k: 'TOV', l: '失誤' }, { k: 'PLUS_MINUS', l: '+/-' },
+        ] },
+        playtype: { label: 'Playtype', metrics: PLAY.map(t => ({ k: t, l: t, playtype: true })) },
+        tracking: { label: '進階', metrics: flat(trackingDefs) },
+        shooting: { label: '投籃', metrics: ((shootingDefs.find(d => d.id === 'ShotZones') || {}).metrics || []).map(m => ({ k: m.key, l: m.label, pct: true })) },
+        defense: { label: '防守', metrics: flat(defenseDefs) },
+        onoff: { label: 'On/Off', playerOnly: true, metrics: [
+            { k: 'ON_NET_RATING', l: '在場淨效率' }, { k: 'OFF_NET_RATING', l: '不在場淨效率' },
+            { k: 'ON_OFF_RATING', l: '在場進攻' }, { k: 'ON_DEF_RATING', l: '在場防守' },
+        ] },
+    };
+    const catKeys = Object.keys(CATS).filter(c => !(CATS[c].playerOnly && viewMode === 'TEAM'));
+    const activeCat = catKeys.includes(cat) ? cat : 'base';
+    const metrics = CATS[activeCat].metrics;
+
+    // 選取的賽季（依 order 排序，供折線 X 軸）
+    const cols = seasons.filter(s => selected.includes(s.key)).sort((a, b) => a.order - b.order);
+
+    const getVal = (key, m) => {
+        const sd = data[key];
+        if (!sd) return null;
+        if (m.playtype) {
+            const arr = viewMode === 'TEAM' ? (sd.team && sd.team.stats) : (sd.player && sd.player.stats && sd.player.stats[selectedPlayer]);
+            const it = (arr || []).find(s => s.playType === m.k && (s.side || 'offensive') === 'offensive');
+            return it ? it.ppp : null;
+        }
+        const dict = viewMode === 'TEAM'
+            ? (sd.team && sd.team[activeCat])
+            : (sd.player && sd.player[activeCat] && sd.player[activeCat][selectedPlayer]);
+        const v = dict && dict[m.k];
+        return typeof v === 'number' ? v : null;
+    };
+
+    const fmt = (v, m) => v == null ? '—' : (m.pct ? v + '%' : (m.playtype ? v.toFixed(2) : v));
+    const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
+
+    const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
+
+    return (
+        <div className="space-y-4">
+            {/* 賽季多選 */}
+            <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="text-[10px] text-slate-500">選擇賽季比較（{viewMode === 'PLAYER' ? selectedPlayer : '球隊'}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                    {seasons.map(s => (
+                        <button key={s.key} onClick={() => toggle(s.key)}
+                            className={`px-2.5 py-1 text-xs rounded border transition-colors ${selected.includes(s.key) ? 'bg-[#236192] text-white border-[#236192] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                            {s.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
+                    <span className="text-[10px] text-slate-500">類別：</span>
+                    {catKeys.map(c => (
+                        <button key={c} onClick={() => { setCat(c); setOpenMetric(null); }}
+                            className={`px-2.5 py-1 text-xs rounded border ${activeCat === c ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{CATS[c].label}</button>
+                    ))}
+                </div>
+            </div>
+
+            {cols.length === 0 ? (
+                <div className="px-4 py-6 text-center text-slate-500 text-sm">請選擇至少一個賽季</div>
+            ) : (
+                <>
+                    {/* 折線（點指標展開） */}
+                    {openMetric && TrendChart && trendPts.length > 0 && (
+                        <div className="border border-slate-800 rounded-xl p-4 bg-slate-950/40">
+                            <div className="text-xs font-bold text-slate-200 mb-3">{openMetric.l} 逐季變化</div>
+                            <TrendChart points={trendPts} baseline={null} />
+                        </div>
+                    )}
+                    {/* 比較表 */}
+                    <div className="border border-slate-800 rounded-xl overflow-x-auto bg-slate-900">
+                        <table className="w-full text-sm">
+                            <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
+                                <tr>
+                                    <th className="px-4 py-3 text-left sticky left-0 bg-[#1e293b]">指標</th>
+                                    {cols.map(c => <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">{c.short || c.label}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                {metrics.map(m => {
+                                    const open = openMetric && openMetric.k === m.k;
+                                    return (
+                                        <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
+                                            className={`cursor-pointer transition-colors ${open ? 'bg-[#12A150]/10' : 'hover:bg-slate-800/60'}`}>
+                                            <td className="px-4 py-2.5 text-slate-300 sticky left-0 bg-slate-900">{m.l} <span className="text-slate-600 text-[10px]">▸</span></td>
+                                            {cols.map(c => <td key={c.key} className="px-3 py-2.5 text-right font-mono text-slate-200">{fmt(getVal(c.key, m), m)}</td>)}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p className="text-[10px] text-slate-500">點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料。</p>
+                </>
+            )}
+        </div>
+    );
+};
+
+window.ComparisonTab = ComparisonTab;
+
+
 // ---------- App.js ----------
 // 主應用元件
 const { useState, useEffect, useMemo } = React;
@@ -1483,18 +1624,22 @@ const App = () => {
     const MAX_COMPARE = 2;
 
     // 將歷史 player doc（PlayerID-keyed）轉成與 daily 同構（playerName-keyed）
+    // 各類別（tracking/base/shooting/clutch/defense/onoff）皆以球員名展開
+    const HISTORY_CATS = ['tracking', 'base', 'shooting', 'clutch', 'defense', 'onoff'];
     const normalizeHistoryPlayer = (doc) => {
         if (!doc) return doc;
-        const stats = {};
-        const tracking = {};
+        const out = { stats: {} };
+        HISTORY_CATS.forEach(c => { out[c] = {}; });
         Object.entries(doc.stats || {}).forEach(([pid, p]) => {
             const name = p.playerName;
             if (!name) return;
             const pidNum = parseInt(pid, 10);
-            stats[name] = (p.stats || []).map(s => ({ ...s, playerId: pidNum }));
-            tracking[name] = { ...(p.tracking || {}), playerId: pidNum, isCurrentRoster: p.isCurrentRoster };
+            out.stats[name] = (p.stats || []).map(s => ({ ...s, playerId: pidNum }));
+            HISTORY_CATS.forEach(c => {
+                out[c][name] = { ...(p[c] || {}), playerId: pidNum, isCurrentRoster: p.isCurrentRoster };
+            });
         });
-        return { ...doc, stats, tracking };
+        return { ...doc, ...out };
     };
 
     // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
@@ -1557,7 +1702,7 @@ const App = () => {
         const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
         if (!opt || !opt.season) return;
         const docId = `${opt.season}_${opt.type}`;
-        const cacheKey = `wt_history_${docId}`;
+        const cacheKey = `wt_history_v2_${docId}`;
 
         const apply = (teamData, playerData) => {
             const dateLabel = opt.label;
@@ -1596,13 +1741,46 @@ const App = () => {
         })();
     }, [selectedSeasonKey, isCloud]);
 
-    // 通用歷史 doc 載入（localStorage → Firestore），結果存入 compareCache
+    // 依 docId 直接載入歷史終點快照（localStorage → Firestore），結果存入 compareCache
+    const loadHistoryByDocId = async (docId) => {
+        if (!docId) return null;
+        if (compareCache[docId]) return compareCache[docId];
+        const cacheKey = `wt_history_v2_${docId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                const v = { team: parsed.team, player: normalizeHistoryPlayer(parsed.player) };
+                setCompareCache(prev => ({ ...prev, [docId]: v }));
+                return v;
+            } catch (e) { /* fall through */ }
+        }
+        if (!window.db || !window.firebaseModules) return null;
+        const { doc: docFn, getDoc } = window.firebaseModules;
+        try {
+            const [teamSnap, playerSnap] = await Promise.all([
+                getDoc(docFn(window.db, 'wolves_team_history', docId)),
+                getDoc(docFn(window.db, 'wolves_player_history', docId)),
+            ]);
+            const team = teamSnap.exists() ? teamSnap.data() : null;
+            const player = playerSnap.exists() ? playerSnap.data() : null;
+            if (team || player) localStorage.setItem(cacheKey, JSON.stringify({ team, player }));
+            const v = { team, player: normalizeHistoryPlayer(player) };
+            setCompareCache(prev => ({ ...prev, [docId]: v }));
+            return v;
+        } catch (e) {
+            console.error('history fetch fail', docId, e);
+            return null;
+        }
+    };
+
+    // 通用歷史 doc 載入（雷達疊加用；以 SEASON_OPTIONS 的 key 對應 docId）
     const loadHistoryDoc = async (k) => {
         const opt = SEASON_OPTIONS.find(o => o.key === k);
         if (!opt || !opt.season) return null;
         const docId = `${opt.season}_${opt.type}`;
         if (compareCache[docId]) return compareCache[docId];
-        const cacheKey = `wt_history_${docId}`;
+        const cacheKey = `wt_history_v2_${docId}`;
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
             try {
@@ -2212,6 +2390,18 @@ const App = () => {
     const gameMeta = {};
     (seasonGames || []).forEach(g => { if (g.date) gameMeta[g.date] = { wl: g.wl, matchup: g.matchup }; });
 
+    // 跨季比較的可選賽季（皆讀 wolves_*_history 終點快照）
+    const comparisonSeasons = [];
+    ['2025-26', '2024-25', '2023-24', '2022-23'].forEach(s => {
+        ['regular', 'playoffs'].forEach(t => {
+            comparisonSeasons.push({
+                key: `${s}_${t}`, label: `${s} ${t === 'regular' ? '例行賽' : '季後賽'}`,
+                short: `${s.slice(2)}${t === 'regular' ? '例' : '季'}`,
+                order: parseInt(s.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),
+            });
+        });
+    });
+
     // 右欄分頁定義
     const TABS = [
         { key: 'overview', label: '總覽' },
@@ -2518,9 +2708,14 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* 跨季比較（建置中） */}
-                        {activeTab === 'comparison' && (
-                            <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">跨季比較分頁建置中（資料已備妥：2022-23 起各季完整終點快照）</div>
+                        {/* 跨季比較 */}
+                        {activeTab === 'comparison' && window.ComparisonTab && (
+                            (viewMode === 'PLAYER' && !selectedPlayer)
+                                ? <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">請先選擇球員</div>
+                                : <window.ComparisonTab
+                                    viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                    seasons={comparisonSeasons} loadSeason={loadHistoryByDocId}
+                                />
                         )}
                     </div>
                     )}
