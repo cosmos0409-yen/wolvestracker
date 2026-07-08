@@ -29,7 +29,12 @@ const App = () => {
     const [viewMode, setViewMode] = useState(() => loadPref('viewMode', 'TEAM'));
     const [viewSide, setViewSide] = useState(() => loadPref('viewSide', 'offensive'));
     const [selectedPlayer, setSelectedPlayer] = useState(() => loadPref('selectedPlayer', ''));
-    const [viewIndex, setViewIndex] = useState(0);
+    // 賽別檢視（當季）：預設休賽/季後賽期→季後賽，例行賽期→例行賽
+    const [seasonTypeView, setSeasonTypeView] = useState(() => {
+        const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
+        return phase.type === 'regular' ? 'regular' : 'playoffs';
+    });
+    const [selectedDate, setSelectedDate] = useState(''); // 日曆選定日期（當季）；空=用最新
     const [selectedCard, setSelectedCard] = useState(null);
     const [isCloud, setIsCloud] = useState(window.isCloudEnabled);
     const [selectedSeasonKey, setSelectedSeasonKey] = useState(() => loadPref('selectedSeasonKey', 'current'));
@@ -109,7 +114,7 @@ const App = () => {
     useEffect(() => {
         if (!window.db || !window.firebaseModules) return;
         const { collection, onSnapshot, doc: docFn, getDoc } = window.firebaseModules;
-        setViewIndex(0);
+        setSelectedDate(''); // 切賽季時回到最新日期
 
         if (selectedSeasonKey === 'current') {
             setHistoryLoading(false);
@@ -286,8 +291,24 @@ const App = () => {
     let displayDate = "尚無數據"; let currentPlayerId = null;
     let currentSeason = null; let currentSeasonType = null;
 
+    // 當季依賽別過濾快照序列（歷史模式為單筆終點快照）
+    const stTypeLabel = seasonTypeView === 'regular' ? '例行賽' : '季後賽';
+    const teamSeq = isHistoryMode ? teamHistory : teamHistory.filter(d => d.seasonType === stTypeLabel);
+    const playerSeq = isHistoryMode ? playerHistory : playerHistory.filter(d => d.seasonType === stTypeLabel);
+    // 日曆有效日期：selectedDate 或該賽別最新一天
+    const latestDate = (teamSeq[0] || playerSeq[0] || {}).date || '';
+    const effectiveDate = selectedDate || latestDate;
+    // 定位快照（序列 date desc，取第一個 <= effectiveDate）；歷史模式固定單筆
+    const seqIndex = (seq) => {
+        if (isHistoryMode) return 0;
+        const i = seq.findIndex(d => d.date <= effectiveDate);
+        return i === -1 ? 0 : i;
+    };
+    const teamIdx = seqIndex(teamSeq);
+    const playerIdx = seqIndex(playerSeq);
+
     if (viewMode === 'TEAM') {
-        const current = teamHistory[viewIndex]; const prev = teamHistory[viewIndex + 1];
+        const current = teamSeq[teamIdx]; const prev = teamSeq[teamIdx + 1];
         if (current) {
             currentStats = current.stats || []; currentTracking = current.tracking || {}; displayDate = current.date;
             currentShooting = current.shooting || {}; currentClutch = current.clutch || {};
@@ -301,7 +322,7 @@ const App = () => {
             prevDefense = prev.defense || {};
         }
     } else {
-        const current = playerHistory[viewIndex]; const prev = playerHistory[viewIndex + 1];
+        const current = playerSeq[playerIdx]; const prev = playerSeq[playerIdx + 1];
         if (current) { currentSeason = current.season; currentSeasonType = current.seasonType; }
         if (current && current.stats?.[selectedPlayer]) {
             currentStats = current.stats[selectedPlayer]; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
@@ -330,7 +351,7 @@ const App = () => {
         (async () => {
             let combos = [];
             if (selectedSeasonKey === 'current') {
-                combos = [[window.CURRENT_SEASON, 'regular'], [window.CURRENT_SEASON, 'playoffs']];
+                combos = [[window.CURRENT_SEASON, seasonTypeView]]; // 依賽別檢視載入單一 bundle
             } else {
                 const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
                 if (opt && opt.season) combos = [[opt.season, opt.type]];
@@ -345,7 +366,7 @@ const App = () => {
             if (!cancelled) setSeasonGames(all);
         })();
         return () => { cancelled = true; };
-    }, [selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
+    }, [selectedSeasonKey, seasonTypeView, viewMode, currentPlayerId, isCloud]);
 
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
@@ -368,7 +389,7 @@ const App = () => {
 
     // 動態取得當前數據中有的球員清單
     const availablePlayers = useMemo(() => {
-        const currentData = playerHistory[viewIndex];
+        const currentData = playerSeq[playerIdx];
         if (!currentData || !currentData.stats) return [];
         const names = Object.keys(currentData.stats);
         return names.sort((a, b) => {
@@ -379,7 +400,7 @@ const App = () => {
             if (weightB !== -1) return 1;
             return a.localeCompare(b);
         });
-    }, [playerHistory, viewIndex]);
+    }, [playerHistory, playerIdx, seasonTypeView, isHistoryMode]);
 
     // 自動修正 selectedPlayer
     useEffect(() => {
@@ -425,9 +446,6 @@ const App = () => {
         </div>
     );
 
-    const maxIndex = (viewMode === 'TEAM' ? teamHistory.length : playerHistory.length) - 1;
-    const goPrev = () => { if (viewIndex < maxIndex) setViewIndex(viewIndex + 1); };
-    const goNext = () => { if (viewIndex > 0) setViewIndex(viewIndex - 1); };
 
     // Radar Chart：依 stats / tracking 計算單一賽季的雷達值
     const radarValuesFor = (stats, tracking, side) => {
@@ -462,9 +480,9 @@ const App = () => {
     const primaryColor = viewSide === 'offensive' ? '#12A150' : '#ef4444';
     const primaryLabel = isHistoryMode
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
-        : '當季';
-    // 同季其他球員疊加（僅球員模式 + 當季；資料已在 playerHistory[viewIndex]，無需額外抓取）
-    const currentPlayerDoc = playerHistory[viewIndex];
+        : `當季${stTypeLabel}`;
+    // 同季其他球員疊加（僅球員模式 + 當季；資料已在當前快照，無需額外抓取）
+    const currentPlayerDoc = playerSeq[playerIdx];
     const playerCompareSeries = (viewMode === 'PLAYER' && !isHistoryMode ? comparePlayers : [])
         .filter(name => name !== selectedPlayer && currentPlayerDoc?.stats?.[name])
         .map((name, i) => ({
@@ -794,10 +812,20 @@ const App = () => {
                                 {historyLoading ? '載入中...' : displayDate}
                             </div>
                         ) : (
-                            <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800">
-                                <button onClick={goPrev} disabled={viewIndex >= maxIndex} className="p-2 rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"><Icons.ChevronLeft className="w-5 h-5" /></button>
-                                <div className="px-4 font-mono font-bold text-[#12A150]">{displayDate}</div>
-                                <button onClick={goNext} disabled={viewIndex === 0} className="p-2 rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"><Icons.ChevronRight className="w-5 h-5" /></button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                {/* 賽別切換 */}
+                                <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                    {[['regular', '例行賽'], ['playoffs', '季後賽']].map(([t, l]) => (
+                                        <button key={t} onClick={() => { setSeasonTypeView(t); setSelectedDate(''); }}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded ${seasonTypeView === t ? 'bg-[#12A150] text-[#0C2340]' : 'text-slate-400 hover:text-slate-200'}`}>{l}</button>
+                                    ))}
+                                </div>
+                                {/* 日曆：選到哪天，總覽顯示截至該日平均 */}
+                                <input type="date" value={effectiveDate}
+                                    min={(teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date || undefined}
+                                    max={latestDate || undefined}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-[#12A150] focus:outline-none focus:border-[#12A150]" />
                             </div>
                         )}
                     </div>
@@ -894,8 +922,8 @@ const App = () => {
                                 </div>
                             )}
                             <div className="flex gap-2 bg-slate-950 p-1 rounded border border-slate-800">
-                                <button onClick={() => { setViewMode('TEAM'); setViewIndex(0); }} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'TEAM' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.Users className="w-4 h-4" /> 球隊</button>
-                                <button onClick={() => { setViewMode('PLAYER'); setViewIndex(0); }} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'PLAYER' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.User className="w-4 h-4" /> 球員</button>
+                                <button onClick={() => setViewMode('TEAM')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'TEAM' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.Users className="w-4 h-4" /> 球隊</button>
+                                <button onClick={() => setViewMode('PLAYER')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'PLAYER' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.User className="w-4 h-4" /> 球員</button>
                             </div>
                             <div className="flex gap-2 bg-slate-950 p-1 rounded border border-slate-800">
                                 <button onClick={() => setViewSide('offensive')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewSide === 'offensive' ? 'bg-[#12A150] text-[#0C2340] shadow' : 'text-slate-400'}`}><Icons.Sword className="w-4 h-4" /> 進攻</button>
@@ -905,12 +933,12 @@ const App = () => {
                                 <div className="max-h-[300px] overflow-y-auto pr-2 rounded mt-2 border border-slate-800/50 p-2">
                                     {availablePlayers.length === 0 && <p className="text-slate-500 text-xs p-2">當日無球員數據</p>}
                                     {availablePlayers.map(player => {
-                                        const pStats = (playerHistory[viewIndex]?.stats?.[player]) || [];
-                                        const pTrack = (playerHistory[viewIndex]?.tracking?.[player]) || {};
+                                        const pStats = (playerSeq[playerIdx]?.stats?.[player]) || [];
+                                        const pTrack = (playerSeq[playerIdx]?.tracking?.[player]) || {};
                                         const pId = pStats[0]?.playerId || pTrack.playerId || "0";
 
                                         return (
-                                            <button key={player} onClick={() => { setSelectedPlayer(player); setViewIndex(0); }} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#12A150]/20 border border-[#12A150]/50 text-[#12A150] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                            <button key={player} onClick={() => setSelectedPlayer(player)} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#12A150]/20 border border-[#12A150]/50 text-[#12A150] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
                                                 <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${pId}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
                                                 {player}
                                             </button>
@@ -995,7 +1023,7 @@ const App = () => {
                         {activeTab === 'overview' && window.OverviewTab && (
                             <window.OverviewTab
                                 viewMode={viewMode} selectedPlayer={selectedPlayer}
-                                games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(displayDate) ? displayDate : null)}
+                                games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null)}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
@@ -1007,7 +1035,7 @@ const App = () => {
                         {activeTab === 'splits' && window.SplitsTab && (
                             <window.SplitsTab
                                 games={seasonGames} seasonLabel={primaryLabel}
-                                isPlayoffs={isHistoryMode && currentSeasonType === '季後賽'}
+                                isPlayoffs={isHistoryMode ? currentSeasonType === '季後賽' : seasonTypeView === 'playoffs'}
                             />
                         )}
 
