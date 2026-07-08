@@ -56,6 +56,8 @@ window.GameAgg = (function () {
         Object.keys(EFG_DEFS).forEach(k => { if (keys.has(EFG_DEFS[k][2])) keys.add(k); });
         for (const k of keys) {
             if (k === 'playerId') { out[k] = rows[0][k]; continue; }
+            // GP/W/L 由場次計算，勿被單場 base 的 per-game 值（每場 GP=1）覆寫
+            if (k === 'GP' || k === 'W' || k === 'L') continue;
             if (RATIO_DEFS[k]) {
                 const d = sum(RATIO_DEFS[k][1]);
                 out[k] = d ? round1(100 * sum(RATIO_DEFS[k][0]) / d) : 0;
