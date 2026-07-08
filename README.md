@@ -4,20 +4,21 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據追蹤�
 
 ## 功能總覽
 
-| 功能 | 說明 |
+右欄採**六分頁**，可切**例行賽/季後賽**、用 header 日曆選「截至某日」的季平均：
+
+| 分頁 | 說明 |
 |---|---|
-| **Synergy PlayType** | 11 種進攻 + 9 種防守戰術的 PPP、Percentile、FG% |
-| **Tracking 進階數據** | 切入(Drives)、接球跳投(C&S)、急停跳投(PullUp)、傳送(Passing)、觸球(Touches)、籃板完整拆分(Rebounding) |
-| **投籃數據** | 分區命中率（禁區/油漆區/中距/角落三分/弧頂三分）+ 投籃拆分（eFG%、2分/3分佔比與命中率） |
-| **關鍵時刻 (Clutch)** | 最後 5 分鐘分差 5 分內的得分、命中率、正負值等 |
-| **防守數據 (Defense)** | 對位防守（對手被守命中率）、Hustle（干擾/抄截干擾/掩護助攻/卡位）、防守 box（效率/抄截/阻攻）、對手分區命中 |
-| **五人陣容 (Lineups)** | 上場時間前 10 組陣容的攻防效率與淨效率 |
-| **投籃熱圖 (Shot Chart)** | 球員與全隊整季出手座標繪於 SVG 半場圖（每週更新） |
-| **防守熱圖 (Defense Heatmap)** | 半場 5 區依「對手命中率 − 該區聯盟均值」著色，一眼看守得好/壞 |
-| **雷達圖** | 以 Recharts 繪製球員進攻/防守能力雷達圖 |
-| **歷史走勢 / 跨賽季比較** | 點擊卡片查看當季走勢折線圖與歷史賽季並列比較 |
-| **歷史賽季回補** | 2022-23 起各賽季例行賽/季後賽終點快照 |
+| **總覽 (Overview)** | 傳統季平均摘要（得分/籃板/助攻/命中率等，可選截至日期）+ 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
+| **Splits** | 期間篩選（全季/每月/勝敗/主客/近N場/自訂區間/季後系列）→ 卡片牆（該期間 vs 全季 綠紅漲跌）+ 點卡展開趨勢折線（逐場/每週/每月） |
+| **投籃 (Shooting)** | 距離區間(5ft)/分區/出手方式卡片（命中率 + 出手佔比）+ 受助攻比例 + 可篩選的投籃熱圖 + 命中率趨勢 |
+| **防守 (Defense)** | 對位防守、Hustle、防守 box、對手分區命中 + 防守熱圖 |
+| **Playtype** | 11 種進攻 + 9 種防守戰術的 PPP、Percentile、FG%（點卡看當季走勢） |
+| **跨季比較 (Comparison)** | 多選賽季 × 數據類別 → 並列終點值表格 + 點指標畫逐季折線 |
+| **雷達圖** | 軸可自選（3~6 個 Playtype/Tracking 指標）+ 疊加歷史賽季或同季隊友 + 自選指標比較表 |
+| **歷史賽季回補** | 2022-23 起各賽季例行賽/季後賽完整終點快照（供跨季比較） |
 | **中英雙語** | UI 標籤皆以「中文 (English)」格式呈現 |
+
+季平均與 Splits 的百分比欄以「Σ分子/Σ分母」加權重算（非平均百分比），資料源為**逐場打包 bundle**（單一 doc，避免多次讀取）。
 
 ## 技術架構
 
@@ -25,12 +26,17 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據追蹤�
 wolvestracker/
 ├── index.html               # 前端 SPA (React 18 + Recharts, CDN)
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
+│   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
+│   ├── gameAggregates.js    # GameAgg：逐場聚合（季平均/月/勝敗/趨勢，加權%）
+│   └── gamesData.js         # 讀逐場 bundle（單一 getDoc）
 ├── dist/components-bundle.js # bundle.py 產生的合併檔（勿手改）
 ├── scripts/
 │   ├── nba_common.py        # 共用模組：連線/欄位設定表/抓取函式
 │   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase)
-│   ├── backfill_history.py  # 歷史賽季回補
-│   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週）
+│   ├── backfill_games.py    # 單場逐場回補（--dates 補失敗場）
+│   ├── backfill_history.py  # 歷史賽季完整終點快照回補
+│   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
+│   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週；含出手方式/日期/受助攻）
 │   └── bundle.py            # 前端元件打包
 ├── run_fetch.bat            # Windows 排程入口（每日）
 ├── run_shotchart.bat        # Windows 排程入口（每週）
@@ -87,8 +93,11 @@ schtasks /create /tn "WolvesShotchart" /tr "C:\wolvestracker\run_shotchart.bat" 
 ### 1. Firebase
 
 - 專案：`wolves-traker`
-- 集合：`wolves_team_stats` / `wolves_player_stats`（每日）、
-  `wolves_team_history` / `wolves_player_history`（歷史）、`wolves_shotcharts`（熱圖）
+- 集合：`wolves_team_stats` / `wolves_player_stats`（每日快照）、
+  `wolves_team_history` / `wolves_player_history`（歷史終點快照）、`wolves_shotcharts`（逐球熱圖）、
+  `wolves_team_games` / `wolves_player_games`（單場，doc id=日期）、`wolves_games_index`（比賽索引）、
+  `wolves_games_bundle` / `wolves_pgames_bundle`（逐場打包，前端 Splits/總覽讀取）
+- **新增集合必到 Firebase Console 加 read 白名單**（否則前端 `Missing or insufficient permissions`）
 - 安全規則：匿名讀取、後端寫入（新集合需在規則中加入 read 白名單）
 - 本地憑證：`firebase-key.json`（在 .gitignore，勿提交）
 
