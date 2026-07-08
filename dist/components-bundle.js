@@ -2125,18 +2125,10 @@ const App = () => {
             const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
             return phase.type === 'playoffs' ? '季後賽' : '例行賽';
         }); // 歷史模式 'all'，當季依日期預設
-        const [tab, setTab] = useState('current'); // 'current' | 'cross'
-        const [crossMetrics, setCrossMetrics] = useState([]); // array
 
         const targetHistory = viewMode === 'TEAM' ? teamHistory : playerHistory;
         // tracking 類卡片的資料來源欄位（'tracking' | 'shooting' | 'clutch'）
         const srcKey = cardInfo.source || 'tracking';
-
-        // 進入 cross 分頁時補載所有歷史 doc
-        useEffect(() => {
-            if (tab !== 'cross') return;
-            SEASON_OPTIONS.filter(o => !o.isCurrent).forEach(o => loadHistoryDoc(o.key));
-        }, [tab]);
 
         const baseStats = useMemo(() => {
             return targetHistory.map(entry => {
@@ -2168,7 +2160,6 @@ const App = () => {
 
         const chartData = [...displayedStats].reverse();
         const toggleChart = (metric) => setChartMetrics(prev => prev.includes(metric) ? prev.filter(m => m !== metric) : [...prev, metric]);
-        const toggleCrossChart = (metric) => setCrossMetrics(prev => prev.includes(metric) ? prev.filter(m => m !== metric) : [...prev, metric]);
 
         let title = "", cols = [];
         if (cardInfo.type === 'playtype') {
@@ -2180,83 +2171,16 @@ const App = () => {
             cols = def ? def.metrics.map(m => ({ k: m.key, l: m.label })) : [];
         }
 
-        // ---- 跨賽季比較資料：所有歷史終點 + 主賽季最新 ----
-        const extractRow = (entry) => {
-            // entry: { teamData, playerData } 或 daily snapshot
-            let stat = null, tracking = {};
-            if (viewMode === 'TEAM') {
-                if (cardInfo.type === 'playtype') stat = entry.stats?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                else tracking = entry[srcKey] || {};
-            } else {
-                if (cardInfo.type === 'playtype') stat = entry.stats?.[selectedPlayer]?.find(s => s.playType === cardInfo.id && s.side === viewSide);
-                else tracking = entry[srcKey]?.[selectedPlayer] || {};
-            }
-            return { stat, tracking };
-        };
-
-        const crossRows = useMemo(() => {
-            if (tab !== 'cross') return [];
-            const rows = [];
-            // 歷史賽季按時間順序：22-23 reg → 22-23 PO → 23-24 reg → ... → 24-25 PO
-            const ordered = SEASON_OPTIONS.filter(o => !o.isCurrent).slice().reverse();
-            ordered.forEach(o => {
-                const docId = `${o.season}_${o.type}`;
-                const data = compareCache[docId];
-                if (!data) return;
-                const src = viewMode === 'TEAM' ? data.team : data.player;
-                if (!src) return;
-                const r = extractRow(src);
-                if (cardInfo.type === 'playtype' ? r.stat : Object.keys(r.tracking || {}).length > 0) {
-                    rows.push({ key: o.key, label: o.label, shortLabel: o.label.replace(' 例行賽', 'R').replace(' 季後賽', 'P').replace(' 進行中', ''), ...r });
-                }
-            });
-            // 主賽季最新（teamHistory[0] / playerHistory[0]）
-            const cur = targetHistory[0];
-            if (cur) {
-                const r = extractRow(cur);
-                if (cardInfo.type === 'playtype' ? r.stat : Object.keys(r.tracking || {}).length > 0) {
-                    const curOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
-                    const baseLabel = curOpt?.label || '主賽季';
-                    rows.push({
-                        key: 'primary',
-                        label: isHistoryMode ? baseLabel : `${baseLabel}（最新）`,
-                        shortLabel: isHistoryMode ? baseLabel.replace(' 例行賽', 'R').replace(' 季後賽', 'P') : '當季',
-                        isPrimary: true,
-                        ...r,
-                    });
-                }
-            }
-            return rows;
-        }, [tab, compareCache, targetHistory, cardInfo, viewMode, selectedPlayer, viewSide, selectedSeasonKey, isHistoryMode]);
-
-        const crossLoading = tab === 'cross' && crossRows.length < SEASON_OPTIONS.filter(o => !o.isCurrent).length;
-
         return (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 fade-in">
                 <div className="bg-slate-950 rounded-xl sm:rounded-2xl border border-slate-700 w-full max-w-full sm:max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                     <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
                         <h3 className="text-lg font-bold text-white">
-                            {viewMode === 'PLAYER' ? selectedPlayer : '球隊'} - {title} 歷史數據
+                            {viewMode === 'PLAYER' ? selectedPlayer : '球隊'} - {title} 當季走勢
                         </h3>
                         <button onClick={onClose} className="text-slate-400 hover:text-white"><Icons.X /></button>
                     </div>
 
-                    <div className="px-5 pt-3 bg-slate-900 border-b border-slate-800 flex gap-1">
-                        {[
-                            { k: 'current', l: '當季走勢' },
-                            { k: 'cross', l: '跨賽季比較' },
-                        ].map(t => (
-                            <button
-                                key={t.k}
-                                onClick={() => setTab(t.k)}
-                                className={`px-4 py-2 text-xs font-bold rounded-t border-b-2 transition-colors ${tab === t.k ? 'border-[#12A150] text-[#12A150] bg-slate-950' : 'border-transparent text-slate-400 hover:text-white'}`}
-                            >
-                                {t.l}
-                            </button>
-                        ))}
-                    </div>
-
-                    {tab === 'current' && (<>
                     <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-3">
                         <div className="flex bg-slate-800 rounded p-1">
                             {[5, 10, 20, 'ALL'].map(count => (
@@ -2319,65 +2243,7 @@ const App = () => {
                             </tbody>
                         </table>
                     </div>
-                    </>)}
-
-                    {tab === 'cross' && (<>
-                        <div className="p-4 bg-slate-900/50 border-b border-slate-800">
-                            <p className="text-xs text-slate-400 flex items-center gap-2 mb-2">
-                                <Icons.BarChart className="w-3 h-3" /> 點擊表格標題切換折線圖，可多選疊加（X 軸為賽季順序）
-                                {crossLoading && <span className="text-slate-500 ml-2">· 載入中...</span>}
-                            </p>
-                            {crossRows.length >= 2 && crossMetrics.length === 1 && (
-                                <div className="mb-2 fade-in">
-                                    <SimpleLineChart
-                                        data={crossRows.map(r => ({ stat: r.stat, tracking: r.tracking, date: r.shortLabel }))}
-                                        dataKey={crossMetrics[0]}
-                                        color="#12A150"
-                                        xLabels={crossRows.map(r => r.shortLabel)}
-                                    />
-                                </div>
-                            )}
-                            {crossRows.length >= 2 && crossMetrics.length >= 2 && (
-                                <div className="mb-2 fade-in">
-                                    <MultiLineChart
-                                        data={crossRows.map(r => ({ stat: r.stat, tracking: r.tracking }))}
-                                        metrics={cols.filter(c => crossMetrics.includes(c.k)).map(c => ({ key: c.k, label: c.l }))}
-                                        xLabels={crossRows.map(r => r.shortLabel)}
-                                    />
-                                </div>
-                            )}
-                            {crossRows.length < 2 && !crossLoading && (
-                                <p className="text-slate-500 text-xs">當前球員/球隊在歷史賽季無對應數據可比較</p>
-                            )}
-                        </div>
-                        <div className="p-0 overflow-auto">
-                            <table className="w-full text-left text-sm text-slate-400">
-                                <thead className="bg-[#1e293b] text-xs font-bold text-slate-400 sticky top-0">
-                                    <tr>
-                                        <th className="px-6 py-3">賽季</th>
-                                        {cols.map(c => (
-                                            <th key={c.k}
-                                                className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${crossMetrics.includes(c.k) ? 'text-white border-b-2 border-[#12A150]' : ''}`}
-                                                onClick={() => toggleCrossChart(c.k)}>
-                                                {c.l}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-800">
-                                    {crossRows.map(r => (
-                                        <tr key={r.key} className={`hover:bg-slate-800/70 transition-colors ${r.isPrimary ? 'bg-[#12A150]/5' : ''}`}>
-                                            <td className={`px-6 py-4 ${r.isPrimary ? 'text-[#12A150] font-bold' : 'text-slate-300'}`}>{r.label}</td>
-                                            {cols.map(c => {
-                                                const val = cardInfo.type === 'playtype' ? r.stat?.[c.k] : r.tracking?.[c.k];
-                                                return <td key={c.k} className="px-4 py-4 font-mono">{val ?? '-'}</td>
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>)}
+                    <div className="px-5 py-2 text-[10px] text-slate-500 border-t border-slate-800">跨賽季比較請用右上「跨季」分頁</div>
                 </div>
             </div>
         );
