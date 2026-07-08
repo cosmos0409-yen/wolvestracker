@@ -783,6 +783,13 @@ const App = () => {
         );
     };
 
+    // 投籃分頁參數：賽季/賽別 + 日期→勝負/對戰 對照（勝敗/主客篩選用）
+    const _shootOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
+    const shootSeason = isHistoryMode ? (_shootOpt && _shootOpt.season) : window.CURRENT_SEASON;
+    const shootType = isHistoryMode ? (_shootOpt && _shootOpt.type) : seasonTypeView;
+    const gameMeta = {};
+    (seasonGames || []).forEach(g => { if (g.date) gameMeta[g.date] = { wl: g.wl, matchup: g.matchup }; });
+
     // 右欄分頁定義
     const TABS = [
         { key: 'overview', label: '總覽' },
@@ -1039,17 +1046,16 @@ const App = () => {
                             />
                         )}
 
-                        {/* 投籃（熱圖；卡片化版建置中） */}
-                        {activeTab === 'shooting' && (
-                            <div className="space-y-6">
-                                {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
-                                    <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
-                                )}
-                                {viewMode === 'TEAM' && !isHistoryMode && ShotChart && (
-                                    <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
-                                )}
-                                {isHistoryMode && <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">歷史賽季投籃分頁建置中</div>}
-                            </div>
+                        {/* 投籃（逐球 shotchart → 距離/分區/出手方式卡片 + 受助攻 + 篩選熱圖 + 趨勢） */}
+                        {activeTab === 'shooting' && window.ShootingTab && (
+                            (viewMode === 'PLAYER' && !currentPlayerId)
+                                ? <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">請先選擇球員</div>
+                                : <window.ShootingTab
+                                    playerId={viewMode === 'TEAM' ? 0 : currentPlayerId} teamMode={viewMode === 'TEAM'}
+                                    season={shootSeason} typeKey={shootType}
+                                    playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer}
+                                    seasonLabel={primaryLabel} gameMeta={gameMeta}
+                                />
                         )}
 
                         {/* 防守 */}

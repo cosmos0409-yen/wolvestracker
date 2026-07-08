@@ -1,10 +1,13 @@
 // 投籃熱圖元件：讀取 wolves_shotcharts/{playerId}_{season}_{type}，以 SVG 半場圖繪出手點
 // 座標系：NBA 官方 shotchartdetail（單位 0.1 呎，籃框在原點），SVG y 軸取負值翻轉
 // teamMode=true 時讀 wolves_shotcharts/TEAM_{season}_{type}（全隊出手）
-const ShotChart = ({ playerId, playerName, teamMode = false }) => {
+const ShotChart = ({ playerId, playerName, teamMode = false, externalShots }) => {
     const { useState, useEffect } = React;
-    const [shots, setShots] = useState(null);   // null=載入中, []=無資料
+    const [loadedShots, setLoadedShots] = useState(null);   // null=載入中, []=無資料
     const [filter, setFilter] = useState('all'); // 'all' | 'made' | 'missed'
+    // externalShots 提供時（ShootingTab 傳入已篩選出手），直接用它、不自行載入
+    const useExternal = externalShots !== undefined;
+    const shots = useExternal ? externalShots : loadedShots;
 
     const season = window.CURRENT_SEASON;
     const idPart = teamMode ? 'TEAM' : playerId;
@@ -13,30 +16,31 @@ const ShotChart = ({ playerId, playerName, teamMode = false }) => {
     const preferredTypes = phase.type === 'playoffs' ? ['playoffs', 'regular'] : ['regular'];
 
     useEffect(() => {
+        if (useExternal) return; // 外部提供出手，不載入
         if ((!playerId && !teamMode) || !window.db || !window.firebaseModules) return;
         let cancelled = false;
-        setShots(null);
+        setLoadedShots(null);
         (async () => {
             const cache = (window.__shotchartCache = window.__shotchartCache || {});
             const { doc: docFn, getDoc } = window.firebaseModules;
             for (const typeKey of preferredTypes) {
                 const docId = `${idPart}_${season}_${typeKey}`;
                 if (cache[docId] !== undefined) {
-                    if (cache[docId] && !cancelled) { setShots(cache[docId]); return; }
+                    if (cache[docId] && !cancelled) { setLoadedShots(cache[docId]); return; }
                     continue; // 快取記錄此 doc 不存在，試下一個
                 }
                 try {
                     const snap = await getDoc(docFn(window.db, 'wolves_shotcharts', docId));
                     cache[docId] = snap.exists() ? (snap.data().shots || []) : null;
-                    if (cache[docId] && !cancelled) { setShots(cache[docId]); return; }
+                    if (cache[docId] && !cancelled) { setLoadedShots(cache[docId]); return; }
                 } catch (e) {
                     console.error('shotchart fetch fail', docId, e);
                 }
             }
-            if (!cancelled) setShots([]);
+            if (!cancelled) setLoadedShots([]);
         })();
         return () => { cancelled = true; };
-    }, [playerId, season, teamMode]);
+    }, [playerId, season, teamMode, useExternal]);
 
     if (!playerId && !teamMode) return null;
 

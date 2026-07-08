@@ -29,6 +29,7 @@ ORDER = [
     "SingleGamePanel.js",
     "OverviewTab.js",
     "SplitsTab.js",
+    "ShootingTab.js",
     "App.js",
 ]
 

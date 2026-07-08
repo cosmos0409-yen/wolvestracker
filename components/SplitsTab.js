@@ -180,3 +180,4 @@ const TrendChart = ({ points, baseline }) => {
 };
 
 window.SplitsTab = SplitsTab;
+window.TrendChart = TrendChart;
