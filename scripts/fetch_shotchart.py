@@ -14,6 +14,7 @@ import json
 import sys
 import os
 import time
+import argparse
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,16 +24,26 @@ from nba_common import (
     init_firebase,
     fetch_roster_with_ids,
     fetch_with_retry,
+    fetch_assisted_pct,
 )
 
 SEASON = "2025-26"
+
+
+def _norm_gdate(raw):
+    """shotchartdetail 的 GAME_DATE 通常為 'YYYYMMDD'，正規化為 'YYYY-MM-DD'。"""
+    s = str(raw)
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+    return s
 
 
 def fetch_player_shotchart(player_id, player_name, season, season_type_api):
     """
     抓取出手座標。player_id=0 時搭配 TeamID 抓「全隊」出手（球隊熱圖用）。
     回傳 list of dict：x/y 為場地座標（0.1 呎），made 為是否命中，
-    dist 為出手距離（呎），zone 為 NBA 官方分區名。
+    dist 為出手距離（呎），zone 為 NBA 官方分區名，
+    action 為出手方式（ACTION_TYPE），gdate 為比賽日期（YYYY-MM-DD）。
     """
     url = (f"https://stats.nba.com/stats/shotchartdetail"
            f"?AheadBehind=&ClutchTime=&ContextFilter=&ContextMeasure=FGA"
@@ -47,7 +58,8 @@ def fetch_player_shotchart(player_id, player_name, season, season_type_api):
         return None
     headers_list = data['resultSets'][0]['headers']
     idx = {name: headers_list.index(name) for name in
-           ["LOC_X", "LOC_Y", "SHOT_MADE_FLAG", "SHOT_DISTANCE", "SHOT_ZONE_BASIC"]}
+           ["LOC_X", "LOC_Y", "SHOT_MADE_FLAG", "SHOT_DISTANCE", "SHOT_ZONE_BASIC",
+            "ACTION_TYPE", "GAME_DATE"]}
     return [
         {
             "x": row[idx["LOC_X"]],
@@ -55,64 +67,110 @@ def fetch_player_shotchart(player_id, player_name, season, season_type_api):
             "made": row[idx["SHOT_MADE_FLAG"]],
             "dist": row[idx["SHOT_DISTANCE"]],
             "zone": row[idx["SHOT_ZONE_BASIC"]],
+            "action": row[idx["ACTION_TYPE"]],
+            "gdate": _norm_gdate(row[idx["GAME_DATE"]]),
         }
         for row in data['resultSets'][0]['rowSet']
     ]
 
 
+def encode_shots(shots):
+    """把逐球的 action/gdate 字串抽成去重清單，每球改存索引，壓縮體積避免逼近 Firestore 1MiB。
+    回傳 (encoded_shots, actionTypes, gameDates)。"""
+    action_types, game_dates = [], []
+    a_idx, g_idx = {}, {}
+    encoded = []
+    for s in shots:
+        act, gd = s["action"], s["gdate"]
+        if act not in a_idx:
+            a_idx[act] = len(action_types)
+            action_types.append(act)
+        if gd not in g_idx:
+            g_idx[gd] = len(game_dates)
+            game_dates.append(gd)
+        encoded.append({
+            "x": s["x"], "y": s["y"], "made": s["made"], "dist": s["dist"], "zone": s["zone"],
+            "a": a_idx[act], "g": g_idx[gd],
+        })
+    return encoded, action_types, game_dates
+
+
+def _shot_doc(base, shots, assisted):
+    """組裝 shotchart 文件：編碼出手 + 附上 actionTypes/gameDates 去重清單與受助攻比例。"""
+    encoded, action_types, game_dates = encode_shots(shots)
+    return {
+        **base,
+        "timestamp": int(datetime.now().timestamp() * 1000),
+        "shots": encoded,
+        "actionTypes": action_types,
+        "gameDates": game_dates,
+        "assisted": assisted,
+    }
+
+
 def main():
-    season_type_api, season_type_label = get_season_type()
-    if season_type_api is None:
-        print("目前為休賽期，不需要抓取投籃熱圖，結束執行。")
-        return
-    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    parser = argparse.ArgumentParser(description="Wolves Tracker 投籃熱圖抓取")
+    parser.add_argument("--season", default=None, help="例：2024-25（省略=當季）")
+    parser.add_argument("--type", choices=["regular", "playoffs"], default=None,
+                        help="regular 或 playoffs（省略=依當前日期）")
+    args = parser.parse_args()
 
-    print(f"=== 開始抓取灰狼隊投籃熱圖（{season_type_label}）===")
+    if args.season or args.type:
+        season = args.season or SEASON
+        type_key = args.type or "regular"
+        season_type_api = "Regular+Season" if type_key == "regular" else "Playoffs"
+        season_type_label = "例行賽" if type_key == "regular" else "季後賽"
+    else:
+        season_type_api, season_type_label = get_season_type()
+        if season_type_api is None:
+            print("目前為休賽期，不需要抓取投籃熱圖，結束執行。")
+            return
+        season = SEASON
+        type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
 
-    roster = fetch_roster_with_ids(SEASON)
+    print(f"=== 開始抓取灰狼隊投籃熱圖（{season} {season_type_label}）===")
+
+    roster = fetch_roster_with_ids(season)
     if not roster:
         print("❌ 無法取得名單，終止")
         sys.exit(1)
+
+    # 受助攻比例（全聯盟單一 request，球員 + 球隊各一）
+    assisted_player = fetch_assisted_pct(season, season_type_api, "Player")
+    assisted_team = fetch_assisted_pct(season, season_type_api, "Team").get("MIN", {})
 
     db = init_firebase()
     summary = {}
 
     # 先抓全隊出手（PlayerID=0 + TeamID）→ 球隊熱圖
-    team_shots = fetch_player_shotchart(0, "灰狼全隊", SEASON, season_type_api)
+    team_shots = fetch_player_shotchart(0, "灰狼全隊", season, season_type_api)
     if team_shots is None:
         summary["TEAM"] = "FAILED"
     else:
         summary["TEAM"] = len(team_shots)
         if db:
-            doc_id = f"TEAM_{SEASON}_{type_key}"
-            db.collection("wolves_shotcharts").document(doc_id).set({
-                "playerId": 0,
-                "playerName": "Minnesota Timberwolves",
-                "season": SEASON,
-                "seasonType": season_type_label,
-                "timestamp": int(datetime.now().timestamp() * 1000),
-                "shots": team_shots,
-            })
+            doc_id = f"TEAM_{season}_{type_key}"
+            db.collection("wolves_shotcharts").document(doc_id).set(_shot_doc({
+                "playerId": 0, "playerName": "Minnesota Timberwolves",
+                "season": season, "seasonType": season_type_label,
+            }, team_shots, assisted_team))
             print(f"✅ 全隊: {len(team_shots)} 次出手已寫入 wolves_shotcharts/{doc_id}")
     time.sleep(1)
 
     for p in roster:
-        shots = fetch_player_shotchart(p["id"], p["name"], SEASON, season_type_api)
+        shots = fetch_player_shotchart(p["id"], p["name"], season, season_type_api)
         if shots is None:
             summary[p["name"]] = "FAILED"
             continue
         summary[p["name"]] = len(shots)
-        doc = {
-            "playerId": p["id"],
-            "playerName": p["name"],
-            "season": SEASON,
-            "seasonType": season_type_label,
-            "timestamp": int(datetime.now().timestamp() * 1000),
-            "shots": shots,
-        }
+        p_assist = dict(assisted_player.get(str(p["id"]), {}))
+        p_assist.pop("playerName", None)
         if db:
-            doc_id = f"{p['id']}_{SEASON}_{type_key}"
-            db.collection("wolves_shotcharts").document(doc_id).set(doc)
+            doc_id = f"{p['id']}_{season}_{type_key}"
+            db.collection("wolves_shotcharts").document(doc_id).set(_shot_doc({
+                "playerId": p["id"], "playerName": p["name"],
+                "season": season, "seasonType": season_type_label,
+            }, shots, p_assist))
             print(f"✅ {p['name']}: {len(shots)} 次出手已寫入 wolves_shotcharts/{doc_id}")
         # fetch_with_retry 已內含 2 秒間隔，再加 1 秒 → 球員間共 3 秒
         time.sleep(1)

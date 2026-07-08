@@ -119,6 +119,16 @@ BASE_FIELDS = [
     ("PLUS_MINUS", "PLUS_MINUS", False),
 ]
 
+# leaguedash{player|team}stats?MeasureType=Scoring 受助攻比例（投籃分頁用；皆為比例 *100）
+ASSISTED_FIELDS = [
+    ("PCT_AST_2PM", "PCT_AST_2PM", True),
+    ("PCT_UAST_2PM", "PCT_UAST_2PM", True),
+    ("PCT_AST_3PM", "PCT_AST_3PM", True),
+    ("PCT_UAST_3PM", "PCT_UAST_3PM", True),
+    ("PCT_AST_FGM", "PCT_AST_FGM", True),
+    ("PCT_UAST_FGM", "PCT_UAST_FGM", True),
+]
+
 # teamplayeronoffdetails?MeasureType=Advanced 在場/不在場（球員專屬；非百分比，效率值原樣）
 # fetch_onoff 會為 On/Off 兩態各加前綴 ON_ / OFF_
 ONOFF_FIELDS = [
@@ -714,6 +724,34 @@ def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=N
             ident = "MIN"
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, BASE_FIELDS)
+    return results
+
+
+# ==========================================
+# 受助攻比例（leaguedash{player|team}stats?MeasureType=Scoring）
+# ==========================================
+def fetch_assisted_pct(season, season_type_api, player_or_team="Player"):
+    """受助攻/無助攻比例（2分/3分/整體，欄位見 ASSISTED_FIELDS）。單一 request 拿全聯盟。
+    球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。投籃分頁的受助攻卡用。"""
+    endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
+    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Scoring&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+    results = {}
+    data = fetch_with_retry(url, f"Assisted [{player_or_team}]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        if player_or_team == "Player":
+            ident = str(row[headers_list.index("PLAYER_ID")])
+            results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+        else:
+            ident = "MIN"
+            results[ident] = {}
+        apply_fields(results[ident], row, headers_list, ASSISTED_FIELDS)
     return results
 
 
