@@ -484,36 +484,7 @@ const App = () => {
     );
 
 
-    // Radar Chart：依 stats / tracking 計算單一賽季的雷達值
-    const radarValuesFor = (stats, tracking, side) => {
-        if (side === 'offensive') {
-            const iso = stats.find(s => s.playType === 'Isolation' && s.side === 'offensive');
-            const tr = stats.find(s => s.playType === 'Transition' && s.side === 'offensive');
-            const pr = stats.find(s => s.playType === 'PRBallHandler' && s.side === 'offensive');
-            return {
-                '單打 (Isolation)': iso ? iso.percentile : 0,
-                '切入得分 (Drive)': tracking.DRIVE_PTS_PCT || 0,
-                '接球跳投 (C&S)': tracking.CATCH_SHOOT_EFG_PCT || 0,
-                '轉換快攻 (Transition)': tr ? tr.percentile : 0,
-                '擋拆持球 (P&R Hand)': pr ? pr.percentile : 0,
-            };
-        }
-        const iso = stats.find(s => s.playType === 'Isolation' && s.side === 'defensive');
-        const sp = stats.find(s => s.playType === 'Spotup' && s.side === 'defensive');
-        const pr = stats.find(s => s.playType === 'PRBallHandler' && s.side === 'defensive');
-        return {
-            '單打防禦 (Iso Def)': iso ? iso.percentile : 0,
-            '定點防線 (Spotup Def)': sp ? sp.percentile : 0,
-            '擋拆防守 (P&R Def)': pr ? pr.percentile : 0,
-            '干擾籃板 (Contest Reb)': tracking.REB_CONTEST_PCT || 0,
-        };
-    };
-
-    const radarAxes = viewSide === 'offensive'
-        ? ['單打 (Isolation)', '切入得分 (Drive)', '接球跳投 (C&S)', '轉換快攻 (Transition)', '擋拆持球 (P&R Hand)']
-        : ['單打防禦 (Iso Def)', '定點防線 (Spotup Def)', '擋拆防守 (P&R Def)', '干擾籃板 (Contest Reb)'];
-
-    // Series 列表：primary + compare
+    // Series 列表：primary + compare（雷達軸與繪製由 RadarPanel 處理）
     const primaryColor = viewSide === 'offensive' ? '#12A150' : '#ef4444';
     const primaryLabel = isHistoryMode
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
@@ -541,14 +512,6 @@ const App = () => {
         ...playerCompareSeries,
     ];
 
-    const radarData = radarAxes.map(subject => {
-        const row = { subject, fullMark: 100 };
-        radarSeries.forEach(s => {
-            const vals = radarValuesFor(s.stats || [], s.tracking || {}, viewSide);
-            row[s.label] = vals[subject] || 0;
-        });
-        return row;
-    });
 
     // History Modal Component (nested for closure access to App state)
     const HistoryModal = ({ cardInfo, onClose }) => {
@@ -705,6 +668,54 @@ const App = () => {
         });
     });
 
+    // 疊加比較 chips（搬到雷達圖下方）
+    const compareChipsUI = (
+        <div className="w-full space-y-2 mt-2">
+            <div>
+                <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-slate-400 font-bold">疊加比較（賽季）</label>
+                    <span className="text-[10px] text-slate-500">{compareKeys.length}/{MAX_COMPARE}</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                    {SEASON_OPTIONS.filter(o => !o.isCurrent && o.key !== selectedSeasonKey).map((o) => {
+                        const active = compareKeys.includes(o.key);
+                        const chipColor = active ? COMPARE_COLORS[compareKeys.indexOf(o.key) % COMPARE_COLORS.length] : null;
+                        const disabled = !active && compareKeys.length >= MAX_COMPARE;
+                        return (
+                            <button key={o.key} onClick={() => toggleCompareKey(o.key)} disabled={disabled}
+                                style={active ? { borderColor: chipColor, color: chipColor } : {}}
+                                className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                                {o.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+            {viewMode === 'PLAYER' && !isHistoryMode && availablePlayers.length > 1 && (
+                <div>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] text-slate-400 font-bold">比較球員</label>
+                        <span className="text-[10px] text-slate-500">{comparePlayers.filter(n => n !== selectedPlayer).length}/{MAX_COMPARE}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto">
+                        {availablePlayers.filter(n => n !== selectedPlayer).map(name => {
+                            const active = comparePlayers.includes(name);
+                            const chipColor = active ? COMPARE_COLORS[(compareKeys.length + comparePlayers.filter(n => n !== selectedPlayer).indexOf(name)) % COMPARE_COLORS.length] : null;
+                            const disabled = !active && comparePlayers.filter(n => n !== selectedPlayer).length >= MAX_COMPARE;
+                            return (
+                                <button key={name} onClick={() => toggleComparePlayer(name)} disabled={disabled}
+                                    style={active ? { borderColor: chipColor, color: chipColor } : {}}
+                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                                    {name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
     // 右欄分頁定義
     const TABS = [
         { key: 'overview', label: '總覽' },
@@ -784,65 +795,6 @@ const App = () => {
                                     <p className="text-[10px] text-slate-500 mt-1">歷史終點快照（單日）</p>
                                 )}
                             </div>
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-xs text-slate-400 font-bold tracking-wide">疊加比較</label>
-                                    <span className="text-[10px] text-slate-500">{compareKeys.length}/{MAX_COMPARE}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {SEASON_OPTIONS.filter(o => !o.isCurrent && o.key !== selectedSeasonKey).map((o, idx) => {
-                                        const active = compareKeys.includes(o.key);
-                                        const colorIdx = compareKeys.indexOf(o.key);
-                                        const chipColor = active ? COMPARE_COLORS[colorIdx % COMPARE_COLORS.length] : null;
-                                        const disabled = !active && compareKeys.length >= MAX_COMPARE;
-                                        return (
-                                            <button
-                                                key={o.key}
-                                                onClick={() => toggleCompareKey(o.key)}
-                                                disabled={disabled}
-                                                style={active ? { borderColor: chipColor, color: chipColor } : {}}
-                                                className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
-                                            >
-                                                {o.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                {compareKeys.length > 0 && (
-                                    <p className="text-[10px] text-slate-500 mt-1">僅雷達圖會疊加（球員模式）</p>
-                                )}
-                            </div>
-                            {/* 球員互相比較（僅球員 + 當季，雷達疊加同季其他球員） */}
-                            {viewMode === 'PLAYER' && !isHistoryMode && availablePlayers.length > 1 && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-xs text-slate-400 font-bold tracking-wide">比較球員</label>
-                                        <span className="text-[10px] text-slate-500">{comparePlayers.filter(n => n !== selectedPlayer).length}/{MAX_COMPARE}</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
-                                        {availablePlayers.filter(n => n !== selectedPlayer).map(name => {
-                                            const active = comparePlayers.includes(name);
-                                            const colorIdx = compareKeys.length + comparePlayers.filter(n => n !== selectedPlayer).indexOf(name);
-                                            const chipColor = active ? COMPARE_COLORS[colorIdx % COMPARE_COLORS.length] : null;
-                                            const disabled = !active && comparePlayers.filter(n => n !== selectedPlayer).length >= MAX_COMPARE;
-                                            return (
-                                                <button
-                                                    key={name}
-                                                    onClick={() => toggleComparePlayer(name)}
-                                                    disabled={disabled}
-                                                    style={active ? { borderColor: chipColor, color: chipColor } : {}}
-                                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
-                                                >
-                                                    {name}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    {comparePlayers.filter(n => n !== selectedPlayer).length > 0 && (
-                                        <p className="text-[10px] text-slate-500 mt-1">與 {selectedPlayer} 疊加於雷達圖</p>
-                                    )}
-                                </div>
-                            )}
                             <div className="flex gap-2 bg-slate-950 p-1 rounded border border-slate-800">
                                 <button onClick={() => setViewMode('TEAM')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'TEAM' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.Users className="w-4 h-4" /> 球隊</button>
                                 <button onClick={() => setViewMode('PLAYER')} className={`flex-1 py-2 text-sm font-bold rounded flex items-center justify-center gap-2 ${viewMode === 'PLAYER' ? 'bg-[#236192] text-white shadow' : 'text-slate-400'}`}><Icons.User className="w-4 h-4" /> 球員</button>
@@ -870,60 +822,11 @@ const App = () => {
                             )}
                         </div>
 
-                        {/* Radar Chart */}
-                        {(viewMode === 'PLAYER' && currentStats?.length > 0) && (
-                            <div className="bg-slate-900/50 p-2 rounded-xl border border-slate-800 flex flex-col items-center">
-                                <h3 className="text-slate-300 text-sm font-bold mt-2 mb-1">{viewSide === 'offensive' ? '進攻雷達網 (Percentile)' : '防守雷達網 (Percentile)'}</h3>
-                                {RadarChart && ResponsiveContainer ? (
-                                    <div className="w-full h-[240px] sm:h-[280px]">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <RadarChart cx="50%" cy="50%" outerRadius="55%" data={radarData} margin={{ top: 18, right: 24, bottom: 18, left: 24 }}>
-                                                <PolarGrid stroke="#1e293b" />
-                                                <PolarAngleAxis
-                                                    dataKey="subject"
-                                                    tick={(props) => {
-                                                        const { payload, x, y, cx, cy } = props;
-                                                        const parts = String(payload.value).split(' (');
-                                                        const zh = parts[0];
-                                                        const en = parts[1] ? '(' + parts[1] : '';
-                                                        const anchor = x > cx + 4 ? 'start' : x < cx - 4 ? 'end' : 'middle';
-                                                        return (
-                                                            <text x={x} y={y} textAnchor={anchor} fill="#cbd5e0" fontSize={10}>
-                                                                <tspan x={x} dy={0}>{zh}</tspan>
-                                                                {en && <tspan x={x} dy={11} fill="#64748b" fontSize={9}>{en}</tspan>}
-                                                            </text>
-                                                        );
-                                                    }}
-                                                />
-                                                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                                {radarSeries.map((s, i) => (
-                                                    <Radar
-                                                        key={s.key}
-                                                        name={s.label}
-                                                        dataKey={s.label}
-                                                        stroke={s.color}
-                                                        fill={s.color}
-                                                        fillOpacity={i === 0 ? 0.35 : 0.18}
-                                                        strokeWidth={i === 0 ? 2 : 1.5}
-                                                    />
-                                                ))}
-                                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} itemStyle={{ color: 'white', fontWeight: 'bold' }} />
-                                            </RadarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-[280px] flex items-center justify-center text-slate-500 text-xs border border-slate-800 border-dashed rounded mt-2">雷達圖模組載入中或失敗...</div>
-                                )}
-                                {radarSeries.length > 1 && (
-                                    <div className="flex flex-wrap gap-x-3 gap-y-1 px-2 pb-2 mt-1 justify-center">
-                                        {radarSeries.map(s => (
-                                            <div key={s.key} className="flex items-center gap-1 text-[10px] text-slate-300">
-                                                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: s.color }}></span>
-                                                {s.label}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                        {/* 雷達圖（軸自選）+ 疊加比較 chips */}
+                        {(viewMode === 'PLAYER' && currentStats?.length > 0 && window.RadarPanel) && (
+                            <div>
+                                <window.RadarPanel series={radarSeries} viewSide={viewSide} />
+                                {compareChipsUI}
                             </div>
                         )}
                     </div>

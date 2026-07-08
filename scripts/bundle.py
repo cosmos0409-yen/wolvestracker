@@ -31,6 +31,7 @@ ORDER = [
     "SplitsTab.js",
     "ShootingTab.js",
     "ComparisonTab.js",
+    "RadarPanel.js",
     "App.js",
 ]
 
