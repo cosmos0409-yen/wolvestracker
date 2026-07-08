@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--start", type=int, default=0, help="從第幾場開始（分批用）")
     parser.add_argument("--min-gp", type=int, default=DEFAULT_MIN_GP, help="輪換門檻出賽數")
     parser.add_argument("--index-only", action="store_true", help="只寫比賽索引(前端日期選單用)後結束")
+    parser.add_argument("--dates", default="", help="只回補指定日期(逗號分隔 YYYY-MM-DD)，補失敗場用")
     args = parser.parse_args()
 
     season = args.season
@@ -99,9 +100,14 @@ def main():
         print("（--index-only：只寫索引，結束）")
         return
 
-    games = games[args.start:]
-    if args.limit:
-        games = games[:args.limit]
+    if args.dates:
+        want = {d.strip() for d in args.dates.split(",") if d.strip()}
+        games = [g for g in games if g[0] in want]
+        print(f"（--dates 指定回補 {len(games)} 場：{', '.join(g[0] for g in games)}）")
+    else:
+        games = games[args.start:]
+        if args.limit:
+            games = games[:args.limit]
     print(f"共 {total} 場，本次處理 {len(games)} 場（start={args.start}, limit={args.limit or '全部'}）")
 
     done = 0

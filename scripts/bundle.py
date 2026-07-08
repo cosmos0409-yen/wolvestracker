@@ -24,6 +24,8 @@ ORDER = [
     "TrackingCardRow.js",
     "ShotChart.js",
     "DefenseHeatmap.js",
+    "gameAggregates.js",
+    "gamesData.js",
     "SingleGamePanel.js",
     "App.js",
 ]
