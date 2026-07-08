@@ -39,7 +39,7 @@ const App = () => {
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
     const [activeTab, setActiveTab] = useState(() => loadPref('activeTab', 'overview')); // 右欄分頁
-    const [splitsGames, setSplitsGames] = useState(null); // Splits 分頁的逐場 bundle；null=載入中
+    const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -322,11 +322,11 @@ const App = () => {
         }
     }
 
-    // Splits 分頁逐場 bundle：僅在 Splits 分頁作用時載入（lazy），依賽季/攻守實體/球員切換
+    // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
     useEffect(() => {
-        if (activeTab !== 'splits' || !isCloud || !window.loadSeasonGames) return;
+        if (!isCloud || !window.loadSeasonGames) return;
         let cancelled = false;
-        setSplitsGames(null);
+        setSeasonGames(null);
         (async () => {
             let combos = [];
             if (selectedSeasonKey === 'current') {
@@ -336,16 +336,16 @@ const App = () => {
                 if (opt && opt.season) combos = [[opt.season, opt.type]];
             }
             const pid = viewMode === 'PLAYER' ? currentPlayerId : null;
-            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSplitsGames([]); return; }
+            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSeasonGames([]); return; }
             const all = [];
             for (const [s, t] of combos) {
                 try { const { games } = await window.loadSeasonGames(s, t, viewMode, pid); all.push(...games); }
-                catch (e) { console.error('splits bundle load fail', s, t, e); }
+                catch (e) { console.error('season bundle load fail', s, t, e); }
             }
-            if (!cancelled) setSplitsGames(all);
+            if (!cancelled) setSeasonGames(all);
         })();
         return () => { cancelled = true; };
-    }, [activeTab, selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
+    }, [selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
 
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
@@ -995,6 +995,7 @@ const App = () => {
                         {activeTab === 'overview' && window.OverviewTab && (
                             <window.OverviewTab
                                 viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(displayDate) ? displayDate : null)}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
@@ -1005,7 +1006,7 @@ const App = () => {
                         {/* Splits（逐場 bundle → 期間篩選 + 卡片牆 + 趨勢折線） */}
                         {activeTab === 'splits' && window.SplitsTab && (
                             <window.SplitsTab
-                                games={splitsGames} seasonLabel={primaryLabel}
+                                games={seasonGames} seasonLabel={primaryLabel}
                                 isPlayoffs={isHistoryMode && currentSeasonType === '季後賽'}
                             />
                         )}

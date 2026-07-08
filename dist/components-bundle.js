@@ -860,9 +860,11 @@ window.SingleGamePanel = SingleGamePanel;
 
 
 // ---------- OverviewTab.js ----------
-// 總覽分頁：季平均摘要卡（讀快照的整季 base，含截至該日總計）+ On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
-// base：當前快照的整季 base 總計；其餘為快照對應欄位
-const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+// 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
+//   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
+// games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+    const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
     const SingleGamePanel = window.SingleGamePanel;
@@ -881,7 +883,11 @@ const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotO
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
     ];
 
-    const agg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
+    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base
+    const bundleAgg = (games && games.length) ? GA.seasonToDate(games, untilDate, null, 'TEAM') : null;
+    const baseAgg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
+    const agg = (bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg;
+    const loadingAvg = games === null && !baseAgg;
 
     // On/Off（球員快照）
     const onoff = viewMode === 'PLAYER' ? (snapshotOnoff || {}) : null;
@@ -904,11 +910,11 @@ const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotO
             <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                 <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
                     <h2 className="text-xl font-bold">季平均 {agg ? `(${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W}勝${agg.L}敗` : ''})` : ''}</h2>
-                    <span className="text-[10px] text-slate-500">{seasonLabel || ''} · 整季平均</span>
+                    <span className="text-[10px] text-slate-500">{seasonLabel || ''}{untilDate ? ` 截至 ${untilDate}` : ' 整季'}</span>
                 </div>
                 {!agg ? (
-                    <div className="h-[80px] flex items-center justify-center text-slate-500 text-sm">
-                        此賽季尚無季平均資料
+                    <div className={`h-[80px] flex items-center justify-center text-slate-500 text-sm ${loadingAvg ? 'animate-pulse' : ''}`}>
+                        {loadingAvg ? '載入季平均中...' : '此賽季尚無季平均資料'}
                     </div>
                 ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
@@ -1242,7 +1248,7 @@ const App = () => {
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
     const [activeTab, setActiveTab] = useState(() => loadPref('activeTab', 'overview')); // 右欄分頁
-    const [splitsGames, setSplitsGames] = useState(null); // Splits 分頁的逐場 bundle；null=載入中
+    const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -1525,11 +1531,11 @@ const App = () => {
         }
     }
 
-    // Splits 分頁逐場 bundle：僅在 Splits 分頁作用時載入（lazy），依賽季/攻守實體/球員切換
+    // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
     useEffect(() => {
-        if (activeTab !== 'splits' || !isCloud || !window.loadSeasonGames) return;
+        if (!isCloud || !window.loadSeasonGames) return;
         let cancelled = false;
-        setSplitsGames(null);
+        setSeasonGames(null);
         (async () => {
             let combos = [];
             if (selectedSeasonKey === 'current') {
@@ -1539,16 +1545,16 @@ const App = () => {
                 if (opt && opt.season) combos = [[opt.season, opt.type]];
             }
             const pid = viewMode === 'PLAYER' ? currentPlayerId : null;
-            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSplitsGames([]); return; }
+            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSeasonGames([]); return; }
             const all = [];
             for (const [s, t] of combos) {
                 try { const { games } = await window.loadSeasonGames(s, t, viewMode, pid); all.push(...games); }
-                catch (e) { console.error('splits bundle load fail', s, t, e); }
+                catch (e) { console.error('season bundle load fail', s, t, e); }
             }
-            if (!cancelled) setSplitsGames(all);
+            if (!cancelled) setSeasonGames(all);
         })();
         return () => { cancelled = true; };
-    }, [activeTab, selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
+    }, [selectedSeasonKey, viewMode, currentPlayerId, isCloud]);
 
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
@@ -2198,6 +2204,7 @@ const App = () => {
                         {activeTab === 'overview' && window.OverviewTab && (
                             <window.OverviewTab
                                 viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(displayDate) ? displayDate : null)}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
@@ -2208,7 +2215,7 @@ const App = () => {
                         {/* Splits（逐場 bundle → 期間篩選 + 卡片牆 + 趨勢折線） */}
                         {activeTab === 'splits' && window.SplitsTab && (
                             <window.SplitsTab
-                                games={splitsGames} seasonLabel={primaryLabel}
+                                games={seasonGames} seasonLabel={primaryLabel}
                                 isPlayoffs={isHistoryMode && currentSeasonType === '季後賽'}
                             />
                         )}

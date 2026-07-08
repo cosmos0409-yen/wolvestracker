@@ -1,6 +1,8 @@
-// 總覽分頁：季平均摘要卡（讀快照的整季 base，含截至該日總計）+ On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
-// base：當前快照的整季 base 總計；其餘為快照對應欄位
-const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+// 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
+//   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
+// games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+    const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
     const SingleGamePanel = window.SingleGamePanel;
@@ -19,7 +21,11 @@ const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotO
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
     ];
 
-    const agg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
+    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base
+    const bundleAgg = (games && games.length) ? GA.seasonToDate(games, untilDate, null, 'TEAM') : null;
+    const baseAgg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
+    const agg = (bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg;
+    const loadingAvg = games === null && !baseAgg;
 
     // On/Off（球員快照）
     const onoff = viewMode === 'PLAYER' ? (snapshotOnoff || {}) : null;
@@ -42,11 +48,11 @@ const OverviewTab = ({ viewMode, selectedPlayer, base, snapshotClutch, snapshotO
             <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                 <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
                     <h2 className="text-xl font-bold">季平均 {agg ? `(${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W}勝${agg.L}敗` : ''})` : ''}</h2>
-                    <span className="text-[10px] text-slate-500">{seasonLabel || ''} · 整季平均</span>
+                    <span className="text-[10px] text-slate-500">{seasonLabel || ''}{untilDate ? ` 截至 ${untilDate}` : ' 整季'}</span>
                 </div>
                 {!agg ? (
-                    <div className="h-[80px] flex items-center justify-center text-slate-500 text-sm">
-                        此賽季尚無季平均資料
+                    <div className={`h-[80px] flex items-center justify-center text-slate-500 text-sm ${loadingAvg ? 'animate-pulse' : ''}`}>
+                        {loadingAvg ? '載入季平均中...' : '此賽季尚無季平均資料'}
                     </div>
                 ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
