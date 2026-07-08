@@ -38,7 +38,7 @@ from nba_common import (
 SEASON = "2025-26"
 
 # 每日快照文件中參與去重比對的資料欄位
-DATA_KEYS = ["stats", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
+DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
 
 
 # ==========================================
@@ -189,6 +189,7 @@ def main():
 
     # 1. 抓取球隊資料
     team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
+    team_base = fetch_base_box(SEASON, season_type_api, "Team").get("MIN", {})
     team_tracking = fetch_tracking_data(SEASON, season_type_api, "Team").get("MIN", {})
     team_shooting = merge_maps(
         fetch_shot_locations(SEASON, season_type_api, "Team"),
@@ -208,6 +209,7 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,      # Array
+        "base": team_base,          # Dict（整季 base 總計，總覽季平均用）
         "tracking": team_tracking,  # Dict
         "shooting": team_shooting,  # Dict
         "clutch": team_clutch,      # Dict
@@ -237,6 +239,8 @@ def main():
         fetch_hustle(SEASON, season_type_api, "Player"),
         fetch_defense_box(SEASON, season_type_api, "Player"),
     ), normalized_active)
+    player_base = to_name_keyed(
+        fetch_base_box(SEASON, season_type_api, "Player"), normalized_active)
     # On/Off（在場/不在場效率）：以 PlayerID 對照名單轉為球員名 key
     onoff_raw = fetch_onoff(SEASON, season_type_api)
     player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
@@ -256,6 +260,7 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": player_stats_map,    # Dict of Arrays
+        "base": player_base,          # Dict of Dicts（整季 base 總計，總覽季平均用）
         "tracking": player_tracking,  # Dict of Dicts
         "shooting": player_shooting,  # Dict of Dicts
         "clutch": player_clutch,      # Dict of Dicts

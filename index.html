@@ -24,7 +24,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, doc, getDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeFirestore, collection, doc, getDoc, getDocs, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -39,8 +39,9 @@
         try {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
-            window.db = getFirestore(app);
-            window.firebaseModules = { collection, doc, getDoc, onSnapshot, query, orderBy };
+            // autoDetectLongPolling：WebChannel 被擋的環境（部分 localhost/網路）自動退回長輪詢，避免讀取卡死
+            window.db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+            window.firebaseModules = { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy };
 
             signInAnonymously(auth).then(() => {
                 console.log("✅ Firebase 連線成功 (匿名登入 - 純讀取)");

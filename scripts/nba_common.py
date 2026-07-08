@@ -97,6 +97,9 @@ TRACKING_FIELDS = {
 # leaguedash{player|team}stats?MeasureType=Base 傳統基本數據（單場/區間加總的主體）
 # 皆為每場計數（PerMode=PerGame），百分比欄位 *100
 BASE_FIELDS = [
+    ("GP", "GP", False),
+    ("W", "W", False),
+    ("L", "L", False),
     ("MIN", "MIN", False),
     ("PTS", "PTS", False),
     ("FGM", "FGM", False),

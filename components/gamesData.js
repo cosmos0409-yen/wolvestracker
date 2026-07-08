@@ -1,8 +1,9 @@
-// games 資料載入層：讀 wolves_games_index/{season}_{type} → 逐日 getDoc
-// 快取：每份 doc 存 localStorage（key 升版 v2，因回補後舊 v1 快取缺 BASE 欄）；
-// 單場資料一旦打完即定格，故永久快取；當季靠 index 長度增長自動補抓新場次。
-// localStorage 寫入包 try/catch，超 quota 時降級為 in-memory（window.__gamesMem）。
+// games 資料載入層：依 wolves_games_index/{season}_{type} 的日期清單，逐日 getDoc 讀入。
+// 安全規則只開放 get（未開放 list），故不能用 getDocs(collection)；改用「限併發」批次 getDoc
+// （一次最多 CONCURRENCY 筆），避免 90+ 併發把 long-polling 通道塞爆而卡死。
+// 每份 doc localStorage v2 快取（回補後舊 v1 失效）+ 記憶體快取；單場資料定格，讀一次即可。
 window.__gamesMem = window.__gamesMem || {};
+const GAMES_CONCURRENCY = 6;
 
 async function loadGameDoc(coll, date) {
     const key = `wt_game_v2_${coll}_${date}`;
@@ -10,24 +11,21 @@ async function loadGameDoc(coll, date) {
     try {
         const c = localStorage.getItem(key);
         if (c) { const d = JSON.parse(c); window.__gamesMem[key] = d; return d; }
-    } catch (e) { /* 解析失敗則重抓 */ }
+    } catch (e) { /* 重抓 */ }
     const { doc, getDoc } = window.firebaseModules;
     try {
         const snap = await getDoc(doc(window.db, coll, date));
         const d = snap.exists() ? snap.data() : null;
         if (d) {
             window.__gamesMem[key] = d;
-            try { localStorage.setItem(key, JSON.stringify(d)); } catch (e) { /* quota 滿：僅存記憶體 */ }
+            try { localStorage.setItem(key, JSON.stringify(d)); } catch (e) { /* quota：僅記憶體 */ }
         }
         return d;
-    } catch (e) {
-        console.error('game doc load fail', coll, date, e);
-        return null;
-    }
+    } catch (e) { console.error('game doc load fail', coll, date, e); return null; }
 }
 window.loadGameDoc = loadGameDoc;
 
-// 載入某賽季某賽別的全部單場（含比賽索引 meta 併入 doc）。
+// 載入某賽季某賽別全部單場（限併發批次），併入索引的 matchup/wl，依日期排序
 // 回傳 { games: [ {date, matchup, wl, players|stats, ...} ], index: [{date,matchup,wl}] }
 window.loadSeasonGames = async function (season, type, viewMode) {
     if (!window.db || !window.firebaseModules) return { games: [], index: [] };
@@ -42,11 +40,18 @@ window.loadSeasonGames = async function (season, type, viewMode) {
         console.error('games index load fail', indexId, e);
         return { games: [], index: [] };
     }
-    // 逐日並行載入（getDoc 快取後極快）；併入索引的 matchup/wl 以防單場 doc 缺欄
-    const docs = await Promise.all(index.map(async meta => {
-        const d = await loadGameDoc(coll, meta.date);
-        if (!d) return null;
-        return { matchup: meta.matchup, wl: meta.wl, ...d };
-    }));
-    return { games: docs.filter(Boolean), index };
+    if (!index.length) return { games: [], index: [] };
+
+    const queue = index.slice();
+    const games = [];
+    async function worker() {
+        while (queue.length) {
+            const meta = queue.shift();
+            const d = await loadGameDoc(coll, meta.date);
+            if (d) games.push({ matchup: meta.matchup, wl: meta.wl, ...d });
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(GAMES_CONCURRENCY, queue.length) }, worker));
+    games.sort((a, b) => (a.date < b.date ? -1 : 1));
+    return { games, index };
 };

@@ -38,6 +38,8 @@ const App = () => {
     const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
+    const [activeTab, setActiveTab] = useState(() => loadPref('activeTab', 'overview')); // 右欄分頁
+    useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
     useEffect(() => savePref('viewMode', viewMode), [viewMode]);
@@ -86,6 +88,8 @@ const App = () => {
             } catch (e) { console.error('games index fetch fail', e); }
         })();
     }, [isCloud]);
+
+    // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
 
     // Mount-time setup：移除 loading 畫面、監聽 Firebase ready
     useEffect(() => {
@@ -277,7 +281,7 @@ const App = () => {
     let currentShooting = {}; let prevShooting = {};
     let currentClutch = {}; let prevClutch = {};
     let currentDefense = {}; let prevDefense = {};
-    let currentLineups = [];
+    let currentLineups = []; let currentOnoff = {}; let currentBase = {};
     let displayDate = "尚無數據"; let currentPlayerId = null;
     let currentSeason = null; let currentSeasonType = null;
 
@@ -287,7 +291,7 @@ const App = () => {
             currentStats = current.stats || []; currentTracking = current.tracking || {}; displayDate = current.date;
             currentShooting = current.shooting || {}; currentClutch = current.clutch || {};
             currentDefense = current.defense || {};
-            currentLineups = current.lineups || [];
+            currentLineups = current.lineups || []; currentBase = current.base || {};
             currentSeason = current.season; currentSeasonType = current.seasonType;
         }
         if (prev) {
@@ -303,6 +307,8 @@ const App = () => {
             currentShooting = current.shooting?.[selectedPlayer] || {};
             currentClutch = current.clutch?.[selectedPlayer] || {};
             currentDefense = current.defense?.[selectedPlayer] || {};
+            currentOnoff = current.onoff?.[selectedPlayer] || {};
+            currentBase = current.base?.[selectedPlayer] || {};
             if (currentStats.length > 0 && currentStats[0].playerId) currentPlayerId = currentStats[0].playerId;
             else if (currentTracking.playerId) currentPlayerId = currentTracking.playerId;
         }
@@ -733,6 +739,15 @@ const App = () => {
         );
     };
 
+    // 右欄分頁定義
+    const TABS = [
+        { key: 'overview', label: '總覽' },
+        { key: 'splits', label: 'Splits' },
+        { key: 'shooting', label: '投籃' },
+        { key: 'defense', label: '防守' },
+        { key: 'playtype', label: 'Playtype' },
+        { key: 'comparison', label: '跨季' },
+    ];
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200 font-sans pb-20">
             {/* Header */}
@@ -940,140 +955,104 @@ const App = () => {
                     {/* Right Content */}
                     {showSkeleton ? <SkeletonBlock /> : (
                     <div className="md:col-span-3 space-y-6">
-                        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
-                                    {viewMode === 'PLAYER' ? selectedPlayer : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
-                                </h2>
-                            </div>
-                            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {PlayTypesList.map(type => {
-                                    const stat = currentStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide);
-                                    const prevStat = prevStats ? prevStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide) : null;
-                                    return <PlayTypeCard key={type} type={type} current={stat} prev={prevStat} onClick={setSelectedCard} side={viewSide} />;
-                                })}
-                            </div>
+                        {/* 分頁切換列 */}
+                        <div className="flex flex-wrap gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            {TABS.map(t => (
+                                <button key={t.key} onClick={() => setActiveTab(t.key)}
+                                    className={`px-3 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === t.key ? 'bg-[#12A150] text-[#0C2340] shadow' : 'text-slate-400 hover:bg-slate-800'}`}>
+                                    {t.label}
+                                </button>
+                            ))}
                         </div>
 
-                        {/* Tracking */}
-                        {viewSide === 'offensive' && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">進階數據 (Tracking)</h2>
-                                {trackingDefs.map(def => (
-                                    <TrackingCardRow
-                                        key={def.id} title={def.title} category={def.id}
-                                        metrics={def.metrics} current={currentTracking} prev={prevTracking}
-                                        onClick={setSelectedCard}
-                                    />
-                                ))}
+                        {/* 總覽 */}
+                        {activeTab === 'overview' && window.OverviewTab && (
+                            <window.OverviewTab
+                                viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                base={currentBase}
+                                snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
+                                lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
+                                seasonLabel={primaryLabel}
+                            />
+                        )}
+
+                        {/* Splits（暫用既有進階/投籃卡片牆，完整篩選版建置中） */}
+                        {activeTab === 'splits' && (
+                            <div className="space-y-6">
+                                <div className="px-4 py-2 rounded-lg text-xs border bg-slate-800/50 border-slate-700 text-slate-400">完整 Splits（篩選器 + 趨勢折線）建置中；以下為整季累積卡片</div>
+                                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
+                                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">進階數據 (Tracking)</h2>
+                                    {trackingDefs.map(def => (
+                                        <TrackingCardRow key={def.id} title={def.title} category={def.id}
+                                            metrics={def.metrics} current={currentTracking} prev={prevTracking} onClick={setSelectedCard} />
+                                    ))}
+                                </div>
+                                {Object.keys(currentShooting).length > 0 && (
+                                    <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
+                                        <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">投籃數據 (Shooting)</h2>
+                                        {shootingDefs.map(def => (
+                                            <TrackingCardRow key={def.id} title={def.title} category={def.id} source="shooting"
+                                                metrics={def.metrics} current={currentShooting} prev={prevShooting} onClick={setSelectedCard} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* 投籃數據（歷史快照無此資料時整區隱藏） */}
-                        {viewSide === 'offensive' && Object.keys(currentShooting).length > 0 && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">投籃數據 (Shooting)</h2>
-                                {shootingDefs.map(def => (
-                                    <TrackingCardRow
-                                        key={def.id} title={def.title} category={def.id} source="shooting"
-                                        metrics={def.metrics} current={currentShooting} prev={prevShooting}
-                                        onClick={setSelectedCard}
-                                    />
-                                ))}
+                        {/* 投籃（熱圖；卡片化版建置中） */}
+                        {activeTab === 'shooting' && (
+                            <div className="space-y-6">
+                                {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
+                                    <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
+                                )}
+                                {viewMode === 'TEAM' && !isHistoryMode && ShotChart && (
+                                    <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
+                                )}
+                                {isHistoryMode && <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">歷史賽季投籃分頁建置中</div>}
                             </div>
                         )}
 
-                        {/* 關鍵時刻 */}
-                        {viewSide === 'offensive' && Object.keys(currentClutch).length > 0 && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-amber-500">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">關鍵時刻 (Clutch)</h2>
-                                {clutchDefs.map(def => (
-                                    <TrackingCardRow
-                                        key={def.id} title={def.title} category={def.id} source="clutch"
-                                        metrics={def.metrics} current={currentClutch} prev={prevClutch}
-                                        onClick={setSelectedCard}
-                                    />
-                                ))}
+                        {/* 防守 */}
+                        {activeTab === 'defense' && (
+                            <div className="space-y-6">
+                                {Object.keys(currentDefense).length > 0 ? (
+                                    <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-red-500">
+                                        <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
+                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]).map(def => (
+                                            <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
+                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard} />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">此賽季無防守數據</div>
+                                )}
+                                {viewMode === 'TEAM' && window.DefenseHeatmap && Object.keys(currentDefense).length > 0 && (
+                                    <window.DefenseHeatmap defense={currentDefense} />
+                                )}
                             </div>
                         )}
 
-                        {/* 陣容（球隊模式） */}
-                        {viewMode === 'TEAM' && viewSide === 'offensive' && currentLineups.length > 0 && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">五人陣容 (Lineups)</h2>
-                                <p className="text-xs text-slate-500 mb-3">依上場時間排序（進階效率為每 100 回合）</p>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-sm text-slate-400">
-                                        <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
-                                            <tr>
-                                                <th className="px-4 py-3">陣容</th>
-                                                <th className="px-3 py-3 text-right">場次</th>
-                                                <th className="px-3 py-3 text-right">分鐘</th>
-                                                <th className="px-3 py-3 text-right">進攻效率</th>
-                                                <th className="px-3 py-3 text-right">防守效率</th>
-                                                <th className="px-3 py-3 text-right">淨效率</th>
-                                                <th className="px-3 py-3 text-right">TS%</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800">
-                                            {currentLineups.map((lu, i) => (
-                                                <tr key={i} className="hover:bg-slate-800/70 transition-colors">
-                                                    <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lu.players}</td>
-                                                    <td className="px-3 py-3 text-right font-mono">{lu.GP}</td>
-                                                    <td className="px-3 py-3 text-right font-mono">{lu.MIN}</td>
-                                                    <td className="px-3 py-3 text-right font-mono">{lu.OFF_RATING}</td>
-                                                    <td className="px-3 py-3 text-right font-mono">{lu.DEF_RATING}</td>
-                                                    <td className={`px-3 py-3 text-right font-mono font-bold ${lu.NET_RATING > 0 ? 'text-[#12A150]' : lu.NET_RATING < 0 ? 'text-red-400' : ''}`}>
-                                                        {lu.NET_RATING > 0 ? '+' : ''}{lu.NET_RATING}
-                                                    </td>
-                                                    <td className="px-3 py-3 text-right font-mono">{lu.TS_PCT}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                        {/* Playtype（Synergy 卡片牆，受攻守切換控制） */}
+                        {activeTab === 'playtype' && (
+                            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
+                                        {viewMode === 'PLAYER' ? selectedPlayer : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
+                                    </h2>
+                                </div>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {PlayTypesList.map(type => {
+                                        const stat = currentStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide);
+                                        const prevStat = prevStats ? prevStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide) : null;
+                                        return <PlayTypeCard key={type} type={type} current={stat} prev={prevStat} onClick={setSelectedCard} side={viewSide} />;
+                                    })}
                                 </div>
                             </div>
                         )}
 
-                        {/* 防守數據（防守側；歷史快照無 defense 欄位時自動隱藏） */}
-                        {viewSide === 'defensive' && Object.keys(currentDefense).length > 0 && (
-                            <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-red-500">
-                                <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
-                                {(viewMode === 'PLAYER'
-                                    ? defenseDefs
-                                    : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]
-                                ).map(def => (
-                                    <TrackingCardRow
-                                        key={def.id} title={def.title} category={def.id} source="defense"
-                                        metrics={def.metrics} current={currentDefense} prev={prevDefense}
-                                        onClick={setSelectedCard}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {/* 投籃熱圖（球員模式，當季） */}
-                        {viewMode === 'PLAYER' && !isHistoryMode && currentPlayerId && ShotChart && (
-                            <ShotChart playerId={currentPlayerId} playerName={selectedPlayer} />
-                        )}
-
-                        {/* 投籃熱圖（球隊模式，進攻側,當季） */}
-                        {viewMode === 'TEAM' && viewSide === 'offensive' && !isHistoryMode && ShotChart && (
-                            <ShotChart teamMode playerId={0} playerName="灰狼全隊" />
-                        )}
-
-                        {/* 單場數據面板（當季，球員/球隊） */}
-                        {!isHistoryMode && window.SingleGamePanel && gamesIndex.length > 0 && (
-                            <window.SingleGamePanel
-                                viewMode={viewMode} playerName={selectedPlayer}
-                                viewSide={viewSide} gamesIndex={gamesIndex}
-                            />
-                        )}
-
-                        {/* 防守熱圖（球隊防守側：對手在各區的命中率） */}
-                        {viewMode === 'TEAM' && viewSide === 'defensive' && window.DefenseHeatmap
-                            && Object.keys(currentDefense).length > 0 && (
-                            <window.DefenseHeatmap defense={currentDefense} />
+                        {/* 跨季比較（建置中） */}
+                        {activeTab === 'comparison' && (
+                            <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">跨季比較分頁建置中（資料已備妥：2022-23 起各季完整終點快照）</div>
                         )}
                     </div>
                     )}
