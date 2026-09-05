@@ -28,6 +28,7 @@ from nba_common import (
 )
 
 SEASON = "2025-26"
+CURRENT_SEASON = "2026-27"  # 現役名單來源：讓新援在舊東家的出手也被抓進來
 
 
 def _norm_gdate(raw):
@@ -38,9 +39,10 @@ def _norm_gdate(raw):
     return s
 
 
-def fetch_player_shotchart(player_id, player_name, season, season_type_api):
+def fetch_player_shotchart(player_id, player_name, season, season_type_api, team_id=None):
     """
     抓取出手座標。player_id=0 時搭配 TeamID 抓「全隊」出手（球隊熱圖用）。
+    team_id 省略＝灰狼（維持既有語意）；新援在舊東家的出手需傳 0 才拿得到。
     回傳 list of dict：x/y 為場地座標（0.1 呎），made 為是否命中，
     dist 為出手距離（呎），zone 為 NBA 官方分區名，
     action 為出手方式（ACTION_TYPE），gdate 為比賽日期（YYYY-MM-DD）。
@@ -52,7 +54,7 @@ def fetch_player_shotchart(player_id, player_name, season, season_type_api):
            f"&Outcome=&Period=0&PlayerID={player_id}&PlayerPosition=&PointDiff="
            f"&Position=&RangeType=&RookieYear=&Season={season}&SeasonSegment="
            f"&SeasonType={season_type_api}&StartPeriod=&StartRange="
-           f"&TeamID={TEAM_ID}&VsConference=&VsDivision=")
+           f"&TeamID={TEAM_ID if team_id is None else team_id}&VsConference=&VsDivision=")
     data = fetch_with_retry(url, f"ShotChart {player_name}")
     if data is None:
         return None
@@ -157,10 +159,26 @@ def main():
             print(f"✅ 全隊: {len(team_shots)} 次出手已寫入 wolves_shotcharts/{doc_id}")
     time.sleep(1)
 
-    for p in roster:
-        shots = fetch_player_shotchart(p["id"], p["name"], season, season_type_api)
+    # 抓取對象 = 該季灰狼名單（TeamID 維持灰狼，語意與既有資料完全一致）
+    #          ∪ 現役新援（該季在別隊，須傳 TeamID=0 才拿得到舊東家的出手）
+    season_ids = {p["id"] for p in roster}
+    current_roster = fetch_roster_with_ids(CURRENT_SEASON) or []
+    newcomers = [p for p in current_roster if p["id"] not in season_ids]
+    targets = [(p, None) for p in roster] + [(p, 0) for p in newcomers]
+    if newcomers:
+        print(f"--- 另含 {len(newcomers)} 位新援（跨隊查詢）：{', '.join(p['name'] for p in newcomers)} ---")
+
+    for p, team_id in targets:
+        shots = fetch_player_shotchart(p["id"], p["name"], season, season_type_api, team_id=team_id)
         if shots is None:
             summary[p["name"]] = "FAILED"
+            continue
+        if team_id == 0 and not shots:
+            # 新援該季可能根本沒在 NBA 出賽（新秀 / 海外聯賽）→ 不寫空文件。
+            # 只對新援套用；留隊球員即使 0 次出手仍照舊寫入，維持既有行為
+            summary[p["name"]] = 0
+            print(f"⏭️  {p['name']}: 該季無出手紀錄，略過")
+            time.sleep(1)
             continue
         summary[p["name"]] = len(shots)
         p_assist = dict(assisted_player.get(str(p["id"]), {}))

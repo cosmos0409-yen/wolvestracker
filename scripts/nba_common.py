@@ -704,10 +704,15 @@ def fetch_defense_box(season, season_type_api, player_or_team="Player"):
 # ==========================================
 # 傳統基本數據（leaguedash{player|team}stats?MeasureType=Base）
 # ==========================================
-def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=None):
+def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=None,
+                   with_team_abbr=False):
     """傳統基本數據（PTS/REB/AST/FG% 等，欄位見 BASE_FIELDS）。
     球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
-    game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）。"""
+    game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）。
+
+    with_team_abbr=True 時額外輸出 teamAbbr（歷史回補標示新援的舊東家用）。
+    預設關閉：每日快照與單場文件的 to_name_keyed / pid_to_name 只 pop playerName，
+    多出來的 key 會流進文件汙染 schema，並讓 fetch_data 的去重比對永遠不相等。"""
     endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
     team_id_param = TEAM_ID if player_or_team == "Team" else 0
     url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
@@ -722,12 +727,46 @@ def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=N
     for row in data['resultSets'][0]['rowSet']:
         if player_or_team == "Player":
             ident = str(row[headers_list.index("PLAYER_ID")])
+            # teamAbbr 為 metadata 非統計欄位，比照 playerName 直接設值（不走 *_FIELDS，
+            # apply_fields 會對值做數值處理，字串欄位不適用）
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+            if with_team_abbr:
+                results[ident]["teamAbbr"] = row[headers_list.index("TEAM_ABBREVIATION")]
         else:
             ident = "MIN"
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, BASE_FIELDS)
     return results
+
+
+def fetch_player_season_teams(player_id, type_key="regular"):
+    """查球員生涯各季所屬球隊，回傳 {season_id: "GSW/ATL"}。
+
+    用途：leaguedashplayerstats 對季中換隊球員回的是整季合併值，但 TEAM_ABBREVIATION
+    只標最後一隊（例：Kuminga 2025-26 GP=36 = GSW 20 + ATL 16，卻標成 ATL），
+    會誤導。改用 playercareerstats 的逐隊列還原正確的多隊標記。
+
+    type_key 為 regular / playoffs——兩者必須分開查，否則同一個 season_id 會互相覆寫。
+    """
+    url = (f"https://stats.nba.com/stats/playercareerstats"
+           f"?PerMode=Totals&PlayerID={player_id}&LeagueID=00")
+    data = fetch_with_retry(url, f"CareerTeams [{player_id}]")
+    if data is None:
+        return {}
+    rs_name = "SeasonTotalsPostSeason" if type_key == "playoffs" else "SeasonTotalsRegularSeason"
+    rs = next((r for r in data['resultSets'] if r['name'] == rs_name), None)
+    if not rs:
+        return {}
+    headers_list = rs['headers']
+    si, ti = headers_list.index("SEASON_ID"), headers_list.index("TEAM_ABBREVIATION")
+    per_season = {}
+    for row in rs['rowSet']:
+        # TOT 是 NBA 自己的合併列，不是真的球隊，排除
+        if row[ti] == "TOT":
+            continue
+        per_season.setdefault(row[si], []).append(row[ti])
+    # 同季多隊 → "GSW/ATL"（保留出現順序，playercareerstats 已依時序排列）
+    return {s: "/".join(dict.fromkeys(t)) for s, t in per_season.items()}
 
 
 # ==========================================

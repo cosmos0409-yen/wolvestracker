@@ -37,9 +37,10 @@ from nba_common import (
     fetch_opp_shot_locations,
     fetch_base_box,
     fetch_onoff,
+    fetch_player_season_teams,
 )
 
-CURRENT_SEASON = "2025-26"  # 用來抓現役名單作為 isCurrentRoster 對照
+CURRENT_SEASON = "2026-27"  # 用來抓現役名單：作為 isCurrentRoster 對照，並讓新援納入回補
 
 # 球員終點快照的類別欄位（除 synergy 走 stats[] 陣列外，其餘為 dict）
 PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff"]
@@ -58,6 +59,8 @@ def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 歷史賽季回補")
     parser.add_argument("--season", required=True, help="例：2022-23")
     parser.add_argument("--type", required=True, choices=["regular", "playoffs"], help="regular 或 playoffs")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="只寫本地驗證檔，不寫入 Firestore（供上線前比對用）")
     args = parser.parse_args()
 
     season = args.season
@@ -101,7 +104,7 @@ def main():
     # Step 4: 抓全聯盟球員數據（皆 PlayerID 為 key，待過濾）
     print(f"\n--- 抓取全聯盟球員數據（將以歷史名單過濾） ---")
     all_player_synergy = fetch_synergy_data(season, season_type_api, "P")
-    p_base = fetch_base_box(season, season_type_api, "Player")
+    p_base = fetch_base_box(season, season_type_api, "Player", with_team_abbr=True)
     p_tracking = fetch_tracking_data(season, season_type_api, "Player")
     p_shooting = merge_maps(
         fetch_shot_locations(season, season_type_api, "Player"),
@@ -116,6 +119,12 @@ def main():
     p_onoff = fetch_onoff(season, season_type_api)
 
     # Step 5: 過濾與組裝（PlayerID 為主鍵，內層比照每日快照的 per-player 結構）
+    #
+    # 過濾集合 = 該季灰狼名單 ∪ 現役（CURRENT_SEASON）名單。
+    # 聯集的用意：讓「本季才加入灰狼、該季還在別隊」的新援也被保留，
+    # 面板才追得到他在舊東家的表現。全聯盟資料本來就已抓下來（Step 4），
+    # 這裡只是不再把他們丟掉。
+    include_ids = historical_ids | current_ids
     player_stats = {}
 
     def ensure(pid_int, fallback_name=""):
@@ -124,6 +133,10 @@ def main():
             player_stats[pid_str] = {
                 "playerName": historical_id_to_name.get(pid_int, fallback_name),
                 "isCurrentRoster": pid_int in current_ids,
+                # 該季不在灰狼、但現在是灰狼 → 新援。前端據此判定
+                # 對位防守 / On-Off 為「跨隊不適用」而非 0
+                "isNewcomer": pid_int in current_ids and pid_int not in historical_ids,
+                "teamAbbr": None,
                 "stats": [],
                 **{k: {} for k in PLAYER_CATEGORY_KEYS},
             }
@@ -132,7 +145,7 @@ def main():
     for item in all_player_synergy:
         pid_int = item.pop("playerId")
         pname = item.pop("playerName")
-        if pid_int not in historical_ids:
+        if pid_int not in include_ids:
             continue
         ensure(pid_int, pname)["stats"].append(item)
 
@@ -140,16 +153,36 @@ def main():
                        ("clutch", p_clutch), ("defense", p_defense), ("onoff", p_onoff)]:
         for pid_str, data in src.items():
             pid_int = int(pid_str)
-            if pid_int not in historical_ids:
+            if pid_int not in include_ids:
                 continue
             rec = ensure(pid_int, data.get("playerName", ""))
             data = dict(data)
             data.pop("playerName", None)
+            # teamAbbr 只有 base 帶，提到 per-player 頂層當 metadata
+            abbr = data.pop("teamAbbr", None)
+            if abbr:
+                rec["teamAbbr"] = abbr
             rec[field] = data
 
-    print(f"\n✅ 共組裝 {len(player_stats)} 位灰狼球員資料")
-    print(f"   現役球員：{sum(1 for p in player_stats.values() if p['isCurrentRoster'])} 位")
+    # Step 5b: 修正新援的 teamAbbr
+    # leaguedashplayerstats 對季中換隊球員回的是整季合併值，但 TEAM_ABBREVIATION
+    # 只標最後一隊（Kuminga 2025-26 標成 ATL，實際是 GSW 20 場 + ATL 16 場），
+    # 直接顯示會誤導。只對新援逐人查生涯分隊（人數少，request 量可忽略）。
+    newcomers = [(pid, rec) for pid, rec in player_stats.items() if rec["isNewcomer"]]
+    if newcomers:
+        print(f"\n--- 修正 {len(newcomers)} 位新援的所屬球隊標記 ---")
+        for pid_str, rec in newcomers:
+            teams = fetch_player_season_teams(int(pid_str), type_key)
+            accurate = teams.get(season)
+            if accurate and accurate != rec["teamAbbr"]:
+                print(f"   {rec['playerName']}: {rec['teamAbbr']} → {accurate}")
+                rec["teamAbbr"] = accurate
+
+    n_newcomer = sum(1 for p in player_stats.values() if p["isNewcomer"])
+    print(f"\n✅ 共組裝 {len(player_stats)} 位球員資料")
+    print(f"   該季灰狼現役：{sum(1 for p in player_stats.values() if p['isCurrentRoster'] and not p['isNewcomer'])} 位")
     print(f"   已離隊：{sum(1 for p in player_stats.values() if not p['isCurrentRoster'])} 位")
+    print(f"   新援（該季在別隊）：{n_newcomer} 位")
 
     # Step 6: 寫入 Firebase
     final_team_data = {
@@ -177,7 +210,9 @@ def main():
         print("❌ 警告：未成功抓取任何數據，終止寫入")
         sys.exit(1)
 
-    db = init_firebase()
+    db = None if args.dry_run else init_firebase()
+    if args.dry_run:
+        print("🔍 dry-run：略過 Firestore 寫入")
     if db:
         db.collection("wolves_team_history").document(doc_id).set(final_team_data)
         print(f"✅ 球隊歷史數據已寫入 wolves_team_history/{doc_id}")
@@ -185,7 +220,8 @@ def main():
         print(f"✅ 球員歷史數據已寫入 wolves_player_history/{doc_id}")
 
     # 本地驗證輸出
-    out_path = f"backfill_{doc_id}.json"
+    # dry-run 另存檔名，避免覆寫既有的基準驗證檔（比對前後差異時要用）
+    out_path = f"backfill_{doc_id}.dryrun.json" if args.dry_run else f"backfill_{doc_id}.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({"team": final_team_data, "player": final_player_data}, f, ensure_ascii=False, indent=2)
     print(f"📁 已寫出本地驗證檔：{out_path}")
