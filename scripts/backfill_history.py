@@ -82,6 +82,11 @@ def main():
     # Step 2: 抓現役名單，建立 PlayerID 對照
     print()
     current_roster = fetch_roster_with_ids(CURRENT_SEASON)
+    if not current_roster:
+        # 不可降級：current_ids 為空會讓所有球員 isCurrentRoster/isNewcomer 皆為 False、
+        # 新援全被過濾掉，然後把這份殘缺資料寫進 Firestore 覆蓋掉正確的 doc
+        print(f"❌ 無法取得 {CURRENT_SEASON} 現役名單，終止（避免寫入缺少新援的殘缺快照）")
+        sys.exit(1)
     current_ids = {p['id'] for p in current_roster}
 
     # Step 3: 抓球隊數據（完整類別終點快照，比照每日快照結構）

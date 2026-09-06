@@ -162,7 +162,11 @@ def main():
     # 抓取對象 = 該季灰狼名單（TeamID 維持灰狼，語意與既有資料完全一致）
     #          ∪ 現役新援（該季在別隊，須傳 TeamID=0 才拿得到舊東家的出手）
     season_ids = {p["id"] for p in roster}
-    current_roster = fetch_roster_with_ids(CURRENT_SEASON) or []
+    current_roster = fetch_roster_with_ids(CURRENT_SEASON)
+    if not current_roster:
+        # 不可靜默降級：名單抓失敗會讓新援整批被漏掉，而腳本照樣印「完成」
+        print(f"❌ 無法取得 {CURRENT_SEASON} 現役名單，終止（避免靜默漏抓新援）")
+        sys.exit(1)
     newcomers = [p for p in current_roster if p["id"] not in season_ids]
     targets = [(p, None) for p in roster] + [(p, 0) for p in newcomers]
     if newcomers:
