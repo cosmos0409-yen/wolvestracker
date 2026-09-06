@@ -137,6 +137,21 @@ def main():
         print("❌ 無法取得名單，終止")
         sys.exit(1)
 
+    # 抓取對象 = 該季灰狼名單（TeamID 維持灰狼，語意與既有資料完全一致）
+    #          ∪ 現役新援（該季在別隊，須傳 TeamID=0 才拿得到舊東家的出手）
+    # 必須在任何 Firestore 寫入之前決定：否則名單抓失敗時已經寫過球隊熱圖，
+    # 會留下「球隊是新的、球員是舊的」的半完成狀態
+    season_ids = {p["id"] for p in roster}
+    if season == CURRENT_SEASON:
+        newcomers = []          # 同一季不會有新援，省一次 request
+    else:
+        current_roster = fetch_roster_with_ids(CURRENT_SEASON)
+        if not current_roster:
+            # 不可靜默降級：名單抓失敗會讓新援整批被漏掉，而腳本照樣印「完成」
+            print(f"❌ 無法取得 {CURRENT_SEASON} 現役名單，終止（避免靜默漏抓新援）")
+            sys.exit(1)
+        newcomers = [p for p in current_roster if p["id"] not in season_ids]
+
     # 受助攻比例（全聯盟單一 request，球員 + 球隊各一）
     assisted_player = fetch_assisted_pct(season, season_type_api, "Player")
     assisted_team = fetch_assisted_pct(season, season_type_api, "Team").get("MIN", {})
@@ -159,15 +174,6 @@ def main():
             print(f"✅ 全隊: {len(team_shots)} 次出手已寫入 wolves_shotcharts/{doc_id}")
     time.sleep(1)
 
-    # 抓取對象 = 該季灰狼名單（TeamID 維持灰狼，語意與既有資料完全一致）
-    #          ∪ 現役新援（該季在別隊，須傳 TeamID=0 才拿得到舊東家的出手）
-    season_ids = {p["id"] for p in roster}
-    current_roster = fetch_roster_with_ids(CURRENT_SEASON)
-    if not current_roster:
-        # 不可靜默降級：名單抓失敗會讓新援整批被漏掉，而腳本照樣印「完成」
-        print(f"❌ 無法取得 {CURRENT_SEASON} 現役名單，終止（避免靜默漏抓新援）")
-        sys.exit(1)
-    newcomers = [p for p in current_roster if p["id"] not in season_ids]
     targets = [(p, None) for p in roster] + [(p, 0) for p in newcomers]
     if newcomers:
         print(f"--- 另含 {len(newcomers)} 位新援（跨隊查詢）：{', '.join(p['name'] for p in newcomers)} ---")

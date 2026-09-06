@@ -1842,6 +1842,7 @@ const App = () => {
     const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
     const [curSnapReceived, setCurSnapReceived] = useState(false);
+    const [snapError, setSnapError] = useState(null);   // 當季快照訂閱失敗訊息
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -1928,6 +1929,7 @@ const App = () => {
         const { collection, onSnapshot } = window.firebaseModules;
         setSelectedDate(''); // 切賽季時回到最新日期
         setCurSnapReceived(false);
+        setSnapError(null);
 
         if (selectedSeasonKey === 'current') {
             setHistoryLoading(false);
@@ -1942,17 +1944,25 @@ const App = () => {
                 where(documentId(), '>=', window.SNAPSHOT_SINCE),
                 where(documentId(), '<=', window.SNAPSHOT_UNTIL)
             );
+            // 必須帶 error callback：沒有的話，查詢被安全規則擋下或缺索引時
+            // callback 永遠不會被呼叫，畫面就永遠停在骨架，看不出哪裡錯了
+            const onErr = (which) => (err) => {
+                console.error(`snapshot ${which} failed`, err);
+                setSnapError(`${which}：${err.code || err.message || err}`);
+                setCurSnapReceived(true);
+            };
             const unsubA = onSnapshot(recent("wolves_team_stats"), (snapshot) => {
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setTeamHistory(data);
                 setCurSnapReceived(true);
-            });
+            }, onErr('wolves_team_stats'));
             const unsubB = onSnapshot(recent("wolves_player_stats"), (snapshot) => {
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setPlayerHistory(data);
-            });
+                setCurSnapReceived(true);
+            }, onErr('wolves_player_stats'));
             return () => { unsubA(); unsubB(); };
         }
 
@@ -1971,18 +1981,25 @@ const App = () => {
         const cached = window.readHistoryCache(docId);
         if (cached) { apply(cached.team, cached.player); return; }
 
+        // cancelled 旗標不可省：快速切換賽季時，先前那次較晚 resolve 會用舊賽季的
+        // 資料覆寫 teamHistory/playerHistory。切回當季時特別嚴重——onSnapshot 只在
+        // 資料「變動」時才推送，被覆寫後不會自動修復，得重整頁面才會好
+        let cancelled = false;
         setHistoryLoading(true);
         (async () => {
             try {
                 const pair = await fetchHistoryPair(docId);
+                if (cancelled) return;
                 apply(pair.team, pair.player);
             } catch (e) {
+                if (cancelled) return;
                 console.error('Fetch history failed', e);
                 alert('載入歷史賽季失敗：' + (e.message || e));
             } finally {
-                setHistoryLoading(false);
+                if (!cancelled) setHistoryLoading(false);
             }
         })();
+        return () => { cancelled = true; };
     }, [selectedSeasonKey, isCloud]);
 
     // 歷史終點快照的唯一取得路徑（快取 → Firestore），回傳未 normalize 的原始 doc pair。
@@ -2212,15 +2229,25 @@ const App = () => {
         const currentData = playerSeq[playerIdx];
         if (!currentData || !currentData.stats) return [];
         const names = Object.keys(currentData.stats);
-        // 依該份快照的上場時間遞減排序 = 這一季實際的輪換順序。
+        // 依該份快照的輪換強度遞減排序 = 這一季實際的輪換順序。
         // 刻意不用硬編碼的先發名單：一份全域名單不可能同時對多個賽季正確
         // （看 2025-26 該是 Randle/Conley 在前，看 2026-27 該是 LaMelo/Kuminga 在前），
-        // 而且每次交易都要手改。MIN 是資料本身就有的欄位，永遠跟著所選賽季走。
-        const minOf = (n) => {
-            const v = currentData.base?.[n]?.MIN;
-            return typeof v === 'number' ? v : -1;   // 無 base 資料者排最後
+        // 而且每次交易都要手改。改用資料本身的欄位，永遠跟著所選賽季走。
+        //
+        // base 是後期才加進每日快照的，2025-26 的 57 份快照裡只有 1 份有；
+        // 其餘只有 Synergy stats，所以需要 fallback：每場進攻總球權同樣能反映輪換強度。
+        // 尺度在「整份快照」層級擇一，不逐球員混用——MIN(~33) 與 poss(~26) 量級不同，
+        // 混用會讓有 base 的球員被系統性排到前面
+        const possOf = (n) => (currentData.stats?.[n] || [])
+            .filter(x => x.side === 'offensive')
+            .reduce((sum, x) => sum + (typeof x.poss === 'number' ? x.poss : 0), 0);
+        const useMin = !!currentData.base;
+        const weightOf = (n) => {
+            if (!useMin) return possOf(n);
+            const v = currentData.base[n]?.MIN;
+            return typeof v === 'number' ? v : -1;
         };
-        return names.sort((a, b) => (minOf(b) - minOf(a)) || a.localeCompare(b));
+        return names.sort((a, b) => (weightOf(b) - weightOf(a)) || a.localeCompare(b));
     }, [playerHistory, playerIdx, seasonTypeView, isHistoryMode]);
 
     // 自動修正 selectedPlayer
@@ -2237,8 +2264,15 @@ const App = () => {
         }
     }, [viewMode, availablePlayers]);
 
-    const noCurrentSnapshots = selectedSeasonKey === 'current' && curSnapReceived
+    // 空狀態要分三種，否則使用者只會看到一片沒有說明的空卡片：
+    //   訂閱失敗 / 整個賽季一份快照都沒有 / 有快照但這個賽別沒有
+    // 第三種用 teamSeq（賽別過濾後）判斷而非 teamHistory——休賽期預設看季後賽，
+    // 球隊沒打進季後賽時就會踩到
+    const curNoDocsAtAll = selectedSeasonKey === 'current' && curSnapReceived
         && teamHistory.length === 0 && playerHistory.length === 0;
+    const curNoDocsThisType = selectedSeasonKey === 'current' && curSnapReceived
+        && !curNoDocsAtAll && teamSeq.length === 0 && playerSeq.length === 0;
+    const noCurrentSnapshots = !!snapError || curNoDocsAtAll || curNoDocsThisType;
     const showSkeleton = !noCurrentSnapshots
         && (historyLoading || (teamHistory.length === 0 && playerHistory.length === 0 && isCloud));
 
@@ -2618,14 +2652,30 @@ const App = () => {
                     {/* Right Content */}
                     {noCurrentSnapshots ? (
                         <div className="md:col-span-3 border border-amber-500/40 bg-amber-500/5 rounded-xl p-6">
-                            <p className="text-amber-300 font-bold mb-2">當季（{window.CURRENT_SEASON}）尚無快照資料</p>
-                            <p className="text-slate-400 text-sm leading-relaxed">
-                                查詢範圍為 {window.SNAPSHOT_SINCE} ~ {window.SNAPSHOT_UNTIL}，此區間內沒有任何每日快照。<br />
-                                若剛換賽季，請確認 <code className="text-slate-300">scripts/fetch_data.py</code> 已對新賽季執行過；
-                                <code className="text-slate-300">constants.js</code> 的 <code className="text-slate-300">CURRENT_SEASON</code>{' '}
-                                必須等新賽季第一份快照寫入後才能更新。<br />
-                                也可以先從上方賽季選單改看歷史賽季。
-                            </p>
+                            {snapError ? (<>
+                                <p className="text-amber-300 font-bold mb-2">當季快照讀取失敗</p>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    <code className="text-slate-300">{snapError}</code><br />
+                                    常見原因是該 collection 缺少 Firestore 安全規則的 read 白名單。<br />
+                                    也可以先從上方賽季選單改看歷史賽季。
+                                </p>
+                            </>) : curNoDocsThisType ? (<>
+                                <p className="text-amber-300 font-bold mb-2">當季（{window.CURRENT_SEASON}）沒有{stTypeLabel}的快照</p>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    這個賽季有每日快照，但沒有任何一份是{stTypeLabel}。<br />
+                                    請用右上角的賽別切換改看{stTypeLabel === '例行賽' ? '季後賽' : '例行賽'}，
+                                    或從上方賽季選單改看歷史賽季。
+                                </p>
+                            </>) : (<>
+                                <p className="text-amber-300 font-bold mb-2">當季（{window.CURRENT_SEASON}）尚無快照資料</p>
+                                <p className="text-slate-400 text-sm leading-relaxed">
+                                    查詢範圍為 {window.SNAPSHOT_SINCE} ~ {window.SNAPSHOT_UNTIL}，此區間內沒有任何每日快照。<br />
+                                    若剛換賽季，請確認 <code className="text-slate-300">scripts/fetch_data.py</code> 已對新賽季執行過；
+                                    <code className="text-slate-300">constants.js</code> 的 <code className="text-slate-300">CURRENT_SEASON</code>{' '}
+                                    必須等新賽季第一份快照寫入後才能更新。<br />
+                                    也可以先從上方賽季選單改看歷史賽季。
+                                </p>
+                            </>)}
                         </div>
                     ) : showSkeleton ? <SkeletonBlock /> : (
                     <div className="md:col-span-3 space-y-6">

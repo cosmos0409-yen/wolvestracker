@@ -209,7 +209,7 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,      # Array
-        "base": team_base,          # Dict（整季 base 總計，總覽季平均用）
+        "base": team_base,          # Dict（整季 base，PerMode=PerGame 每場平均）
         "tracking": team_tracking,  # Dict
         "shooting": team_shooting,  # Dict
         "clutch": team_clutch,      # Dict
@@ -260,7 +260,7 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": player_stats_map,    # Dict of Arrays
-        "base": player_base,          # Dict of Dicts（整季 base 總計，總覽季平均用）
+        "base": player_base,          # Dict of Dicts（整季 base，PerMode=PerGame 每場平均）
         "tracking": player_tracking,  # Dict of Dicts
         "shooting": player_shooting,  # Dict of Dicts
         "clutch": player_clutch,      # Dict of Dicts
