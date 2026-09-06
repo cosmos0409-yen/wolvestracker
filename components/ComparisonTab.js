@@ -23,7 +23,13 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
         let cancelled = false;
         selected.forEach(async k => {
             if (data[k]) return;
-            const v = await loadSeason(k);
+            // loadSeason 會往上拋錯（呼叫端需區分「載入失敗」與「查無資料」），
+            // 這裡必須接住，否則網路異常會變成 unhandled rejection 讓分頁卡在載入中。
+            // 失敗時刻意「不寫入 data」：寫進去會讓 `if (data[k]) return` 永久命中，
+            // 使用者再也不會重試，整欄卡在「—」直到重整頁面
+            let v;
+            try { v = await loadSeason(k); }
+            catch (e) { console.error('comparison season load fail', k, e); return; }
             if (!cancelled) setData(prev => prev[k] ? prev : { ...prev, [k]: v || { team: null, player: null } });
         });
         return () => { cancelled = true; };

@@ -2,19 +2,112 @@
 window.PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
 window.CURRENT_SEASON = "2025-26"; // 投籃熱圖 doc id 用，需與 scripts/fetch_data.py 的 SEASON 一致
 
-// 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照
+// 名稱比對用 key：去句點/重音/多餘空白後小寫。
+// 必要性：同一人的名字在不同季的 API 回傳不一致
+// （2025-26 是 "Terrence Shannon Jr."，2026-27 是 "Terrence Shannon Jr"），
+// 而球員資料以 playerName 為主鍵，不正規化就會對不上。
+window.nameKey = (n) => String(n || '')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')   // 去重音: Jokic
+    .replace(/[.\u2019']/g, '')                            // 去句點與彎/直撇號
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+
+// 賽季階段判斷（前端版本，對應 fetch_data.py 的 get_season_type()）
+// 使用美東時間 UTC-5（不處理 DST，誤差可忍）
+window.getSeasonPhase = function (date) {
+    const d = date || new Date();
+    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
+    const m = eastTime.getUTCMonth() + 1;
+    const day = eastTime.getUTCDate();
+    if ((m === 10 && day >= 20) || m === 11 || m === 12 || m === 1 || m === 2 || m === 3 || (m === 4 && day <= 15)) {
+        return { type: 'regular', label: '例行賽', inSeason: true };
+    } else if ((m === 4 && day >= 16) || m === 5 || (m === 6 && day <= 20)) {
+        return { type: 'playoffs', label: '季後賽', inSeason: true };
+    } else {
+        return { type: null, label: '休賽期', inSeason: false };
+    }
+};
+// 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照。
+// 單一來源：App.js 的跨季比較清單也讀 HISTORY_SEASON_OPTIONS，勿另建第二份。
+// 不變式：option.key === Firestore 的 history docId（`${season}_${type}`）
+window.HISTORY_SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23'];
+window.HISTORY_SEASON_OPTIONS = window.HISTORY_SEASONS.flatMap(s =>
+    [['playoffs', '季後賽', '季'], ['regular', '例行賽', '例']].map(([t, l, sh]) => ({
+        key: `${s}_${t}`, season: s, type: t,
+        label: `${s} ${l}`, short: `${s.slice(2)}${sh}`,
+        order: parseInt(s.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),  // ComparisonTab 折線 X 軸排序用
+    }))
+);
 window.SEASON_OPTIONS = [
-    { key: 'current', label: '2025-26 進行中', isCurrent: true },
-    { key: '2024-25_playoffs', season: '2024-25', type: 'playoffs', label: '2024-25 季後賽' },
-    { key: '2024-25_regular', season: '2024-25', type: 'regular', label: '2024-25 例行賽' },
-    { key: '2023-24_playoffs', season: '2023-24', type: 'playoffs', label: '2023-24 季後賽' },
-    { key: '2023-24_regular', season: '2023-24', type: 'regular', label: '2023-24 例行賽' },
-    { key: '2022-23_playoffs', season: '2022-23', type: 'playoffs', label: '2022-23 季後賽' },
-    { key: '2022-23_regular', season: '2022-23', type: 'regular', label: '2022-23 例行賽' },
+    // 休賽期時該季已經打完，寫「進行中」是錯的（getSeasonPhase 必須定義在本行之前）
+    {
+        key: 'current', isCurrent: true,
+        label: `${window.CURRENT_SEASON} ${window.getSeasonPhase().inSeason ? '進行中' : '最終'}`,
+    },
+    ...window.HISTORY_SEASON_OPTIONS,
 ];
 
-// 核心球員排序權重（出現於名單中時優先排前）
-window.STARTER_SORT_WEIGHT = ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Jaden McDaniels", "Mike Conley", "Naz Reid", "Donte DiVincenzo"];
+// 新援探測順序：找該球員最近一個「真的有資料」的賽季。
+// 只列這兩季，因為回補計畫只重跑 2025-26 / 2024-25；2023-24 與 2022-23 不重跑，
+// 新援永遠不會出現在那兩季。（回補尚未執行前，這四個 doc 也還沒有新援）
+window.HISTORY_PROBE_ORDER = ['2025-26_regular', '2025-26_playoffs', '2024-25_regular', '2024-25_playoffs'];
+
+// 2026-27 名冊（來自 commonteamroster 實測）。一律寫無句點形式，比對走 nameKey。
+// 用途只有一個：列出「在名冊上但當季快照還沒有數據」的球員（新援 / 尚未出賽者）。
+// 刻意不拿來做排序權重——側欄排序改由快照的 MIN 決定（見 App.js availablePlayers），
+// 這樣看哪一季就是那一季的輪換順序，交易後也不用改程式。
+window.CURRENT_ROSTER_NAMES = [
+    "Anthony Edwards", "LaMelo Ball", "Jaden McDaniels", "Jonathan Kuminga", "Rudy Gobert",
+    "Donte DiVincenzo", "Terrence Shannon Jr", "Ayo Dosunmu", "Trey Lyles", "Cody Williams",
+    "Bones Hyland", "Jaylen Clark", "Joan Beringer", "Enrique Freeman", "Isaiah Evans",
+    "Trey Kaufman-Renn", "Zyon Pullin", "Rocco Zikarsky",
+];
+
+// 球隊標示：非灰狼才標。留隊球員回空字串 → 現有畫面完全不變
+window.TEAM_ABBR = 'MIN';
+window.teamTag = (abbr) => (!abbr || abbr === window.TEAM_ABBR) ? '' : `@${abbr}`;
+window.NA_REASON = {
+    CROSS_TEAM: '跨隊資料不適用：NBA API 的對位防守 / On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
+};
+
+// 歷史快照的 localStorage 快取。
+// 版本號：後端 backfill 改變結構時必須 +1，否則使用者瀏覽器會永遠讀到舊資料
+// （舊版程式只要 cache 存在就 return，不再打 Firestore）。
+window.HISTORY_CACHE_VER = 3;                 // v3 = 新增 teamAbbr / isNewcomer
+window.HISTORY_CACHE_TTL = 24 * 3600 * 1000;
+const _histKey = (docId) => `wt_history_v${window.HISTORY_CACHE_VER}_${docId}`;
+window.purgeHistoryCache = (all) => {
+    try {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith('wt_history_') && (all || !k.startsWith(`wt_history_v${window.HISTORY_CACHE_VER}_`)))
+                localStorage.removeItem(k);
+        });
+    } catch (e) { /* private mode / quota */ }
+};
+window.readHistoryCache = (docId) => {
+    try {
+        const o = JSON.parse(localStorage.getItem(_histKey(docId)) || 'null');
+        if (!o || o.v !== window.HISTORY_CACHE_VER) return null;
+        if (Date.now() - o.t > window.HISTORY_CACHE_TTL) return null;
+        return o.d;
+    } catch (e) { return null; }
+};
+window.writeHistoryCache = (docId, d) => {
+    try { localStorage.setItem(_histKey(docId), JSON.stringify({ v: window.HISTORY_CACHE_VER, t: Date.now(), d })); }
+    catch (e) { window.purgeHistoryCache(true); }   // quota 滿 → 清掉全部歷史快取
+};
+window.purgeHistoryCache(false);   // 載入時立即清掉舊版 key
+
+// 每日快照的訂閱起始日：doc id 就是日期字串，故以 doc id 範圍過濾出「當季」。
+// 為什麼不用 orderBy(documentId(),'desc') + limit：那需要建 Firestore 複合索引，
+// 而 onSnapshot 沒有 error callback，缺索引時會「靜默失敗」讓整個面板空掉。
+// __name__ 升冪是 Firestore 預設索引，範圍查詢免建索引（已實測）。
+// 以賽季起始年的 7/1 為界：完整涵蓋例行賽+季後賽（打到隔年 6 月），
+// 又能永久擋住 collection 隨賽季累積而無限成長。
+window.SNAPSHOT_SINCE = `${parseInt(window.CURRENT_SEASON.slice(0, 4), 10)}-07-01`;
+// 上界＝隔年 6/30，涵蓋到總冠軍賽結束。除了鎖定單一賽季，也擋掉非日期的 doc id
+// （'latest'、'meta' 之類字母 id 字典序都大於數字，只有下界會把它們一起撈進來，
+//   之後 new Date(id) 變 NaN 污染排序）
+window.SNAPSHOT_UNTIL = `${parseInt(window.CURRENT_SEASON.slice(0, 4), 10) + 1}-06-30`;
 
 // Tracking 卡片定義（每個 metric 含中英對照）
 window.trackingDefs = [
@@ -155,18 +248,3 @@ window.oppZonesDefs = [
     },
 ];
 
-// 賽季階段判斷（前端版本，對應 fetch_data.py 的 get_season_type()）
-// 使用美東時間 UTC-5（不處理 DST，誤差可忍）
-window.getSeasonPhase = function (date) {
-    const d = date || new Date();
-    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
-    const m = eastTime.getUTCMonth() + 1;
-    const day = eastTime.getUTCDate();
-    if ((m === 10 && day >= 20) || m === 11 || m === 12 || m === 1 || m === 2 || m === 3 || (m === 4 && day <= 15)) {
-        return { type: 'regular', label: '例行賽', inSeason: true };
-    } else if ((m === 4 && day >= 16) || m === 5 || (m === 6 && day <= 20)) {
-        return { type: 'playoffs', label: '季後賽', inSeason: true };
-    } else {
-        return { type: null, label: '休賽期', inSeason: false };
-    }
-};
