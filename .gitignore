@@ -34,5 +34,13 @@ test_*.py
 rad.json
 *.g.xlf
 *.flf
-TestResults.xmllocal_shotchart_summary.json
+TestResults.xml
 backfill_games_log*.txt
+
+# 產物與本機環境（勿進版控）
+local_shotchart_summary.json
+shotchart_log.txt
+local_test_data.json
+*.log
+.venv/
+AGENTS.md

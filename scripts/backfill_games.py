@@ -27,27 +27,6 @@ import nba_common as nc
 DEFAULT_MIN_GP = 0  # 門檻：整季出賽 >= 此值才回補（0 = 全名單球員都存）
 
 
-def merge_maps(*maps):
-    """合併多個同 key 結構的 dict（後者欄位補進前者）"""
-    merged = {}
-    for m in maps:
-        for ident, data in m.items():
-            merged.setdefault(ident, {}).update(data)
-    return merged
-
-
-def pid_to_name(pid_map, keep_names):
-    """PlayerID-keyed → playerName-keyed，只保留 keep_names 內的球員（輪換過濾）"""
-    out = {}
-    for pid_str, data in pid_map.items():
-        data = dict(data)
-        name = (data.pop("playerName", "") or "").strip()
-        if not name or (keep_names and name not in keep_names):
-            continue
-        out[name] = {"playerId": int(pid_str), **data}
-    return out
-
-
 def fetch_rotation_names(season, season_type_api, min_gp):
     """整季出賽 >= min_gp 的灰狼球員名單（輪換界定）"""
     url = (f"https://stats.nba.com/stats/leaguedashplayerstats?{nc.LEAGUE_DASH_COMMON}"
@@ -113,14 +92,14 @@ def main():
     done = 0
     for doc_date, api_date, matchup, wl in games:
         print(f"\n--- {doc_date} {matchup} {wl} ---")
-        player = pid_to_name(merge_maps(
+        player = nc.pid_to_name_keyed(nc.merge_maps(
             nc.fetch_base_box(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_matchup_defense(season, season_type_api, game_date=api_date),
             nc.fetch_hustle(season, season_type_api, "Player", game_date=api_date),
             nc.fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
         ), rotation)
-        team = merge_maps(
+        team = nc.merge_maps(
             nc.fetch_base_box(season, season_type_api, "Team", game_date=api_date),
             nc.fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
             nc.fetch_hustle(season, season_type_api, "Team", game_date=api_date),

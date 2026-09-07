@@ -38,21 +38,13 @@ from nba_common import (
     fetch_base_box,
     fetch_onoff,
     fetch_player_season_teams,
+    merge_maps,
 )
 
 CURRENT_SEASON = "2026-27"  # 用來抓現役名單：作為 isCurrentRoster 對照，並讓新援納入回補
 
 # 球員終點快照的類別欄位（除 synergy 走 stats[] 陣列外，其餘為 dict）
 PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff"]
-
-
-def merge_maps(*maps):
-    """合併多個同 key 結構的 dict（後者欄位補進前者）"""
-    merged = {}
-    for m in maps:
-        for ident, data in m.items():
-            merged.setdefault(ident, {}).update(data)
-    return merged
 
 
 def main():

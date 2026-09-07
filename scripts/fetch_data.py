@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nba_common import (
+    merge_maps,
+    pid_to_name_keyed,
     TEAM_ID,
     get_today_str,
     get_season_type,
@@ -89,48 +91,19 @@ def should_skip_write(db, collection, today_str, new_data):
 
 
 # ==========================================
-# 資料整形
-# ==========================================
-def to_name_keyed(pid_map, normalized_active):
-    """
-    將 PlayerID 為 key 的 dict 轉為球員名稱為 key（每日快照的既有格式），
-    並以現役名單過濾；名單為空時不過濾。
-    """
-    out = {}
-    for pid_str, data in pid_map.items():
-        data = dict(data)
-        name = (data.pop("playerName", "") or "").strip()
-        if not name:
-            continue
-        if normalized_active and name.lower() not in normalized_active:
-            continue
-        out[name] = {"playerId": int(pid_str), **data}
-    return out
-
-
-def merge_maps(*maps):
-    """合併多個同 key 結構的 dict（後者欄位補進前者）"""
-    merged = {}
-    for m in maps:
-        for ident, data in m.items():
-            merged.setdefault(ident, {}).update(data)
-    return merged
-
-
-# ==========================================
 # 單場擷取（G2）：每日順抓當天單場 → wolves_*_games（未來賽季免回補）
 # ==========================================
 def capture_single_game(db, season, season_type_api, season_type_label, today, normalized_active):
     """抓當天單場(DateFrom=DateTo=today)寫入 games collection；當天無比賽則 sg 為空、不寫。
     同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用，未來賽季免另跑回補）。"""
     api_date = datetime.strptime(today, "%Y-%m-%d").strftime("%m/%d/%Y")
-    player = to_name_keyed(merge_maps(
+    player = pid_to_name_keyed(merge_maps(
         fetch_base_box(season, season_type_api, "Player", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
         fetch_matchup_defense(season, season_type_api, game_date=api_date),
         fetch_hustle(season, season_type_api, "Player", game_date=api_date),
         fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
-    ), normalized_active)
+    ), normalized_active, casefold=True)
     team = merge_maps(
         fetch_base_box(season, season_type_api, "Team", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
@@ -226,21 +199,21 @@ def main():
 
     # 3. 抓取球員資料（全聯盟後以現役名單過濾）
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
-    player_tracking = to_name_keyed(
-        fetch_tracking_data(SEASON, season_type_api, "Player"), normalized_active)
-    player_shooting = to_name_keyed(merge_maps(
+    player_tracking = pid_to_name_keyed(
+        fetch_tracking_data(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
+    player_shooting = pid_to_name_keyed(merge_maps(
         fetch_shot_locations(SEASON, season_type_api, "Player"),
         fetch_pt_shots(SEASON, season_type_api, "Player"),
-    ), normalized_active)
-    player_clutch = to_name_keyed(
-        fetch_clutch(SEASON, season_type_api, "Player"), normalized_active)
-    player_defense = to_name_keyed(merge_maps(
+    ), normalized_active, casefold=True)
+    player_clutch = pid_to_name_keyed(
+        fetch_clutch(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
+    player_defense = pid_to_name_keyed(merge_maps(
         fetch_matchup_defense(SEASON, season_type_api),
         fetch_hustle(SEASON, season_type_api, "Player"),
         fetch_defense_box(SEASON, season_type_api, "Player"),
-    ), normalized_active)
-    player_base = to_name_keyed(
-        fetch_base_box(SEASON, season_type_api, "Player"), normalized_active)
+    ), normalized_active, casefold=True)
+    player_base = pid_to_name_keyed(
+        fetch_base_box(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
     # On/Off（在場/不在場效率）：以 PlayerID 對照名單轉為球員名 key
     onoff_raw = fetch_onoff(SEASON, season_type_api)
     player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}

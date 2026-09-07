@@ -855,3 +855,37 @@ def fetch_opp_shot_locations(season, season_type_api):
             results["MIN"][f"{prefix}_OPP_FGA"] = fga if fga is not None else 0
             results["MIN"][f"{prefix}_OPP_FG_PCT"] = round(fg_pct * 100, 1) if fg_pct is not None else 0
     return results
+
+
+# ==========================================
+# 資料整形（三支腳本共用；CLAUDE.md：邏輯集中在 nba_common.py）
+# ==========================================
+def merge_maps(*maps):
+    """合併多個同 key 結構的 dict（後者欄位補進前者）"""
+    merged = {}
+    for m in maps:
+        for ident, data in m.items():
+            merged.setdefault(ident, {}).update(data)
+    return merged
+
+
+def pid_to_name_keyed(pid_map, keep=None, casefold=False):
+    """
+    PlayerID 為 key 的 dict → 球員名稱為 key（每日/單場快照的既有格式）。
+
+    keep：保留名單（None 或空 = 不過濾）。
+    casefold：以小寫比對（keep 也必須是小寫）。
+        兩種比對方式刻意保留：fetch_data.py 的 normalized_active 是小寫清單，
+        backfill_games.py 的 rotation 名單是原樣，收斂時若統一成其中一種會
+        悄悄改變另一支腳本的過濾結果。呼叫端自己決定，不在這裡猜。
+    """
+    out = {}
+    for pid_str, data in pid_map.items():
+        data = dict(data)
+        name = (data.pop("playerName", "") or "").strip()
+        if not name:
+            continue
+        if keep and (name.lower() if casefold else name) not in keep:
+            continue
+        out[name] = {"playerId": int(pid_str), **data}
+    return out
