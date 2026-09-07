@@ -84,7 +84,10 @@ window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER
 // 歷史快照的 localStorage 快取。
 // 版本號：後端 backfill 改變結構時必須 +1，否則使用者瀏覽器會永遠讀到舊資料
 // （舊版程式只要 cache 存在就 return，不再打 Firestore）。
-window.HISTORY_CACHE_VER = 3;                 // v3 = 新增 teamAbbr / isNewcomer
+// 不只「結構」變更要 +1，**每次重跑 backfill_history.py 也要 +1**：
+// 快取只以 docId 為 key，內容變了（例如回補後多出新援）而版本沒動，
+// 已開過頁面的使用者在 TTL 內完全看不到新資料。
+window.HISTORY_CACHE_VER = 4;                 // v4 = 2025-26 / 2024-25 回補納入新援
 window.HISTORY_CACHE_TTL = 24 * 3600 * 1000;
 const _histKey = (docId) => `wt_history_v${window.HISTORY_CACHE_VER}_${docId}`;
 window.purgeHistoryCache = (all) => {
