@@ -68,6 +68,18 @@ window.teamTag = (abbr) => (!abbr || abbr === window.TEAM_ABBR) ? '' : `@${abbr}
 window.NA_REASON = {
     CROSS_TEAM: '跨隊資料不適用：NBA API 的對位防守 / On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
 };
+window.NA_BADGE = '跨隊不適用';
+
+// teamAbbr 只有在 isNewcomer 時才可信。
+// 理由：backfill_history.py 只對新援逐人查生涯分隊（Step 5b）；其餘球員的 teamAbbr
+// 直接來自 leaguedashplayerstats 的 TEAM_ABBREVIATION，那個欄位只標「最後一隊」，
+// 歷史賽季中途被交易走的灰狼球員會帶著別隊縮寫 → 無條件顯示會標錯人。
+window.tagOfMeta = (meta) => (meta && meta.isNewcomer) ? window.teamTag(meta.teamAbbr) : '';
+
+// normalizeHistoryPlayer 會把這些 metadata 注入每個類別 dict，
+// 因此「這個類別有沒有真資料」不能用 Object.keys().length，必須排除掉它們
+window.PLAYER_META_KEYS = ['playerId', 'isCurrentRoster', 'teamAbbr'];
+window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER_META_KEYS.includes(k));
 
 // 歷史快照的 localStorage 快取。
 // 版本號：後端 backfill 改變結構時必須 +1，否則使用者瀏覽器會永遠讀到舊資料

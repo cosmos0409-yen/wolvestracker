@@ -4,7 +4,7 @@
 //
 // 相依一律走 props / window，不在檔案頂層宣告任何東西——bundle 是單一 script scope，
 // 與 App.js 頂層的 `const { useState, useEffect, useMemo } = React` 重複宣告會讓整包 SyntaxError。
-const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history }) => {
+const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history, playerTag = '' }) => {
     const { useState, useMemo } = React;
     const Icons = window.Icons;
     const { SimpleLineChart, MultiLineChart } = window;
@@ -74,7 +74,7 @@ const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, i
             <div className="bg-slate-950 rounded-xl sm:rounded-2xl border border-slate-700 w-full max-w-full sm:max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                 <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
                     <h3 className="text-lg font-bold text-white">
-                        {viewMode === 'PLAYER' ? selectedPlayer : '球隊'} - {title} 當季走勢
+                        {viewMode === 'PLAYER' ? selectedPlayer + playerTag : '球隊'} - {title} 當季走勢
                     </h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white"><Icons.X /></button>
                 </div>

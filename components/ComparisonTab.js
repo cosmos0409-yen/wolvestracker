@@ -74,6 +74,19 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
     };
 
     const fmt = (v, m) => v == null ? '—' : (m.pct ? v + '%' : (m.playtype ? v.toFixed(2) : v));
+
+    // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
+    const metaOf = (key) => viewMode === 'PLAYER' ? (data[key]?.player?.meta?.[selectedPlayer] || null) : null;
+    // 對位防守的指標 key 集合：同屬 defense 類別，但只有這一組綁 TeamID。
+    // Hustle / DefenseBox 走 leaguedash，跨隊拿得到值，不可一併標成不適用
+    const MATCHUP_KEYS = new Set(((defenseDefs.find(d => d.id === 'MatchupDefense') || {}).metrics || []).map(m => m.key));
+    // 只在「值真的是 null」時才問是不是不適用；有數字一律照常顯示（含真的是 0）
+    const naOf = (key, m) => {
+        const meta = metaOf(key);
+        if (!meta || !meta.isNewcomer) return null;
+        if (activeCat === 'onoff' || (activeCat === 'defense' && MATCHUP_KEYS.has(m.k))) return window.NA_REASON.CROSS_TEAM;
+        return null;
+    };
     const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
 
     const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
@@ -117,7 +130,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                             <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
                                 <tr>
                                     <th className="px-4 py-3 text-left sticky left-0 bg-[#1e293b]">指標</th>
-                                    {cols.map(c => <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">{c.short || c.label}</th>)}
+                                    {cols.map(c => {
+                                        const tag = window.tagOfMeta(metaOf(c.key));
+                                        return (
+                                            <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">
+                                                {c.short || c.label}
+                                                {tag && <span className="ml-1 text-[10px] font-mono text-amber-400/80">{tag}</span>}
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
@@ -127,14 +148,27 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                                         <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
                                             className={`cursor-pointer transition-colors ${open ? 'bg-[#12A150]/10' : 'hover:bg-slate-800/60'}`}>
                                             <td className="px-4 py-2.5 text-slate-300 sticky left-0 bg-slate-900">{m.l} <span className="text-slate-600 text-[10px]">▸</span></td>
-                                            {cols.map(c => <td key={c.key} className="px-3 py-2.5 text-right font-mono text-slate-200">{fmt(getVal(c.key, m), m)}</td>)}
+                                            {cols.map(c => {
+                                                const v = getVal(c.key, m);
+                                                const na = v == null ? naOf(c.key, m) : null;
+                                                return (
+                                                    <td key={c.key} title={na || undefined}
+                                                        className={`px-3 py-2.5 text-right font-mono ${na ? 'text-slate-600 cursor-help' : 'text-slate-200'}`}>
+                                                        {fmt(v, m)}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                     </div>
-                    <p className="text-[10px] text-slate-500">點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料。</p>
+                    <p className="text-[10px] text-slate-500">
+                        點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料；
+                        欄頭有 <span className="text-amber-400/80 font-mono">@隊名</span> 者為該季在別隊，
+                        其對位防守與 On/Off 為跨隊不適用（滑過 — 可看說明）。
+                    </p>
                 </>
             )}
         </div>

@@ -1,5 +1,5 @@
 // 主應用元件
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = window.Recharts || {};
 
 const App = () => {
@@ -267,7 +267,12 @@ const App = () => {
             stats = data.player?.stats?.[selectedPlayer] || [];
             tracking = data.player?.tracking?.[selectedPlayer] || {};
         }
-        return { key: k, label: opt.label, stats, tracking };
+        // 新援在該季的舊東家標示：疊加多季時才看得出「這季他在哪一隊」
+        const tag = viewMode === 'PLAYER' ? window.tagOfMeta(data.player?.meta?.[selectedPlayer]) : '';
+        return {
+            key: k, label: opt.label + tag, stats, tracking,
+            shortLabel: (opt.short || opt.label) + tag,
+        };
     };
 
     const toggleCompareKey = (k) => {
@@ -327,6 +332,8 @@ const App = () => {
     let currentDefense = {}; let prevDefense = {};
     let currentLineups = []; let currentOnoff = {}; let currentBase = {};
     let displayDate = "尚無數據"; let currentPlayerId = null;
+    // 選定球員的 metadata（僅歷史快照有；當季快照無 meta → null）
+    let selectedMeta = null;
     let currentSeason = null; let currentSeasonType = null;
 
     // 當季依賽別過濾快照序列（歷史模式為單筆終點快照）
@@ -375,6 +382,7 @@ const App = () => {
             // 前兩層會撈不到 ID，導致投籃分頁誤顯示「請先選擇球員」
             else if (current.meta?.[selectedPlayer]?.playerId) currentPlayerId = current.meta[selectedPlayer].playerId;
         }
+        selectedMeta = current?.meta?.[selectedPlayer] || null;
         if (prev) {
             prevStats = prev.stats?.[selectedPlayer] || [];
             prevTracking = prev.tracking?.[selectedPlayer] || {};
@@ -383,6 +391,17 @@ const App = () => {
             prevDefense = prev.defense?.[selectedPlayer] || {};
         }
     }
+
+    // 新援＝該季不在灰狼、現在是灰狼。對位防守與 On-Off 的 NBA API 都必須綁 TeamID，
+    // 該季他不在灰狼 → 語意上取不到，必須顯示「不適用」而不是 0。
+    // Hustle / DefenseBox 走 leaguedash（不綁隊），跨隊有值，不可一併標成不適用。
+    const isNewcomerSel = viewMode === 'PLAYER' && !!selectedMeta?.isNewcomer;
+    const naCrossTeam = isNewcomerSel ? window.NA_REASON.CROSS_TEAM : null;
+    // 選定球員的球隊標示（留隊球員回空字串 → 畫面完全不變）
+    const selTag = viewMode === 'PLAYER' ? window.tagOfMeta(selectedMeta) : '';
+    // normalizeHistoryPlayer 會注入 playerId/isCurrentRoster/teamAbbr，
+    // 用 Object.keys().length 判斷「有沒有防守資料」對歷史快照永遠為真 → 必須排除 metadata
+    const hasDefenseData = window.hasRealData(currentDefense);
 
     // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
     useEffect(() => {
@@ -428,6 +447,40 @@ const App = () => {
         return null;
     }, [teamHistory, playerHistory, viewMode, isHistoryMode]);
 
+    // 新援跳轉：pending 記住「使用者剛點的人 + 目標賽季」。
+    // setSelectedSeasonKey 是 async 載入，這段期間 availablePlayers 仍是舊賽季的清單，
+    // 下方「自動修正 selectedPlayer」的 effect 會把剛選的人覆寫回第一人 → 必須擋住
+    const pendingPlayerRef = useRef(null);
+    const [probing, setProbing] = useState('');
+    const [probeMsg, setProbeMsg] = useState('');
+
+    // 依 HISTORY_PROBE_ORDER 逐季探測，找到第一個真的有資料的賽季後切過去。
+    // 用探測而非硬編 rookie 旗標：同一套機制順帶處理「該季在海外聯賽」的情況（如 Trey Lyles）
+    const jumpToPlayerHistory = async (name) => {
+        setProbing(name); setProbeMsg('');
+        try {
+            for (const docId of (window.HISTORY_PROBE_ORDER || [])) {
+                const v = await loadHistoryByDocId(docId);
+                const names = Object.keys(v?.player?.stats || {});
+                const hit = names.find(n => window.nameKey(n) === window.nameKey(name));
+                if (hit) {
+                    pendingPlayerRef.current = { name: hit, docId };
+                    setViewMode('PLAYER');
+                    setSelectedPlayer(hit);
+                    setSelectedSeasonKey(docId);
+                    return;
+                }
+            }
+            setProbeMsg(`${name}：無 NBA 生涯資料（近兩季未於 NBA 出賽，可能為新秀）`);
+        } catch (e) {
+            // 必須與「查無資料」分開：fetchHistoryPair 會往上拋，斷網時不可謊報成無資料
+            console.error('probe history failed', name, e);
+            setProbeMsg(`${name}：歷史資料載入失敗（${e.message || e}），請稍後再試`);
+        } finally {
+            setProbing('');
+        }
+    };
+
     // 動態取得當前數據中有的球員清單
     const availablePlayers = useMemo(() => {
         const currentData = playerSeq[playerIdx];
@@ -457,6 +510,21 @@ const App = () => {
     // 自動修正 selectedPlayer
     useEffect(() => {
         if (viewMode === 'PLAYER' && availablePlayers.length > 0) {
+            const pending = pendingPlayerRef.current;
+            if (pending) {
+                const hit = availablePlayers.find(n => window.nameKey(n) === window.nameKey(pending.name));
+                if (hit) {
+                    pendingPlayerRef.current = null;
+                    if (selectedPlayer !== hit) setSelectedPlayer(hit);
+                    return;
+                }
+                // 尚未命中 → 判斷是「資料還沒到」還是「使用者自己切走了」。
+                // 不可用 selectedSeasonKey 當判準：它是同步更新的，而 availablePlayers
+                // 要等 getDoc 回來才換，中間會有一拍「季別已是新的、清單還是舊的」，
+                // 此時清掉旗標就會讓下面的自動修正把剛選的新援換成舊清單的第一人
+                if (selectedSeasonKey === pending.docId) return;
+                pendingPlayerRef.current = null;   // 使用者已切到別季 → 放棄這次跳轉
+            }
             if (!selectedPlayer || !availablePlayers.includes(selectedPlayer)) {
                 // 換季時名字可能有句點差異（Jr. / Jr），先用 nameKey 救一次再退回第一人。
                 // 必須先確認 selectedPlayer 非空：nameKey('') 也是 ''，若快照裡有空白 key
@@ -466,7 +534,15 @@ const App = () => {
                 setSelectedPlayer(soft || availablePlayers[0]);
             }
         }
-    }, [viewMode, availablePlayers]);
+    }, [viewMode, availablePlayers, selectedSeasonKey]);
+
+    // 在 2026-27 名冊上、但所選賽季的快照裡沒有數據的球員（新援 / 尚未出賽者）。
+    // availablePlayers 本體刻意不動——回補跑完後新援會自然出現在歷史快照裡，
+    // 這一組只負責提供「從當季面板跳過去」的入口
+    const missingRosterNames = useMemo(() => {
+        const have = new Set(availablePlayers.map(window.nameKey));
+        return (window.CURRENT_ROSTER_NAMES || []).filter(n => !have.has(window.nameKey(n)));
+    }, [availablePlayers]);
 
     // 空狀態要分三種，否則使用者只會看到一片沒有說明的空卡片：
     //   訂閱失敗 / 整個賽季一份快照都沒有 / 有快照但這個賽別沒有
@@ -533,11 +609,16 @@ const App = () => {
     // 比較球員時主序列標籤改用球員名，避免與其他球員並列時「當季」不清楚
     const resolvedPrimaryLabel = (viewMode === 'PLAYER' && playerCompareSeries.length > 0) ? selectedPlayer : primaryLabel;
     const radarSeries = [
-        { key: '__primary__', label: resolvedPrimaryLabel, stats: currentStats, tracking: currentTracking, color: primaryColor },
+        // shortLabel：比較表欄頭用。RadarPanel 的預設截斷（slice(0,6)）會吃掉 @XXX 球隊標示
+        {
+            key: '__primary__', label: resolvedPrimaryLabel + selTag,
+            shortLabel: (isHistoryMode ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.short || '') : '') + selTag || undefined,
+            stats: currentStats, tracking: currentTracking, color: primaryColor,
+        },
         ...compareKeys.map((k, idx) => {
             const e = getCompareEntry(k);
             if (!e) return null;
-            return { key: e.key, label: e.label, stats: e.stats, tracking: e.tracking, color: COMPARE_COLORS[idx % COMPARE_COLORS.length] };
+            return { key: e.key, label: e.label, shortLabel: e.shortLabel, stats: e.stats, tracking: e.tracking, color: COMPARE_COLORS[idx % COMPARE_COLORS.length] };
         }).filter(Boolean),
         ...playerCompareSeries,
     ];
@@ -698,14 +779,37 @@ const App = () => {
                                         const pStats = (playerSeq[playerIdx]?.stats?.[player]) || [];
                                         const pTrack = (playerSeq[playerIdx]?.tracking?.[player]) || {};
                                         const pId = pStats[0]?.playerId || pTrack.playerId || "0";
+                                        const tag = window.tagOfMeta(playerSeq[playerIdx]?.meta?.[player]);
 
                                         return (
                                             <button key={player} onClick={() => setSelectedPlayer(player)} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#12A150]/20 border border-[#12A150]/50 text-[#12A150] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
                                                 <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${pId}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
-                                                {player}
+                                                <span className="truncate">{player}</span>
+                                                {tag && <span className="ml-auto text-[10px] font-mono text-amber-400/80 shrink-0">{tag}</span>}
                                             </button>
                                         );
                                     })}
+
+                                    {/* 本季尚無數據：在 2026-27 名冊上但這份快照裡沒有的人。
+                                        點擊會探測最近一個有資料的賽季並切過去 */}
+                                    {missingRosterNames.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-slate-800">
+                                            <p className="text-[10px] text-slate-500 px-1 mb-1">本季尚無數據（點擊查歷史）</p>
+                                            {missingRosterNames.map(name => (
+                                                <button key={name} disabled={!!probing}
+                                                    onClick={() => jumpToPlayerHistory(name)}
+                                                    className="w-full text-left px-3 py-1.5 my-0.5 rounded text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300 disabled:opacity-40 flex items-center gap-2">
+                                                    <span className="truncate">{name}</span>
+                                                    {probing === name && <span className="ml-auto text-[10px] text-[#12A150] shrink-0">查詢中…</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {probeMsg && (
+                                        <p className="mt-2 px-2 py-1.5 rounded text-[10px] leading-relaxed bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                                            {probeMsg}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -767,7 +871,7 @@ const App = () => {
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
-                                seasonLabel={primaryLabel}
+                                seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                             />
                         )}
 
@@ -786,7 +890,7 @@ const App = () => {
                                 : <window.ShootingTab
                                     playerId={viewMode === 'TEAM' ? 0 : currentPlayerId} teamMode={viewMode === 'TEAM'}
                                     season={shootSeason} typeKey={shootType}
-                                    playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer}
+                                    playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer + selTag}
                                     seasonLabel={primaryLabel} gameMeta={gameMeta}
                                 />
                         )}
@@ -794,18 +898,19 @@ const App = () => {
                         {/* 防守 */}
                         {activeTab === 'defense' && (
                             <div className="space-y-6">
-                                {Object.keys(currentDefense).length > 0 ? (
+                                {hasDefenseData ? (
                                     <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-red-500">
                                         <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
                                         {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
-                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard} />
+                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
+                                                naReason={def.id === 'MatchupDefense' ? naCrossTeam : null} />
                                         ))}
                                     </div>
                                 ) : (
                                     <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">此賽季無防守數據</div>
                                 )}
-                                {viewMode === 'TEAM' && window.DefenseHeatmap && Object.keys(currentDefense).length > 0 && (
+                                {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && (
                                     <window.DefenseHeatmap defense={currentDefense} />
                                 )}
                             </div>
@@ -816,7 +921,7 @@ const App = () => {
                             <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
-                                        {viewMode === 'PLAYER' ? selectedPlayer : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
+                                        {viewMode === 'PLAYER' ? selectedPlayer + selTag : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
                                     </h2>
                                 </div>
                                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -845,7 +950,7 @@ const App = () => {
 
             {selectedCard && <window.HistoryModal
                 cardInfo={selectedCard} onClose={() => setSelectedCard(null)}
-                viewMode={viewMode} viewSide={viewSide} selectedPlayer={selectedPlayer}
+                viewMode={viewMode} viewSide={viewSide} selectedPlayer={selectedPlayer} playerTag={selTag}
                 isHistoryMode={isHistoryMode}
                 history={viewMode === 'TEAM' ? teamHistory : playerHistory} />}
         </div>

@@ -24,7 +24,13 @@ const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, val
     return (<div className="w-full overflow-hidden mb-4 bg-slate-900/50 rounded-lg p-2 border border-slate-800"><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">{ticks.map((tick, i) => (<g key={i}><line x1={paddingLeft} y1={tick.y} x2={width - padding} y2={tick.y} stroke="#1e293b" strokeWidth="1" strokeDasharray="4" opacity="0.6" /><text x={paddingLeft - 5} y={tick.y + 3} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="monospace">{tick.val?.toFixed(2) || 0}</text></g>))}<polyline fill="none" stroke={color} strokeWidth="3" points={points} />{values.map((val, index) => { const x = paddingLeft + (index / (values.length - 1)) * (width - paddingLeft - padding); const y = height - padding - ((val - domainMin) / domainRange) * (height - 2 * padding); return (<g key={index} className="group"><circle cx={x} cy={y} r="4" fill="#0f172a" stroke={color} strokeWidth="2" className="chart-dot transition-all duration-200" /><rect x={x - 15} y={y - 25} width="30" height="16" rx="4" fill="#000" className="opacity-0 group-hover:opacity-100 transition-opacity" /><text x={x} y={y - 13} textAnchor="middle" fill="white" fontSize="10" className="opacity-0 group-hover:opacity-100 transition-opacity font-mono font-bold pointer-events-none">{val}</text><text x={x} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="9">{xLabels ? xLabels[index] : data[index].date.slice(5).replace('-', '/')}</text></g>); })}</svg></div>);
 };
 
-const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null }) => {
+// naReason：該指標對此球員「語意上不適用」（例：新援在別隊那季，對位防守綁 TeamID 抓不到）。
+// 三態必須分清楚，判定一律用 == null 而非 falsy，否則真的是 0 的欄位會被吃掉顯示成「—」：
+//   未載入 → 由呼叫端的 skeleton 處理（本元件不參與）
+//   不適用 → value == null 且有 naReason → 灰色「—」+ tooltip
+//   真的是 0 → typeof value === 'number' → 照常顯示 0
+const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null, naReason = null }) => {
+    const isNA = naReason && value == null;
     const diff = prevValue != null ? (value - prevValue).toFixed(1) : 0;
     const numDiff = parseFloat(diff);
     let isBetter = false, isWorse = false;
@@ -36,8 +42,12 @@ const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", be
             <p className="text-[#a0aec0] text-xs font-medium truncate" title={title}>{title}</p>
             {englishLabel && <p className="text-slate-500 text-[10px] font-mono mb-1 truncate" title={englishLabel}>{englishLabel}</p>}
             <div className="flex items-end gap-2">
-                <span className="text-xl font-bold text-white">{value}{unit}</span>
-                {prevValue != null && numDiff !== 0 && (
+                {isNA ? (
+                    <span className="text-xl font-bold text-slate-600 cursor-help" title={naReason}>—</span>
+                ) : (
+                    <span className="text-xl font-bold text-white">{value}{unit}</span>
+                )}
+                {!isNA && prevValue != null && numDiff !== 0 && (
                     <span className={`text-[10px] font-bold flex items-center pb-1 ${isBetter ? 'text-green-400' : isWorse ? 'text-red-400' : 'text-slate-500'}`}>
                         {numDiff > 0 ? <window.Icons.ArrowUp className="w-2.5 h-2.5" /> : <window.Icons.ArrowDown className="w-2.5 h-2.5" />}
                         {Math.abs(numDiff)}{unit}

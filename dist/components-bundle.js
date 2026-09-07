@@ -93,6 +93,18 @@ window.teamTag = (abbr) => (!abbr || abbr === window.TEAM_ABBR) ? '' : `@${abbr}
 window.NA_REASON = {
     CROSS_TEAM: '跨隊資料不適用：NBA API 的對位防守 / On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
 };
+window.NA_BADGE = '跨隊不適用';
+
+// teamAbbr 只有在 isNewcomer 時才可信。
+// 理由：backfill_history.py 只對新援逐人查生涯分隊（Step 5b）；其餘球員的 teamAbbr
+// 直接來自 leaguedashplayerstats 的 TEAM_ABBREVIATION，那個欄位只標「最後一隊」，
+// 歷史賽季中途被交易走的灰狼球員會帶著別隊縮寫 → 無條件顯示會標錯人。
+window.tagOfMeta = (meta) => (meta && meta.isNewcomer) ? window.teamTag(meta.teamAbbr) : '';
+
+// normalizeHistoryPlayer 會把這些 metadata 注入每個類別 dict，
+// 因此「這個類別有沒有真資料」不能用 Object.keys().length，必須排除掉它們
+window.PLAYER_META_KEYS = ['playerId', 'isCurrentRoster', 'teamAbbr'];
+window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER_META_KEYS.includes(k));
 
 // 歷史快照的 localStorage 快取。
 // 版本號：後端 backfill 改變結構時必須 +1，否則使用者瀏覽器會永遠讀到舊資料
@@ -302,7 +314,13 @@ const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, val
     return (<div className="w-full overflow-hidden mb-4 bg-slate-900/50 rounded-lg p-2 border border-slate-800"><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">{ticks.map((tick, i) => (<g key={i}><line x1={paddingLeft} y1={tick.y} x2={width - padding} y2={tick.y} stroke="#1e293b" strokeWidth="1" strokeDasharray="4" opacity="0.6" /><text x={paddingLeft - 5} y={tick.y + 3} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="monospace">{tick.val?.toFixed(2) || 0}</text></g>))}<polyline fill="none" stroke={color} strokeWidth="3" points={points} />{values.map((val, index) => { const x = paddingLeft + (index / (values.length - 1)) * (width - paddingLeft - padding); const y = height - padding - ((val - domainMin) / domainRange) * (height - 2 * padding); return (<g key={index} className="group"><circle cx={x} cy={y} r="4" fill="#0f172a" stroke={color} strokeWidth="2" className="chart-dot transition-all duration-200" /><rect x={x - 15} y={y - 25} width="30" height="16" rx="4" fill="#000" className="opacity-0 group-hover:opacity-100 transition-opacity" /><text x={x} y={y - 13} textAnchor="middle" fill="white" fontSize="10" className="opacity-0 group-hover:opacity-100 transition-opacity font-mono font-bold pointer-events-none">{val}</text><text x={x} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="9">{xLabels ? xLabels[index] : data[index].date.slice(5).replace('-', '/')}</text></g>); })}</svg></div>);
 };
 
-const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null }) => {
+// naReason：該指標對此球員「語意上不適用」（例：新援在別隊那季，對位防守綁 TeamID 抓不到）。
+// 三態必須分清楚，判定一律用 == null 而非 falsy，否則真的是 0 的欄位會被吃掉顯示成「—」：
+//   未載入 → 由呼叫端的 skeleton 處理（本元件不參與）
+//   不適用 → value == null 且有 naReason → 灰色「—」+ tooltip
+//   真的是 0 → typeof value === 'number' → 照常顯示 0
+const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null, naReason = null }) => {
+    const isNA = naReason && value == null;
     const diff = prevValue != null ? (value - prevValue).toFixed(1) : 0;
     const numDiff = parseFloat(diff);
     let isBetter = false, isWorse = false;
@@ -314,8 +332,12 @@ const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", be
             <p className="text-[#a0aec0] text-xs font-medium truncate" title={title}>{title}</p>
             {englishLabel && <p className="text-slate-500 text-[10px] font-mono mb-1 truncate" title={englishLabel}>{englishLabel}</p>}
             <div className="flex items-end gap-2">
-                <span className="text-xl font-bold text-white">{value}{unit}</span>
-                {prevValue != null && numDiff !== 0 && (
+                {isNA ? (
+                    <span className="text-xl font-bold text-slate-600 cursor-help" title={naReason}>—</span>
+                ) : (
+                    <span className="text-xl font-bold text-white">{value}{unit}</span>
+                )}
+                {!isNA && prevValue != null && numDiff !== 0 && (
                     <span className={`text-[10px] font-bold flex items-center pb-1 ${isBetter ? 'text-green-400' : isWorse ? 'text-red-400' : 'text-slate-500'}`}>
                         {numDiff > 0 ? <window.Icons.ArrowUp className="w-2.5 h-2.5" /> : <window.Icons.ArrowDown className="w-2.5 h-2.5" />}
                         {Math.abs(numDiff)}{unit}
@@ -442,14 +464,21 @@ window.PlayTypeCard = PlayTypeCard;
 // Tracking 卡片群組元件
 // source: 資料在快照文件中的欄位名（'tracking' | 'shooting' | 'clutch' | 'defense'），供 HistoryModal 取數
 // clickable=false（單場面板用）：不可點、無 hover/外連圖示
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true }) => {
+// naReason：整組指標對此球員不適用（跨隊）→ 卡頭掛 badge，每張卡顯示灰色「—」
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null }) => {
     if (!current) return null;
     const Icons = window.Icons;
     return (
         <div onClick={clickable ? () => onClick({ type: 'tracking', id: category, source }) : undefined}
             className={`bg-[#1a202c] border border-slate-800 rounded-xl overflow-hidden transition-colors mb-4 ${clickable ? 'cursor-pointer hover:border-slate-600 group' : ''}`}>
             <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-sm font-bold text-[#cbd5e0]">
-                {title}
+                <span className="flex items-center gap-2">
+                    {title}
+                    {naReason && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-normal bg-slate-800 border border-slate-700 text-slate-400 cursor-help"
+                            title={naReason}>{window.NA_BADGE}</span>
+                    )}
+                </span>
                 {clickable && <Icons.ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
             </div>
             <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -458,6 +487,7 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                         key={i} title={m.label} englishLabel={m.englishLabel}
                         value={current[m.key]} prevValue={prev?.[m.key]}
                         unit={m.unit} betterIsLarger={m.betterIsLarger !== false}
+                        naReason={naReason}
                     />
                 ))}
             </div>
@@ -947,7 +977,7 @@ window.SingleGamePanel = SingleGamePanel;
 // 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
 //   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null }) => {
     const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
@@ -1013,6 +1043,21 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     </div>
                 )}
             </div>
+
+            {/* On/Off 跨隊不適用（新援該季不在灰狼，API 綁 TeamID 抓不到）。
+                onoffNA 預設 null → 留隊球員、以及本來就沒抓 onoff 的舊賽季 doc，
+                行為與改動前完全相同（整卡隱藏）。「舊季沒抓」不可冒充「跨隊不適用」 */}
+            {!hasOnoff && onoffNA && (
+                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-slate-700">
+                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4 flex items-center gap-2">
+                        在場 / 不在場 (On/Off Court)
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-normal bg-slate-800 border border-slate-700 text-slate-400">
+                            {window.NA_BADGE}
+                        </span>
+                    </h2>
+                    <p className="text-sm text-slate-400 leading-relaxed">{onoffNA}</p>
+                </div>
+            )}
 
             {/* On/Off Court（球員） */}
             {hasOnoff && (
@@ -1586,6 +1631,19 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
     };
 
     const fmt = (v, m) => v == null ? '—' : (m.pct ? v + '%' : (m.playtype ? v.toFixed(2) : v));
+
+    // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
+    const metaOf = (key) => viewMode === 'PLAYER' ? (data[key]?.player?.meta?.[selectedPlayer] || null) : null;
+    // 對位防守的指標 key 集合：同屬 defense 類別，但只有這一組綁 TeamID。
+    // Hustle / DefenseBox 走 leaguedash，跨隊拿得到值，不可一併標成不適用
+    const MATCHUP_KEYS = new Set(((defenseDefs.find(d => d.id === 'MatchupDefense') || {}).metrics || []).map(m => m.key));
+    // 只在「值真的是 null」時才問是不是不適用；有數字一律照常顯示（含真的是 0）
+    const naOf = (key, m) => {
+        const meta = metaOf(key);
+        if (!meta || !meta.isNewcomer) return null;
+        if (activeCat === 'onoff' || (activeCat === 'defense' && MATCHUP_KEYS.has(m.k))) return window.NA_REASON.CROSS_TEAM;
+        return null;
+    };
     const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
 
     const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
@@ -1629,7 +1687,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                             <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
                                 <tr>
                                     <th className="px-4 py-3 text-left sticky left-0 bg-[#1e293b]">指標</th>
-                                    {cols.map(c => <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">{c.short || c.label}</th>)}
+                                    {cols.map(c => {
+                                        const tag = window.tagOfMeta(metaOf(c.key));
+                                        return (
+                                            <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">
+                                                {c.short || c.label}
+                                                {tag && <span className="ml-1 text-[10px] font-mono text-amber-400/80">{tag}</span>}
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
@@ -1639,14 +1705,27 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                                         <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
                                             className={`cursor-pointer transition-colors ${open ? 'bg-[#12A150]/10' : 'hover:bg-slate-800/60'}`}>
                                             <td className="px-4 py-2.5 text-slate-300 sticky left-0 bg-slate-900">{m.l} <span className="text-slate-600 text-[10px]">▸</span></td>
-                                            {cols.map(c => <td key={c.key} className="px-3 py-2.5 text-right font-mono text-slate-200">{fmt(getVal(c.key, m), m)}</td>)}
+                                            {cols.map(c => {
+                                                const v = getVal(c.key, m);
+                                                const na = v == null ? naOf(c.key, m) : null;
+                                                return (
+                                                    <td key={c.key} title={na || undefined}
+                                                        className={`px-3 py-2.5 text-right font-mono ${na ? 'text-slate-600 cursor-help' : 'text-slate-200'}`}>
+                                                        {fmt(v, m)}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
                     </div>
-                    <p className="text-[10px] text-slate-500">點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料。</p>
+                    <p className="text-[10px] text-slate-500">
+                        點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料；
+                        欄頭有 <span className="text-amber-400/80 font-mono">@隊名</span> 者為該季在別隊，
+                        其對位防守與 On/Off 為跨隊不適用（滑過 — 可看說明）。
+                    </p>
                 </>
             )}
         </div>
@@ -1773,7 +1852,8 @@ const RadarPanel = ({ series, viewSide }) => {
                     <table className="w-full text-[11px]">
                         <thead className="text-slate-500">
                             <tr><th className="text-left px-2 py-1">指標</th>
-                                {series.map(s => <th key={s.key} className="text-right px-2 py-1" style={{ color: s.color }}>{s.label.length > 6 ? s.label.slice(0, 6) : s.label}</th>)}</tr>
+                                {/* shortLabel：呼叫端已備好的縮寫（如 24例@CHA）。截斷會吃掉 @XXX 球隊標示，故優先採用 */}
+                                {series.map(s => <th key={s.key} className="text-right px-2 py-1" style={{ color: s.color }}>{s.shortLabel || (s.label.length > 6 ? s.label.slice(0, 6) : s.label)}</th>)}</tr>
                         </thead>
                         <tbody>
                             {axes.map(k => { const c = catMap[k]; return (
@@ -1800,7 +1880,7 @@ window.RadarPanel = RadarPanel;
 //
 // 相依一律走 props / window，不在檔案頂層宣告任何東西——bundle 是單一 script scope，
 // 與 App.js 頂層的 `const { useState, useEffect, useMemo } = React` 重複宣告會讓整包 SyntaxError。
-const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history }) => {
+const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history, playerTag = '' }) => {
     const { useState, useMemo } = React;
     const Icons = window.Icons;
     const { SimpleLineChart, MultiLineChart } = window;
@@ -1870,7 +1950,7 @@ const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, i
             <div className="bg-slate-950 rounded-xl sm:rounded-2xl border border-slate-700 w-full max-w-full sm:max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                 <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
                     <h3 className="text-lg font-bold text-white">
-                        {viewMode === 'PLAYER' ? selectedPlayer : '球隊'} - {title} 當季走勢
+                        {viewMode === 'PLAYER' ? selectedPlayer + playerTag : '球隊'} - {title} 當季走勢
                     </h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white"><Icons.X /></button>
                 </div>
@@ -1947,7 +2027,7 @@ window.HistoryModal = HistoryModal;
 
 // ---------- App.js ----------
 // 主應用元件
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = window.Recharts || {};
 
 const App = () => {
@@ -2215,7 +2295,12 @@ const App = () => {
             stats = data.player?.stats?.[selectedPlayer] || [];
             tracking = data.player?.tracking?.[selectedPlayer] || {};
         }
-        return { key: k, label: opt.label, stats, tracking };
+        // 新援在該季的舊東家標示：疊加多季時才看得出「這季他在哪一隊」
+        const tag = viewMode === 'PLAYER' ? window.tagOfMeta(data.player?.meta?.[selectedPlayer]) : '';
+        return {
+            key: k, label: opt.label + tag, stats, tracking,
+            shortLabel: (opt.short || opt.label) + tag,
+        };
     };
 
     const toggleCompareKey = (k) => {
@@ -2275,6 +2360,8 @@ const App = () => {
     let currentDefense = {}; let prevDefense = {};
     let currentLineups = []; let currentOnoff = {}; let currentBase = {};
     let displayDate = "尚無數據"; let currentPlayerId = null;
+    // 選定球員的 metadata（僅歷史快照有；當季快照無 meta → null）
+    let selectedMeta = null;
     let currentSeason = null; let currentSeasonType = null;
 
     // 當季依賽別過濾快照序列（歷史模式為單筆終點快照）
@@ -2323,6 +2410,7 @@ const App = () => {
             // 前兩層會撈不到 ID，導致投籃分頁誤顯示「請先選擇球員」
             else if (current.meta?.[selectedPlayer]?.playerId) currentPlayerId = current.meta[selectedPlayer].playerId;
         }
+        selectedMeta = current?.meta?.[selectedPlayer] || null;
         if (prev) {
             prevStats = prev.stats?.[selectedPlayer] || [];
             prevTracking = prev.tracking?.[selectedPlayer] || {};
@@ -2331,6 +2419,17 @@ const App = () => {
             prevDefense = prev.defense?.[selectedPlayer] || {};
         }
     }
+
+    // 新援＝該季不在灰狼、現在是灰狼。對位防守與 On-Off 的 NBA API 都必須綁 TeamID，
+    // 該季他不在灰狼 → 語意上取不到，必須顯示「不適用」而不是 0。
+    // Hustle / DefenseBox 走 leaguedash（不綁隊），跨隊有值，不可一併標成不適用。
+    const isNewcomerSel = viewMode === 'PLAYER' && !!selectedMeta?.isNewcomer;
+    const naCrossTeam = isNewcomerSel ? window.NA_REASON.CROSS_TEAM : null;
+    // 選定球員的球隊標示（留隊球員回空字串 → 畫面完全不變）
+    const selTag = viewMode === 'PLAYER' ? window.tagOfMeta(selectedMeta) : '';
+    // normalizeHistoryPlayer 會注入 playerId/isCurrentRoster/teamAbbr，
+    // 用 Object.keys().length 判斷「有沒有防守資料」對歷史快照永遠為真 → 必須排除 metadata
+    const hasDefenseData = window.hasRealData(currentDefense);
 
     // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
     useEffect(() => {
@@ -2376,6 +2475,40 @@ const App = () => {
         return null;
     }, [teamHistory, playerHistory, viewMode, isHistoryMode]);
 
+    // 新援跳轉：pending 記住「使用者剛點的人 + 目標賽季」。
+    // setSelectedSeasonKey 是 async 載入，這段期間 availablePlayers 仍是舊賽季的清單，
+    // 下方「自動修正 selectedPlayer」的 effect 會把剛選的人覆寫回第一人 → 必須擋住
+    const pendingPlayerRef = useRef(null);
+    const [probing, setProbing] = useState('');
+    const [probeMsg, setProbeMsg] = useState('');
+
+    // 依 HISTORY_PROBE_ORDER 逐季探測，找到第一個真的有資料的賽季後切過去。
+    // 用探測而非硬編 rookie 旗標：同一套機制順帶處理「該季在海外聯賽」的情況（如 Trey Lyles）
+    const jumpToPlayerHistory = async (name) => {
+        setProbing(name); setProbeMsg('');
+        try {
+            for (const docId of (window.HISTORY_PROBE_ORDER || [])) {
+                const v = await loadHistoryByDocId(docId);
+                const names = Object.keys(v?.player?.stats || {});
+                const hit = names.find(n => window.nameKey(n) === window.nameKey(name));
+                if (hit) {
+                    pendingPlayerRef.current = { name: hit, docId };
+                    setViewMode('PLAYER');
+                    setSelectedPlayer(hit);
+                    setSelectedSeasonKey(docId);
+                    return;
+                }
+            }
+            setProbeMsg(`${name}：無 NBA 生涯資料（近兩季未於 NBA 出賽，可能為新秀）`);
+        } catch (e) {
+            // 必須與「查無資料」分開：fetchHistoryPair 會往上拋，斷網時不可謊報成無資料
+            console.error('probe history failed', name, e);
+            setProbeMsg(`${name}：歷史資料載入失敗（${e.message || e}），請稍後再試`);
+        } finally {
+            setProbing('');
+        }
+    };
+
     // 動態取得當前數據中有的球員清單
     const availablePlayers = useMemo(() => {
         const currentData = playerSeq[playerIdx];
@@ -2405,6 +2538,21 @@ const App = () => {
     // 自動修正 selectedPlayer
     useEffect(() => {
         if (viewMode === 'PLAYER' && availablePlayers.length > 0) {
+            const pending = pendingPlayerRef.current;
+            if (pending) {
+                const hit = availablePlayers.find(n => window.nameKey(n) === window.nameKey(pending.name));
+                if (hit) {
+                    pendingPlayerRef.current = null;
+                    if (selectedPlayer !== hit) setSelectedPlayer(hit);
+                    return;
+                }
+                // 尚未命中 → 判斷是「資料還沒到」還是「使用者自己切走了」。
+                // 不可用 selectedSeasonKey 當判準：它是同步更新的，而 availablePlayers
+                // 要等 getDoc 回來才換，中間會有一拍「季別已是新的、清單還是舊的」，
+                // 此時清掉旗標就會讓下面的自動修正把剛選的新援換成舊清單的第一人
+                if (selectedSeasonKey === pending.docId) return;
+                pendingPlayerRef.current = null;   // 使用者已切到別季 → 放棄這次跳轉
+            }
             if (!selectedPlayer || !availablePlayers.includes(selectedPlayer)) {
                 // 換季時名字可能有句點差異（Jr. / Jr），先用 nameKey 救一次再退回第一人。
                 // 必須先確認 selectedPlayer 非空：nameKey('') 也是 ''，若快照裡有空白 key
@@ -2414,7 +2562,15 @@ const App = () => {
                 setSelectedPlayer(soft || availablePlayers[0]);
             }
         }
-    }, [viewMode, availablePlayers]);
+    }, [viewMode, availablePlayers, selectedSeasonKey]);
+
+    // 在 2026-27 名冊上、但所選賽季的快照裡沒有數據的球員（新援 / 尚未出賽者）。
+    // availablePlayers 本體刻意不動——回補跑完後新援會自然出現在歷史快照裡，
+    // 這一組只負責提供「從當季面板跳過去」的入口
+    const missingRosterNames = useMemo(() => {
+        const have = new Set(availablePlayers.map(window.nameKey));
+        return (window.CURRENT_ROSTER_NAMES || []).filter(n => !have.has(window.nameKey(n)));
+    }, [availablePlayers]);
 
     // 空狀態要分三種，否則使用者只會看到一片沒有說明的空卡片：
     //   訂閱失敗 / 整個賽季一份快照都沒有 / 有快照但這個賽別沒有
@@ -2481,11 +2637,16 @@ const App = () => {
     // 比較球員時主序列標籤改用球員名，避免與其他球員並列時「當季」不清楚
     const resolvedPrimaryLabel = (viewMode === 'PLAYER' && playerCompareSeries.length > 0) ? selectedPlayer : primaryLabel;
     const radarSeries = [
-        { key: '__primary__', label: resolvedPrimaryLabel, stats: currentStats, tracking: currentTracking, color: primaryColor },
+        // shortLabel：比較表欄頭用。RadarPanel 的預設截斷（slice(0,6)）會吃掉 @XXX 球隊標示
+        {
+            key: '__primary__', label: resolvedPrimaryLabel + selTag,
+            shortLabel: (isHistoryMode ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.short || '') : '') + selTag || undefined,
+            stats: currentStats, tracking: currentTracking, color: primaryColor,
+        },
         ...compareKeys.map((k, idx) => {
             const e = getCompareEntry(k);
             if (!e) return null;
-            return { key: e.key, label: e.label, stats: e.stats, tracking: e.tracking, color: COMPARE_COLORS[idx % COMPARE_COLORS.length] };
+            return { key: e.key, label: e.label, shortLabel: e.shortLabel, stats: e.stats, tracking: e.tracking, color: COMPARE_COLORS[idx % COMPARE_COLORS.length] };
         }).filter(Boolean),
         ...playerCompareSeries,
     ];
@@ -2646,14 +2807,37 @@ const App = () => {
                                         const pStats = (playerSeq[playerIdx]?.stats?.[player]) || [];
                                         const pTrack = (playerSeq[playerIdx]?.tracking?.[player]) || {};
                                         const pId = pStats[0]?.playerId || pTrack.playerId || "0";
+                                        const tag = window.tagOfMeta(playerSeq[playerIdx]?.meta?.[player]);
 
                                         return (
                                             <button key={player} onClick={() => setSelectedPlayer(player)} className={`w-full text-left px-3 py-2 my-1 rounded text-sm transition-colors flex items-center gap-2 ${selectedPlayer === player ? 'bg-[#12A150]/20 border border-[#12A150]/50 text-[#12A150] font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
                                                 <img src={`https://cdn.nba.com/headshots/nba/latest/260x190/${pId}.png`} onError={(e) => { e.target.style.display = 'none'; }} className="h-6 w-6 rounded-full bg-slate-800 object-cover" alt="" />
-                                                {player}
+                                                <span className="truncate">{player}</span>
+                                                {tag && <span className="ml-auto text-[10px] font-mono text-amber-400/80 shrink-0">{tag}</span>}
                                             </button>
                                         );
                                     })}
+
+                                    {/* 本季尚無數據：在 2026-27 名冊上但這份快照裡沒有的人。
+                                        點擊會探測最近一個有資料的賽季並切過去 */}
+                                    {missingRosterNames.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-slate-800">
+                                            <p className="text-[10px] text-slate-500 px-1 mb-1">本季尚無數據（點擊查歷史）</p>
+                                            {missingRosterNames.map(name => (
+                                                <button key={name} disabled={!!probing}
+                                                    onClick={() => jumpToPlayerHistory(name)}
+                                                    className="w-full text-left px-3 py-1.5 my-0.5 rounded text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300 disabled:opacity-40 flex items-center gap-2">
+                                                    <span className="truncate">{name}</span>
+                                                    {probing === name && <span className="ml-auto text-[10px] text-[#12A150] shrink-0">查詢中…</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {probeMsg && (
+                                        <p className="mt-2 px-2 py-1.5 rounded text-[10px] leading-relaxed bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                                            {probeMsg}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -2715,7 +2899,7 @@ const App = () => {
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
-                                seasonLabel={primaryLabel}
+                                seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                             />
                         )}
 
@@ -2734,7 +2918,7 @@ const App = () => {
                                 : <window.ShootingTab
                                     playerId={viewMode === 'TEAM' ? 0 : currentPlayerId} teamMode={viewMode === 'TEAM'}
                                     season={shootSeason} typeKey={shootType}
-                                    playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer}
+                                    playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer + selTag}
                                     seasonLabel={primaryLabel} gameMeta={gameMeta}
                                 />
                         )}
@@ -2742,18 +2926,19 @@ const App = () => {
                         {/* 防守 */}
                         {activeTab === 'defense' && (
                             <div className="space-y-6">
-                                {Object.keys(currentDefense).length > 0 ? (
+                                {hasDefenseData ? (
                                     <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-red-500">
                                         <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
                                         {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
-                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard} />
+                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
+                                                naReason={def.id === 'MatchupDefense' ? naCrossTeam : null} />
                                         ))}
                                     </div>
                                 ) : (
                                     <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">此賽季無防守數據</div>
                                 )}
-                                {viewMode === 'TEAM' && window.DefenseHeatmap && Object.keys(currentDefense).length > 0 && (
+                                {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && (
                                     <window.DefenseHeatmap defense={currentDefense} />
                                 )}
                             </div>
@@ -2764,7 +2949,7 @@ const App = () => {
                             <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
-                                        {viewMode === 'PLAYER' ? selectedPlayer : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
+                                        {viewMode === 'PLAYER' ? selectedPlayer + selTag : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
                                     </h2>
                                 </div>
                                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -2793,7 +2978,7 @@ const App = () => {
 
             {selectedCard && <window.HistoryModal
                 cardInfo={selectedCard} onClose={() => setSelectedCard(null)}
-                viewMode={viewMode} viewSide={viewSide} selectedPlayer={selectedPlayer}
+                viewMode={viewMode} viewSide={viewSide} selectedPlayer={selectedPlayer} playerTag={selTag}
                 isHistoryMode={isHistoryMode}
                 history={viewMode === 'TEAM' ? teamHistory : playerHistory} />}
         </div>

@@ -1,7 +1,7 @@
 // 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
 //   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null }) => {
     const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
@@ -67,6 +67,21 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     </div>
                 )}
             </div>
+
+            {/* On/Off 跨隊不適用（新援該季不在灰狼，API 綁 TeamID 抓不到）。
+                onoffNA 預設 null → 留隊球員、以及本來就沒抓 onoff 的舊賽季 doc，
+                行為與改動前完全相同（整卡隱藏）。「舊季沒抓」不可冒充「跨隊不適用」 */}
+            {!hasOnoff && onoffNA && (
+                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-slate-700">
+                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4 flex items-center gap-2">
+                        在場 / 不在場 (On/Off Court)
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-normal bg-slate-800 border border-slate-700 text-slate-400">
+                            {window.NA_BADGE}
+                        </span>
+                    </h2>
+                    <p className="text-sm text-slate-400 leading-relaxed">{onoffNA}</p>
+                </div>
+            )}
 
             {/* On/Off Court（球員） */}
             {hasOnoff && (

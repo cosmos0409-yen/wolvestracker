@@ -114,7 +114,8 @@ const RadarPanel = ({ series, viewSide }) => {
                     <table className="w-full text-[11px]">
                         <thead className="text-slate-500">
                             <tr><th className="text-left px-2 py-1">指標</th>
-                                {series.map(s => <th key={s.key} className="text-right px-2 py-1" style={{ color: s.color }}>{s.label.length > 6 ? s.label.slice(0, 6) : s.label}</th>)}</tr>
+                                {/* shortLabel：呼叫端已備好的縮寫（如 24例@CHA）。截斷會吃掉 @XXX 球隊標示，故優先採用 */}
+                                {series.map(s => <th key={s.key} className="text-right px-2 py-1" style={{ color: s.color }}>{s.shortLabel || (s.label.length > 6 ? s.label.slice(0, 6) : s.label)}</th>)}</tr>
                         </thead>
                         <tbody>
                             {axes.map(k => { const c = catMap[k]; return (
