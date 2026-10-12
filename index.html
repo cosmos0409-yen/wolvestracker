@@ -6,10 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>灰狼隊 PlayType & Tracking 每日追蹤</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 版本一律鎖定：未鎖版的 CDN 網址會在上游發新版時悄悄改變網站行為 -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 
     <!-- Recharts Dependencies & CDN -->
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -142,6 +141,8 @@
             cursor: pointer;
         }
     </style>
+    <!-- Tailwind 預編譯產物（python scripts/bundle.py 產生；?v= 為內容雜湊，勿手改） -->
+    <link rel="stylesheet" href="dist/app.css?v=a4767bd7">
 </head>
 
 <body>
@@ -155,7 +156,7 @@
 
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script>
         window.onerror = function (message, source, lineno, colno, error) {
             const el = document.getElementById('error-log');
             if (el) { el.style.display = 'block'; el.innerText = "系統偵測到錯誤:\n" + message; }
@@ -163,10 +164,12 @@
     </script>
 
     <!--
-        所有元件已合併成 dist/components-bundle.js（由 scripts/bundle.py 產生）。
+        所有元件已合併並預先編譯成 dist/components-bundle.js（由 scripts/bundle.py 產生）。
         編輯 components/*.js 後請執行：python scripts/bundle.py
+        defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
+        保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script type="text/babel" src="dist/components-bundle.js?v=0ec2478a"></script>
+    <script defer src="dist/components-bundle.js?v=f6054328"></script>
 </body>
 
 </html>

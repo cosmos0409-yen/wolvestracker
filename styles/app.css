@@ -1,0 +1,5 @@
+/* Tailwind 入口：python scripts/bundle.py 會編譯成 dist/app.css（勿手改 dist/）
+   載入畫面等首屏必要樣式仍放在 index.html 的 <style>，確保 CSS 檔載入前就能顯示 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

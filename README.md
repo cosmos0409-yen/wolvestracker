@@ -24,12 +24,14 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據追蹤�
 
 ```
 wolvestracker/
-├── index.html               # 前端 SPA (React 18 + Recharts, CDN)
+├── index.html               # 前端 SPA (React 18 + Recharts, 鎖版本 CDN)
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
 │   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
 │   ├── gameAggregates.js    # GameAgg：逐場聚合（季平均/月/勝敗/趨勢，加權%）
 │   └── gamesData.js         # 讀逐場 bundle（單一 getDoc）
-├── dist/components-bundle.js # bundle.py 產生的合併檔（勿手改）
+├── dist/                    # bundle.py 產物：components-bundle.js（預編譯 JS）、app.css（Tailwind）（勿手改）
+├── styles/app.css           # Tailwind 入口
+├── package.json             # 前端建置工具（esbuild、tailwindcss，鎖定版本）
 ├── scripts/
 │   ├── nba_common.py        # 共用模組：連線/欄位設定表/抓取函式
 │   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase)
@@ -37,7 +39,7 @@ wolvestracker/
 │   ├── backfill_history.py  # 歷史賽季完整終點快照回補
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
 │   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週；含出手方式/日期/受助攻）
-│   └── bundle.py            # 前端元件打包
+│   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
 ├── run_fetch.bat            # Windows 排程入口（每日）
 ├── run_shotchart.bat        # Windows 排程入口（每週）
 ├── requirements.txt         # Python 依賴
@@ -66,6 +68,8 @@ python scripts/fetch_data.py
 ### 本地預覽前端
 
 ```bash
+# 新電腦第一次：安裝建置工具（需 Node.js）
+npm ci
 # 改過 components/ 之後先重新打包
 python scripts/bundle.py
 # 任何靜態伺服器即可

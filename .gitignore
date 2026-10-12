@@ -44,3 +44,7 @@ local_test_data.json
 *.log
 .venv/
 AGENTS.md
+
+### Frontend build ###
+node_modules/
+.build/

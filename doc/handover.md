@@ -110,7 +110,7 @@ wolvestracker/
 │   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
-│   └── bundle.py                    ← 元件打包工具
+│   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
 ├── run_fetch.bat                    ← Windows 排程：當日數據
 ├── run_shotchart.bat                ← Windows 排程：每週投籃熱圖
 ├── run_backfill_next.bat            ← Windows 排程：回補 queue 第一行（已可刪）
@@ -124,18 +124,23 @@ wolvestracker/
 ## 開發工作流程
 
 ### 編輯前端
+0. 新電腦第一次：專案根目錄跑 `npm ci`（依 `package-lock.json` 安裝鎖定版本的 esbuild / tailwindcss 到 `node_modules/`，不進版控）
 1. 改 `components/*.js`
-2. `python scripts/bundle.py` 重新打包
+2. `python scripts/bundle.py` 重新打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS → 蓋版本號）
 3. `python -m http.server 8000` 啟動本地伺服器
 4. 瀏覽器開 `http://localhost:8000`，Ctrl+F5 強制重整
-5. 確認無誤後 commit `components/`、`dist/components-bundle.js` 與 `index.html`，推送 GitHub Pages
-   - `bundle.py` 每次會把 bundle 內容雜湊寫進 `index.html` 的 `components-bundle.js?v=xxxxxxxx`（Pages 一律快取 10 分鐘，不加版本號會出現「新 HTML＋舊 bundle」）——所以 `index.html` 也會有 diff，記得一起提交
+5. 確認無誤後 commit `components/`、`dist/`（`components-bundle.js`、`.map`、`app.css`）與 `index.html`，推送 GitHub Pages
+   - `bundle.py` 每次會把產物內容雜湊寫進 `index.html` 的 `components-bundle.js?v=…`、`app.css?v=…`（Pages 一律快取 10 分鐘，不加版本號會出現「新 HTML＋舊檔」）——所以 `index.html` 也會有 diff，記得一起提交
 
-### 為何用 bundle 而非多檔引入
-Babel Standalone 對 `<script type="text/babel" src="...">` 是平行 fetch、依完成順序執行（非文件順序），會導致 App.js 在依賴前執行而崩潰。離線打包成單一 bundle 同時解決此問題與 file:// 直開時 fetch 被擋的問題。
+### 前端建置（2026-10 起預先編譯）
+- 以前：瀏覽器載入 Babel Standalone（約 2.3 MB）即時編譯 JSX、Tailwind CDN（約 400 KB）即時產 CSS。現在兩者都在 `bundle.py` 事先做完，首次造訪少下載約 667 KB（壓縮後），掛載時間約 740ms → 約 100ms
+- `dist/components-bundle.js`：esbuild `--target=es2018`（`?.`／`??` 會降級，舊手機也能跑），只壓空白與語法、**不改名識別字**（元件靠頂層名稱與 `window.*` 互相引用）；`.map` 供除錯對照原始碼
+- `dist/app.css`：Tailwind 3 CLI 掃 `components/**/*.js` 與 `index.html`，只輸出用到的 class。**class 必須完整寫在原始碼**，不可字串拼接（`text-${c}-400` 會掃不到）
+- `index.html` 的 bundle 用 `<script defer>`：與 `type="module"` 的 Firebase 初始化同屬「解析完依序執行」，保證元件在 Firebase 之後執行
+- 合併後未編譯的 JSX 暫存在 `.build/`（不進版控）
 
 ### bundle.py 合併順序
-`Icons → constants → MetricComponents → PlayTypeCard → TrackingCardRow → ShotChart → DefenseHeatmap → SingleGamePanel → App`，依序拼接寫入 `dist/components-bundle.js`。
+見 `scripts/bundle.py` 的 `ORDER`（依賴者在後，`App.js` 最後）。元件靠共用 script scope 與 `window.*` 互相引用，所以順序就是依賴順序。
 
 ---
 
@@ -327,7 +332,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ## 常見問題
 
 ### Q: 我修了 components/App.js 但網頁沒變
-忘了跑 `python scripts/bundle.py`。或瀏覽器有快取，按 Ctrl+F5。
+忘了跑 `python scripts/bundle.py`（新電腦還要先 `npm ci`）。或瀏覽器有快取，按 Ctrl+F5。
 
 ### Q: 本地開發出現 `auth/requests-from-referer-...-are-blocked`
 Google Cloud Console 的 API Key 白名單沒加 `http://localhost:8000/*`。
@@ -364,7 +369,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **欄位設定表驅動**：抓哪些欄位寫在 `nba_common.py` 的 `*_FIELDS` 設定表，不寫在程式邏輯裡；加新數據只改設定表
 - **全聯盟單次請求優先**：球員數據一律抓全聯盟再過濾（順帶解決轉隊歸屬問題）；唯一逐球員的 `shotchartdetail` 降為每週執行以控制被擋風險
 - **`REB_COL_PCT` 來源是 `REB_CHANCE_PCT`**：NBA API 已無 `REB_COLLECT_PCT` 欄位，輸出欄名保留 `REB_COL_PCT` 以相容前端與歷史資料
-- **不用 npm/build tooling**：CDN 載入 React + Babel Standalone，零依賴部署到 GitHub Pages
+- **輕量預編譯、不用打包框架**：React／Recharts 仍走鎖版本 CDN；JSX 與 Tailwind 由 `bundle.py` 呼叫 esbuild／tailwindcss 預先編譯，產物進版控，GitHub Pages 直接服務 main（無 CI 建置步驟）
 - **PlayerID 為主鍵（歷史）**：跨賽季穩定，姓名僅供顯示。每日快照仍用 playerName-keyed（沿用舊結構），靠前端 normalizer 對齊
 - **歷史賽季只存終點快照**：每季 1 個文件，省 Firestore 讀寫額度；逐日 backfill 約需 5,600 次 API call，目前不做
 - **歷史賽季用 localStorage 永久快取**：免費版 Firestore 每日讀取上限 50,000，靜態歷史數據只讀 1 次
@@ -397,7 +402,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **新 Firestore 集合 = 必加 read 規則**：每加一個集合，都要去 Firebase Console 在 `match /databases/{database}/documents { ... }` **大括號內**加 `allow read: if request.auth != null`。這個 session 踩了兩次（`wolves_shotcharts`、`wolves_*_games`），症狀都是前端 `Missing or insufficient permissions`。放到大括號外會靜默失效。
 - **`.bat` / 重導向輸出要 `PYTHONIOENCODING=utf-8`**：腳本裡有 emoji（🔑✅），Windows 預設 cp950 會在 `print` 時崩潰。正式 `.bat` 已設；手動 `python x.py > log.txt` 也要設，否則死在第一個 emoji。
 - **新每日欄位要加進 `DATA_KEYS`**（`fetch_data.py`）：否則去重不會比對它，可能漏寫或誤判相同。
-- **改 `components/*.js` 後一定要 `python scripts/bundle.py`**：前端讀的是 `dist/components-bundle.js`；新元件還要加進 `bundle.py` 的 `ORDER`（放在 `App.js` 之前）。
+- **改 `components/*.js` 後一定要 `python scripts/bundle.py`**：前端讀的是 `dist/components-bundle.js` 與 `dist/app.css`；新元件還要加進 `bundle.py` 的 `ORDER`（放在 `App.js` 之前）。
 - **GitHub Pages 偶發 `Deployment failed, try again later`**：GitHub 暫時性，`gh run rerun <id>` 重跑即可，不是程式問題。
 
 ### D. 效能與擴充強化點
