@@ -284,7 +284,8 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 球員模式才顯示
 
 ### 單場數據面板（`SingleGamePanel.js`）
-- 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_regular`（`gamesIndex` state，一份 doc + localStorage 快取）
+- 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_{seasonTypeView}`（隨例行/季後切換；`gamesIndex` state，一份 doc + localStorage 快取 `wt_games_index_v2_*`，TTL 6 小時——賽季中每日索引會重建）
+- 切換賽別後原選日期不在新清單 → 自動跳到新清單最後一場；缺值卡片顯示「—」（不印孤立單位）
 - 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
 - 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
 
@@ -298,6 +299,25 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 當季模式下 Modal「當季走勢」分頁顯示兩個 tab（移除「全部」）
 - 預設依 `getSeasonPhase()`：4/15 前例行賽、4/16 後季後賽
 - 歷史模式整個 tab 區塊隱藏
+
+### 指標命名對照（2026-10 命名精準度修正）
+原則：中文標籤必須對應 NBA 欄位的**實際語意**；中文旁一律以小字保留 NBA 原文（`englishLabel` 或 `en`），避免查證時對不上。資料 key 不因改名而變。
+
+| 前端標籤 | 原文 | API 欄位 / endpoint | 注意 |
+|---|---|---|---|
+| 合理衝撞區命中率 | Restricted Area | `*shotlocations` 區域 `Restricted Area` | 不是整個禁區 |
+| 禁區（非 RA）命中率 | In The Paint (Non-RA) | 同上 `In The Paint (Non-RA)` | 不含合理衝撞區 |
+| 底角三分 / 非底角三分 | Corner 3 / Above the Break 3 | 同上 | 非底角含兩翼，不只弧頂 |
+| 最近防守者 (Defense Dashboard) | DFGA / DFG% / DIFF% | `leaguedashptdefend`（`MATCHUP_*_FIELDS`） | 是「最近防守者」資料，**不是** `leagueseasonmatchups` 的對位資料；DIFF% 負=守得好 |
+| 干擾球 | Deflections | `leaguehustlestats{player|team}` `DEFLECTIONS` | 不是抄截 |
+| 搶回散球 | Loose Balls Recovered | `LOOSE_BALLS_RECOVERED` | |
+| 籃板機會轉換率 | REB Chance% | `REB_CHANCE_PCT`（輸出欄名沿用 `REB_COL_PCT`） | 籃板 ÷ 籃板機會 |
+| 切入得分佔比 | DRIVE_PTS_PCT | tracking Drives | 切入得分佔個人總得分 |
+| Clutch（名稱保留） | Clutch | `*clutch`，PerGame | 第四節或延長賽最後 5 分鐘、分差 5 分內，場均 |
+| 五人陣容「總分鐘」 | MIN | `leaguedashlineups` Advanced | 此 endpoint 忽略 PerMode，MIN 一律總分鐘（2026-10 實測） |
+| 雷達軸 `PR` / `%` | — | Synergy `PERCENTILE` / tracking 原始值 | 兩種尺度共用 0–100 軸，軸名必帶尺度標示 |
+
+新增指標時：先查 NBA.com 對應頁的欄位定義，再決定中文；不確定時中文寫直譯並保留原文。
 
 ---
 

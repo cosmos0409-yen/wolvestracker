@@ -64,11 +64,11 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     // 分組定義
     const DIST_BINS = [[0, 4, '0-4 呎'], [5, 9, '5-9 呎'], [10, 14, '10-14 呎'], [15, 19, '15-19 呎'], [20, 24, '20-24 呎'], [25, 29, '25-29 呎'], [30, 999, '30 呎+']];
     const ZONE_DEFS = [
-        ['RA', '禁區', z => z === 'Restricted Area'],
-        ['PAINT', '油漆區', z => z === 'In The Paint (Non-RA)'],
-        ['MID', '中距離', z => z === 'Mid-Range'],
-        ['C3', '角落三分', z => z === 'Left Corner 3' || z === 'Right Corner 3'],
-        ['AB3', '弧頂三分', z => z === 'Above the Break 3'],
+        ['RA', '合理衝撞區', z => z === 'Restricted Area', 'Restricted Area'],
+        ['PAINT', '禁區（非 RA）', z => z === 'In The Paint (Non-RA)', 'In The Paint (Non-RA)'],
+        ['MID', '中距離', z => z === 'Mid-Range', 'Mid-Range'],
+        ['C3', '底角三分', z => z === 'Left Corner 3' || z === 'Right Corner 3', 'Corner 3'],
+        ['AB3', '非底角三分', z => z === 'Above the Break 3', 'Above the Break 3'],
     ];
     const topTypes = (() => {
         const cnt = {};
@@ -83,7 +83,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     const items = group === 'dist'
         ? DIST_BINS.map(([lo, hi, l]) => ({ key: `d${lo}`, label: l, fn: s => s.dist >= lo && s.dist <= hi }))
         : group === 'zone'
-            ? ZONE_DEFS.map(([k, l, fn]) => ({ key: k, label: l, fn: s => fn(s.zone) }))
+            ? ZONE_DEFS.map(([k, l, fn, en]) => ({ key: k, label: l, en, fn: s => fn(s.zone) }))
             : topTypes.map(t => ({ key: t, label: t, fn: s => s.action === t }));
 
     const periodTotal = periodShots.length;
@@ -154,7 +154,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                     return (
                         <div key={it.key} onClick={() => setOpenKey(open ? null : it.key)}
                             className={`p-3 rounded-lg border cursor-pointer transition-colors ${open ? 'border-[#12A150] bg-[#12A150]/5' : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'}`}>
-                            <div className="text-[11px] text-slate-400 truncate" title={it.label}>{it.label}</div>
+                            <div className="text-[11px] text-slate-400 truncate" title={it.en ? `${it.label} · ${it.en}` : it.label}>{it.label}{it.en && <span className="text-slate-600 ml-1">{it.en}</span>}</div>
                             <div className="text-2xl font-bold font-mono">{p.pct != null ? p.pct + '%' : '—'}
                                 {diff != null && diff !== 0 && <span className={`text-xs ml-1 ${diff > 0 ? 'text-[#12A150]' : 'text-red-400'}`}>{diff > 0 ? '▲' : '▼'}{Math.abs(diff)}</span>}
                             </div>

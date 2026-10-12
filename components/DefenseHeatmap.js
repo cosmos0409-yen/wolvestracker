@@ -1,5 +1,5 @@
 // 防守熱圖：半場 5 區依「對手命中率 − 該區聯盟約略均值」上色
-// 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則禁區永遠最紅、失去防守意義）
+// 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則合理衝撞區永遠最紅、失去防守意義）
 // 座標系同 ShotChart（0.1 呎，籃框在原點，y 取負向上）
 const DefenseHeatmap = ({ defense }) => {
     // 各區聯盟約略均值(對手命中率 %)，供偏差著色的基準；隨賽季略有漂移，可微調
@@ -54,11 +54,11 @@ const DefenseHeatmap = ({ defense }) => {
                     <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
 
                     {/* 標籤 */}
-                    <Label x={0} y={-8} name="禁區" zoneKey="RA" />
-                    <Label x={0} y={-95} name="油漆區" zoneKey="PAINT" />
+                    <Label x={0} y={-8} name="合理衝撞區" zoneKey="RA" />
+                    <Label x={0} y={-95} name="禁區(非RA)" zoneKey="PAINT" />
                     <Label x={0} y={-215} name="中距離" zoneKey="MID" />
-                    <Label x={0} y={-370} name="弧頂三分" zoneKey="AB3" />
-                    <Label x={-235} y={-15} name="角落" zoneKey="C3" />
+                    <Label x={0} y={-370} name="非底角三分" zoneKey="AB3" />
+                    <Label x={-235} y={-15} name="底角" zoneKey="C3" />
                 </svg>
             </div>
         </div>

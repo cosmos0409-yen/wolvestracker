@@ -66,7 +66,7 @@ window.CURRENT_ROSTER_NAMES = [
 window.TEAM_ABBR = 'MIN';
 window.teamTag = (abbr) => (!abbr || abbr === window.TEAM_ABBR) ? '' : `@${abbr}`;
 window.NA_REASON = {
-    CROSS_TEAM: '跨隊資料不適用：NBA API 的對位防守 / On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
+    CROSS_TEAM: '跨隊資料不適用：NBA API 的最近防守者（Defense Dashboard）/ On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
 };
 window.NA_BADGE = '跨隊不適用';
 
@@ -149,8 +149,8 @@ window.trackingDefs = [
         ]
     },
     {
-        id: 'Passing', title: '傳送與二傳 (Passing)', metrics: [
-            { key: 'PASSES_MADE', label: '傳送次數', englishLabel: 'Passes Made' },
+        id: 'Passing', title: '傳球與二傳 (Passing)', metrics: [
+            { key: 'PASSES_MADE', label: '傳球次數', englishLabel: 'Passes Made' },
             { key: 'POTENTIAL_AST', label: '潛在助攻', englishLabel: 'Potential AST' },
             { key: 'SECONDARY_AST', label: '二傳助攻', englishLabel: 'Secondary AST' },
             { key: 'AST_PTS_CREATED', label: '助攻創造得分', englishLabel: 'AST PTS Created' },
@@ -170,7 +170,7 @@ window.trackingDefs = [
             { key: 'OREB', label: '進攻籃板', englishLabel: 'OREB' },
             { key: 'DREB', label: '防守籃板', englishLabel: 'DREB' },
             { key: 'REB_CHANCES', label: '籃板機會', englishLabel: 'REB Chances' },
-            { key: 'REB_COL_PCT', label: '籃板掌握率', englishLabel: 'REB Chance%', unit: '%' },
+            { key: 'REB_COL_PCT', label: '籃板機會轉換率', englishLabel: 'REB Chance%', unit: '%' },
             { key: 'REB_CONTEST', label: '競爭籃板', englishLabel: 'Contested REB' },
             { key: 'REB_CONTEST_PCT', label: '競爭籃板率', englishLabel: 'Contested REB%', unit: '%' },
             { key: 'AVG_REB_DIST', label: '平均籃板距離(呎)', englishLabel: 'Avg REB Dist' },
@@ -182,11 +182,11 @@ window.trackingDefs = [
 window.shootingDefs = [
     {
         id: 'ShotZones', title: '分區命中率 (Shot Zones)', metrics: [
-            { key: 'RA_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area FG%', unit: '%' },
-            { key: 'PAINT_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA) FG%', unit: '%' },
+            { key: 'RA_FG_PCT', label: '合理衝撞區命中率', englishLabel: 'Restricted Area FG%', unit: '%' },
+            { key: 'PAINT_FG_PCT', label: '禁區（非 RA）命中率', englishLabel: 'In The Paint (Non-RA) FG%', unit: '%' },
             { key: 'MID_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range FG%', unit: '%' },
-            { key: 'C3_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3 FG%', unit: '%' },
-            { key: 'AB3_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3 FG%', unit: '%' },
+            { key: 'C3_FG_PCT', label: '底角三分命中率', englishLabel: 'Corner 3 FG%', unit: '%' },
+            { key: 'AB3_FG_PCT', label: '非底角三分命中率', englishLabel: 'Above the Break 3 FG%', unit: '%' },
         ]
     },
     {
@@ -201,10 +201,10 @@ window.shootingDefs = [
     },
 ];
 
-// 關鍵時刻卡片定義（資料來源為 doc.clutch，最後 5 分鐘分差 5 分內）
+// Clutch 卡片定義（資料來源為 doc.clutch；NBA 定義：第四節或延長賽最後 5 分鐘、分差 5 分內；PerMode=PerGame 為場均）
 window.clutchDefs = [
     {
-        id: 'Clutch', title: '關鍵時刻 (Clutch — 最後5分鐘分差5分內)', metrics: [
+        id: 'Clutch', title: 'Clutch 場均 (Per Game)', metrics: [
             { key: 'PTS', label: '得分', englishLabel: 'PTS' },
             { key: 'FG_PCT', label: '命中率', englishLabel: 'FG%', unit: '%' },
             { key: 'FG3_PCT', label: '三分命中率', englishLabel: '3P%', unit: '%' },
@@ -218,23 +218,23 @@ window.clutchDefs = [
 ];
 
 // 防守數據卡片定義（資料來源為 doc.defense）— 顯示於「防守」側
-// 對位防守/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
+// 最近防守者/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
 window.defenseDefs = [
     {
-        id: 'MatchupDefense', title: '對位防守 (Matchup Defense)', metrics: [
-            { key: 'D_FGA', label: '被挑戰出手', englishLabel: 'Defended FGA' },
-            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'Opp FG%', unit: '%', betterIsLarger: false },
-            { key: 'PCT_PLUSMINUS', label: '命中率增減', englishLabel: 'FG% Diff', unit: '%', betterIsLarger: false },
-            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'Opp 3P%', unit: '%', betterIsLarger: false },
+        id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', metrics: [
+            { key: 'D_FGA', label: '防守出手數', englishLabel: 'DFGA' },
+            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'DFG%', unit: '%', betterIsLarger: false },
+            { key: 'PCT_PLUSMINUS', label: '對手命中率 vs 平常', englishLabel: 'DIFF%（負=守得好）', unit: '%', betterIsLarger: false },
+            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'DFG% · 3 Pointers', unit: '%', betterIsLarger: false },
         ]
     },
     {
         id: 'Hustle', title: '拼勁數據 (Hustle)', metrics: [
             { key: 'CONTESTED_SHOTS', label: '干擾投籃', englishLabel: 'Contested Shots' },
-            { key: 'DEFLECTIONS', label: '抄截干擾', englishLabel: 'Deflections' },
+            { key: 'DEFLECTIONS', label: '干擾球', englishLabel: 'Deflections' },
             { key: 'CHARGES_DRAWN', label: '製造進攻犯規', englishLabel: 'Charges Drawn' },
             { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
-            { key: 'LOOSE_BALLS', label: '地板球', englishLabel: 'Loose Balls' },
+            { key: 'LOOSE_BALLS', label: '搶回散球', englishLabel: 'Loose Balls Recovered' },
             { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
         ]
     },
@@ -244,8 +244,8 @@ window.defenseDefs = [
             { key: 'STL', label: '抄截', englishLabel: 'Steals' },
             { key: 'BLK', label: '阻攻', englishLabel: 'Blocks' },
             { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
-            { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp Pts Paint', betterIsLarger: false },
-            { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp Pts FB', betterIsLarger: false },
+            { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp PTS in Paint', betterIsLarger: false },
+            { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp PTS Fast Break', betterIsLarger: false },
         ]
     },
 ];
@@ -254,11 +254,11 @@ window.defenseDefs = [
 window.oppZonesDefs = [
     {
         id: 'OppZones', title: '對手分區命中 (Opponent Shooting by Zone)', metrics: [
-            { key: 'RA_OPP_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area', unit: '%', betterIsLarger: false },
-            { key: 'PAINT_OPP_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA)', unit: '%', betterIsLarger: false },
+            { key: 'RA_OPP_FG_PCT', label: '合理衝撞區命中率', englishLabel: 'Restricted Area', unit: '%', betterIsLarger: false },
+            { key: 'PAINT_OPP_FG_PCT', label: '禁區（非 RA）命中率', englishLabel: 'In The Paint (Non-RA)', unit: '%', betterIsLarger: false },
             { key: 'MID_OPP_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range', unit: '%', betterIsLarger: false },
-            { key: 'C3_OPP_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3', unit: '%', betterIsLarger: false },
-            { key: 'AB3_OPP_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3', unit: '%', betterIsLarger: false },
+            { key: 'C3_OPP_FG_PCT', label: '底角三分命中率', englishLabel: 'Corner 3', unit: '%', betterIsLarger: false },
+            { key: 'AB3_OPP_FG_PCT', label: '非底角三分命中率', englishLabel: 'Above the Break 3', unit: '%', betterIsLarger: false },
         ]
     },
 ];

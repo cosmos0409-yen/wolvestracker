@@ -31,7 +31,8 @@ const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, val
 //   真的是 0 → typeof value === 'number' → 照常顯示 0
 const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null, naReason = null }) => {
     const isNA = naReason && value == null;
-    const diff = prevValue != null ? (value - prevValue).toFixed(1) : 0;
+    const isMissing = value == null || value === '';   // 無資料：顯示「—」，不可把單位單獨印出來（曾出現孤立的「%」）
+    const diff = (prevValue != null && !isMissing) ? (value - prevValue).toFixed(1) : 0;
     const numDiff = parseFloat(diff);
     let isBetter = false, isWorse = false;
     if (numDiff > 0) { isBetter = betterIsLarger; isWorse = !betterIsLarger; }
@@ -44,10 +45,12 @@ const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", be
             <div className="flex items-end gap-2">
                 {isNA ? (
                     <span className="text-xl font-bold text-slate-600 cursor-help" title={naReason}>—</span>
+                ) : isMissing ? (
+                    <span className="text-xl font-bold text-slate-600" title="此項無資料">—</span>
                 ) : (
                     <span className="text-xl font-bold text-white">{value}{unit}</span>
                 )}
-                {!isNA && prevValue != null && numDiff !== 0 && (
+                {!isNA && !isMissing && prevValue != null && numDiff !== 0 && (
                     <span className={`text-[10px] font-bold flex items-center pb-1 ${isBetter ? 'text-green-400' : isWorse ? 'text-red-400' : 'text-slate-500'}`}>
                         {numDiff > 0 ? <window.Icons.ArrowUp className="w-2.5 h-2.5" /> : <window.Icons.ArrowDown className="w-2.5 h-2.5" />}
                         {Math.abs(numDiff)}{unit}

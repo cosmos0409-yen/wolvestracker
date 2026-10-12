@@ -1,4 +1,5 @@
-// 雷達圖面板：軸可自選（Playtype percentile + Tracking 百分比，皆 0-100）+ 疊加多序列 + 自選指標比較表
+// 雷達圖面板：軸可自選（Playtype percentile + Tracking 百分比，皆 0-100）
+// 兩種尺度語意不同（PR=聯盟百分位、%=原始數值），軸名一律帶 scale 標示，避免讀者把形狀當同一把尺+ 疊加多序列 + 自選指標比較表
 // series：[{key,label,color,stats(synergy array),tracking(dict)}]；第一個為主序列
 const RadarPanel = ({ series, viewSide }) => {
     const { useState } = React;
@@ -10,18 +11,19 @@ const RadarPanel = ({ series, viewSide }) => {
 
     // 指標目錄（依攻守）
     const CATALOG = viewSide === 'offensive' ? [
-        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, pt, side: 'offensive' })),
-        { key: 'DRIVE_PTS_PCT', label: '切入得分%', tk: 'DRIVE_PTS_PCT' },
-        { key: 'DRIVE_FG_PCT', label: '切入命中率', tk: 'DRIVE_FG_PCT' },
-        { key: 'CATCH_SHOOT_EFG_PCT', label: '接球 eFG%', tk: 'CATCH_SHOOT_EFG_PCT' },
-        { key: 'CATCH_SHOOT_FG3_PCT', label: '接球三分%', tk: 'CATCH_SHOOT_FG3_PCT' },
-        { key: 'PULL_UP_EFG_PCT', label: '急停 eFG%', tk: 'PULL_UP_EFG_PCT' },
-        { key: 'REB_COL_PCT', label: '籃板掌握率', tk: 'REB_COL_PCT' },
+        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, scale: 'PR', pt, side: 'offensive' })),
+        { key: 'DRIVE_PTS_PCT', label: '切入得分佔比', scale: '%', tk: 'DRIVE_PTS_PCT' },
+        { key: 'DRIVE_FG_PCT', label: '切入命中率', scale: '%', tk: 'DRIVE_FG_PCT' },
+        { key: 'CATCH_SHOOT_EFG_PCT', label: '接球跳投 eFG', scale: '%', tk: 'CATCH_SHOOT_EFG_PCT' },
+        { key: 'CATCH_SHOOT_FG3_PCT', label: '接球跳投三分', scale: '%', tk: 'CATCH_SHOOT_FG3_PCT' },
+        { key: 'PULL_UP_EFG_PCT', label: '急停跳投 eFG', scale: '%', tk: 'PULL_UP_EFG_PCT' },
+        { key: 'REB_COL_PCT', label: '籃板機會轉換率', scale: '%', tk: 'REB_COL_PCT' },
     ] : [
-        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: pt + ' 防守', pt, side: 'defensive' })),
-        { key: 'REB_CONTEST_PCT', label: '競爭籃板率', tk: 'REB_CONTEST_PCT' },
+        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: pt + ' 防守', scale: 'PR', pt, side: 'defensive' })),
+        { key: 'REB_CONTEST_PCT', label: '競爭籃板率', scale: '%', tk: 'REB_CONTEST_PCT' },
     ];
     const catMap = Object.fromEntries(CATALOG.map(c => [c.key, c]));
+    const axisName = c => c ? `${c.label} ${c.scale}` : '';
     const DEFAULTS = viewSide === 'offensive'
         ? ['pt_Isolation', 'DRIVE_PTS_PCT', 'CATCH_SHOOT_EFG_PCT', 'pt_Transition', 'pt_PRBallHandler']
         : ['pt_Isolation', 'pt_Spotup', 'pt_PRBallHandler', 'REB_CONTEST_PCT'];
@@ -53,7 +55,7 @@ const RadarPanel = ({ series, viewSide }) => {
 
     const radarData = axes.map(k => {
         const c = catMap[k];
-        const row = { subject: c ? c.label : k, fullMark: 100 };
+        const row = { subject: c ? axisName(c) : k, fullMark: 100 };
         series.forEach(s => { row[s.label] = getVal(c, s) || 0; });
         return row;
     });
@@ -75,7 +77,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         {CATALOG.map(c => {
                             const on = axes.includes(c.key);
                             return <button key={c.key} onClick={() => toggleAxis(c.key)}
-                                className={`px-2 py-0.5 text-[10px] rounded border ${on ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{c.label}</button>;
+                                className={`px-2 py-0.5 text-[10px] rounded border ${on ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{axisName(c)}</button>;
                         })}
                     </div>
                 </div>
@@ -97,6 +99,10 @@ const RadarPanel = ({ series, viewSide }) => {
                     </ResponsiveContainer>
                 </div>
             ) : <div className="w-full h-[240px] flex items-center justify-center text-slate-500 text-xs">雷達圖模組載入中...</div>}
+
+            <p className="w-full px-2 pb-1 text-[10px] leading-relaxed text-slate-500">
+                PR＝Synergy 聯盟百分位（0–100）；%＝原始數值。兩種尺度共用 0–100 軸，形狀只代表各軸相對位置，不同尺度的軸不能直接互比。
+            </p>
 
             {series.length > 1 && (
                 <div className="flex flex-wrap gap-x-3 gap-y-1 px-2 pb-1 justify-center">
@@ -120,7 +126,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         <tbody>
                             {axes.map(k => { const c = catMap[k]; return (
                                 <tr key={k} className="border-t border-slate-800">
-                                    <td className="text-left px-2 py-1 text-slate-400">{c ? c.label : k}</td>
+                                    <td className="text-left px-2 py-1 text-slate-400">{c ? axisName(c) : k}</td>
                                     {series.map(s => { const v = getVal(c, s); return <td key={s.key} className="text-right px-2 py-1 font-mono text-slate-200">{v == null ? '—' : v}</td>; })}
                                 </tr>
                             ); })}

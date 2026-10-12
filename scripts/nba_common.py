@@ -178,6 +178,7 @@ CLUTCH_FIELDS = [
 ]
 
 # leaguedashlineups（MeasureType=Advanced）欄位
+# 注意：此 endpoint 的 MIN 一律是「總分鐘」——實測 PerMode=PerGame 與 Totals 回傳相同（2026-10 驗證），前端標示為總分鐘
 LINEUP_FIELDS = [
     ("GP", "GP", False),
     ("MIN", "MIN", False),
@@ -188,7 +189,7 @@ LINEUP_FIELDS = [
 ]
 
 # ── 防守數據欄位設定表 ──
-# leaguedashptdefend 對位防守：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
+# leaguedashptdefend 最近防守者（NBA.com Defense Dashboard，非 leagueseasonmatchups 的對位資料）：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
 MATCHUP_OVERALL_FIELDS = [
     ("D_FGM", "D_FGM", False),        # 分子（供區間加權重算 D_FG_PCT）
     ("D_FGA", "D_FGA", False),

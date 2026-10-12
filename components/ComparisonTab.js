@@ -167,7 +167,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                     <p className="text-[10px] text-slate-500">
                         點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料；
                         欄頭有 <span className="text-amber-400/80 font-mono">@隊名</span> 者為該季在別隊，
-                        其對位防守與 On/Off 為跨隊不適用（滑過 — 可看說明）。
+                        其最近防守者（Defense Dashboard）與 On/Off 為跨隊不適用（滑過 — 可看說明）。
                     </p>
                 </>
             )}

@@ -91,7 +91,7 @@ window.CURRENT_ROSTER_NAMES = [
 window.TEAM_ABBR = 'MIN';
 window.teamTag = (abbr) => (!abbr || abbr === window.TEAM_ABBR) ? '' : `@${abbr}`;
 window.NA_REASON = {
-    CROSS_TEAM: '跨隊資料不適用：NBA API 的對位防守 / On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
+    CROSS_TEAM: '跨隊資料不適用：NBA API 的最近防守者（Defense Dashboard）/ On-Off 需綁定 TeamID，該季此球員不在灰狼，無法取得',
 };
 window.NA_BADGE = '跨隊不適用';
 
@@ -174,8 +174,8 @@ window.trackingDefs = [
         ]
     },
     {
-        id: 'Passing', title: '傳送與二傳 (Passing)', metrics: [
-            { key: 'PASSES_MADE', label: '傳送次數', englishLabel: 'Passes Made' },
+        id: 'Passing', title: '傳球與二傳 (Passing)', metrics: [
+            { key: 'PASSES_MADE', label: '傳球次數', englishLabel: 'Passes Made' },
             { key: 'POTENTIAL_AST', label: '潛在助攻', englishLabel: 'Potential AST' },
             { key: 'SECONDARY_AST', label: '二傳助攻', englishLabel: 'Secondary AST' },
             { key: 'AST_PTS_CREATED', label: '助攻創造得分', englishLabel: 'AST PTS Created' },
@@ -195,7 +195,7 @@ window.trackingDefs = [
             { key: 'OREB', label: '進攻籃板', englishLabel: 'OREB' },
             { key: 'DREB', label: '防守籃板', englishLabel: 'DREB' },
             { key: 'REB_CHANCES', label: '籃板機會', englishLabel: 'REB Chances' },
-            { key: 'REB_COL_PCT', label: '籃板掌握率', englishLabel: 'REB Chance%', unit: '%' },
+            { key: 'REB_COL_PCT', label: '籃板機會轉換率', englishLabel: 'REB Chance%', unit: '%' },
             { key: 'REB_CONTEST', label: '競爭籃板', englishLabel: 'Contested REB' },
             { key: 'REB_CONTEST_PCT', label: '競爭籃板率', englishLabel: 'Contested REB%', unit: '%' },
             { key: 'AVG_REB_DIST', label: '平均籃板距離(呎)', englishLabel: 'Avg REB Dist' },
@@ -207,11 +207,11 @@ window.trackingDefs = [
 window.shootingDefs = [
     {
         id: 'ShotZones', title: '分區命中率 (Shot Zones)', metrics: [
-            { key: 'RA_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area FG%', unit: '%' },
-            { key: 'PAINT_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA) FG%', unit: '%' },
+            { key: 'RA_FG_PCT', label: '合理衝撞區命中率', englishLabel: 'Restricted Area FG%', unit: '%' },
+            { key: 'PAINT_FG_PCT', label: '禁區（非 RA）命中率', englishLabel: 'In The Paint (Non-RA) FG%', unit: '%' },
             { key: 'MID_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range FG%', unit: '%' },
-            { key: 'C3_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3 FG%', unit: '%' },
-            { key: 'AB3_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3 FG%', unit: '%' },
+            { key: 'C3_FG_PCT', label: '底角三分命中率', englishLabel: 'Corner 3 FG%', unit: '%' },
+            { key: 'AB3_FG_PCT', label: '非底角三分命中率', englishLabel: 'Above the Break 3 FG%', unit: '%' },
         ]
     },
     {
@@ -226,10 +226,10 @@ window.shootingDefs = [
     },
 ];
 
-// 關鍵時刻卡片定義（資料來源為 doc.clutch，最後 5 分鐘分差 5 分內）
+// Clutch 卡片定義（資料來源為 doc.clutch；NBA 定義：第四節或延長賽最後 5 分鐘、分差 5 分內；PerMode=PerGame 為場均）
 window.clutchDefs = [
     {
-        id: 'Clutch', title: '關鍵時刻 (Clutch — 最後5分鐘分差5分內)', metrics: [
+        id: 'Clutch', title: 'Clutch 場均 (Per Game)', metrics: [
             { key: 'PTS', label: '得分', englishLabel: 'PTS' },
             { key: 'FG_PCT', label: '命中率', englishLabel: 'FG%', unit: '%' },
             { key: 'FG3_PCT', label: '三分命中率', englishLabel: '3P%', unit: '%' },
@@ -243,23 +243,23 @@ window.clutchDefs = [
 ];
 
 // 防守數據卡片定義（資料來源為 doc.defense）— 顯示於「防守」側
-// 對位防守/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
+// 最近防守者/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
 window.defenseDefs = [
     {
-        id: 'MatchupDefense', title: '對位防守 (Matchup Defense)', metrics: [
-            { key: 'D_FGA', label: '被挑戰出手', englishLabel: 'Defended FGA' },
-            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'Opp FG%', unit: '%', betterIsLarger: false },
-            { key: 'PCT_PLUSMINUS', label: '命中率增減', englishLabel: 'FG% Diff', unit: '%', betterIsLarger: false },
-            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'Opp 3P%', unit: '%', betterIsLarger: false },
+        id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', metrics: [
+            { key: 'D_FGA', label: '防守出手數', englishLabel: 'DFGA' },
+            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'DFG%', unit: '%', betterIsLarger: false },
+            { key: 'PCT_PLUSMINUS', label: '對手命中率 vs 平常', englishLabel: 'DIFF%（負=守得好）', unit: '%', betterIsLarger: false },
+            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'DFG% · 3 Pointers', unit: '%', betterIsLarger: false },
         ]
     },
     {
         id: 'Hustle', title: '拼勁數據 (Hustle)', metrics: [
             { key: 'CONTESTED_SHOTS', label: '干擾投籃', englishLabel: 'Contested Shots' },
-            { key: 'DEFLECTIONS', label: '抄截干擾', englishLabel: 'Deflections' },
+            { key: 'DEFLECTIONS', label: '干擾球', englishLabel: 'Deflections' },
             { key: 'CHARGES_DRAWN', label: '製造進攻犯規', englishLabel: 'Charges Drawn' },
             { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
-            { key: 'LOOSE_BALLS', label: '地板球', englishLabel: 'Loose Balls' },
+            { key: 'LOOSE_BALLS', label: '搶回散球', englishLabel: 'Loose Balls Recovered' },
             { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
         ]
     },
@@ -269,8 +269,8 @@ window.defenseDefs = [
             { key: 'STL', label: '抄截', englishLabel: 'Steals' },
             { key: 'BLK', label: '阻攻', englishLabel: 'Blocks' },
             { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
-            { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp Pts Paint', betterIsLarger: false },
-            { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp Pts FB', betterIsLarger: false },
+            { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp PTS in Paint', betterIsLarger: false },
+            { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp PTS Fast Break', betterIsLarger: false },
         ]
     },
 ];
@@ -279,11 +279,11 @@ window.defenseDefs = [
 window.oppZonesDefs = [
     {
         id: 'OppZones', title: '對手分區命中 (Opponent Shooting by Zone)', metrics: [
-            { key: 'RA_OPP_FG_PCT', label: '禁區命中率', englishLabel: 'Restricted Area', unit: '%', betterIsLarger: false },
-            { key: 'PAINT_OPP_FG_PCT', label: '油漆區命中率', englishLabel: 'Paint (Non-RA)', unit: '%', betterIsLarger: false },
+            { key: 'RA_OPP_FG_PCT', label: '合理衝撞區命中率', englishLabel: 'Restricted Area', unit: '%', betterIsLarger: false },
+            { key: 'PAINT_OPP_FG_PCT', label: '禁區（非 RA）命中率', englishLabel: 'In The Paint (Non-RA)', unit: '%', betterIsLarger: false },
             { key: 'MID_OPP_FG_PCT', label: '中距離命中率', englishLabel: 'Mid-Range', unit: '%', betterIsLarger: false },
-            { key: 'C3_OPP_FG_PCT', label: '角落三分命中率', englishLabel: 'Corner 3', unit: '%', betterIsLarger: false },
-            { key: 'AB3_OPP_FG_PCT', label: '弧頂三分命中率', englishLabel: 'Above Break 3', unit: '%', betterIsLarger: false },
+            { key: 'C3_OPP_FG_PCT', label: '底角三分命中率', englishLabel: 'Corner 3', unit: '%', betterIsLarger: false },
+            { key: 'AB3_OPP_FG_PCT', label: '非底角三分命中率', englishLabel: 'Above the Break 3', unit: '%', betterIsLarger: false },
         ]
     },
 ];
@@ -324,7 +324,8 @@ const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, val
 //   真的是 0 → typeof value === 'number' → 照常顯示 0
 const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", betterIsLarger = true, icon = null, naReason = null }) => {
     const isNA = naReason && value == null;
-    const diff = prevValue != null ? (value - prevValue).toFixed(1) : 0;
+    const isMissing = value == null || value === '';   // 無資料：顯示「—」，不可把單位單獨印出來（曾出現孤立的「%」）
+    const diff = (prevValue != null && !isMissing) ? (value - prevValue).toFixed(1) : 0;
     const numDiff = parseFloat(diff);
     let isBetter = false, isWorse = false;
     if (numDiff > 0) { isBetter = betterIsLarger; isWorse = !betterIsLarger; }
@@ -337,10 +338,12 @@ const SimpleMetricCard = ({ title, englishLabel, value, prevValue, unit = "", be
             <div className="flex items-end gap-2">
                 {isNA ? (
                     <span className="text-xl font-bold text-slate-600 cursor-help" title={naReason}>—</span>
+                ) : isMissing ? (
+                    <span className="text-xl font-bold text-slate-600" title="此項無資料">—</span>
                 ) : (
                     <span className="text-xl font-bold text-white">{value}{unit}</span>
                 )}
-                {!isNA && prevValue != null && numDiff !== 0 && (
+                {!isNA && !isMissing && prevValue != null && numDiff !== 0 && (
                     <span className={`text-[10px] font-bold flex items-center pb-1 ${isBetter ? 'text-green-400' : isWorse ? 'text-red-400' : 'text-slate-500'}`}>
                         {numDiff > 0 ? <window.Icons.ArrowUp className="w-2.5 h-2.5" /> : <window.Icons.ArrowDown className="w-2.5 h-2.5" />}
                         {Math.abs(numDiff)}{unit}
@@ -634,7 +637,7 @@ window.ShotChart = ShotChart;
 
 // ---------- DefenseHeatmap.js ----------
 // 防守熱圖：半場 5 區依「對手命中率 − 該區聯盟約略均值」上色
-// 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則禁區永遠最紅、失去防守意義）
+// 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則合理衝撞區永遠最紅、失去防守意義）
 // 座標系同 ShotChart（0.1 呎，籃框在原點，y 取負向上）
 const DefenseHeatmap = ({ defense }) => {
     // 各區聯盟約略均值(對手命中率 %)，供偏差著色的基準；隨賽季略有漂移，可微調
@@ -689,11 +692,11 @@ const DefenseHeatmap = ({ defense }) => {
                     <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
 
                     {/* 標籤 */}
-                    <Label x={0} y={-8} name="禁區" zoneKey="RA" />
-                    <Label x={0} y={-95} name="油漆區" zoneKey="PAINT" />
+                    <Label x={0} y={-8} name="合理衝撞區" zoneKey="RA" />
+                    <Label x={0} y={-95} name="禁區(非RA)" zoneKey="PAINT" />
                     <Label x={0} y={-215} name="中距離" zoneKey="MID" />
-                    <Label x={0} y={-370} name="弧頂三分" zoneKey="AB3" />
-                    <Label x={-235} y={-15} name="角落" zoneKey="C3" />
+                    <Label x={0} y={-370} name="非底角三分" zoneKey="AB3" />
+                    <Label x={-235} y={-15} name="底角" zoneKey="C3" />
                 </svg>
             </div>
         </div>
@@ -891,7 +894,7 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
 // ---------- SingleGamePanel.js ----------
 // 單場數據面板：選一場比賽，看該場的 Tracking / 投籃 / 防守單場數值
 // 資料來源 wolves_player_games/{date} 與 wolves_team_games/{date}（backfill_games.py / 每日順抓）
-// 單場只有部分欄位（tracking + 對位防守 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
+// 單場只有部分欄位（tracking + 最近防守者 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
 const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
@@ -902,6 +905,12 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
     const dates = (gamesIndex || []).map(g => g.date);
     const [selectedDate, setSelectedDate] = useState(dates.length ? dates[dates.length - 1] : '');
     const [doc, setDoc] = useState(undefined); // undefined=載入中, null=無, obj=資料
+
+    // 賽別切換後索引換一份：原選的日期不在新清單裡 → 跳到新清單最後一場
+    const lastDate = dates.length ? dates[dates.length - 1] : '';
+    useEffect(() => {
+        if (!dates.includes(selectedDate)) setSelectedDate(lastDate);
+    }, [lastDate, dates.length]);
 
     const coll = viewMode === 'TEAM' ? 'wolves_team_games' : 'wolves_player_games';
 
@@ -968,7 +977,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                     clickable={false}
                 />
             ))}
-            <p className="text-[10px] text-slate-500 mt-1">單場僅含 Tracking／對位防守／Hustle／分區投籃（PlayType 無單場資料）</p>
+            <p className="text-[10px] text-slate-500 mt-1">單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）</p>
         </div>
     );
 };
@@ -1068,15 +1077,15 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">在場 / 不在場 (On/Off Court)</h2>
                     <div className="grid grid-cols-3 gap-3 text-center">
                         {[
-                            { label: '進攻效率', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
-                            { label: '防守效率', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
-                            { label: '淨效率', on: onoff.ON_NET_RATING, off: onoff.OFF_NET_RATING, better: 'high' },
+                            { label: '進攻效率', en: 'OffRtg', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
+                            { label: '防守效率', en: 'DefRtg', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
+                            { label: '淨效率', en: 'NetRtg', on: onoff.ON_NET_RATING, off: onoff.OFF_NET_RATING, better: 'high' },
                         ].map(m => {
                             const diff = (typeof m.on === 'number' && typeof m.off === 'number') ? m.on - m.off : null;
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
                             return (
                                 <div key={m.label} className="p-3 rounded-lg border border-slate-800 bg-slate-950/40">
-                                    <div className="text-[11px] text-slate-400 mb-1">{m.label}</div>
+                                    <div className="text-[11px] text-slate-400 mb-1">{m.label} <span className="text-slate-600">{m.en}</span></div>
                                     <div className="flex justify-center gap-2 text-sm font-mono">
                                         <span className="text-[#12A150]">在 {typeof m.on === 'number' ? m.on.toFixed(1) : '—'}</span>
                                         <span className="text-slate-600">/</span>
@@ -1098,12 +1107,12 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             {/* Clutch（快照） */}
             {hasClutch && (
                 <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-amber-500">
-                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">關鍵時刻 (Clutch)</h2>
+                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">Clutch</h2>
                     {clutchDefs.map(def => (
                         <TrackingCardRow key={def.id} title={def.title} category={def.id} source="clutch"
                             metrics={def.metrics} current={clutchEntity} prev={null} clickable={false} />
                     ))}
-                    <p className="text-[10px] text-slate-500 mt-1">整季快照（最後 5 分鐘分差 5 分內）</p>
+                    <p className="text-[10px] text-slate-500 mt-1">第四節或延長賽最後 5 分鐘、分差 5 分內（NBA 定義）· 整季快照 · 場均</p>
                 </div>
             )}
 
@@ -1111,15 +1120,18 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
                 <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
                     <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">五人陣容 (Lineups)</h2>
-                    <p className="text-xs text-slate-500 mb-3">依上場時間排序（進階效率為每 100 回合，整季快照）</p>
+                    <p className="text-xs text-slate-500 mb-3">依總上場分鐘排序（效率值為每 100 回合，整季快照）</p>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-slate-400">
                             <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
                                 <tr>
-                                    <th className="px-4 py-3">陣容</th><th className="px-3 py-3 text-right">場次</th>
-                                    <th className="px-3 py-3 text-right">分鐘</th><th className="px-3 py-3 text-right">進攻</th>
-                                    <th className="px-3 py-3 text-right">防守</th><th className="px-3 py-3 text-right">淨效率</th>
-                                    <th className="px-3 py-3 text-right">TS%</th>
+                                    <th className="px-4 py-3">陣容</th>
+                                    <th className="px-3 py-3 text-right">場次 <span className="font-normal text-slate-600">GP</span></th>
+                                    <th className="px-3 py-3 text-right">總分鐘 <span className="font-normal text-slate-600">MIN</span></th>
+                                    <th className="px-3 py-3 text-right">進攻效率 <span className="font-normal text-slate-600">OffRtg</span></th>
+                                    <th className="px-3 py-3 text-right">防守效率 <span className="font-normal text-slate-600">DefRtg</span></th>
+                                    <th className="px-3 py-3 text-right">淨效率 <span className="font-normal text-slate-600">NetRtg</span></th>
+                                    <th className="px-3 py-3 text-right">真實命中率 <span className="font-normal text-slate-600">TS%</span></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
@@ -1416,11 +1428,11 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     // 分組定義
     const DIST_BINS = [[0, 4, '0-4 呎'], [5, 9, '5-9 呎'], [10, 14, '10-14 呎'], [15, 19, '15-19 呎'], [20, 24, '20-24 呎'], [25, 29, '25-29 呎'], [30, 999, '30 呎+']];
     const ZONE_DEFS = [
-        ['RA', '禁區', z => z === 'Restricted Area'],
-        ['PAINT', '油漆區', z => z === 'In The Paint (Non-RA)'],
-        ['MID', '中距離', z => z === 'Mid-Range'],
-        ['C3', '角落三分', z => z === 'Left Corner 3' || z === 'Right Corner 3'],
-        ['AB3', '弧頂三分', z => z === 'Above the Break 3'],
+        ['RA', '合理衝撞區', z => z === 'Restricted Area', 'Restricted Area'],
+        ['PAINT', '禁區（非 RA）', z => z === 'In The Paint (Non-RA)', 'In The Paint (Non-RA)'],
+        ['MID', '中距離', z => z === 'Mid-Range', 'Mid-Range'],
+        ['C3', '底角三分', z => z === 'Left Corner 3' || z === 'Right Corner 3', 'Corner 3'],
+        ['AB3', '非底角三分', z => z === 'Above the Break 3', 'Above the Break 3'],
     ];
     const topTypes = (() => {
         const cnt = {};
@@ -1435,7 +1447,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     const items = group === 'dist'
         ? DIST_BINS.map(([lo, hi, l]) => ({ key: `d${lo}`, label: l, fn: s => s.dist >= lo && s.dist <= hi }))
         : group === 'zone'
-            ? ZONE_DEFS.map(([k, l, fn]) => ({ key: k, label: l, fn: s => fn(s.zone) }))
+            ? ZONE_DEFS.map(([k, l, fn, en]) => ({ key: k, label: l, en, fn: s => fn(s.zone) }))
             : topTypes.map(t => ({ key: t, label: t, fn: s => s.action === t }));
 
     const periodTotal = periodShots.length;
@@ -1506,7 +1518,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                     return (
                         <div key={it.key} onClick={() => setOpenKey(open ? null : it.key)}
                             className={`p-3 rounded-lg border cursor-pointer transition-colors ${open ? 'border-[#12A150] bg-[#12A150]/5' : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'}`}>
-                            <div className="text-[11px] text-slate-400 truncate" title={it.label}>{it.label}</div>
+                            <div className="text-[11px] text-slate-400 truncate" title={it.en ? `${it.label} · ${it.en}` : it.label}>{it.label}{it.en && <span className="text-slate-600 ml-1">{it.en}</span>}</div>
                             <div className="text-2xl font-bold font-mono">{p.pct != null ? p.pct + '%' : '—'}
                                 {diff != null && diff !== 0 && <span className={`text-xs ml-1 ${diff > 0 ? 'text-[#12A150]' : 'text-red-400'}`}>{diff > 0 ? '▲' : '▼'}{Math.abs(diff)}</span>}
                             </div>
@@ -1727,7 +1739,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                     <p className="text-[10px] text-slate-500">
                         點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料；
                         欄頭有 <span className="text-amber-400/80 font-mono">@隊名</span> 者為該季在別隊，
-                        其對位防守與 On/Off 為跨隊不適用（滑過 — 可看說明）。
+                        其最近防守者（Defense Dashboard）與 On/Off 為跨隊不適用（滑過 — 可看說明）。
                     </p>
                 </>
             )}
@@ -1739,7 +1751,8 @@ window.ComparisonTab = ComparisonTab;
 
 
 // ---------- RadarPanel.js ----------
-// 雷達圖面板：軸可自選（Playtype percentile + Tracking 百分比，皆 0-100）+ 疊加多序列 + 自選指標比較表
+// 雷達圖面板：軸可自選（Playtype percentile + Tracking 百分比，皆 0-100）
+// 兩種尺度語意不同（PR=聯盟百分位、%=原始數值），軸名一律帶 scale 標示，避免讀者把形狀當同一把尺+ 疊加多序列 + 自選指標比較表
 // series：[{key,label,color,stats(synergy array),tracking(dict)}]；第一個為主序列
 const RadarPanel = ({ series, viewSide }) => {
     const { useState } = React;
@@ -1751,18 +1764,19 @@ const RadarPanel = ({ series, viewSide }) => {
 
     // 指標目錄（依攻守）
     const CATALOG = viewSide === 'offensive' ? [
-        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, pt, side: 'offensive' })),
-        { key: 'DRIVE_PTS_PCT', label: '切入得分%', tk: 'DRIVE_PTS_PCT' },
-        { key: 'DRIVE_FG_PCT', label: '切入命中率', tk: 'DRIVE_FG_PCT' },
-        { key: 'CATCH_SHOOT_EFG_PCT', label: '接球 eFG%', tk: 'CATCH_SHOOT_EFG_PCT' },
-        { key: 'CATCH_SHOOT_FG3_PCT', label: '接球三分%', tk: 'CATCH_SHOOT_FG3_PCT' },
-        { key: 'PULL_UP_EFG_PCT', label: '急停 eFG%', tk: 'PULL_UP_EFG_PCT' },
-        { key: 'REB_COL_PCT', label: '籃板掌握率', tk: 'REB_COL_PCT' },
+        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, scale: 'PR', pt, side: 'offensive' })),
+        { key: 'DRIVE_PTS_PCT', label: '切入得分佔比', scale: '%', tk: 'DRIVE_PTS_PCT' },
+        { key: 'DRIVE_FG_PCT', label: '切入命中率', scale: '%', tk: 'DRIVE_FG_PCT' },
+        { key: 'CATCH_SHOOT_EFG_PCT', label: '接球跳投 eFG', scale: '%', tk: 'CATCH_SHOOT_EFG_PCT' },
+        { key: 'CATCH_SHOOT_FG3_PCT', label: '接球跳投三分', scale: '%', tk: 'CATCH_SHOOT_FG3_PCT' },
+        { key: 'PULL_UP_EFG_PCT', label: '急停跳投 eFG', scale: '%', tk: 'PULL_UP_EFG_PCT' },
+        { key: 'REB_COL_PCT', label: '籃板機會轉換率', scale: '%', tk: 'REB_COL_PCT' },
     ] : [
-        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: pt + ' 防守', pt, side: 'defensive' })),
-        { key: 'REB_CONTEST_PCT', label: '競爭籃板率', tk: 'REB_CONTEST_PCT' },
+        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: pt + ' 防守', scale: 'PR', pt, side: 'defensive' })),
+        { key: 'REB_CONTEST_PCT', label: '競爭籃板率', scale: '%', tk: 'REB_CONTEST_PCT' },
     ];
     const catMap = Object.fromEntries(CATALOG.map(c => [c.key, c]));
+    const axisName = c => c ? `${c.label} ${c.scale}` : '';
     const DEFAULTS = viewSide === 'offensive'
         ? ['pt_Isolation', 'DRIVE_PTS_PCT', 'CATCH_SHOOT_EFG_PCT', 'pt_Transition', 'pt_PRBallHandler']
         : ['pt_Isolation', 'pt_Spotup', 'pt_PRBallHandler', 'REB_CONTEST_PCT'];
@@ -1794,7 +1808,7 @@ const RadarPanel = ({ series, viewSide }) => {
 
     const radarData = axes.map(k => {
         const c = catMap[k];
-        const row = { subject: c ? c.label : k, fullMark: 100 };
+        const row = { subject: c ? axisName(c) : k, fullMark: 100 };
         series.forEach(s => { row[s.label] = getVal(c, s) || 0; });
         return row;
     });
@@ -1816,7 +1830,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         {CATALOG.map(c => {
                             const on = axes.includes(c.key);
                             return <button key={c.key} onClick={() => toggleAxis(c.key)}
-                                className={`px-2 py-0.5 text-[10px] rounded border ${on ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{c.label}</button>;
+                                className={`px-2 py-0.5 text-[10px] rounded border ${on ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{axisName(c)}</button>;
                         })}
                     </div>
                 </div>
@@ -1838,6 +1852,10 @@ const RadarPanel = ({ series, viewSide }) => {
                     </ResponsiveContainer>
                 </div>
             ) : <div className="w-full h-[240px] flex items-center justify-center text-slate-500 text-xs">雷達圖模組載入中...</div>}
+
+            <p className="w-full px-2 pb-1 text-[10px] leading-relaxed text-slate-500">
+                PR＝Synergy 聯盟百分位（0–100）；%＝原始數值。兩種尺度共用 0–100 軸，形狀只代表各軸相對位置，不同尺度的軸不能直接互比。
+            </p>
 
             {series.length > 1 && (
                 <div className="flex flex-wrap gap-x-3 gap-y-1 px-2 pb-1 justify-center">
@@ -1861,7 +1879,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         <tbody>
                             {axes.map(k => { const c = catMap[k]; return (
                                 <tr key={k} className="border-t border-slate-800">
-                                    <td className="text-left px-2 py-1 text-slate-400">{c ? c.label : k}</td>
+                                    <td className="text-left px-2 py-1 text-slate-400">{c ? axisName(c) : k}</td>
                                     {series.map(s => { const v = getVal(c, s); return <td key={s.key} className="text-right px-2 py-1 font-mono text-slate-200">{v == null ? '—' : v}</td>; })}
                                 </tr>
                             ); })}
@@ -2124,24 +2142,31 @@ const App = () => {
     };
 
     // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
+    // 索引依賽別分開存（backfill_games.py / fetch_data.py 寫 {season}_{type}），必須跟著賽別切換，
+    // 否則看季後賽時選單會列出例行賽場次。
+    // 快取帶 TTL：賽季中 fetch_data.py 每天會重建索引，永久快取會讓新比賽永遠不出現。
+    const GAMES_INDEX_TTL = 6 * 3600 * 1000;
     useEffect(() => {
         if (!window.db || !window.firebaseModules) return;
-        const indexId = `${window.CURRENT_SEASON}_regular`;
-        const cacheKey = `wt_games_index_${indexId}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) { try { setGamesIndex(JSON.parse(cached)); return; } catch (e) { /* fall through */ } }
+        let cancelled = false;
+        const indexId = `${window.CURRENT_SEASON}_${seasonTypeView}`;
+        const cacheKey = `wt_games_index_v2_${indexId}`;
+        try {
+            const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+            if (c && Date.now() - c.t < GAMES_INDEX_TTL) { setGamesIndex(c.games); return; }
+        } catch (e) { /* fall through */ }
+        setGamesIndex([]);
         (async () => {
             const { doc: docFn, getDoc } = window.firebaseModules;
             try {
                 const snap = await getDoc(docFn(window.db, 'wolves_games_index', indexId));
-                if (snap.exists()) {
-                    const games = snap.data().games || [];
-                    localStorage.setItem(cacheKey, JSON.stringify(games));
-                    setGamesIndex(games);
-                }
+                const games = snap.exists() ? (snap.data().games || []) : [];
+                try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
+                if (!cancelled) setGamesIndex(games);
             } catch (e) { console.error('games index fetch fail', e); }
         })();
-    }, [isCloud]);
+        return () => { cancelled = true; };
+    }, [isCloud, seasonTypeView]);
 
     // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
 

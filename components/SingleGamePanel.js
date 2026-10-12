@@ -1,6 +1,6 @@
 // 單場數據面板：選一場比賽，看該場的 Tracking / 投籃 / 防守單場數值
 // 資料來源 wolves_player_games/{date} 與 wolves_team_games/{date}（backfill_games.py / 每日順抓）
-// 單場只有部分欄位（tracking + 對位防守 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
+// 單場只有部分欄位（tracking + 最近防守者 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
 const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
@@ -11,6 +11,12 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
     const dates = (gamesIndex || []).map(g => g.date);
     const [selectedDate, setSelectedDate] = useState(dates.length ? dates[dates.length - 1] : '');
     const [doc, setDoc] = useState(undefined); // undefined=載入中, null=無, obj=資料
+
+    // 賽別切換後索引換一份：原選的日期不在新清單裡 → 跳到新清單最後一場
+    const lastDate = dates.length ? dates[dates.length - 1] : '';
+    useEffect(() => {
+        if (!dates.includes(selectedDate)) setSelectedDate(lastDate);
+    }, [lastDate, dates.length]);
 
     const coll = viewMode === 'TEAM' ? 'wolves_team_games' : 'wolves_player_games';
 
@@ -77,7 +83,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                     clickable={false}
                 />
             ))}
-            <p className="text-[10px] text-slate-500 mt-1">單場僅含 Tracking／對位防守／Hustle／分區投籃（PlayType 無單場資料）</p>
+            <p className="text-[10px] text-slate-500 mt-1">單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）</p>
         </div>
     );
 };

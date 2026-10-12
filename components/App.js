@@ -93,24 +93,31 @@ const App = () => {
     };
 
     // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
+    // 索引依賽別分開存（backfill_games.py / fetch_data.py 寫 {season}_{type}），必須跟著賽別切換，
+    // 否則看季後賽時選單會列出例行賽場次。
+    // 快取帶 TTL：賽季中 fetch_data.py 每天會重建索引，永久快取會讓新比賽永遠不出現。
+    const GAMES_INDEX_TTL = 6 * 3600 * 1000;
     useEffect(() => {
         if (!window.db || !window.firebaseModules) return;
-        const indexId = `${window.CURRENT_SEASON}_regular`;
-        const cacheKey = `wt_games_index_${indexId}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) { try { setGamesIndex(JSON.parse(cached)); return; } catch (e) { /* fall through */ } }
+        let cancelled = false;
+        const indexId = `${window.CURRENT_SEASON}_${seasonTypeView}`;
+        const cacheKey = `wt_games_index_v2_${indexId}`;
+        try {
+            const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+            if (c && Date.now() - c.t < GAMES_INDEX_TTL) { setGamesIndex(c.games); return; }
+        } catch (e) { /* fall through */ }
+        setGamesIndex([]);
         (async () => {
             const { doc: docFn, getDoc } = window.firebaseModules;
             try {
                 const snap = await getDoc(docFn(window.db, 'wolves_games_index', indexId));
-                if (snap.exists()) {
-                    const games = snap.data().games || [];
-                    localStorage.setItem(cacheKey, JSON.stringify(games));
-                    setGamesIndex(games);
-                }
+                const games = snap.exists() ? (snap.data().games || []) : [];
+                try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
+                if (!cancelled) setGamesIndex(games);
             } catch (e) { console.error('games index fetch fail', e); }
         })();
-    }, [isCloud]);
+        return () => { cancelled = true; };
+    }, [isCloud, seasonTypeView]);
 
     // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
 
