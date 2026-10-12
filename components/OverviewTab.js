@@ -1,7 +1,7 @@
 // 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
 //   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive' }) => {
     const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
@@ -168,7 +168,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
             {/* 單場面板（當季，有比賽索引才顯示） */}
             {SingleGamePanel && gamesIndex && gamesIndex.length > 0 && (
-                <SingleGamePanel viewMode={viewMode} playerName={selectedPlayer} viewSide="offensive" gamesIndex={gamesIndex} />
+                <SingleGamePanel viewMode={viewMode} playerName={selectedPlayer} viewSide={viewSide} gamesIndex={gamesIndex} />
             )}
         </div>
     );

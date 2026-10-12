@@ -64,6 +64,7 @@
 ### 已知資料缺口 / 後續
 - **2023-24 / 2022-23 逐場 games 未回補**（跨季比較用 history 快照不受影響，但那兩季的 Splits/投籃趨勢無資料）。要補：`backfill_games.py` 分批 + `build_bundles.py --all` + `fetch_shotchart.py` 已補。
 - **fetch_data 未瘦身**：每日 tracking（雷達用）/defense（防守分頁用）仍需要；只有 shooting 真正沒用（省 1-2 requests，不值得砍）。防守分頁的 defense_box/對手分區不在 games 內，故防守維持快照。
+- **2025-26 當季每日快照的類別不齊**：base/shooting/clutch/lineups/defense/onoff 是賽季中途才加進抓取，例行賽只有 2026-04-14（2026-10 以 `fetch_data.py --force-type regular --date 2026-04-14` 補寫完整期末快照）、季後賽只有 2026-05-15 / 06-15 有完整類別。前端防守分頁遇缺會說明並提供「改看 {最近有資料日期}」按鈕；新賽季起每日快照皆完整，不再有此問題
 - 排程環境：`.bat` 用 Python312 絕對路徑（裸 `python` 會抓到沒 curl_cffi 的版本）。
 
 ---
@@ -127,7 +128,8 @@ wolvestracker/
 2. `python scripts/bundle.py` 重新打包
 3. `python -m http.server 8000` 啟動本地伺服器
 4. 瀏覽器開 `http://localhost:8000`，Ctrl+F5 強制重整
-5. 確認無誤後 commit `components/` 與 `dist/components-bundle.js`，推送 GitHub Pages
+5. 確認無誤後 commit `components/`、`dist/components-bundle.js` 與 `index.html`，推送 GitHub Pages
+   - `bundle.py` 每次會把 bundle 內容雜湊寫進 `index.html` 的 `components-bundle.js?v=xxxxxxxx`（Pages 一律快取 10 分鐘，不加版本號會出現「新 HTML＋舊 bundle」）——所以 `index.html` 也會有 diff，記得一起提交
 
 ### 為何用 bundle 而非多檔引入
 Babel Standalone 對 `<script type="text/babel" src="...">` 是平行 fetch、依完成順序執行（非文件順序），會導致 App.js 在依賴前執行而崩潰。離線打包成單一 bundle 同時解決此問題與 file:// 直開時 fetch 被擋的問題。
@@ -288,6 +290,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 切換賽別後原選日期不在新清單 → 自動跳到新清單最後一場；缺值卡片顯示「—」（不印孤立單位）
 - 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
 - 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
+- 攻守跟隨右側攻/守切換（`OverviewTab` 的 `viewSide` prop）：防守側顯示最近防守者／Hustle／抄截阻攻單場值
 
 ### Modal 跨賽季比較分頁
 - 每張卡片皆可用，含 PlayType 與 Tracking

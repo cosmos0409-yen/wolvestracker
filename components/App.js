@@ -409,6 +409,25 @@ const App = () => {
     // normalizeHistoryPlayer 會注入 playerId/isCurrentRoster/teamAbbr，
     // 用 Object.keys().length 判斷「有沒有防守資料」對歷史快照永遠為真 → 必須排除 metadata
     const hasDefenseData = window.hasRealData(currentDefense);
+    // 缺防守時的說明：當季每日快照的 defense 類別是賽季中途才加進抓取的，
+    // 舊日期的快照本來就沒有，不可籠統說「此賽季無防守數據」（會讓人以為整季沒資料）。
+    // 回傳 { msg, jumpDate }：jumpDate = 離目前日期最近、有防守數據的快照日（可一鍵跳過去）
+    const defenseMissing = (() => {
+        if (hasDefenseData) return null;
+        if (isHistoryMode) return { msg: '此賽季的期末快照沒有防守數據' };
+        const seq = viewMode === 'TEAM' ? teamSeq : playerSeq;
+        const cur = seq[viewMode === 'TEAM' ? teamIdx : playerIdx];
+        const defOf = d => viewMode === 'TEAM' ? d.defense : d.defense?.[selectedPlayer];
+        if (viewMode === 'PLAYER' && cur && window.hasRealData(cur.defense) && !window.hasRealData(defOf(cur))) {
+            return { msg: `${selectedPlayer} 在 ${cur.date} 的快照沒有防守數據` };
+        }
+        const withDef = seq.filter(d => window.hasRealData(defOf(d))).map(d => d.date);
+        const fallback = `可從賽季選單選「${window.CURRENT_SEASON} ${stTypeLabel}」查看期末完整快照。`;
+        if (!withDef.length) return { msg: `當季${stTypeLabel}的每日快照都沒有防守數據（防守類別較晚才加入抓取）。${fallback}` };
+        const t = new Date(effectiveDate).getTime();
+        const jumpDate = withDef.slice().sort((a, b) => Math.abs(new Date(a) - t) - Math.abs(new Date(b) - t))[0];
+        return { msg: `${cur ? cur.date : effectiveDate} 的快照沒有防守數據（防守類別較晚才加入抓取，只有部分日期有）。`, jumpDate };
+    })();
 
     // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
     useEffect(() => {
@@ -877,7 +896,7 @@ const App = () => {
                                 games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null)}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
-                                lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex}
+                                lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                             />
                         )}
@@ -915,7 +934,15 @@ const App = () => {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400">此賽季無防守數據</div>
+                                    <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-2">
+                                        <span>{defenseMissing ? defenseMissing.msg : '此賽季無防守數據'}</span>
+                                        {defenseMissing && defenseMissing.jumpDate && (
+                                            <button onClick={() => setSelectedDate(defenseMissing.jumpDate)}
+                                                className="px-2.5 py-1 text-xs font-bold rounded border border-[#12A150]/50 text-[#12A150] hover:bg-[#12A150]/10">
+                                                改看 {defenseMissing.jumpDate}
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                                 {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && (
                                     <window.DefenseHeatmap defense={currentDefense} />

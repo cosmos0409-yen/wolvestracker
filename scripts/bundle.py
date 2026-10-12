@@ -5,15 +5,22 @@
 
 用法：
     python scripts/bundle.py
+
+快取版本號：GitHub Pages 對所有檔案回 Cache-Control: max-age=600，
+使用者可能拿到「新 index.html + 快取裡的舊 bundle」。因此每次打包都把 bundle 內容雜湊
+寫進 index.html 的 script 網址（components-bundle.js?v=xxxxxxxx），內容一變網址就變，瀏覽器必抓新檔。
 """
 
+import hashlib
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPONENTS_DIR = ROOT / "components"
 DIST_DIR = ROOT / "dist"
 OUT_FILE = DIST_DIR / "components-bundle.js"
+INDEX_HTML = ROOT / "index.html"
 
 # 依依賴順序排列（上層被下層引用）
 ORDER = [
@@ -47,9 +54,24 @@ def main():
         parts.append(f"\n// ---------- {name} ----------\n")
         parts.append(src.read_text(encoding="utf-8"))
         parts.append("\n")
-    OUT_FILE.write_text("".join(parts), encoding="utf-8")
+    content = "".join(parts)
+    OUT_FILE.write_text(content, encoding="utf-8")
     size_kb = OUT_FILE.stat().st_size / 1024
     print(f"[OK] 已產生 {OUT_FILE.relative_to(ROOT)}（{size_kb:.1f} KB，{len(ORDER)} 個元件）")
+    stamp_version(content)
+
+
+def stamp_version(content):
+    """把 bundle 內容雜湊寫進 index.html 的 script 網址（見檔頭「快取版本號」）。"""
+    ver = hashlib.sha1(content.encode("utf-8")).hexdigest()[:8]
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    new_html, n = re.subn(r'src="dist/components-bundle\.js(\?v=[0-9a-f]*)?"',
+                          f'src="dist/components-bundle.js?v={ver}"', html)
+    if n != 1:
+        raise RuntimeError(f"index.html 應恰有 1 個 components-bundle.js 引用，實際找到 {n} 個")
+    if new_html != html:
+        INDEX_HTML.write_text(new_html, encoding="utf-8")
+    print(f"[OK] index.html 版本號 v={ver}")
 
 
 if __name__ == "__main__":
