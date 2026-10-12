@@ -132,37 +132,22 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
                 <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
                     <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">五人陣容 (Lineups)</h2>
-                    <p className="text-xs text-slate-500 mb-3">依總上場分鐘排序（效率值為每 100 回合，整季快照）</p>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-400">
-                            <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
-                                <tr>
-                                    <th className="px-4 py-3">陣容</th>
-                                    <th className="px-3 py-3 text-right">場次 <span className="font-normal text-slate-600">GP</span></th>
-                                    <th className="px-3 py-3 text-right">總分鐘 <span className="font-normal text-slate-600">MIN</span></th>
-                                    <th className="px-3 py-3 text-right">進攻效率 <span className="font-normal text-slate-600">OffRtg</span></th>
-                                    <th className="px-3 py-3 text-right">防守效率 <span className="font-normal text-slate-600">DefRtg</span></th>
-                                    <th className="px-3 py-3 text-right">淨效率 <span className="font-normal text-slate-600">NetRtg</span></th>
-                                    <th className="px-3 py-3 text-right">真實命中率 <span className="font-normal text-slate-600">TS%</span></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                                {lineups.map((lu, i) => (
-                                    <tr key={i} className="hover:bg-slate-800/70 transition-colors">
-                                        <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lu.players}</td>
-                                        <td className="px-3 py-3 text-right font-mono">{lu.GP}</td>
-                                        <td className="px-3 py-3 text-right font-mono">{lu.MIN}</td>
-                                        <td className="px-3 py-3 text-right font-mono">{lu.OFF_RATING}</td>
-                                        <td className="px-3 py-3 text-right font-mono">{lu.DEF_RATING}</td>
-                                        <td className={`px-3 py-3 text-right font-mono font-bold ${lu.NET_RATING > 0 ? 'text-[#12A150]' : lu.NET_RATING < 0 ? 'text-red-400' : ''}`}>
-                                            {lu.NET_RATING > 0 ? '+' : ''}{lu.NET_RATING}
-                                        </td>
-                                        <td className="px-3 py-3 text-right font-mono">{lu.TS_PCT}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <p className="text-xs text-slate-500 mb-3">預設依總上場分鐘排序，點欄位標題可改排序（效率值為每 100 回合，整季快照）</p>
+                    <window.UI.DataTable caption="五人陣容進階數據" rows={lineups}
+                        initialSort={{ key: 'MIN', dir: 'desc' }} rowKey={(r) => r.players}
+                        columns={[
+                            { key: 'players', label: '陣容', align: 'left' },
+                            { key: 'GP', label: '場次', en: 'GP' },
+                            { key: 'MIN', label: '總分鐘', en: 'MIN' },
+                            { key: 'OFF_RATING', label: '進攻效率', en: 'OffRtg' },
+                            { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg' },
+                            { key: 'NET_RATING', label: '淨效率', en: 'NetRtg',
+                                render: (r) => typeof r.NET_RATING !== 'number' ? '—' : (
+                                    <span className={r.NET_RATING > 0 ? 'text-[#12A150]' : r.NET_RATING < 0 ? 'text-[#EF4444]' : 'text-slate-200'}>
+                                        {r.NET_RATING > 0 ? '+' : ''}{r.NET_RATING}
+                                    </span>) },
+                            { key: 'TS_PCT', label: '真實命中率', en: 'TS%' },
+                        ]} />
                 </div>
             )}
 

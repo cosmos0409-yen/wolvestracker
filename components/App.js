@@ -583,7 +583,7 @@ const App = () => {
         && (historyLoading || (teamHistory.length === 0 && playerHistory.length === 0 && isCloud));
 
     const SkeletonBlock = () => (
-        <div className="md:col-span-3 space-y-6 animate-pulse">
+        <div className="md:col-span-3 min-w-0 space-y-6 animate-pulse">
             <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
                 <div className="h-6 w-56 bg-slate-800 rounded mb-6"></div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -721,7 +721,7 @@ const App = () => {
         { key: 'comparison', label: '跨季' },
     ];
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans pb-20">
+        <div className="min-h-screen text-slate-200 font-sans pb-20">
             {/* Header */}
             <header className="sticky top-0 z-20 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4 shadow-md">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -769,11 +769,11 @@ const App = () => {
                 </div>
             )}
 
-            {/* Main Layout */}
+            {/* Main Layout（兩欄皆加 min-w-0：grid 子元素預設不會比內容窄，否則寬表格會把整頁撐出手機螢幕） */}
             <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
                 <div className="grid md:grid-cols-4 gap-6">
                     {/* Left Sidebar */}
-                    <div className="md:col-span-1 space-y-6">
+                    <div className="md:col-span-1 min-w-0 space-y-6">
                         <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-4 shadow-lg">
                             <div>
                                 <label className="text-xs text-slate-400 font-bold tracking-wide block mb-1">賽季</label>
@@ -851,7 +851,7 @@ const App = () => {
 
                     {/* Right Content */}
                     {noCurrentSnapshots ? (
-                        <div className="md:col-span-3 border border-amber-500/40 bg-amber-500/5 rounded-xl p-6">
+                        <div className="md:col-span-3 min-w-0 border border-amber-500/40 bg-amber-500/5 rounded-xl p-6">
                             {snapError ? (<>
                                 <p className="text-amber-300 font-bold mb-2">當季快照讀取失敗</p>
                                 <p className="text-slate-400 text-sm leading-relaxed">
@@ -878,7 +878,7 @@ const App = () => {
                             </>)}
                         </div>
                     ) : showSkeleton ? <SkeletonBlock /> : (
-                    <div className="md:col-span-3 space-y-6">
+                    <div className="md:col-span-3 min-w-0 space-y-6">
                         {/* 分頁切換列 */}
                         <div className="flex flex-wrap gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
                             {TABS.map(t => (

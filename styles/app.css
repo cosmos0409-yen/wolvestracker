@@ -3,3 +3,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    /* 底色 #0A1626（品牌深藍）＋刊頭淡光暈（綠右上、藍左上，只在頁面頂端，捲動後消失） */
+    body {
+        background-color: #0A1626;
+        background-image:
+            radial-gradient(55% 420px at 88% -60px, rgba(18, 161, 80, 0.10), transparent 70%),
+            radial-gradient(50% 380px at 0% -40px, rgba(35, 97, 146, 0.18), transparent 70%);
+        background-repeat: no-repeat;
+        font-family: theme('fontFamily.sans');
+        -webkit-font-smoothing: antialiased;
+    }
+    /* 極淡顆粒：固定在內容「後面」（#root 疊在上層），不影響文字與數字的清晰度 */
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.035;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+    #root { position: relative; z-index: 1; }
+}

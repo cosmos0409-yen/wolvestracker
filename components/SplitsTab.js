@@ -121,7 +121,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
                 <div className="px-4 py-6 text-center text-slate-500 text-sm">此期間無比賽</div>
             ) : defs.map(def => (
                 <div key={def.id}>
-                    <TrackingCardRow title={def.title + '  ▸ 點看趨勢'} category={def.id} metrics={def.metrics}
+                    <TrackingCardRow title={def.title} actionLabel="點看趨勢" category={def.id} metrics={def.metrics}
                         current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats" />
                     {openGroup && openGroup.id === def.id && (
                         <div className="border border-slate-800 rounded-xl p-4 bg-slate-950/40 -mt-2 mb-4">

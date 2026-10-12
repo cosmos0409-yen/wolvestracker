@@ -38,6 +38,7 @@ TAILWIND = ROOT / "node_modules" / "tailwindcss" / "lib" / "cli.js"
 # 依依賴順序排列（上層被下層引用）
 ORDER = [
     "Icons.js",
+    "ui.js",
     "constants.js",
     "MetricComponents.js",
     "PlayTypeCard.js",

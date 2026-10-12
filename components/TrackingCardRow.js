@@ -1,34 +1,37 @@
-// Tracking 卡片群組元件
+// Tracking 卡片群組元件：群組標題（中文 + 小字原文）+ 細線數據表（UI.Ledger / StatCell）
 // source: 資料在快照文件中的欄位名（'tracking' | 'shooting' | 'clutch' | 'defense'），供 HistoryModal 取數
-// clickable=false（單場面板用）：不可點、無 hover/外連圖示
-// naReason：整組指標對此球員不適用（跨隊）→ 卡頭掛 badge，每張卡顯示灰色「—」
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null }) => {
+// clickable=false（單場面板用）：不可點、無「走勢 →」提示
+// actionLabel：右上角動作提示文字（Splits 用「點看趨勢」）
+// naReason：整組指標對此球員不適用（跨隊）→ 標題掛 badge，每格顯示灰色「—」
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢' }) => {
     if (!current) return null;
-    const Icons = window.Icons;
+    const UI = window.UI;
+    const [zh, en] = UI.splitTitle(title);
     return (
-        <div onClick={clickable ? () => onClick({ type: 'tracking', id: category, source }) : undefined}
-            className={`bg-[#1a202c] border border-slate-800 rounded-xl overflow-hidden transition-colors mb-4 ${clickable ? 'cursor-pointer hover:border-slate-600 group' : ''}`}>
-            <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex justify-between items-center text-sm font-bold text-[#cbd5e0]">
-                <span className="flex items-center gap-2">
-                    {title}
+        <section onClick={clickable ? () => onClick({ type: 'tracking', id: category, source }) : undefined}
+            className={`mb-6 last:mb-0 ${clickable ? 'group cursor-pointer' : ''}`}>
+            <header className="flex items-baseline justify-between gap-3 mb-2">
+                <h3 className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-[13px] font-medium text-slate-100 whitespace-nowrap">{zh}</span>
+                    {en && <span className="font-mono text-[10px] text-slate-500 truncate">{en}</span>}
                     {naReason && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-normal bg-slate-800 border border-slate-700 text-slate-400 cursor-help"
+                        <span className="px-1.5 py-0.5 text-[10px] font-normal border border-white/15 text-slate-400 cursor-help whitespace-nowrap"
                             title={naReason}>{window.NA_BADGE}</span>
                     )}
-                </span>
-                {clickable && <Icons.ExternalLink className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
-            </div>
-            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                </h3>
+                {clickable && (
+                    <span className="shrink-0 font-mono text-[10px] text-slate-500 group-hover:text-[#12A150] transition-colors">{actionLabel} →</span>
+                )}
+            </header>
+            <UI.Ledger cols={UI.ledgerCols(metrics.length)}>
                 {metrics.map((m, i) => (
-                    <window.SimpleMetricCard
-                        key={i} title={m.label} englishLabel={m.englishLabel}
+                    <UI.StatCell key={i} label={m.label} en={m.englishLabel}
                         value={current[m.key]} prevValue={prev?.[m.key]}
                         unit={m.unit} betterIsLarger={m.betterIsLarger !== false}
-                        naReason={naReason}
-                    />
+                        naReason={naReason} />
                 ))}
-            </div>
-        </div>
+            </UI.Ledger>
+        </section>
     );
 };
 
