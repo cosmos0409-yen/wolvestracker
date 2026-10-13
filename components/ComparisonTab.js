@@ -12,6 +12,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
     const [data, setData] = useState({});
     const [cat, setCat] = useState('base');
     const [openMetric, setOpenMetric] = useState(null);
+    const tableRef = React.useRef(null);
 
     // 預設選最近兩季
     useEffect(() => {
@@ -129,11 +130,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                         {openMetric && TrendChart && trendPts.length > 0 && (
                             <div className="border border-white/10 p-4">
                                 <div className="mb-3 text-[13px] font-medium text-slate-100">{openMetric.l} 逐季變化</div>
-                                <TrendChart points={trendPts} baseline={null} />
+                                <TrendChart points={trendPts} baseline={null} title={`${openMetric.l} 逐季變化`} />
                             </div>
                         )}
                         {/* 比較表：列＝指標、欄＝賽季（依時間排序） */}
-                        <div className="overflow-x-auto border-t border-white/[0.08]">
+                        <div className="flex justify-end">
+                            <UI.ExportMenu title={`跨季比較（${CATS[activeCat].label}）`} getNode={() => tableRef.current}
+                                csv={() => ({ header: ['指標', '原文', ...cols.map(c => c.label)], rows: metrics.map(m => [m.l, m.e || '', ...cols.map(c => { const v = getVal(c.key, m); return v == null ? '' : v; })]) })} />
+                        </div>
+                        <div ref={tableRef} className="overflow-x-auto border-t border-white/[0.08]">
                             <table className="w-full text-sm border-collapse">
                                 <caption className="sr-only">跨季比較表</caption>
                                 <thead>

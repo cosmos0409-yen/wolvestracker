@@ -5,6 +5,7 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, peri
     const { useState, useEffect } = React;
     const [loadedShots, setLoadedShots] = useState(null);   // null=載入中, []=無資料
     const [filter, setFilter] = useState('all'); // 'all' | 'made' | 'missed'
+    const chartRef = React.useRef(null);   // 匯出配圖用；hook 須在下方提早 return 之前
     // externalShots 提供時（ShootingTab 傳入已篩選出手），直接用它、不自行載入
     const useExternal = externalShots !== undefined;
     const shots = useExternal ? externalShots : loadedShots;
@@ -61,6 +62,7 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, peri
             sub={`${periodLabel ? periodLabel + ' · ' : ''}實心綠點＝命中，空心紅環＝未中 · 逐球座標每週更新`}
             right={<>
                 {total > 0 && <span className="font-mono text-[12px] tabular-nums text-slate-400">{made}/{total}（{fgPct}%）</span>}
+                {total > 0 && <UI.ExportMenu title={`投籃分布（${periodLabel || '全季'}，${filter === 'made' ? '只看命中' : filter === 'missed' ? '只看未中' : `${made}/${total}，${fgPct}%`}）`} getNode={() => chartRef.current} />}
                 <UI.Seg ariaLabel="顯示出手" size="sm" value={filter} onChange={setFilter}
                     options={[{ value: 'all', label: '全部' }, { value: 'made', label: '命中' }, { value: 'missed', label: '未中' }]} />
             </>}>
@@ -71,7 +73,7 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, peri
                 <UI.Note>{playerName} 尚無投籃座標資料（每週更新一次）</UI.Note>
             )}
             {shots !== null && total > 0 && (
-                <div className="flex flex-col items-center">
+                <div ref={chartRef} className="flex flex-col items-center">
                     <svg viewBox="-250 -470 500 522" className="w-full max-w-[520px]" role="img" aria-label={`${playerName} 投籃分布：${made} 命中 / ${total} 出手`}>
                         <rect x="-250" y="-470" width="500" height="517.5" fill="rgba(255, 255, 255, 0.015)" />
                         {/* 球場線（NBA 半場，單位 0.1 呎） */}

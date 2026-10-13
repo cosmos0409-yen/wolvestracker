@@ -23,7 +23,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                 <button type="button" onClick={() => onOpen({ type: 'playtype', id: r.playType })}
                     className="group inline-flex items-baseline gap-1.5 text-left" title="看當季走勢">
                     <span className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-100 group-hover:text-[#12A150]">{r.playType}</span>
-                    <span className="font-mono text-[10px] text-slate-600 group-hover:text-[#12A150]">↗</span>
+                    <span data-export-hide className="font-mono text-[10px] text-slate-600 group-hover:text-[#12A150]">↗</span>
                 </button>),
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`} />
@@ -59,6 +59,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                 <UI.Note>此對象沒有{isDef ? '防守' : '進攻'}面的 Playtype 資料</UI.Note>
             ) : view === 'table' ? (
                 <UI.DataTable caption={`${title} Synergy Playtype`} rows={rows} rowKey={(r) => r.playType}
+                    exportTitle={`Synergy Playtype（${isDef ? '防守' : '進攻'}）`}
                     initialSort={{ key: 'poss', dir: 'desc' }} columns={columns} />
             ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

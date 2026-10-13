@@ -168,7 +168,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
             {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
                 <UI.Section title="五人陣容" en="Lineups" accent="blue" sub="預設依總上場分鐘排序，點欄位標題可改排序（效率值為每 100 回合，整季快照）">
-                    <UI.DataTable caption="五人陣容進階數據" rows={lineups}
+                    <UI.DataTable caption="五人陣容進階數據" rows={lineups} exportTitle="五人陣容"
                         initialSort={{ key: 'MIN', dir: 'desc' }} rowKey={(r) => r.players}
                         columns={[
                             { key: 'players', label: '陣容', align: 'left',

@@ -35,6 +35,7 @@ const RadarPanel = ({ series, viewSide }) => {
         return valid.length >= 3 ? valid : DEFAULTS.filter(k => catMap[k]);
     });
     const [editing, setEditing] = useState(false);
+    const chartRef = React.useRef(null);
 
     const getVal = (c, s) => {
         if (!c) return null;
@@ -64,7 +65,11 @@ const RadarPanel = ({ series, viewSide }) => {
         <div className="flex flex-col items-center border border-white/10 p-3">
             <div className="w-full flex justify-between items-center px-2 mt-1">
                 <h3 className="text-[13px] font-medium text-slate-200">{viewSide === 'offensive' ? '進攻雷達網' : '防守雷達網'}</h3>
+                <span className="flex items-center gap-2">
+                <window.UI.ExportMenu title={viewSide === 'offensive' ? '進攻雷達' : '防守雷達'} getNode={() => chartRef.current}
+                    csv={() => ({ header: ['軸', ...series.map(s => s.label)], rows: axes.map(k => { const c = catMap[k]; return [c ? axisName(c) : k, ...series.map(s => { const v = getVal(c, s); return v == null ? '' : v; })]; }) })} />
                 <button onClick={() => setEditing(e => !e)} className="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-slate-400 hover:text-slate-100">自訂軸</button>
+                </span>
             </div>
 
             {editing && (
@@ -83,6 +88,7 @@ const RadarPanel = ({ series, viewSide }) => {
                 </div>
             )}
 
+            <div ref={chartRef} className="w-full">
             {RadarChart && ResponsiveContainer ? (
                 <div className="w-full h-[240px] sm:h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -113,6 +119,8 @@ const RadarPanel = ({ series, viewSide }) => {
                     ))}
                 </div>
             )}
+
+            </div>
 
             {/* 自選指標比較表（數值精確） */}
             {series.length > 1 && (

@@ -14,6 +14,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     const [group, setGroup] = useState('dist');
     const [openKey, setOpenKey] = useState(null);
     const [gran, setGran] = useState('game');
+    const shootLedgerRef = React.useRef(null);   // 匯出命中率格用（hook 須在提早 return 之前）
 
     const idPart = teamMode ? 'TEAM' : playerId;
 
@@ -139,8 +140,14 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 
             <UI.Section title={`${groupInfo[1]}命中率`} en={`FG% by ${groupInfo[2]}`} accent="green"
                 sub={`${periodLabel}（${periodTotal} 出手，vs 全季 ${allShots.length}）· 大字＝命中率，箭頭為 vs 全季 · 小字＝出手數／佔比 · 點格子看趨勢`}
-                right={<UI.Seg ariaLabel="分組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenKey(null); }}
-                    options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />}>
+                right={<>
+                    <UI.ExportMenu title={`${groupInfo[1]}命中率（${periodLabel}）`} getNode={() => shootLedgerRef.current}
+                        csv={() => ({ header: [groupInfo[1], '原文', `${periodLabel}命中率%`, `${periodLabel}出手`, '全季命中率%', '全季出手'],
+                            rows: items.map(it => { const p = calc(periodShots, it.fn), a = calc(allShots, it.fn); return [it.label, it.en || '', p.pct == null ? '' : p.pct, p.fga, a.pct == null ? '' : a.pct, a.fga]; }) })} />
+                    <UI.Seg ariaLabel="分組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenKey(null); }}
+                        options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />
+                </>}>
+                <div ref={shootLedgerRef}>
                 <UI.Ledger cols={UI.ledgerCols(items.length)}>
                     {items.map(it => {
                         const p = calc(periodShots, it.fn), a = calc(allShots, it.fn);
@@ -162,6 +169,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                         );
                     })}
                 </UI.Ledger>
+                </div>
 
                 {/* 趨勢折線 */}
                 {openItem && TrendChart && (
@@ -171,7 +179,8 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                             <UI.Seg ariaLabel="趨勢粒度" size="sm" value={gran} onChange={setGran}
                                 options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
                         </div>
-                        <TrendChart points={trendPts} baseline={trendBaseline} />
+                        <TrendChart points={trendPts} baseline={trendBaseline}
+                            title={`${openItem.label}命中率趨勢（${gran === 'game' ? '逐場' : gran === 'week' ? '每週' : '每月'}）`} />
                     </div>
                 )}
             </UI.Section>

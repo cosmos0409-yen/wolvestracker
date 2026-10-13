@@ -6,7 +6,7 @@
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
 //   Seg       膠囊分段切換（aria-pressed）
 //   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
-//   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js）、toast
+//   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js）、toast、ExportMenu/exportCSV/exportPNG（匯出）
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
     // 「切入次數 (Drives)」→ ['切入次數', 'Drives']；沒有括號就整串當中文
@@ -134,6 +134,129 @@ window.UI = (function () {
     };
 
     // gkey：glossary 的 key（顯示「?」定義）；citeAsOf：'snap' 快照日 / 'agg' 截至日 / 'none'；citeNote：期間或場次等補充
+    // ── 匯出：CSV 與 PNG 專欄配圖 ──
+    const slug = (s) => String(s || '').replace(/[\\/:*?"<>|\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const fileName = (title, ext) => {
+        const c = window.CiteCtx || {};
+        const when = c.isHistory ? '期末' : (c.asOfSnap || '');
+        return ['wolves-ledger', slug(c.subject), slug(c.season), slug(title), slug(when)].filter(Boolean).join('_') + '.' + ext;
+    };
+    const download = (href, name) => {
+        const a = document.createElement('a'); a.href = href; a.download = name;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { if (href.startsWith('blob:')) URL.revokeObjectURL(href); a.remove(); }, 1500);
+    };
+    const provenance = (title) => {
+        const c = window.CiteCtx || {};
+        return [`Wolves Ledger`, title, c.subject, c.season, c.isHistory ? '期末快照' : (c.asOfSnap ? `截至 ${c.asOfSnap}` : null), '資料：NBA.com Stats／Synergy']
+            .filter(Boolean).join('｜');
+    };
+    // CSV：第一列為出處說明，空一列後才是表頭；加 UTF-8 BOM 讓 Excel 正確顯示中文
+    const exportCSV = ({ title, header, rows }) => {
+        const esc = (v) => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = [[provenance(title)], [], header, ...rows].map(r => r.map(esc).join(','));
+        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        download(URL.createObjectURL(blob), fileName(title, 'csv'));
+        toast(`已匯出 CSV：${title}`);
+    };
+
+    // PNG：html-to-image 只在第一次匯出時才載入（鎖定版本），平常不影響載入速度
+    const H2I_SRC = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js';
+    let h2iPromise = null;
+    const loadH2I = () => {
+        if (window.htmlToImage) return Promise.resolve();
+        if (!h2iPromise) h2iPromise = new Promise((res, rej) => {
+            const s = document.createElement('script'); s.src = H2I_SRC; s.onload = res;
+            s.onerror = () => { h2iPromise = null; rej(new Error('圖片匯出模組載入失敗')); };
+            document.head.appendChild(s);
+        });
+        return h2iPromise;
+    };
+    // 把目標節點複製到固定尺寸的配圖版面（字標＋標題＋圖＋出處），等比縮放置中後輸出 PNG。
+    // 不放 NBA Logo／頭像：跨網域圖片會讓畫布無法輸出，也避免在配圖上使用官方商標
+    const exportPNG = async (node, { title, ratio = '16:9' }) => {
+        if (!node) return;
+        const [W, H] = ratio === '1:1' ? [1080, 1080] : [1600, 900];
+        const c = window.CiteCtx || {};
+        toast('正在產生圖片…');
+        try {
+            await loadH2I();
+            // 外層 holder 負責藏到畫面外；frame 本身只用一般定位——html-to-image 會把根節點的計算後樣式一起複製，
+            // 若 frame 自己是 position:fixed + 負座標，內容會被畫到圖片外，輸出整張空白（實測踩過）
+            const holder = document.createElement('div');
+            holder.style.cssText = 'position:fixed;left:-30000px;top:0;pointer-events:none;';
+            const frame = document.createElement('div');
+            frame.style.cssText = `position:relative;width:${W}px;height:${H}px;box-sizing:border-box;padding:52px 60px 40px;display:flex;flex-direction:column;background:#0A1626;color:#F8FAFC;font-family:'Noto Sans TC',system-ui,sans-serif;`;
+            holder.appendChild(frame);
+            const when = c.isHistory ? '期末快照' : (c.asOfSnap ? `截至 ${c.asOfSnap}` : '');
+            frame.innerHTML = `
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:18px;">
+                    <div style="min-width:0;">
+                        <div style="font-family:'Barlow Condensed','Noto Sans TC',sans-serif;font-weight:700;font-size:${ratio === '1:1' ? 46 : 52}px;line-height:1.05;letter-spacing:.01em;"></div>
+                        <div style="margin-top:8px;font-size:20px;color:#C4CED2;"></div>
+                    </div>
+                    <div style="flex:none;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:26px;letter-spacing:.06em;text-transform:uppercase;">WOLVES <span style="color:#12A150;">LEDGER</span></div>
+                </div>
+                <div data-body style="position:relative;flex:1;min-height:0;margin-top:28px;"></div>
+                <div style="display:flex;justify-content:space-between;gap:24px;margin-top:20px;border-top:1px solid rgba(255,255,255,.1);padding-top:14px;font-family:'JetBrains Mono',monospace;font-size:15px;color:#8A99A8;">
+                    <span>資料：NBA.com Stats／Synergy</span><span></span>
+                </div>`;
+            // 文字一律用 textContent 寫入（標題含球員名等資料，不可當 HTML 解析）
+            frame.children[0].children[0].children[0].textContent = title;
+            frame.children[0].children[0].children[1].textContent = [c.subject, c.season, when].filter(Boolean).join('　·　');
+            frame.children[2].children[1].textContent = `${location.host}${location.pathname}`;
+            const body = frame.querySelector('[data-body]');
+            const clone = node.cloneNode(true);
+            clone.querySelectorAll('[aria-label="複製引用"],[aria-label="指標定義"],[data-export-hide]').forEach(el => el.remove());
+            clone.style.width = node.offsetWidth + 'px';
+            clone.style.position = 'absolute'; clone.style.left = '0'; clone.style.top = '0';
+            clone.style.transformOrigin = 'top left';
+            body.appendChild(clone);
+            document.body.appendChild(holder);
+            const bw = body.clientWidth, bh = body.clientHeight;
+            const cw = clone.scrollWidth, ch = clone.scrollHeight;
+            const k = Math.min(bw / cw, bh / ch, 2.2);
+            clone.style.transform = `scale(${k})`;
+            clone.style.left = Math.max(0, (bw - cw * k) / 2) + 'px';
+            clone.style.top = Math.max(0, (bh - ch * k) / 2) + 'px';
+            if (document.fonts && document.fonts.ready) await document.fonts.ready;
+            const url = await window.htmlToImage.toPng(frame, { width: W, height: H, pixelRatio: 1, backgroundColor: '#0A1626' });
+            holder.remove();
+            download(url, fileName(title, 'png').replace('.png', `_${ratio.replace(':', 'x')}.png`));
+            toast(`已匯出圖片（${ratio}）：${title}`);
+        } catch (e) {
+            console.error('export png failed', e);
+            toast(`圖片匯出失敗：${e.message || e}`);
+            document.querySelectorAll('body > div[style*="-30000px"]').forEach(el => el.remove());
+        }
+    };
+
+    // 匯出選單：CSV（有 csv 時）＋ PNG 16:9 / 1:1。getNode 回傳要輸出成圖的 DOM 節點
+    const ExportMenu = ({ title, getNode, csv }) => {
+        const [open, setOpen] = React.useState(false);
+        const ref = React.useRef(null);
+        React.useEffect(() => {
+            if (!open) return;
+            const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+            document.addEventListener('mousedown', off);
+            return () => document.removeEventListener('mousedown', off);
+        }, [open]);
+        const item = 'block w-full px-3 py-2 text-left text-[12px] text-slate-200 hover:bg-white/[0.06]';
+        return (
+            <span ref={ref} className="relative inline-flex" data-export-hide>
+                <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}
+                    className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-400 hover:border-white/30 hover:text-slate-100">匯出 ▾</button>
+                {open && (
+                    <span role="menu" className="absolute right-0 top-8 z-40 block w-44 border border-white/15 bg-[#0C1A2E] py-1 shadow-2xl">
+                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '16:9' }); }}>配圖 PNG · 16:9</button>}
+                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '1:1' }); }}>配圖 PNG · 1:1</button>}
+                        {csv && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportCSV({ title, ...csv() }); }}>表格 CSV（Excel）</button>}
+                    </span>
+                )}
+            </span>
+        );
+    };
+
     const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote }) => {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
@@ -179,8 +302,10 @@ window.UI = (function () {
         : 'grid-cols-2 sm:grid-cols-4';
 
     // columns: [{ key, label, en, align:'left'|'right', render(row), sortValue(row), cellClass(row) }]
-    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption }) => {
+    // exportTitle：給了就在表格右上加「匯出」（PNG 配圖＋CSV）；CSV 值取 c.csv(r)，否則取 r[c.key] 原始值
+    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption, exportTitle }) => {
         const [sort, setSort] = React.useState(initialSort);   // { key, dir: 'asc'|'desc' }
+        const wrapRef = React.useRef(null);
         const colOf = (k) => columns.find(c => c.key === k);
         const sorted = React.useMemo(() => {
             if (!sort) return rows;
@@ -198,8 +323,16 @@ window.UI = (function () {
         const toggle = (k) => setSort(s => (s && s.key === k)
             ? { key: k, dir: s.dir === 'desc' ? 'asc' : 'desc' }
             : { key: k, dir: colOf(k).align === 'left' ? 'asc' : 'desc' });
+        const csv = () => ({
+            header: columns.map(c => c.en ? `${c.label} ${c.en}` : c.label),
+            rows: sorted.map(r => columns.map(c => c.csv ? c.csv(r) : (typeof r[c.key] === 'number' || typeof r[c.key] === 'string' ? r[c.key] : ''))),
+        });
         return (
-            <div className="overflow-x-auto border-t border-white/[0.08]">
+            <div>
+            {exportTitle && (
+                <div className="mb-2 flex justify-end"><ExportMenu title={exportTitle} getNode={() => wrapRef.current} csv={csv} /></div>
+            )}
+            <div ref={wrapRef} className="overflow-x-auto border-t border-white/[0.08]">
                 <table className="w-full text-sm border-collapse">
                     {caption && <caption className="sr-only">{caption}</caption>}
                     <thead>
@@ -237,6 +370,7 @@ window.UI = (function () {
                         ))}
                     </tbody>
                 </table>
+            </div>
             </div>
         );
     };
@@ -288,5 +422,5 @@ window.UI = (function () {
     );
     const selectClass = (active) => `shrink-0 rounded-full border bg-[#0A1626] px-3 py-1 text-xs focus:outline-none focus:border-[#12A150] ${active ? 'border-[#12A150] text-slate-50' : 'border-white/15 text-slate-400'}`;
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info };
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
 })();

@@ -16,6 +16,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
     const [openGroup, setOpenGroup] = useState(null);
     const [trendMetric, setTrendMetric] = useState(null);
     const [gran, setGran] = useState('game');
+    const ledgerRef = React.useRef(null);
 
     if (!games) return <div className="py-10 text-center text-sm text-slate-500 animate-pulse">載入單場資料中…</div>;
     if (!games.length) return <window.UI.Note>此賽季尚無單場資料（Splits 需要逐場資料）</window.UI.Note>;
@@ -107,8 +108,16 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
 
             <UI.Section title={periodLabel} en="Splits" accent="green"
                 sub={`${periodAgg.GP} 場，vs 全季 ${seasonAgg.GP} 場 · 箭頭＝此期間 vs 全季平均 · 百分比以 Σ命中 ÷ Σ出手 重算 · 點群組看趨勢`}
-                right={<UI.Seg ariaLabel="欄位組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenGroup(null); }}
-                    options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />}>
+                right={<>
+                    <UI.ExportMenu title={`Splits：${periodLabel}（${periodAgg.GP} 場）vs 全季`} getNode={() => ledgerRef.current}
+                        csv={() => ({ header: ['群組', '指標', '原文', periodLabel, '全季', '差'], rows: defs.flatMap(d => d.metrics.map(m => {
+                            const a = periodAgg[m.key], b = seasonAgg[m.key];
+                            return [d.title, m.label, m.englishLabel || '', a == null ? '' : a, b == null ? '' : b, (typeof a === 'number' && typeof b === 'number') ? +(a - b).toFixed(1) : ''];
+                        })) })} />
+                    <UI.Seg ariaLabel="欄位組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenGroup(null); }}
+                        options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />
+                </>}>
+                <div ref={ledgerRef}>
                 {periodAgg.GP === 0 ? (
                     <UI.Note>此期間沒有比賽</UI.Note>
                 ) : defs.map(def => (
@@ -127,18 +136,22 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
                                     <UI.Seg ariaLabel="趨勢粒度" size="sm" value={gran} onChange={setGran}
                                         options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
                                 </div>
-                                <TrendChart points={trendPts} baseline={trendBaseline} />
+                                <TrendChart points={trendPts} baseline={trendBaseline}
+                                    title={`${(def.metrics.find(m => m.key === trendMetric) || {}).label || ''}趨勢（${gran === 'game' ? '逐場' : gran === 'week' ? '每週' : '每月'}）`} />
                             </div>
                         )}
                     </div>
                 ))}
+                </div>
             </UI.Section>
         </div>
     );
 };
 
 // 簡易 SVG 折線：逐點值 + 全季均線；hover 顯示精確值、上方圖例、虛線右端標基準值
-const TrendChart = ({ points, baseline }) => {
+const TrendChart = ({ points, baseline, title }) => {
+    const UI = window.UI;
+    const chartRef = React.useRef(null);
     if (!points || points.length < 1) return <div className="py-8 text-center text-xs text-slate-500">資料不足，無法繪製趨勢</div>;
     const W = 640, H = 160, padL = 34, padR = 46, padT = 12, padB = 22; // padR 加大留基準標籤空間
     const vals = points.map(p => p.value);
@@ -151,12 +164,14 @@ const TrendChart = ({ points, baseline }) => {
     const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
     const MONO = "'JetBrains Mono', monospace";
     return (
-        <div>
+        <div ref={chartRef}>
             {/* 圖例 */}
             <div className="mb-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
                 <span className="flex items-center gap-1.5"><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" stroke="#12A150" strokeWidth="2" /></svg>逐點值</span>
                 {baseline != null && <span className="flex items-center gap-1.5"><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" stroke="#C4CED2" strokeWidth="1.5" strokeDasharray="4 3" /></svg>全季平均 {baseline}</span>}
-                <span className="text-slate-600">滑鼠移到點看數值</span>
+                <span className="text-slate-600" data-export-hide>滑鼠移到點看數值</span>
+                {title && <span className="ml-auto"><UI.ExportMenu title={title} getNode={() => chartRef.current}
+                    csv={() => ({ header: ['期間', '數值', '全季平均'], rows: points.map(p => [p.label, p.value, baseline == null ? '' : baseline]) })} /></span>}
             </div>
             <div className="overflow-x-auto">
                 <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }} role="img" aria-label="趨勢折線圖">
