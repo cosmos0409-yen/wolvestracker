@@ -170,13 +170,19 @@ const App = () => {
                 setSnapError(`${which}：${err.code || err.message || err}`);
                 setCurSnapReceived(true);
             };
+            // 連不上伺服器時，Firestore 會先丟一個「本機快取的空結果」（fromCache=true）。
+            // 不可當真：否則斷網會被顯示成「當季尚無快照資料」，誤導成資料庫真的沒資料。
+            // 略過它、維持載入中，等伺服器真正回應（或 onErr）
+            const offlineEmpty = (snapshot) => snapshot.empty && snapshot.metadata && snapshot.metadata.fromCache;
             const unsubA = onSnapshot(recent("wolves_team_stats"), (snapshot) => {
+                if (offlineEmpty(snapshot)) return;
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setTeamHistory(data);
                 setCurSnapReceived(true);
             }, onErr('wolves_team_stats'));
             const unsubB = onSnapshot(recent("wolves_player_stats"), (snapshot) => {
+                if (offlineEmpty(snapshot)) return;
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setPlayerHistory(data);
@@ -590,36 +596,22 @@ const App = () => {
     const showSkeleton = !noCurrentSnapshots
         && (historyLoading || (teamHistory.length === 0 && playerHistory.length === 0 && isCloud));
 
+    // 載入骨架：與新版「區塊標題 + 細線數據表」同形狀，載入完成時版面不跳動
     const SkeletonBlock = () => (
-        <div className="min-w-0 space-y-6 animate-pulse">
-            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
-                <div className="h-6 w-56 bg-slate-800 rounded mb-6"></div>
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/60">
-                            <div className="h-3 w-20 bg-slate-800 rounded mb-3"></div>
-                            <div className="h-8 w-16 bg-slate-800 rounded mb-4"></div>
-                            <div className="h-3 w-full bg-slate-800 rounded"></div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
-                <div className="h-6 w-40 bg-slate-800 rounded mb-6"></div>
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="mb-4 bg-[#1a202c] border border-slate-800 rounded-xl overflow-hidden">
-                        <div className="bg-slate-900/80 h-8 border-b border-slate-800"></div>
-                        <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {Array.from({ length: 4 }).map((_, j) => (
-                                <div key={j} className="p-3 bg-slate-800/50 rounded border border-slate-700">
-                                    <div className="h-3 w-12 bg-slate-700 rounded mb-2"></div>
-                                    <div className="h-5 w-14 bg-slate-700 rounded"></div>
-                                </div>
-                            ))}
-                        </div>
+        <div className="min-w-0 space-y-10 animate-pulse" aria-label="載入中">
+            {[6, 8].map((n, k) => (
+                <div key={k}>
+                    <div className="mb-4 border-b border-white/15 pb-2.5"><div className="h-5 w-40 bg-white/[0.08]"></div></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-l border-white/[0.08]">
+                        {Array.from({ length: n }).map((_, i) => (
+                            <div key={i} className="border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3">
+                                <div className="h-2.5 w-14 bg-white/[0.08]"></div>
+                                <div className="mt-3 h-6 w-16 bg-white/[0.08]"></div>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </div>
+            ))}
         </div>
     );
 
@@ -673,13 +665,13 @@ const App = () => {
 
     // 疊加比較 chips（搬到雷達圖下方）
     const compareChipsUI = (
-        <div className="w-full space-y-2 mt-2">
+        <div className="w-full space-y-5">
             <div>
                 <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] text-slate-400 font-bold">疊加比較（賽季）</label>
+                    <label className="text-[12px] font-medium text-slate-300">疊加比較 · 賽季</label>
                     <span className="text-[10px] text-slate-500">{compareKeys.length}/{MAX_COMPARE}</span>
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                     {SEASON_OPTIONS.filter(o => !o.isCurrent && o.key !== selectedSeasonKey).map((o) => {
                         const active = compareKeys.includes(o.key);
                         const chipColor = active ? COMPARE_COLORS[compareKeys.indexOf(o.key) % COMPARE_COLORS.length] : null;
@@ -687,7 +679,7 @@ const App = () => {
                         return (
                             <button key={o.key} onClick={() => toggleCompareKey(o.key)} disabled={disabled}
                                 style={active ? { borderColor: chipColor, color: chipColor } : {}}
-                                className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                                className={`rounded-full border px-3 py-1 text-xs transition-colors ${active ? 'bg-white/[0.04] font-medium' : disabled ? 'border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/15 text-slate-400 hover:border-white/30 hover:text-slate-100'}`}>
                                 {o.label}
                             </button>
                         );
@@ -697,10 +689,10 @@ const App = () => {
             {viewMode === 'PLAYER' && !isHistoryMode && availablePlayers.length > 1 && (
                 <div>
                     <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] text-slate-400 font-bold">比較球員</label>
+                        <label className="text-[12px] font-medium text-slate-300">疊加比較 · 同季隊友</label>
                         <span className="text-[10px] text-slate-500">{comparePlayers.filter(n => n !== selectedPlayer).length}/{MAX_COMPARE}</span>
                     </div>
-                    <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5">
                         {availablePlayers.filter(n => n !== selectedPlayer).map(name => {
                             const active = comparePlayers.includes(name);
                             const chipColor = active ? COMPARE_COLORS[(compareKeys.length + comparePlayers.filter(n => n !== selectedPlayer).indexOf(name)) % COMPARE_COLORS.length] : null;
@@ -708,7 +700,7 @@ const App = () => {
                             return (
                                 <button key={name} onClick={() => toggleComparePlayer(name)} disabled={disabled}
                                     style={active ? { borderColor: chipColor, color: chipColor } : {}}
-                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${active ? 'bg-slate-950 font-bold' : disabled ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}>
+                                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${active ? 'bg-white/[0.04] font-medium' : disabled ? 'border-white/10 text-slate-600 cursor-not-allowed' : 'border-white/15 text-slate-400 hover:border-white/30 hover:text-slate-100'}`}>
                                     {name}
                                 </button>
                             );
@@ -850,7 +842,7 @@ const App = () => {
             <main className="max-w-7xl mx-auto px-4 md:px-6 pt-6 space-y-6">
                     {/* Right Content */}
                     {noCurrentSnapshots ? (
-                        <div className="min-w-0 border border-amber-500/40 bg-amber-500/5 rounded-xl p-6">
+                        <div className="min-w-0 border border-amber-500/30 bg-amber-500/[0.06] p-6">
                             {snapError ? (<>
                                 <p className="text-amber-300 font-bold mb-2">當季快照讀取失敗</p>
                                 <p className="text-slate-400 text-sm leading-relaxed">
@@ -887,7 +879,7 @@ const App = () => {
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
-                                radarSlot={radarSlot}
+                                radarSlot={radarSlot} stats={currentStats}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                             />
                         )}
@@ -903,7 +895,7 @@ const App = () => {
                         {/* 投籃（逐球 shotchart → 距離/分區/出手方式卡片 + 受助攻 + 篩選熱圖 + 趨勢） */}
                         {activeTab === 'shooting' && window.ShootingTab && (
                             (viewMode === 'PLAYER' && !currentPlayerId)
-                                ? <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">請先選擇球員</div>
+                                ? <window.UI.Note>請先從頭像列選一位球員</window.UI.Note>
                                 : <window.ShootingTab
                                     playerId={viewMode === 'TEAM' ? 0 : currentPlayerId} teamMode={viewMode === 'TEAM'}
                                     season={shootSeason} typeKey={shootType}
@@ -914,26 +906,28 @@ const App = () => {
 
                         {/* 防守 */}
                         {activeTab === 'defense' && (
-                            <div className="space-y-6">
+                            <div className="space-y-10">
                                 {hasDefenseData ? (
-                                    <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-red-500">
-                                        <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-6">防守數據 (Defense)</h2>
+                                    <window.UI.Section title="防守數據" en="Defense" accent="red"
+                                        sub={`${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
                                         {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
                                                 metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
                                                 naReason={def.id === 'MatchupDefense' ? naCrossTeam : null} />
                                         ))}
-                                    </div>
+                                    </window.UI.Section>
                                 ) : (
-                                    <div className="px-4 py-3 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-2">
-                                        <span>{defenseMissing ? defenseMissing.msg : '此賽季無防守數據'}</span>
-                                        {defenseMissing && defenseMissing.jumpDate && (
-                                            <button onClick={() => setSelectedDate(defenseMissing.jumpDate)}
-                                                className="px-2.5 py-1 text-xs font-bold rounded border border-[#12A150]/50 text-[#12A150] hover:bg-[#12A150]/10">
-                                                改看 {defenseMissing.jumpDate}
-                                            </button>
-                                        )}
-                                    </div>
+                                    <window.UI.Note>
+                                        <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                                            <span>{defenseMissing ? defenseMissing.msg : '此賽季無防守數據'}</span>
+                                            {defenseMissing && defenseMissing.jumpDate && (
+                                                <button onClick={() => setSelectedDate(defenseMissing.jumpDate)}
+                                                    className="rounded-full border border-[#12A150]/50 px-3 py-1 text-xs text-[#12A150] hover:bg-[#12A150]/10">
+                                                    改看 {defenseMissing.jumpDate}
+                                                </button>
+                                            )}
+                                        </span>
+                                    </window.UI.Note>
                                 )}
                                 {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && (
                                     <window.DefenseHeatmap defense={currentDefense} />
@@ -941,28 +935,16 @@ const App = () => {
                             </div>
                         )}
 
-                        {/* Playtype（Synergy 卡片牆，受攻守切換控制） */}
-                        {activeTab === 'playtype' && (
-                            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 flex-grow">
-                                        {viewMode === 'PLAYER' ? selectedPlayer + selTag : '團隊'} - Synergy PlayType ({viewSide === 'offensive' ? '進攻' : '防守'})
-                                    </h2>
-                                </div>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {PlayTypesList.map(type => {
-                                        const stat = currentStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide);
-                                        const prevStat = prevStats ? prevStats.find(s => s.playType === type && (s.side || 'offensive') === viewSide) : null;
-                                        return <PlayTypeCard key={type} type={type} current={stat} prev={prevStat} onClick={setSelectedCard} side={viewSide} />;
-                                    })}
-                                </div>
-                            </div>
+                        {/* Playtype（Synergy 式表格／卡片，受攻守切換控制） */}
+                        {activeTab === 'playtype' && window.PlaytypeSection && (
+                            <window.PlaytypeSection title={viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'}
+                                stats={currentStats} prevStats={prevStats} side={viewSide} onOpen={setSelectedCard} />
                         )}
 
                         {/* 跨季比較 */}
                         {activeTab === 'comparison' && window.ComparisonTab && (
                             (viewMode === 'PLAYER' && !selectedPlayer)
-                                ? <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">請先選擇球員</div>
+                                ? <window.UI.Note>請先從頭像列選一位球員</window.UI.Note>
                                 : <window.ComparisonTab
                                     viewMode={viewMode} selectedPlayer={selectedPlayer}
                                     seasons={comparisonSeasons} loadSeason={loadHistoryByDocId}
@@ -975,7 +957,7 @@ const App = () => {
             {selectedCard && <window.HistoryModal
                 cardInfo={selectedCard} onClose={() => setSelectedCard(null)}
                 viewMode={viewMode} viewSide={viewSide} selectedPlayer={selectedPlayer} playerTag={selTag}
-                isHistoryMode={isHistoryMode}
+                isHistoryMode={isHistoryMode} seasonTypeView={seasonTypeView}
                 history={viewMode === 'TEAM' ? teamHistory : playerHistory} />}
 
             {window.CommandPalette && <window.CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />}

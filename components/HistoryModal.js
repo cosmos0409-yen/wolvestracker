@@ -4,8 +4,8 @@
 //
 // 相依一律走 props / window，不在檔案頂層宣告任何東西——bundle 是單一 script scope，
 // 與 App.js 頂層的 `const { useState, useEffect, useMemo } = React` 重複宣告會讓整包 SyntaxError。
-const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history, playerTag = '' }) => {
-    const { useState, useMemo } = React;
+const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, isHistoryMode, history, playerTag = '', seasonTypeView }) => {
+    const { useState, useMemo, useEffect } = React;
     const Icons = window.Icons;
     const { SimpleLineChart, MultiLineChart } = window;
     const trackingDefs = window.trackingDefs || [];
@@ -18,11 +18,19 @@ const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, i
     const [recentCount, setRecentCount] = useState(10);
     const [dateStart, setDateStart] = useState('');
     const [dateEnd, setDateEnd] = useState('');
+    // 歷史模式 'all'；當季沿用刊頭選的賽別（舊版用今天日期判斷，休賽期會誤設成例行賽）
     const [seasonTypeFilter, setSeasonTypeFilter] = useState(() => {
         if (isHistoryMode) return 'all';
+        if (seasonTypeView) return seasonTypeView === 'playoffs' ? '季後賽' : '例行賽';
         const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
         return phase.type === 'playoffs' ? '季後賽' : '例行賽';
-    }); // 歷史模式 'all'，當季依日期預設
+    });
+    // Esc 關閉
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
     const targetHistory = history || [];
     // tracking 類卡片的資料來源欄位（'tracking' | 'shooting' | 'clutch'）
@@ -61,87 +69,90 @@ const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, i
 
     let title = "", cols = [];
     if (cardInfo.type === 'playtype') {
-        title = `${cardInfo.id} (${viewSide === 'offensive' ? '進攻' : '防守'})`;
-        cols = [{ k: 'ppp', l: 'PPP' }, { k: 'fgPct', l: 'FG%' }, { k: 'percentile', l: 'Percentile' }, { k: 'poss', l: 'Poss' }];
+        title = `${cardInfo.id}（${viewSide === 'offensive' ? '進攻' : '防守'}） (Synergy Playtype)`;
+        cols = [{ k: 'ppp', l: 'PPP', e: 'PPP' }, { k: 'fgPct', l: '命中率', e: 'FG%' }, { k: 'percentile', l: '聯盟百分位', e: 'Percentile' }, { k: 'poss', l: '每場球權', e: 'Poss/G' }];
     } else {
         const def = [...trackingDefs, ...shootingDefs, ...clutchDefs, ...defenseDefs, ...oppZonesDefs].find(t => t.id === cardInfo.id);
         title = def?.title || cardInfo.id;
-        cols = def ? def.metrics.map(m => ({ k: m.key, l: m.label })) : [];
+        cols = def ? def.metrics.map(m => ({ k: m.key, l: m.label, e: m.englishLabel })) : [];
     }
 
+    const UI = window.UI;
+    const [zh, en] = UI.splitTitle(title);
+    const subject = viewMode === 'PLAYER' ? selectedPlayer + playerTag : '全隊';
+
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 fade-in">
-            <div className="bg-slate-950 rounded-xl sm:rounded-2xl border border-slate-700 w-full max-w-full sm:max-w-2xl shadow-2xl overflow-hidden max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-                <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
-                    <h3 className="text-lg font-bold text-white">
-                        {viewMode === 'PLAYER' ? selectedPlayer + playerTag : '球隊'} - {title} 當季走勢
-                    </h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white"><Icons.X /></button>
-                </div>
-
-                <div className="p-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-3">
-                    <div className="flex bg-slate-800 rounded p-1">
-                        {[5, 10, 20, 'ALL'].map(count => (
-                            <button key={count} onClick={() => { setFilterMode('recent'); setRecentCount(count); setDateStart(''); setDateEnd(''); }} className={`px-3 py-1 text-xs rounded transition-colors ${filterMode === 'recent' && recentCount === count ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
-                                {count === 'ALL' ? '全部' : `近${count}場`}
-                            </button>
-                        ))}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4" onMouseDown={onClose}>
+            <div role="dialog" aria-modal="true" aria-labelledby="history-modal-title" onMouseDown={e => e.stopPropagation()}
+                className="flex max-h-[95vh] w-full max-w-full flex-col overflow-hidden border border-white/15 bg-[#0C1A2E] shadow-2xl sm:max-h-[90vh] sm:max-w-3xl">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                    <div className="min-w-0">
+                        <p className="font-mono text-[11px] text-slate-500">{subject} · 當季走勢</p>
+                        <h3 id="history-modal-title" className="mt-0.5 flex items-baseline gap-2 text-[18px] font-bold text-slate-50">
+                            {zh}{en && <span className="font-mono text-[11px] font-normal text-slate-500">{en}</span>}
+                        </h3>
                     </div>
-                    {!isHistoryMode && (<>
-                        <div className="h-6 w-px bg-slate-700 mx-1"></div>
-                        <div className="flex bg-slate-800 rounded p-1">
-                            {[
-                                { k: '例行賽', l: '例行賽' },
-                                { k: '季後賽', l: '季後賽' },
-                            ].map(opt => (
-                                <button key={opt.k} onClick={() => setSeasonTypeFilter(opt.k)} className={`px-3 py-1 text-xs rounded transition-colors ${seasonTypeFilter === opt.k ? (opt.k === '季後賽' ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'bg-[#236192] text-white font-bold shadow') : 'text-slate-400 hover:text-white'}`}>
-                                    {opt.l}
-                                </button>
-                            ))}
-                        </div>
-                    </>)}
-                    <div className="h-6 w-px bg-slate-700 mx-1"></div>
-                    <div className="flex items-center gap-2 text-xs">
-                        <input type="date" value={dateStart} onChange={(e) => { setDateStart(e.target.value); setFilterMode('range'); }} className="bg-slate-800 border border-slate-700 text-slate-300 px-2 py-1 rounded" />
-                        <span className="text-slate-500">to</span>
-                        <input type="date" value={dateEnd} onChange={(e) => { setDateEnd(e.target.value); setFilterMode('range'); }} className="bg-slate-800 border border-slate-700 text-slate-300 px-2 py-1 rounded" />
-                    </div>
+                    <button type="button" onClick={onClose} aria-label="關閉" className="shrink-0 text-slate-400 hover:text-white"><Icons.X /></button>
                 </div>
 
-                <div className="p-4 bg-slate-900/50 border-b border-slate-800">
-                    <p className="text-xs text-slate-400 flex items-center gap-2 mb-2"><Icons.BarChart className="w-3 h-3" /> 點擊下方表格標題切換折線圖（可多選疊加）</p>
-                    {chartMetrics.length === 1 && (<div className="mb-4 fade-in"><SimpleLineChart data={chartData} dataKey={chartMetrics[0]} color="#12A150" /></div>)}
-                    {chartMetrics.length >= 2 && (<div className="mb-4 fade-in"><MultiLineChart data={chartData} metrics={cols.filter(c => chartMetrics.includes(c.k)).map(c => ({ key: c.k, label: c.l }))} /></div>)}
+                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-5 py-3">
+                    <UI.Seg ariaLabel="近幾場" size="sm" value={filterMode === 'recent' ? String(recentCount) : ''}
+                        onChange={(v) => { setFilterMode('recent'); setRecentCount(v === 'ALL' ? 'ALL' : Number(v)); setDateStart(''); setDateEnd(''); }}
+                        options={[5, 10, 20, 'ALL'].map(c => ({ value: String(c), label: c === 'ALL' ? '全部' : `近 ${c} 筆` }))} />
+                    {!isHistoryMode && (
+                        <UI.Seg ariaLabel="賽別" size="sm" value={seasonTypeFilter} onChange={setSeasonTypeFilter}
+                            options={[{ value: '例行賽', label: '例行賽' }, { value: '季後賽', label: '季後賽' }]} />
+                    )}
+                    <span className="flex items-center gap-2 text-xs text-slate-500">
+                        <input type="date" aria-label="起始日" value={dateStart} onChange={(e) => { setDateStart(e.target.value); setFilterMode('range'); }} className={UI.selectClass(!!dateStart)} />
+                        ~
+                        <input type="date" aria-label="結束日" value={dateEnd} onChange={(e) => { setDateEnd(e.target.value); setFilterMode('range'); }} className={UI.selectClass(!!dateEnd)} />
+                    </span>
                 </div>
 
-                <div className="p-0 overflow-auto">
-                    <table className="w-full text-left text-sm text-slate-400">
-                        <thead className="bg-[#1e293b] text-xs font-bold text-slate-400 sticky top-0">
-                            <tr>
-                                <th className="px-6 py-3">日期</th>
-                                {cols.map(c => (
-                                    <th key={c.k} className={`px-4 py-3 cursor-pointer hover:text-white transition-colors select-none ${chartMetrics.includes(c.k) ? 'text-white border-b-2 border-[#12A150]' : ''}`} onClick={() => toggleChart(c.k)}>
-                                        {c.l}
-                                    </th>
-                                ))}
+                <div className="shrink-0 border-b border-white/10 px-5 py-3">
+                    <p className="mb-2 text-[12px] text-slate-400">點下方表格欄位標題切換折線圖（可多選疊加）· 每筆為一份快照（截至該日的累計數據）</p>
+                    {chartMetrics.length === 1 && (<SimpleLineChart data={chartData} dataKey={chartMetrics[0]} color="#12A150" />)}
+                    {chartMetrics.length >= 2 && (<MultiLineChart data={chartData} metrics={cols.filter(c => chartMetrics.includes(c.k)).map(c => ({ key: c.k, label: c.l }))} />)}
+                </div>
+
+                <div className="overflow-auto">
+                    <table className="w-full border-collapse text-sm">
+                        <caption className="sr-only">{zh} 各快照數值</caption>
+                        <thead className="sticky top-0 bg-[#0C1A2E]">
+                            <tr className="border-b border-white/15">
+                                <th scope="col" className="px-5 py-2 text-left text-[11px] font-normal text-slate-400">日期</th>
+                                {cols.map(c => {
+                                    const on = chartMetrics.includes(c.k);
+                                    return (
+                                        <th key={c.k} scope="col" className="px-3 py-2 text-right font-normal">
+                                            <button type="button" aria-pressed={on} onClick={() => toggleChart(c.k)}
+                                                className={`inline-flex flex-col items-end gap-0.5 border-b-2 pb-0.5 ${on ? 'border-[#12A150] text-slate-50' : 'border-transparent text-slate-400 hover:text-slate-100'}`}>
+                                                <span className="text-[11px] whitespace-nowrap">{c.l}</span>
+                                                {c.e && <span className="font-mono text-[10px] text-slate-500 whitespace-nowrap">{c.e}</span>}
+                                            </button>
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {displayedStats.map((item, idx) => {
-                                return (
-                                    <tr key={item.date} className="hover:bg-slate-800/70 transition-colors">
-                                        <td className="px-6 py-4 font-mono text-slate-300">{item.date}</td>
-                                        {cols.map(c => {
-                                            const val = cardInfo.type === 'playtype' ? item.stat?.[c.k] : item.tracking?.[c.k];
-                                            return <td key={c.k} className="px-4 py-4 font-mono">{val ?? '-'}</td>
-                                        })}
-                                    </tr>
-                                );
-                            })}
+                        <tbody>
+                            {displayedStats.length === 0 && (
+                                <tr><td colSpan={cols.length + 1} className="px-5 py-8 text-center text-sm text-slate-500">此篩選條件下沒有快照</td></tr>
+                            )}
+                            {displayedStats.map(item => (
+                                <tr key={item.date} className="border-b border-white/[0.06] odd:bg-white/[0.015] hover:bg-white/[0.04]">
+                                    <td className="px-5 py-2 font-mono text-[13px] text-slate-300">{item.date}</td>
+                                    {cols.map(c => {
+                                        const val = cardInfo.type === 'playtype' ? item.stat?.[c.k] : item.tracking?.[c.k];
+                                        return <td key={c.k} className={`px-3 py-2 text-right font-mono tabular-nums ${val == null ? 'text-slate-600' : 'text-slate-200'}`}>{val ?? '—'}</td>;
+                                    })}
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
-                <div className="px-5 py-2 text-[10px] text-slate-500 border-t border-slate-800">跨賽季比較請用右上「跨季」分頁</div>
+                <div className="shrink-0 border-t border-white/10 px-5 py-2 text-[11px] text-slate-500">跨賽季比較請用「跨季」章節 · Esc 關閉</div>
             </div>
         </div>
     );

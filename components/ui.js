@@ -5,6 +5,7 @@
 //   Ledger    StatCell 的容器（外框上/左線 + 每格右/下線，空位不畫線）
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
 //   Seg       膠囊分段切換（aria-pressed）
+//   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
     // 「切入次數 (Drives)」→ ['切入次數', 'Drives']；沒有括號就整串當中文
@@ -166,5 +167,37 @@ window.UI = (function () {
         </div>
     );
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg };
+    // 區塊：取代舊的「左色條大框」。accent 保留原本色條語意（攻綠/守紅/Clutch 琥珀/結構藍），縮成標題前的小色標
+    const ACCENT = { green: 'bg-[#12A150]', red: 'bg-[#EF4444]', blue: 'bg-[#236192]', amber: 'bg-amber-400', silver: 'bg-[#C4CED2]' };
+    const Section = ({ title, en, sub, right, accent, children, className = '' }) => (
+        <section className={className}>
+            <header className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-white/15 pb-2.5">
+                <div className="min-w-0">
+                    <h2 className="flex items-baseline gap-2 text-[20px] font-bold leading-tight text-slate-50">
+                        {accent && <span className={`inline-block h-3.5 w-1 shrink-0 ${ACCENT[accent] || ACCENT.silver}`} aria-hidden="true"></span>}
+                        <span>{title}</span>
+                        {en && <span className="font-mono text-[11px] font-normal text-slate-500">{en}</span>}
+                    </h2>
+                    {sub && <p className="mt-1 text-[12px] leading-relaxed text-slate-400">{sub}</p>}
+                </div>
+                {right && <div className="flex shrink-0 flex-wrap items-center gap-2">{right}</div>}
+            </header>
+            {children}
+        </section>
+    );
+    // 空狀態／提示（取代各處 bg-slate-800/50 圓角提示框）
+    const Note = ({ children, tone = 'muted' }) => (
+        <div className={`border px-4 py-3 text-sm ${tone === 'warn' ? 'border-amber-500/30 bg-amber-500/[0.06] text-amber-200' : 'border-white/10 bg-white/[0.02] text-slate-400'}`}>{children}</div>
+    );
+
+    // 篩選膠囊（期間篩選列等）與同風格下拉
+    const Chip = ({ active, onClick, children, title }) => (
+        <button type="button" aria-pressed={!!active} onClick={onClick} title={title}
+            className={`shrink-0 rounded-full border px-3 py-1 text-xs whitespace-nowrap transition-colors ${active ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:border-white/30 hover:text-slate-100'}`}>
+            {children}
+        </button>
+    );
+    const selectClass = (active) => `shrink-0 rounded-full border bg-[#0A1626] px-3 py-1 text-xs focus:outline-none focus:border-[#12A150] ${active ? 'border-[#12A150] text-slate-50' : 'border-white/15 text-slate-400'}`;
+
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass };
 })();

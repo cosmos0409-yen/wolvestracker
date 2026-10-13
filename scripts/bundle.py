@@ -42,6 +42,7 @@ ORDER = [
     "constants.js",
     "MetricComponents.js",
     "PlayTypeCard.js",
+    "PlaytypeSection.js",
     "TrackingCardRow.js",
     "ShotChart.js",
     "DefenseHeatmap.js",

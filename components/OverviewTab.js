@@ -1,25 +1,28 @@
-// 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
-//   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
+// 總覽章節：季平均（扣掉身分列已顯示的 4 項）＋ Playtype 強弱項 ＋ 雷達 ＋ On/Off（球員）＋ Clutch ＋ Lineups（球隊）＋ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null }) => {
+// stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [] }) => {
     const GA = window.GameAgg;
+    const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
-    const TrackingCardRow = window.TrackingCardRow;
     const SingleGamePanel = window.SingleGamePanel;
 
-    // 摘要卡欄位（NBA.com traditional 主體）
+    // 季平均欄位（NBA.com traditional 主體）。身分列已顯示的不重複列出：
+    //   球隊身分列 = PTS/REB/AST/+-；球員身分列 = PTS/REB/AST/FG%（見 IdentityBar.js 的 FIELDS）
     const SUMMARY = [
-        { key: 'PTS', label: '得分', en: 'PPG' },
-        { key: 'REB', label: '籃板', en: 'RPG' },
-        { key: 'AST', label: '助攻', en: 'APG' },
-        { key: 'STL', label: '抄截', en: 'SPG' },
-        { key: 'BLK', label: '阻攻', en: 'BPG' },
+        { key: 'PTS', label: '得分', en: 'PTS' },
+        { key: 'REB', label: '籃板', en: 'REB' },
+        { key: 'AST', label: '助攻', en: 'AST' },
+        { key: 'STL', label: '抄截', en: 'STL' },
+        { key: 'BLK', label: '阻攻', en: 'BLK' },
         { key: 'FG_PCT', label: '命中率', en: 'FG%', pct: true },
-        { key: 'FG3_PCT', label: '三分%', en: '3P%', pct: true },
-        { key: 'FT_PCT', label: '罰球%', en: 'FT%', pct: true },
+        { key: 'FG3_PCT', label: '三分命中率', en: '3P%', pct: true },
+        { key: 'FT_PCT', label: '罰球命中率', en: 'FT%', pct: true },
         { key: 'TOV', label: '失誤', en: 'TOV' },
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
     ];
+    const IN_IDENTITY = viewMode === 'TEAM' ? ['PTS', 'REB', 'AST', 'PLUS_MINUS'] : ['PTS', 'REB', 'AST', 'FG_PCT'];
+    const summary = SUMMARY.filter(s => !IN_IDENTITY.includes(s.key));
 
     // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base
     const bundleAgg = (games && games.length) ? GA.seasonToDate(games, untilDate, null, 'TEAM') : null;
@@ -27,70 +30,101 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     const agg = (bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg;
     const loadingAvg = games === null && !baseAgg;
 
-    // On/Off（球員快照）
-    const onoff = viewMode === 'PLAYER' ? (snapshotOnoff || {}) : null;
-    const hasOnoff = onoff && typeof onoff.ON_NET_RATING === 'number';
-
-    // Clutch 卡（快照，無資料整卡隱藏）
-    const clutchEntity = snapshotClutch || {};
-    const hasClutch = clutchDefs[0] && clutchDefs[0].metrics.some(m => clutchEntity[m.key] !== undefined);
-
-    const fmt = (v, s) => {
-        if (typeof v !== 'number') return '—';
-        if (s.pct) return v.toFixed(1) + '%';
+    const valOf = (v, s) => {
+        if (typeof v !== 'number') return null;
         if (s.plus) return (v > 0 ? '+' : '') + v.toFixed(1);
         return v.toFixed(1);
     };
 
+    // Playtype 強弱項（BBall Index 式）：只用 Synergy 百分位（真有聯盟排名的數字）。
+    // 攻守兩面百分位皆「越高越好」（已用資料驗證：防守 PPP 越低 → 百分位越高）。
+    // 門檻：每場球權 ≥ 1.0（球權太少的類型百分位很極端）；排除 Misc（雜項，不是戰術類型）。
+    // 強項只列百分位 ≥ 50、弱項只列 < 50：「排最後三名」不等於弱項，高於中位數的不可標成弱項
+    const MIN_POSS_PG = 1.0;
+    const ranked = (stats || [])
+        .filter(x => (x.side || 'offensive') === viewSide && typeof x.percentile === 'number' && x.playType !== 'Misc')
+        .filter(x => typeof x.poss === 'number' && x.poss >= MIN_POSS_PG)
+        .sort((a, b) => b.percentile - a.percentile);
+    const strengths = ranked.filter(x => x.percentile >= 50).slice(0, 3);
+    const weaknesses = ranked.filter(x => x.percentile < 50).slice(-3).reverse();
+
+    // On/Off（球員快照）
+    const onoff = viewMode === 'PLAYER' ? (snapshotOnoff || {}) : null;
+    const hasOnoff = onoff && typeof onoff.ON_NET_RATING === 'number';
+
+    // Clutch（快照，無資料整段隱藏）
+    const clutchEntity = snapshotClutch || {};
+    const clutchMetrics = clutchDefs[0] ? clutchDefs[0].metrics : [];
+    const hasClutch = clutchMetrics.some(m => clutchEntity[m.key] !== undefined);
+
+    // 陣容名：桌面全名「R. Gobert - J. Randle …」，手機只留姓氏，避免表格被撐高
+    const f1 = (v) => typeof v === 'number' ? v.toFixed(1) : '—';   // 表格數字統一一位小數（避免「48」與「48.2」並列）
+    const shortLineup = (s) => String(s || '').split(' - ').map(n => n.replace(/^[A-Z]\.\s*/, '')).join(' · ');
+
+    const PtRow = ({ x }) => (
+        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-white/[0.08] py-2.5 last:border-b-0">
+            <div className="min-w-0">
+                <div className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-100 truncate">{x.playType}</div>
+                <div className="font-mono text-[10px] text-slate-500">{typeof x.ppp === 'number' ? x.ppp.toFixed(2) : '—'} PPP · {x.poss.toFixed(1)} poss/G</div>
+            </div>
+            <div className="w-28 sm:w-36"><UI.PctBar value={x.percentile} label="PR" /></div>
+        </li>
+    );
+
     return (
-        <div className="space-y-6">
-            {/* 季平均摘要 */}
-            <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#12A150]">
-                <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
-                    <h2 className="text-xl font-bold">季平均 {agg ? `(${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W}勝${agg.L}敗` : ''})` : ''}</h2>
-                    <span className="text-[10px] text-slate-500">{seasonLabel || ''}{untilDate ? ` 截至 ${untilDate}` : ' 整季'}</span>
-                </div>
+        <div className="space-y-10">
+            <UI.Section title="季平均" en="Season Averages" accent="green"
+                sub={[agg ? `${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W} 勝 ${agg.L} 敗` : ''}` : null, seasonLabel, untilDate ? `截至 ${untilDate}` : '整季', '百分比以 Σ命中 ÷ Σ出手 重算'].filter(Boolean).join(' · ')}>
                 {!agg ? (
-                    <div className={`h-[80px] flex items-center justify-center text-slate-500 text-sm ${loadingAvg ? 'animate-pulse' : ''}`}>
-                        {loadingAvg ? '載入季平均中...' : '此賽季尚無季平均資料'}
+                    <div className={`py-6 text-center text-sm text-slate-500 ${loadingAvg ? 'animate-pulse' : ''}`}>
+                        {loadingAvg ? '載入季平均中…' : '此賽季尚無季平均資料'}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                        {SUMMARY.map(s => (
-                            <div key={s.key} className="p-3 rounded-lg border border-slate-800 bg-slate-950/40">
-                                <div className="text-[11px] text-slate-400">{s.label} <span className="text-slate-600">{s.en}</span></div>
-                                <div className={`text-2xl font-bold font-mono ${s.plus && typeof agg[s.key] === 'number' ? (agg[s.key] > 0 ? 'text-[#12A150]' : agg[s.key] < 0 ? 'text-red-400' : '') : ''}`}>
-                                    {fmt(agg[s.key], s)}
-                                </div>
-                            </div>
+                    <UI.Ledger cols={UI.ledgerCols(summary.length)}>
+                        {summary.map(s => (
+                            <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''} />
                         ))}
-                    </div>
+                    </UI.Ledger>
                 )}
-            </div>
+            </UI.Section>
 
-            {/* 雷達 + 疊加比較（球員；由 App 組好傳入，原本在左側欄） */}
-            {radarSlot}
+            {ranked.length > 0 && (
+                <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent={viewSide === 'offensive' ? 'green' : 'red'}
+                    sub={`${viewSide === 'offensive' ? '進攻' : '防守'}面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
+                    <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
+                        <div>
+                            <h3 className="mb-1 text-[12px] font-medium text-[#12A150]">強項 · 高於聯盟中位數</h3>
+                            {strengths.length ? <ul>{strengths.map(x => <PtRow key={x.playType} x={x} />)}</ul>
+                                : <p className="py-3 text-[13px] text-slate-500">沒有高於聯盟中位數的類型</p>}
+                        </div>
+                        <div>
+                            <h3 className="mb-1 text-[12px] font-medium text-[#EF4444]">弱項 · 低於聯盟中位數</h3>
+                            {weaknesses.length ? <ul>{weaknesses.map(x => <PtRow key={x.playType} x={x} />)}</ul>
+                                : <p className="py-3 text-[13px] text-slate-500">沒有低於聯盟中位數的類型</p>}
+                        </div>
+                    </div>
+                </UI.Section>
+            )}
+
+            {radarSlot && (
+                <UI.Section title="雷達與疊加比較" en="Radar" accent="silver" sub="軸可自選；可疊加歷史賽季或同季隊友">
+                    {radarSlot}
+                </UI.Section>
+            )}
 
             {/* On/Off 跨隊不適用（新援該季不在灰狼，API 綁 TeamID 抓不到）。
                 onoffNA 預設 null → 留隊球員、以及本來就沒抓 onoff 的舊賽季 doc，
-                行為與改動前完全相同（整卡隱藏）。「舊季沒抓」不可冒充「跨隊不適用」 */}
+                行為與改動前完全相同（整段隱藏）。「舊季沒抓」不可冒充「跨隊不適用」 */}
             {!hasOnoff && onoffNA && (
-                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-slate-700">
-                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4 flex items-center gap-2">
-                        在場 / 不在場 (On/Off Court)
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-normal bg-slate-800 border border-slate-700 text-slate-400">
-                            {window.NA_BADGE}
-                        </span>
-                    </h2>
-                    <p className="text-sm text-slate-400 leading-relaxed">{onoffNA}</p>
-                </div>
+                <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue"
+                    right={<span className="border border-white/15 px-1.5 py-0.5 text-[10px] text-slate-400">{window.NA_BADGE}</span>}>
+                    <UI.Note>{onoffNA}</UI.Note>
+                </UI.Section>
             )}
 
-            {/* On/Off Court（球員） */}
             {hasOnoff && (
-                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
-                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">在場 / 不在場 (On/Off Court)</h2>
-                    <div className="grid grid-cols-3 gap-3 text-center">
+                <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue" sub="球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）">
+                    <UI.Ledger cols="grid-cols-1 sm:grid-cols-3">
                         {[
                             { label: '進攻效率', en: 'OffRtg', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
                             { label: '防守效率', en: 'DefRtg', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
@@ -99,59 +133,51 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                             const diff = (typeof m.on === 'number' && typeof m.off === 'number') ? m.on - m.off : null;
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
                             return (
-                                <div key={m.label} className="p-3 rounded-lg border border-slate-800 bg-slate-950/40">
-                                    <div className="text-[11px] text-slate-400 mb-1">{m.label} <span className="text-slate-600">{m.en}</span></div>
-                                    <div className="flex justify-center gap-2 text-sm font-mono">
-                                        <span className="text-[#12A150]">在 {typeof m.on === 'number' ? m.on.toFixed(1) : '—'}</span>
-                                        <span className="text-slate-600">/</span>
-                                        <span className="text-slate-400">離 {typeof m.off === 'number' ? m.off.toFixed(1) : '—'}</span>
+                                <div key={m.label} className="border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
+                                    <div className="text-[11px] leading-tight text-slate-300">{m.label}</div>
+                                    <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>
+                                    <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${diff == null ? 'text-slate-600' : good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
+                                        {diff == null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1)}
                                     </div>
-                                    {diff != null && (
-                                        <div className={`text-xs font-bold mt-1 ${good ? 'text-[#12A150]' : 'text-red-400'}`}>
-                                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}
-                                        </div>
-                                    )}
+                                    <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-400">
+                                        在場 {typeof m.on === 'number' ? m.on.toFixed(1) : '—'}<span className="mx-1.5 text-slate-600">/</span>離場 {typeof m.off === 'number' ? m.off.toFixed(1) : '—'}
+                                    </div>
                                 </div>
                             );
                         })}
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-2">球隊在該球員上/下場時的每 100 回合效率（整季快照）</p>
-                </div>
+                    </UI.Ledger>
+                </UI.Section>
             )}
 
-            {/* Clutch（快照） */}
             {hasClutch && (
-                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-amber-500">
-                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">Clutch</h2>
-                    {clutchDefs.map(def => (
-                        <TrackingCardRow key={def.id} title={def.title} category={def.id} source="clutch"
-                            metrics={def.metrics} current={clutchEntity} prev={null} clickable={false} />
-                    ))}
-                    <p className="text-[10px] text-slate-500 mt-1">第四節或延長賽最後 5 分鐘、分差 5 分內（NBA 定義）· 整季快照 · 場均</p>
-                </div>
+                <UI.Section title="Clutch" en="Per Game" accent="amber" sub="第四節或延長賽最後 5 分鐘、分差 5 分內（NBA 定義）· 整季快照 · 場均">
+                    <UI.Ledger cols={UI.ledgerCols(clutchMetrics.length)}>
+                        {clutchMetrics.map(m => (
+                            <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} value={clutchEntity[m.key]} unit={m.unit} />
+                        ))}
+                    </UI.Ledger>
+                </UI.Section>
             )}
 
-            {/* Lineups（球隊） */}
             {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
-                <div className="border border-slate-800 rounded-xl p-6 bg-slate-900 border-l-4 border-l-[#236192]">
-                    <h2 className="text-xl font-bold border-b-2 border-[#C4CED2]/30 pb-2 mb-4">五人陣容 (Lineups)</h2>
-                    <p className="text-xs text-slate-500 mb-3">預設依總上場分鐘排序，點欄位標題可改排序（效率值為每 100 回合，整季快照）</p>
-                    <window.UI.DataTable caption="五人陣容進階數據" rows={lineups}
+                <UI.Section title="五人陣容" en="Lineups" accent="blue" sub="預設依總上場分鐘排序，點欄位標題可改排序（效率值為每 100 回合，整季快照）">
+                    <UI.DataTable caption="五人陣容進階數據" rows={lineups}
                         initialSort={{ key: 'MIN', dir: 'desc' }} rowKey={(r) => r.players}
                         columns={[
-                            { key: 'players', label: '陣容', align: 'left' },
+                            { key: 'players', label: '陣容', align: 'left',
+                                render: (r) => (<><span className="hidden sm:inline">{r.players}</span><span className="sm:hidden">{shortLineup(r.players)}</span></>) },
                             { key: 'GP', label: '場次', en: 'GP' },
                             { key: 'MIN', label: '總分鐘', en: 'MIN' },
-                            { key: 'OFF_RATING', label: '進攻效率', en: 'OffRtg' },
-                            { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg' },
+                            { key: 'OFF_RATING', label: '進攻效率', en: 'OffRtg', render: (r) => f1(r.OFF_RATING) },
+                            { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg', render: (r) => f1(r.DEF_RATING) },
                             { key: 'NET_RATING', label: '淨效率', en: 'NetRtg',
                                 render: (r) => typeof r.NET_RATING !== 'number' ? '—' : (
                                     <span className={r.NET_RATING > 0 ? 'text-[#12A150]' : r.NET_RATING < 0 ? 'text-[#EF4444]' : 'text-slate-200'}>
-                                        {r.NET_RATING > 0 ? '+' : ''}{r.NET_RATING}
+                                        {r.NET_RATING > 0 ? '+' : ''}{r.NET_RATING.toFixed(1)}
                                     </span>) },
-                            { key: 'TS_PCT', label: '真實命中率', en: 'TS%' },
+                            { key: 'TS_PCT', label: '真實命中率', en: 'TS%', render: (r) => typeof r.TS_PCT === 'number' ? r.TS_PCT.toFixed(1) + '%' : '—' },
                         ]} />
-                </div>
+                </UI.Section>
             )}
 
             {/* 單場面板（當季，有比賽索引才顯示） */}

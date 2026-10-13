@@ -44,8 +44,9 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
         return () => { cancelled = true; };
     }, [idPart, season, typeKey]);
 
-    if (doc === undefined) return <div className="h-[160px] flex items-center justify-center text-slate-500 text-sm animate-pulse">載入投籃資料中...</div>;
-    if (doc === null || !doc.shots.length) return <div className="px-4 py-6 rounded-lg text-sm border bg-slate-800/50 border-slate-700 text-slate-400 text-center">此賽季尚無逐球投籃資料（每週更新，且僅近幾季有）</div>;
+    const UI = window.UI;
+    if (doc === undefined) return <div className="py-10 text-center text-sm text-slate-500 animate-pulse">載入投籃資料中…</div>;
+    if (doc === null || !doc.shots.length) return <UI.Note>此賽季尚無逐球投籃資料（每週更新，且僅近幾季有）</UI.Note>;
 
     const allShots = doc.shots;
     const dates = [...new Set(allShots.map(s => s.gdate))].sort();
@@ -103,100 +104,92 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     const trendBaseline = openItem ? calc(allShots, openItem.fn).pct : null;
 
     const assisted = doc.assisted || {};
-    const FilterBtn = ({ v, label }) => (
-        <button onClick={() => setPeriod(v)} className={`px-2.5 py-1 text-xs rounded border transition-colors ${period === v ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{label}</button>
-    );
+    const GROUPS = [['dist', '距離區間', 'Distance'], ['zone', '分區', 'Zone'], ['type', '出手方式', 'Shot Type']];
+    const groupInfo = GROUPS.find(g => g[0] === group) || GROUPS[0];
 
     return (
-        <div className="space-y-4">
-            {/* 篩選列 */}
-            <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 space-y-2">
+        <div className="space-y-10">
+            {/* 篩選列：期間（影響命中率格與熱圖；受助攻為全季快照不受影響） */}
+            <div className="space-y-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
-                    <FilterBtn v="all" label="全季" />
-                    <FilterBtn v="W" label="勝場" /><FilterBtn v="L" label="敗場" />
-                    <FilterBtn v="home" label="主場" /><FilterBtn v="away" label="客場" />
-                    <FilterBtn v="last5" label="近5場" /><FilterBtn v="last10" label="近10場" />
-                    <select value={period === 'month' ? monthKey : ''} onChange={e => { setPeriod('month'); setMonthKey(e.target.value); }}
-                        className={`text-xs rounded border px-2 py-1 bg-slate-950 ${period === 'month' ? 'border-[#12A150] text-[#12A150]' : 'border-slate-700 text-slate-400'}`}>
-                        <option value="">每月▾</option>
+                    <span className="mr-1 text-[11px] text-slate-500">期間</span>
+                    <UI.Chip active={period === 'all'} onClick={() => setPeriod('all')}>全季</UI.Chip>
+                    <UI.Chip active={period === 'W'} onClick={() => setPeriod('W')}>勝場</UI.Chip>
+                    <UI.Chip active={period === 'L'} onClick={() => setPeriod('L')}>敗場</UI.Chip>
+                    <UI.Chip active={period === 'home'} onClick={() => setPeriod('home')}>主場</UI.Chip>
+                    <UI.Chip active={period === 'away'} onClick={() => setPeriod('away')}>客場</UI.Chip>
+                    <UI.Chip active={period === 'last5'} onClick={() => setPeriod('last5')}>近 5 場</UI.Chip>
+                    <UI.Chip active={period === 'last10'} onClick={() => setPeriod('last10')}>近 10 場</UI.Chip>
+                    <label className="sr-only" htmlFor="shoot-month">選擇月份</label>
+                    <select id="shoot-month" value={period === 'month' ? monthKey : ''} onChange={e => { setPeriod('month'); setMonthKey(e.target.value); }}
+                        className={UI.selectClass(period === 'month')}>
+                        <option value="">每月</option>
                         {months.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
-                    <FilterBtn v="range" label="自訂區間" />
+                    <UI.Chip active={period === 'range'} onClick={() => setPeriod('range')}>自訂區間</UI.Chip>
                 </div>
                 {period === 'range' && (
                     <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="bg-slate-950 border border-slate-700 rounded px-2 py-1" />
+                        <input type="date" aria-label="起始日" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className={UI.selectClass(!!rangeStart)} />
                         <span>~</span>
-                        <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="bg-slate-950 border border-slate-700 rounded px-2 py-1" />
+                        <input type="date" aria-label="結束日" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className={UI.selectClass(!!rangeEnd)} />
                     </div>
                 )}
-                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
-                    <span className="text-[10px] text-slate-500">分組：</span>
-                    {[['dist', '距離區間'], ['zone', '分區'], ['type', '出手方式']].map(([g, l]) => (
-                        <button key={g} onClick={() => { setGroup(g); setOpenKey(null); }}
-                            className={`px-2.5 py-1 text-xs rounded border ${group === g ? 'bg-[#236192] text-white border-[#236192] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{l}</button>
-                    ))}
-                </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-                <span className="font-bold text-slate-200">{periodLabel} <span className="text-slate-500 font-normal">（{periodTotal} 出手，vs 全季 {allShots.length}）</span></span>
-                <span className="text-[10px] text-slate-500">大字=命中率(vs 全季 綠/紅)，小字=出手數/佔比 · 點卡看趨勢</span>
-            </div>
+            <UI.Section title={`${groupInfo[1]}命中率`} en={`FG% by ${groupInfo[2]}`} accent="green"
+                sub={`${periodLabel}（${periodTotal} 出手，vs 全季 ${allShots.length}）· 大字＝命中率，箭頭為 vs 全季 · 小字＝出手數／佔比 · 點格子看趨勢`}
+                right={<UI.Seg ariaLabel="分組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenKey(null); }}
+                    options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />}>
+                <UI.Ledger cols={UI.ledgerCols(items.length)}>
+                    {items.map(it => {
+                        const p = calc(periodShots, it.fn), a = calc(allShots, it.fn);
+                        const freq = periodTotal ? Math.round(100 * p.fga / periodTotal) : 0;
+                        const open = openKey === it.key;
+                        return (
+                            <button key={it.key} type="button" aria-pressed={open} onClick={() => setOpenKey(open ? null : it.key)}
+                                className={`border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0 text-left transition-colors ${open ? 'bg-[#12A150]/[0.08] shadow-[inset_0_-2px_0_#12A150]' : 'hover:bg-white/[0.03]'}`}>
+                                <div className="text-[11px] leading-tight text-slate-300 truncate" title={it.en ? `${it.label} · ${it.en}` : it.label}>{it.label}</div>
+                                {it.en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate">{it.en}</div>}
+                                <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
+                                    <span className={`font-display text-[26px] font-semibold leading-none tabular-nums ${p.pct != null ? 'text-slate-50' : 'text-slate-600'}`}>
+                                        {p.pct != null ? p.pct : '—'}{p.pct != null && <span className="ml-0.5 text-[15px] font-medium text-slate-400">%</span>}
+                                    </span>
+                                    {period !== 'all' && <span className="ml-auto"><UI.Delta value={p.pct} prevValue={a.pct} /></span>}
+                                </div>
+                                <div className="mt-1.5 font-mono text-[10px] text-slate-500">{p.fga} 出手 · 佔 {freq}%</div>
+                            </button>
+                        );
+                    })}
+                </UI.Ledger>
 
-            {/* 卡片牆 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {items.map(it => {
-                    const p = calc(periodShots, it.fn), a = calc(allShots, it.fn);
-                    const diff = (p.pct != null && a.pct != null) ? +(p.pct - a.pct).toFixed(1) : null;
-                    const freq = periodTotal ? Math.round(100 * p.fga / periodTotal) : 0;
-                    const open = openKey === it.key;
-                    return (
-                        <div key={it.key} onClick={() => setOpenKey(open ? null : it.key)}
-                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${open ? 'border-[#12A150] bg-[#12A150]/5' : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'}`}>
-                            <div className="text-[11px] text-slate-400 truncate" title={it.en ? `${it.label} · ${it.en}` : it.label}>{it.label}{it.en && <span className="text-slate-600 ml-1">{it.en}</span>}</div>
-                            <div className="text-2xl font-bold font-mono">{p.pct != null ? p.pct + '%' : '—'}
-                                {diff != null && diff !== 0 && <span className={`text-xs ml-1 ${diff > 0 ? 'text-[#12A150]' : 'text-red-400'}`}>{diff > 0 ? '▲' : '▼'}{Math.abs(diff)}</span>}
-                            </div>
-                            <div className="text-[10px] text-slate-500">{p.fga} 出手 · 佔 {freq}%</div>
+                {/* 趨勢折線 */}
+                {openItem && TrendChart && (
+                    <div className="mt-4 border border-white/10 p-4">
+                        <div className="mb-3 flex flex-wrap items-center gap-3">
+                            <span className="text-[13px] font-medium text-slate-100">{openItem.label} 命中率趨勢</span>
+                            <UI.Seg ariaLabel="趨勢粒度" size="sm" value={gran} onChange={setGran}
+                                options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
                         </div>
-                    );
-                })}
-            </div>
-
-            {/* 趨勢折線 */}
-            {openItem && TrendChart && (
-                <div className="border border-slate-800 rounded-xl p-4 bg-slate-950/40">
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <span className="text-xs font-bold text-slate-200">{openItem.label} 命中率趨勢</span>
-                        <div className="flex gap-1">
-                            {[['game', '逐場'], ['week', '每週'], ['month', '每月']].map(([g, l]) => (
-                                <button key={g} onClick={() => setGran(g)} className={`px-2 py-0.5 text-[11px] rounded border ${gran === g ? 'bg-[#12A150] text-[#0C2340] border-[#12A150]' : 'border-slate-700 text-slate-400'}`}>{l}</button>
-                            ))}
-                        </div>
+                        <TrendChart points={trendPts} baseline={trendBaseline} />
                     </div>
-                    <TrendChart points={trendPts} baseline={trendBaseline} />
-                </div>
-            )}
+                )}
+            </UI.Section>
 
             {/* 受助攻（全季快照，不隨篩選） */}
             {Object.keys(assisted).length > 0 && (
-                <div className="border border-slate-800 rounded-xl p-4 bg-slate-900 border-l-4 border-l-[#236192]">
-                    <h3 className="text-sm font-bold mb-3">受助攻比例 <span className="text-[10px] text-slate-500 font-normal">【全季】</span></h3>
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                        {[['整體受助攻', 'PCT_AST_FGM'], ['2 分受助攻', 'PCT_AST_2PM'], ['3 分受助攻', 'PCT_AST_3PM']].map(([l, k]) => (
-                            <div key={k} className="p-2 rounded border border-slate-800 bg-slate-950/40">
-                                <div className="text-[11px] text-slate-400">{l}</div>
-                                <div className="text-xl font-bold font-mono">{typeof assisted[k] === 'number' ? assisted[k] + '%' : '—'}</div>
-                            </div>
+                <UI.Section title="受助攻比例" en="Assisted FGM%" accent="blue" sub="命中球中由隊友助攻的比例 · 全季快照，不受上方期間篩選影響">
+                    <UI.Ledger cols="grid-cols-3">
+                        {[['整體受助攻', 'All FGM', 'PCT_AST_FGM'], ['兩分受助攻', '2PM', 'PCT_AST_2PM'], ['三分受助攻', '3PM', 'PCT_AST_3PM']].map(([l, en, k]) => (
+                            <UI.StatCell key={k} label={l} en={en} value={typeof assisted[k] === 'number' ? assisted[k] : null} unit="%" />
                         ))}
-                    </div>
-                </div>
+                    </UI.Ledger>
+                </UI.Section>
             )}
 
             {/* 篩選後熱圖 */}
             {ShotChart && (
-                <ShotChart playerId={playerId} teamMode={teamMode} playerName={playerName} externalShots={periodShots} />
+                <ShotChart playerId={playerId} teamMode={teamMode} playerName={playerName} externalShots={periodShots} periodLabel={periodLabel} />
             )}
         </div>
     );

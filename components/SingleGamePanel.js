@@ -57,22 +57,21 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
         .filter(def => entity && def.metrics.some(m => entity[m.key] !== undefined));
 
     return (
-        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#236192]">
-            <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
-                <h2 className="text-xl font-bold">單場數據 (Single Game)</h2>
-                <div className="flex items-center gap-2">
-                    {meta.wl && <span className={`text-xs font-bold px-2 py-0.5 rounded ${meta.wl === 'W' ? 'bg-[#12A150]/20 text-[#12A150]' : 'bg-red-500/20 text-red-400'}`}>{meta.matchup} {meta.wl}</span>}
-                    <select value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-[#12A150]">
-                        {gamesIndex.slice().reverse().map(g => (
-                            <option key={g.date} value={g.date}>{g.date} {g.matchup} {g.wl}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-            {doc === undefined && <div className="h-[80px] flex items-center justify-center text-slate-500 text-sm animate-pulse">載入單場資料中...</div>}
+        <window.UI.Section title="單場數據" en="Single Game" accent="blue"
+            sub="單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）"
+            right={<>
+                {meta.wl && <span className={`px-2 py-0.5 font-mono text-[11px] ${meta.wl === 'W' ? 'bg-[#12A150]/15 text-[#12A150]' : 'bg-[#EF4444]/15 text-[#EF4444]'}`}>{meta.matchup} {meta.wl}</span>}
+                <label className="sr-only" htmlFor="single-game-date">選擇比賽</label>
+                <select id="single-game-date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                    className="rounded-full border border-white/15 bg-[#0A1626] px-3 py-1 text-xs text-slate-200 focus:outline-none focus:border-[#12A150]">
+                    {gamesIndex.slice().reverse().map(g => (
+                        <option key={g.date} value={g.date}>{g.date} {g.matchup} {g.wl}</option>
+                    ))}
+                </select>
+            </>}>
+            {doc === undefined && <div className="py-6 text-center text-sm text-slate-500 animate-pulse">載入單場資料中…</div>}
             {doc !== undefined && groups.length === 0 && (
-                <div className="h-[80px] flex items-center justify-center text-slate-500 text-sm">
+                <div className="py-6 text-center text-sm text-slate-500">
                     {viewMode === 'PLAYER' ? `${playerName} 該場無${viewSide === 'offensive' ? '進攻' : '防守'}單場資料` : '該場無此側單場資料'}
                 </div>
             )}
@@ -83,8 +82,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                     clickable={false}
                 />
             ))}
-            <p className="text-[10px] text-slate-500 mt-1">單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）</p>
-        </div>
+        </window.UI.Section>
     );
 };
 

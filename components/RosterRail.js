@@ -15,7 +15,7 @@ const RosterRail = ({ viewMode, selectedPlayer, players, playerIdOf, tagOf, onTe
                         全隊
                     </button>
                     <span className="mx-1 h-5 w-px shrink-0 bg-white/10" aria-hidden="true"></span>
-                    {players.length === 0 && <span className="px-2 text-xs text-slate-500">當日無球員數據</span>}
+                    {players.length === 0 && <span className="shrink-0 whitespace-nowrap px-2 text-xs text-slate-500">當日無球員數據</span>}
                     {players.map(name => {
                         const active = viewMode === 'PLAYER' && selectedPlayer === name;
                         const tag = tagOf(name);

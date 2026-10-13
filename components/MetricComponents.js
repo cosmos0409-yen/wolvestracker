@@ -9,7 +9,7 @@ const SimpleLineChart = ({ data, dataKey, color = "#12A150", xLabels = null, val
     const domainMin = min - buffer; const domainMax = max + buffer; const domainRange = domainMax - domainMin;
     const points = values.map((val, index) => { const x = paddingLeft + (index / (values.length - 1)) * (width - paddingLeft - padding); const y = height - padding - ((val - domainMin) / domainRange) * (height - 2 * padding); return `${x},${y}`; }).join(' ');
     const ticks = []; const numTicks = 5; for (let i = 0; i < numTicks; i++) { const val = domainMin + (domainRange * i) / (numTicks - 1); const y = height - padding - (i / (numTicks - 1)) * (height - 2 * padding); ticks.push({ val, y }); }
-    return (<div className="w-full overflow-hidden mb-4 bg-slate-900/50 rounded-lg p-2 border border-slate-800"><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">{ticks.map((tick, i) => (<g key={i}><line x1={paddingLeft} y1={tick.y} x2={width - padding} y2={tick.y} stroke="#1e293b" strokeWidth="1" strokeDasharray="4" opacity="0.6" /><text x={paddingLeft - 5} y={tick.y + 3} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="monospace">{tick.val?.toFixed(2) || 0}</text></g>))}<polyline fill="none" stroke={color} strokeWidth="3" points={points} />{values.map((val, index) => { const x = paddingLeft + (index / (values.length - 1)) * (width - paddingLeft - padding); const y = height - padding - ((val - domainMin) / domainRange) * (height - 2 * padding); return (<g key={index} className="group"><circle cx={x} cy={y} r="4" fill="#0f172a" stroke={color} strokeWidth="2" className="chart-dot transition-all duration-200" /><rect x={x - 15} y={y - 25} width="30" height="16" rx="4" fill="#000" className="opacity-0 group-hover:opacity-100 transition-opacity" /><text x={x} y={y - 13} textAnchor="middle" fill="white" fontSize="10" className="opacity-0 group-hover:opacity-100 transition-opacity font-mono font-bold pointer-events-none">{val}</text><text x={x} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="9">{xLabels ? xLabels[index] : data[index].date.slice(5).replace('-', '/')}</text></g>); })}</svg></div>);
+    return (<div className="w-full overflow-hidden mb-2 border border-white/10 p-2"><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">{ticks.map((tick, i) => (<g key={i}><line x1={paddingLeft} y1={tick.y} x2={width - padding} y2={tick.y} stroke="rgba(255,255,255,0.07)" strokeWidth="1" strokeDasharray="4" opacity="0.6" /><text x={paddingLeft - 5} y={tick.y + 3} textAnchor="end" fill="#64748b" fontSize="10" fontFamily="monospace">{tick.val?.toFixed(2) || 0}</text></g>))}<polyline fill="none" stroke={color} strokeWidth="3" points={points} />{values.map((val, index) => { const x = paddingLeft + (index / (values.length - 1)) * (width - paddingLeft - padding); const y = height - padding - ((val - domainMin) / domainRange) * (height - 2 * padding); return (<g key={index} className="group"><circle cx={x} cy={y} r="4" fill="#0C1A2E" stroke={color} strokeWidth="2" className="chart-dot transition-all duration-200" /><rect x={x - 15} y={y - 25} width="30" height="16" rx="4" fill="#000" className="opacity-0 group-hover:opacity-100 transition-opacity" /><text x={x} y={y - 13} textAnchor="middle" fill="white" fontSize="10" className="opacity-0 group-hover:opacity-100 transition-opacity font-mono font-bold pointer-events-none">{val}</text><text x={x} y={height - 5} textAnchor="middle" fill="#64748b" fontSize="9">{xLabels ? xLabels[index] : data[index].date.slice(5).replace('-', '/')}</text></g>); })}</svg></div>);
 };
 
 // naReason：該指標對此球員「語意上不適用」（例：新援在別隊那季，最近防守者資料綁 TeamID 抓不到）。
@@ -46,11 +46,11 @@ const MultiLineChart = ({ data, metrics, xLabels = null }) => {
         return `${x},${y}`;
     }).join(' ');
     return (
-        <div className="w-full overflow-hidden mb-2 bg-slate-900/50 rounded-lg p-2 border border-slate-800">
+        <div className="w-full overflow-hidden mb-2 border border-white/10 p-2">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
                 {[0, 25, 50, 75, 100].map(v => {
                     const y = height - padding - (v / 100) * (height - 2 * padding);
-                    return <line key={v} x1={paddingLeft} y1={y} x2={width - padding} y2={y} stroke="#1e293b" strokeWidth="1" strokeDasharray="4" opacity="0.6" />;
+                    return <line key={v} x1={paddingLeft} y1={y} x2={width - padding} y2={y} stroke="rgba(255,255,255,0.07)" strokeWidth="1" strokeDasharray="4" opacity="0.6" />;
                 })}
                 {seriesList.map(s => (
                     <g key={s.key}>
@@ -60,7 +60,7 @@ const MultiLineChart = ({ data, metrics, xLabels = null }) => {
                             const y = height - padding - (s.normalized[i] / 100) * (height - 2 * padding);
                             return (
                                 <g key={i} className="group">
-                                    <circle cx={x} cy={y} r="3" fill="#0f172a" stroke={s.color} strokeWidth="2" className="chart-dot" />
+                                    <circle cx={x} cy={y} r="3" fill="#0C1A2E" stroke={s.color} strokeWidth="2" className="chart-dot" />
                                     <title>{`${s.label}: ${val}`}</title>
                                 </g>
                             );

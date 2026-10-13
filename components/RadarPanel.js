@@ -61,14 +61,14 @@ const RadarPanel = ({ series, viewSide }) => {
     });
 
     return (
-        <div className="bg-slate-900/50 p-2 rounded-xl border border-slate-800 flex flex-col items-center">
+        <div className="flex flex-col items-center border border-white/10 p-3">
             <div className="w-full flex justify-between items-center px-2 mt-1">
-                <h3 className="text-slate-300 text-sm font-bold">{viewSide === 'offensive' ? '進攻雷達網' : '防守雷達網'}</h3>
-                <button onClick={() => setEditing(e => !e)} className="text-[10px] px-2 py-0.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200">⚙ 自訂軸</button>
+                <h3 className="text-[13px] font-medium text-slate-200">{viewSide === 'offensive' ? '進攻雷達網' : '防守雷達網'}</h3>
+                <button onClick={() => setEditing(e => !e)} className="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-slate-400 hover:text-slate-100">自訂軸</button>
             </div>
 
             {editing && (
-                <div className="w-full p-2 mb-1 bg-slate-950/60 rounded border border-slate-800">
+                <div className="mb-1 w-full border border-white/10 p-2">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] text-slate-500">勾選 3~6 個軸（{axes.length}/6）</span>
                         <button onClick={resetAxes} className="text-[10px] text-[#236192] hover:underline">恢復預設</button>
@@ -77,7 +77,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         {CATALOG.map(c => {
                             const on = axes.includes(c.key);
                             return <button key={c.key} onClick={() => toggleAxis(c.key)}
-                                className={`px-2 py-0.5 text-[10px] rounded border ${on ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{axisName(c)}</button>;
+                                className={`rounded-full border px-2.5 py-0.5 text-[11px] ${on ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:border-white/30'}`}>{axisName(c)}</button>;
                         })}
                     </div>
                 </div>
@@ -87,14 +87,14 @@ const RadarPanel = ({ series, viewSide }) => {
                 <div className="w-full h-[240px] sm:h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <RadarChart cx="50%" cy="50%" outerRadius="60%" data={radarData} margin={{ top: 18, right: 30, bottom: 18, left: 30 }}>
-                            <PolarGrid stroke="#1e293b" />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#cbd5e0', fontSize: 10 }} />
+                            <PolarGrid stroke="rgba(196, 206, 210, 0.16)" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#C4CED2', fontSize: 11 }} />
                             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                             {series.map((s, i) => (
-                                <Radar key={s.key} name={s.label} dataKey={s.label} stroke={s.color} fill={s.color}
+                                <Radar key={s.key} name={s.label} dataKey={s.label} stroke={s.color} fill={s.color} isAnimationActive={false}
                                     fillOpacity={i === 0 ? 0.35 : 0.15} strokeWidth={i === 0 ? 2 : 1.5} />
                             ))}
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} itemStyle={{ color: 'white', fontWeight: 'bold' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#0C1A2E', borderColor: 'rgba(255,255,255,0.15)', borderRadius: 0 }} itemStyle={{ color: '#F8FAFC' }} />
                         </RadarChart>
                     </ResponsiveContainer>
                 </div>
@@ -125,7 +125,7 @@ const RadarPanel = ({ series, viewSide }) => {
                         </thead>
                         <tbody>
                             {axes.map(k => { const c = catMap[k]; return (
-                                <tr key={k} className="border-t border-slate-800">
+                                <tr key={k} className="border-t border-white/[0.08]">
                                     <td className="text-left px-2 py-1 text-slate-400">{c ? axisName(c) : k}</td>
                                     {series.map(s => { const v = getVal(c, s); return <td key={s.key} className="text-right px-2 py-1 font-mono text-slate-200">{v == null ? '—' : v}</td>; })}
                                 </tr>

@@ -35,20 +35,20 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
         return () => { cancelled = true; };
     }, [selected]);
 
-    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: m.label, pct: m.unit === '%' }))), []);
+    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: m.label, e: m.englishLabel, pct: m.unit === '%' }))), []);
     const CATS = {
         base: { label: '基本', metrics: [
-            { k: 'PTS', l: '得分' }, { k: 'REB', l: '籃板' }, { k: 'AST', l: '助攻' },
-            { k: 'FG_PCT', l: 'FG%', pct: true }, { k: 'FG3_PCT', l: '3P%', pct: true }, { k: 'FT_PCT', l: 'FT%', pct: true },
-            { k: 'STL', l: '抄截' }, { k: 'BLK', l: '阻攻' }, { k: 'TOV', l: '失誤' }, { k: 'PLUS_MINUS', l: '+/-' },
+            { k: 'PTS', l: '得分', e: 'PTS' }, { k: 'REB', l: '籃板', e: 'REB' }, { k: 'AST', l: '助攻', e: 'AST' },
+            { k: 'FG_PCT', l: '命中率', e: 'FG%', pct: true }, { k: 'FG3_PCT', l: '三分命中率', e: '3P%', pct: true }, { k: 'FT_PCT', l: '罰球命中率', e: 'FT%', pct: true },
+            { k: 'STL', l: '抄截', e: 'STL' }, { k: 'BLK', l: '阻攻', e: 'BLK' }, { k: 'TOV', l: '失誤', e: 'TOV' }, { k: 'PLUS_MINUS', l: '正負值', e: '+/-' },
         ] },
-        playtype: { label: 'Playtype', metrics: PLAY.map(t => ({ k: t, l: t, playtype: true })) },
+        playtype: { label: 'Playtype', metrics: PLAY.map(t => ({ k: t, l: t, e: '進攻 PPP', playtype: true })) },
         tracking: { label: '進階', metrics: flat(trackingDefs) },
-        shooting: { label: '投籃', metrics: ((shootingDefs.find(d => d.id === 'ShotZones') || {}).metrics || []).map(m => ({ k: m.key, l: m.label, pct: true })) },
+        shooting: { label: '投籃', metrics: ((shootingDefs.find(d => d.id === 'ShotZones') || {}).metrics || []).map(m => ({ k: m.key, l: m.label, e: m.englishLabel, pct: true })) },
         defense: { label: '防守', metrics: flat(defenseDefs) },
         onoff: { label: 'On/Off', playerOnly: true, metrics: [
-            { k: 'ON_NET_RATING', l: '在場淨效率' }, { k: 'OFF_NET_RATING', l: '不在場淨效率' },
-            { k: 'ON_OFF_RATING', l: '在場進攻' }, { k: 'ON_DEF_RATING', l: '在場防守' },
+            { k: 'ON_NET_RATING', l: '在場淨效率', e: 'On NetRtg' }, { k: 'OFF_NET_RATING', l: '不在場淨效率', e: 'Off NetRtg' },
+            { k: 'ON_OFF_RATING', l: '在場進攻效率', e: 'On OffRtg' }, { k: 'ON_DEF_RATING', l: '在場防守效率', e: 'On DefRtg' },
         ] },
     };
     const catKeys = Object.keys(CATS).filter(c => !(CATS[c].playerOnly && viewMode === 'TEAM'));
@@ -73,7 +73,11 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
         return typeof v === 'number' ? v : null;
     };
 
-    const fmt = (v, m) => v == null ? '—' : (m.pct ? v + '%' : (m.playtype ? v.toFixed(2) : v));
+    // 基本數據與百分比統一一位小數（避免同列出現「1」與「0.7」）；Playtype PPP 兩位；Tracking 等保留原始精度（如 PTS/Touch 0.338）
+    const fmt = (v, m) => v == null ? '—'
+        : m.pct ? v.toFixed(1) + '%'
+        : m.playtype ? v.toFixed(2)
+        : activeCat === 'base' || activeCat === 'onoff' ? v.toFixed(1) : v;
 
     // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
     const metaOf = (key) => viewMode === 'PLAYER' ? (data[key]?.player?.meta?.[selectedPlayer] || null) : null;
@@ -91,86 +95,94 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
 
     const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
 
+    const UI = window.UI;
+    const catSub = {
+        base: '傳統數據，各季終點快照',
+        playtype: 'Synergy 進攻面 PPP（每球權得分），各季終點快照',
+        tracking: 'NBA Tracking，各季終點快照',
+        shooting: '分區命中率，各季終點快照',
+        defense: '最近防守者／Hustle／防守 box，各季終點快照',
+        onoff: '球隊在該球員上場／下場時的每 100 回合效率',
+    }[activeCat];
+
     return (
-        <div className="space-y-4">
-            {/* 賽季多選 */}
-            <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 space-y-2">
-                <div className="text-[10px] text-slate-500">選擇賽季比較（{viewMode === 'PLAYER' ? selectedPlayer : '球隊'}）</div>
-                <div className="flex flex-wrap gap-1.5">
+        <div className="space-y-8">
+            {/* 賽季多選 + 類別 */}
+            <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-[11px] text-slate-500">比較賽季</span>
                     {seasons.map(s => (
-                        <button key={s.key} onClick={() => toggle(s.key)}
-                            className={`px-2.5 py-1 text-xs rounded border transition-colors ${selected.includes(s.key) ? 'bg-[#236192] text-white border-[#236192] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                            {s.label}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-800">
-                    <span className="text-[10px] text-slate-500">類別：</span>
-                    {catKeys.map(c => (
-                        <button key={c} onClick={() => { setCat(c); setOpenMetric(null); }}
-                            className={`px-2.5 py-1 text-xs rounded border ${activeCat === c ? 'bg-[#12A150] text-[#0C2340] border-[#12A150] font-bold' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{CATS[c].label}</button>
+                        <UI.Chip key={s.key} active={selected.includes(s.key)} onClick={() => toggle(s.key)}>{s.label}</UI.Chip>
                     ))}
                 </div>
             </div>
 
-            {cols.length === 0 ? (
-                <div className="px-4 py-6 text-center text-slate-500 text-sm">請選擇至少一個賽季</div>
-            ) : (
-                <>
-                    {/* 折線（點指標展開） */}
-                    {openMetric && TrendChart && trendPts.length > 0 && (
-                        <div className="border border-slate-800 rounded-xl p-4 bg-slate-950/40">
-                            <div className="text-xs font-bold text-slate-200 mb-3">{openMetric.l} 逐季變化</div>
-                            <TrendChart points={trendPts} baseline={null} />
-                        </div>
-                    )}
-                    {/* 比較表 */}
-                    <div className="border border-slate-800 rounded-xl overflow-x-auto bg-slate-900">
-                        <table className="w-full text-sm">
-                            <thead className="bg-[#1e293b] text-xs font-bold text-slate-400">
-                                <tr>
-                                    <th className="px-4 py-3 text-left sticky left-0 bg-[#1e293b]">指標</th>
-                                    {cols.map(c => {
-                                        const tag = window.tagOfMeta(metaOf(c.key));
+            <UI.Section title={viewMode === 'PLAYER' ? selectedPlayer : '全隊'} en="Season by Season" accent="blue"
+                sub={`${catSub} · 點指標列看逐季折線 · 「—」表示該季無此類別資料`}
+                right={<UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenMetric(null); }}
+                    options={catKeys.map(c => ({ value: c, label: CATS[c].label }))} />}>
+                {cols.length === 0 ? (
+                    <UI.Note>請至少選一個賽季</UI.Note>
+                ) : (
+                    <div className="space-y-4">
+                        {/* 折線（點指標展開） */}
+                        {openMetric && TrendChart && trendPts.length > 0 && (
+                            <div className="border border-white/10 p-4">
+                                <div className="mb-3 text-[13px] font-medium text-slate-100">{openMetric.l} 逐季變化</div>
+                                <TrendChart points={trendPts} baseline={null} />
+                            </div>
+                        )}
+                        {/* 比較表：列＝指標、欄＝賽季（依時間排序） */}
+                        <div className="overflow-x-auto border-t border-white/[0.08]">
+                            <table className="w-full text-sm border-collapse">
+                                <caption className="sr-only">跨季比較表</caption>
+                                <thead>
+                                    <tr className="border-b border-white/15">
+                                        <th scope="col" className="px-3 py-2 text-left text-[11px] font-normal text-slate-400 max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626]">指標</th>
+                                        {cols.map(c => {
+                                            const tag = window.tagOfMeta(metaOf(c.key));
+                                            return (
+                                                <th key={c.key} scope="col" className="px-3 py-2 text-right text-[11px] font-normal whitespace-nowrap text-slate-400">
+                                                    {c.short || c.label}
+                                                    {tag && <span className="ml-1 font-mono text-[10px] text-amber-400/80">{tag}</span>}
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {metrics.map(m => {
+                                        const open = openMetric && openMetric.k === m.k;
                                         return (
-                                            <th key={c.key} className="px-3 py-3 text-right whitespace-nowrap">
-                                                {c.short || c.label}
-                                                {tag && <span className="ml-1 text-[10px] font-mono text-amber-400/80">{tag}</span>}
-                                            </th>
+                                            <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
+                                                className={`cursor-pointer border-b border-white/[0.06] transition-colors ${open ? 'bg-[#12A150]/[0.08]' : 'odd:bg-white/[0.015] hover:bg-white/[0.04]'}`}>
+                                                <th scope="row" className="px-3 py-2 text-left font-normal max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626]">
+                                                    <span className="text-slate-200">{m.l}</span>
+                                                    {m.e && <span className="ml-1.5 font-mono text-[10px] text-slate-500">{m.e}</span>}
+                                                </th>
+                                                {cols.map(c => {
+                                                    const v = getVal(c.key, m);
+                                                    const na = v == null ? naOf(c.key, m) : null;
+                                                    return (
+                                                        <td key={c.key} title={na || undefined}
+                                                            className={`px-3 py-2 text-right font-mono tabular-nums ${v == null ? 'text-slate-600' : 'text-slate-200'} ${na ? 'cursor-help' : ''}`}>
+                                                            {fmt(v, m)}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
                                         );
                                     })}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                                {metrics.map(m => {
-                                    const open = openMetric && openMetric.k === m.k;
-                                    return (
-                                        <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
-                                            className={`cursor-pointer transition-colors ${open ? 'bg-[#12A150]/10' : 'hover:bg-slate-800/60'}`}>
-                                            <td className="px-4 py-2.5 text-slate-300 sticky left-0 bg-slate-900">{m.l} <span className="text-slate-600 text-[10px]">▸</span></td>
-                                            {cols.map(c => {
-                                                const v = getVal(c.key, m);
-                                                const na = v == null ? naOf(c.key, m) : null;
-                                                return (
-                                                    <td key={c.key} title={na || undefined}
-                                                        className={`px-3 py-2.5 text-right font-mono ${na ? 'text-slate-600 cursor-help' : 'text-slate-200'}`}>
-                                                        {fmt(v, m)}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-slate-500">
+                            欄頭有 <span className="font-mono text-amber-400/80">@隊名</span> 者為該季在別隊，
+                            其最近防守者（Defense Dashboard）與 On/Off 為跨隊不適用（滑過「—」可看說明）。
+                        </p>
                     </div>
-                    <p className="text-[10px] text-slate-500">
-                        點指標列 → 上方逐季折線。缺欄位（—）表示該季無此類別資料；
-                        欄頭有 <span className="text-amber-400/80 font-mono">@隊名</span> 者為該季在別隊，
-                        其最近防守者（Defense Dashboard）與 On/Off 為跨隊不適用（滑過 — 可看說明）。
-                    </p>
-                </>
-            )}
+                )}
+            </UI.Section>
         </div>
     );
 };

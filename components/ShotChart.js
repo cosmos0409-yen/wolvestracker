@@ -1,7 +1,7 @@
 // 投籃熱圖元件：讀取 wolves_shotcharts/{playerId}_{season}_{type}，以 SVG 半場圖繪出手點
 // 座標系：NBA 官方 shotchartdetail（單位 0.1 呎，籃框在原點），SVG y 軸取負值翻轉
 // teamMode=true 時讀 wolves_shotcharts/TEAM_{season}_{type}（全隊出手）
-const ShotChart = ({ playerId, playerName, teamMode = false, externalShots }) => {
+const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, periodLabel }) => {
     const { useState, useEffect } = React;
     const [loadedShots, setLoadedShots] = useState(null);   // null=載入中, []=無資料
     const [filter, setFilter] = useState('all'); // 'all' | 'made' | 'missed'
@@ -51,77 +51,56 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots }) =>
         filter === 'all' || (filter === 'made' ? s.made === 1 : s.made !== 1)
     ) : [];
 
-    const lineStyle = { stroke: '#334155', strokeWidth: 3, fill: 'none' };
+    // 球場線：淡月光銀，先畫（壓在出手點下面），點才看得清楚
+    const lineStyle = { stroke: 'rgba(196, 206, 210, 0.28)', strokeWidth: 2, fill: 'none' };
+    const UI = window.UI;
+    const MADE = '#12A150', MISS = '#EF4444';
 
     return (
-        <div className="border border-slate-800 rounded-xl p-6 relative overflow-hidden bg-slate-900 border-l-4 border-l-[#12A150]">
-            <div className="flex flex-wrap justify-between items-center border-b-2 border-[#C4CED2]/30 pb-2 mb-4 gap-2">
-                <h2 className="text-xl font-bold">投籃熱圖 (Shot Chart)</h2>
-                <div className="flex items-center gap-3">
-                    {total > 0 && (
-                        <span className="text-xs text-slate-400 font-mono">{made}/{total}（{fgPct}%）</span>
-                    )}
-                    <div className="flex bg-slate-800 rounded p-1">
-                        {[
-                            { k: 'all', l: '全部' },
-                            { k: 'made', l: '命中' },
-                            { k: 'missed', l: '未中' },
-                        ].map(opt => (
-                            <button key={opt.k} onClick={() => setFilter(opt.k)}
-                                className={`px-3 py-1 text-xs rounded transition-colors ${filter === opt.k ? 'bg-[#12A150] text-[#0C2340] font-bold shadow' : 'text-slate-400 hover:text-white'}`}>
-                                {opt.l}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
+        <UI.Section title="投籃分布" en="Shot Chart" accent="green"
+            sub={`${periodLabel ? periodLabel + ' · ' : ''}實心綠點＝命中，空心紅環＝未中 · 逐球座標每週更新`}
+            right={<>
+                {total > 0 && <span className="font-mono text-[12px] tabular-nums text-slate-400">{made}/{total}（{fgPct}%）</span>}
+                <UI.Seg ariaLabel="顯示出手" size="sm" value={filter} onChange={setFilter}
+                    options={[{ value: 'all', label: '全部' }, { value: 'made', label: '命中' }, { value: 'missed', label: '未中' }]} />
+            </>}>
             {shots === null && (
-                <div className="h-[300px] flex items-center justify-center text-slate-500 text-sm animate-pulse">載入投籃資料中...</div>
+                <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入投籃資料中…</div>
             )}
             {shots !== null && total === 0 && (
-                <div className="h-[120px] flex items-center justify-center text-slate-500 text-sm">
-                    {playerName} 尚無投籃座標資料（每週更新一次）
-                </div>
+                <UI.Note>{playerName} 尚無投籃座標資料（每週更新一次）</UI.Note>
             )}
             {shots !== null && total > 0 && (
                 <div className="flex flex-col items-center">
-                    <svg viewBox="-250 -470 500 522" className="w-full max-w-[480px]">
-                        {/* 出手點（先畫，讓球場線壓在上面）；球隊模式點多，統一用小圓點避免上萬 SVG 節點卡頓 */}
-                        {teamMode
-                            ? visible.map((s, i) => (
-                                <circle key={i} cx={s.x} cy={-s.y} r="2.5"
-                                    fill={s.made === 1 ? '#12A150' : '#ef4444'}
-                                    fillOpacity={s.made === 1 ? 0.5 : 0.3} />
-                            ))
-                            : visible.map((s, i) => (
-                                s.made === 1
-                                    ? <circle key={i} cx={s.x} cy={-s.y} r="5" fill="#12A150" fillOpacity="0.55" />
-                                    : <g key={i} stroke="#ef4444" strokeOpacity="0.45" strokeWidth="2.5">
-                                        <line x1={s.x - 4} y1={-s.y - 4} x2={s.x + 4} y2={-s.y + 4} />
-                                        <line x1={s.x - 4} y1={-s.y + 4} x2={s.x + 4} y2={-s.y - 4} />
-                                    </g>
-                            ))}
+                    <svg viewBox="-250 -470 500 522" className="w-full max-w-[520px]" role="img" aria-label={`${playerName} 投籃分布：${made} 命中 / ${total} 出手`}>
+                        <rect x="-250" y="-470" width="500" height="517.5" fill="rgba(255, 255, 255, 0.015)" />
                         {/* 球場線（NBA 半場，單位 0.1 呎） */}
                         <rect x="-250" y="-470" width="500" height="517.5" {...lineStyle} />
                         <rect x="-80" y="-142.5" width="160" height="190" {...lineStyle} />
                         <circle cx="0" cy="-142.5" r="60" {...lineStyle} />
                         <path d="M -40 0 A 40 40 0 0 1 40 0" {...lineStyle} />
-                        <line x1="-30" y1="12.5" x2="30" y2="12.5" stroke="#475569" strokeWidth="4" />
-                        <circle cx="0" cy="0" r="7.5" stroke="#475569" strokeWidth="3" fill="none" />
+                        <line x1="-30" y1="12.5" x2="30" y2="12.5" stroke="rgba(196, 206, 210, 0.45)" strokeWidth="3" />
+                        <circle cx="0" cy="0" r="7.5" stroke="rgba(196, 206, 210, 0.45)" strokeWidth="2.5" fill="none" />
                         <line x1="-220" y1="47.5" x2="-220" y2="-89.5" {...lineStyle} />
                         <line x1="220" y1="47.5" x2="220" y2="-89.5" {...lineStyle} />
                         <path d="M -220 -89.5 A 237.5 237.5 0 0 1 220 -89.5" {...lineStyle} />
+                        {/* 出手點：未中先畫、命中後畫（命中壓在上面）；球隊模式點多，縮小尺寸避免糊成一片 */}
+                        {visible.filter(s => s.made !== 1).map((s, i) => (
+                            <circle key={'m' + i} cx={s.x} cy={-s.y} r={teamMode ? 2.4 : 4.2} fill="none"
+                                stroke={MISS} strokeOpacity={teamMode ? 0.35 : 0.6} strokeWidth={teamMode ? 1 : 1.6} />
+                        ))}
+                        {visible.filter(s => s.made === 1).map((s, i) => (
+                            <circle key={'h' + i} cx={s.x} cy={-s.y} r={teamMode ? 2.4 : 4.2}
+                                fill={MADE} fillOpacity={teamMode ? 0.5 : 0.8} />
+                        ))}
                     </svg>
-                    <div className="flex gap-4 mt-2 text-xs text-slate-400">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#12A150]"></span> 命中</span>
-                        {teamMode
-                            ? <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full inline-block bg-[#ef4444]"></span> 未命中</span>
-                            : <span className="flex items-center gap-1 text-red-400 font-bold">✕ <span className="text-slate-400 font-normal">未命中</span></span>}
-                        <span className="text-slate-500">每週更新</span>
+                    <div className="mt-3 flex gap-5 text-[12px] text-slate-400">
+                        <span className="flex items-center gap-1.5"><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="4" fill={MADE} /></svg>命中</span>
+                        <span className="flex items-center gap-1.5"><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke={MISS} strokeWidth="1.5" /></svg>未中</span>
                     </div>
                 </div>
             )}
-        </div>
+        </UI.Section>
     );
 };
 
