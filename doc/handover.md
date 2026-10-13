@@ -147,6 +147,12 @@ wolvestracker/
 - 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
 - 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
 
+### 寫作工具（2026-10 Phase 5）
+- **複製引用**：`UI.CopyBtn` + `UI.citeLine`，格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源」。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
+- **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
+- **近期異動**：`components/Highlights.js`，近 5/10 場 vs 全季（截至 untilDate），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
+- 刊頭「複製連結」＝複製含 hash 的目前網址
+
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入
 - 背景：底色 `#0A1626`＋刊頭淡光暈＋極淡顆粒，寫在 `styles/app.css` 的 `@layer base`

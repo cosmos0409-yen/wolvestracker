@@ -4,7 +4,7 @@
 const Masthead = ({
     seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
     seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
-    issueSeason, issueType, status, onStatusClick, onSearch,
+    issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -53,6 +53,10 @@ const Masthead = ({
                             onChange={e => onDateChange(e.target.value)}
                             className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150]" />
                     </>)}
+                    <button type="button" onClick={onCopyLink} title="網址記住目前畫面（球員、章節、賽季、日期、攻守），貼到筆記裡可回到同一畫面"
+                        className="shrink-0 rounded-full border border-white/15 px-3.5 py-1.5 text-[13px] text-slate-400 hover:text-slate-100 hover:border-white/30">
+                        複製連結
+                    </button>
                     <button type="button" onClick={onSearch} aria-label="搜尋球員、章節或賽季（快捷鍵 /）"
                         className="hidden lg:inline-flex shrink-0 items-center gap-2 rounded-full border border-white/15 px-3.5 py-1.5 text-[13px] text-slate-400 hover:text-slate-100 hover:border-white/30">
                         搜尋<kbd className="rounded border border-white/20 px-1.5 font-mono text-[10px] text-slate-400">/</kbd>

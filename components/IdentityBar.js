@@ -46,8 +46,12 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                         const v = agg ? agg[f.key] : null;
                         const color = f.plus && typeof v === 'number' ? (v > 0 ? 'text-[#12A150]' : v < 0 ? 'text-[#EF4444]' : 'text-slate-50') : 'text-slate-50';
                         return (
-                            <div key={f.key} className="min-w-0">
-                                <dt className="font-mono text-[10px] text-slate-500" title={f.label}>{f.en}</dt>
+                            <div key={f.key} className="group/cell relative min-w-0">
+                                <dt className="flex items-center font-mono text-[10px] text-slate-500" title={f.label}>
+                                    {f.en}<window.UI.Info k={f.key} align="right" />
+                                    {typeof v === 'number' && <window.UI.CopyBtn className="-my-1 ml-0.5"
+                                        text={() => window.UI.citeLine({ label: f.label, en: f.en, value: fmt(v, f), unit: f.pct ? '%' : '', gkey: f.key, asOf: 'agg', note: '季平均' })} />}
+                                </dt>
                                 <dd className={`font-display text-[28px] font-semibold leading-none tabular-nums ${color}`}>
                                     {fmt(v, f)}{f.pct && typeof v === 'number' && <span className="ml-0.5 text-[14px] text-slate-400">%</span>}
                                 </dd>

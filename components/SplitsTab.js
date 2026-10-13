@@ -114,7 +114,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
                 ) : defs.map(def => (
                     <div key={def.id}>
                         <TrackingCardRow title={def.title} actionLabel="點看趨勢" category={def.id} metrics={def.metrics}
-                            current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats" />
+                            current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats"
+                            citeAsOf="none" citeNote={`Splits：${periodLabel}（${periodAgg.GP} 場）`} />
                         {openGroup && openGroup.id === def.id && (
                             <div className="-mt-3 mb-6 border border-white/10 p-4">
                                 <div className="mb-3 flex flex-wrap items-center gap-3">

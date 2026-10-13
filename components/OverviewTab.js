@@ -73,6 +73,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
     return (
         <div className="space-y-10">
+            {window.Highlights && <window.Highlights games={games} untilDate={untilDate} />}
+
             <UI.Section title="季平均" en="Season Averages" accent="green"
                 sub={[agg ? `${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W} 勝 ${agg.L} 敗` : ''}` : null, seasonLabel, untilDate ? `截至 ${untilDate}` : '整季', '百分比以 Σ命中 ÷ Σ出手 重算'].filter(Boolean).join(' · ')}>
                 {!agg ? (
@@ -82,7 +84,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 ) : (
                     <UI.Ledger cols={UI.ledgerCols(summary.length)}>
                         {summary.map(s => (
-                            <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''} />
+                            <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
+                                gkey={s.key} citeAsOf="agg" citeNote="季平均" />
                         ))}
                     </UI.Ledger>
                 )}
@@ -126,15 +129,18 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue" sub="球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）">
                     <UI.Ledger cols="grid-cols-1 sm:grid-cols-3">
                         {[
-                            { label: '進攻效率', en: 'OffRtg', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
-                            { label: '防守效率', en: 'DefRtg', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
-                            { label: '淨效率', en: 'NetRtg', on: onoff.ON_NET_RATING, off: onoff.OFF_NET_RATING, better: 'high' },
+                            { label: '進攻效率', en: 'OffRtg', gk: 'OFF_RATING', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
+                            { label: '防守效率', en: 'DefRtg', gk: 'DEF_RATING', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
+                            { label: '淨效率', en: 'NetRtg', gk: 'NET_RATING', on: onoff.ON_NET_RATING, off: onoff.OFF_NET_RATING, better: 'high' },
                         ].map(m => {
                             const diff = (typeof m.on === 'number' && typeof m.off === 'number') ? m.on - m.off : null;
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
                             return (
-                                <div key={m.label} className="border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                                    <div className="text-[11px] leading-tight text-slate-300">{m.label}</div>
+                                <div key={m.label} className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
+                                    {diff != null && <UI.CopyBtn className="absolute right-1 top-1"
+                                        text={() => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
+                                            gkey: m.gk, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合）` })} />}
+                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}<UI.Info k={m.gk} /></div>
                                     <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>
                                     <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${diff == null ? 'text-slate-600' : good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
                                         {diff == null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1)}
@@ -153,7 +159,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 <UI.Section title="Clutch" en="Per Game" accent="amber" sub="第四節或延長賽最後 5 分鐘、分差 5 分內（NBA 定義）· 整季快照 · 場均">
                     <UI.Ledger cols={UI.ledgerCols(clutchMetrics.length)}>
                         {clutchMetrics.map(m => (
-                            <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} value={clutchEntity[m.key]} unit={m.unit} />
+                            <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} value={clutchEntity[m.key]} unit={m.unit}
+                                gkey={m.key} citeNote="Clutch（第四節或延長賽最後 5 分鐘、分差 5 分內，場均）" />
                         ))}
                     </UI.Ledger>
                 </UI.Section>

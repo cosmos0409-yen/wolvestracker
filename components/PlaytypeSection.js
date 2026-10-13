@@ -24,16 +24,22 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                     className="group inline-flex items-baseline gap-1.5 text-left" title="看當季走勢">
                     <span className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-100 group-hover:text-[#12A150]">{r.playType}</span>
                     <span className="font-mono text-[10px] text-slate-600 group-hover:text-[#12A150]">↗</span>
-                </button>) },
-        { key: '_freq', label: '使用率', en: 'Freq%', render: (r) => r._freq == null ? <span className="text-slate-600" title={freqMissing ? 'NBA 未提供此快照的使用率' : undefined}>—</span> : r._freq.toFixed(1) + '%' },
-        { key: 'poss', label: '每場球權', en: 'Poss/G', render: (r) => typeof r.poss === 'number' ? r.poss.toFixed(1) : '—' },
-        { key: 'ppp', label: 'PPP', en: isDef ? '被得分效率' : '每球權得分',
+                </button>),
+            after: (r) => (<>
+                <UI.Info k={`PT_${r.playType}`} />
+                <UI.CopyBtn className="!opacity-50 hover:!opacity-100"
+                    text={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
+                        value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
+            </>) },
+        { key: '_freq', label: '使用率', en: 'Freq%', gkey: 'FREQ', render: (r) => r._freq == null ? <span className="text-slate-600" title={freqMissing ? 'NBA 未提供此快照的使用率' : undefined}>—</span> : r._freq.toFixed(1) + '%' },
+        { key: 'poss', label: '每場球權', en: 'Poss/G', gkey: 'POSS', render: (r) => typeof r.poss === 'number' ? r.poss.toFixed(1) : '—' },
+        { key: 'ppp', label: 'PPP', en: isDef ? '被得分效率' : '每球權得分', gkey: 'PPP',
             render: (r) => (
                 <span className="inline-flex items-baseline gap-2">
                     <UI.Delta value={r.ppp} prevValue={r._prev?.ppp} betterIsLarger={!isDef} digits={2} />
                     <span className="text-slate-50">{typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}</span>
                 </span>) },
-        { key: 'percentile', label: '聯盟百分位', en: 'Percentile', sortValue: (r) => r.percentile,
+        { key: 'percentile', label: '聯盟百分位', en: 'Percentile', gkey: 'PERCENTILE', sortValue: (r) => r.percentile,
             render: (r) => typeof r.percentile !== 'number' ? '—' : (
                 <span className="inline-flex items-center gap-2">
                     <span className="relative inline-block h-[3px] w-16 bg-white/[0.08]" aria-hidden="true">
@@ -41,7 +47,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                     </span>
                     <span className="w-9 text-right" style={{ color: UI.pctColor(r.percentile) }}>{r.percentile.toFixed(1)}</span>
                 </span>) },
-        { key: 'fgPct', label: '命中率', en: 'FG%', render: (r) => typeof r.fgPct === 'number' ? r.fgPct.toFixed(1) + '%' : '—' },
+        { key: 'fgPct', label: '命中率', en: 'FG%', gkey: 'FG_PCT', render: (r) => typeof r.fgPct === 'number' ? r.fgPct.toFixed(1) + '%' : '—' },
     ];
 
     return (

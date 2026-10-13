@@ -782,6 +782,15 @@ const App = () => {
         : `${window.CURRENT_SEASON} ${stTypeLabel}`;
     const untilDateForAvg = isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null);
 
+    // 複製引用的情境（UI.citeLine 讀取）。快照數字引用快照日、逐場重算的平均引用截至日——兩者可能不同
+    window.CiteCtx = {
+        subject: viewMode === 'TEAM' ? 'Minnesota Timberwolves' : (selectedPlayer || '') + (selTag ? ` ${selTag}` : ''),
+        season: seasonDisplay,
+        asOfSnap: displayDate,
+        asOfAgg: untilDateForAvg || displayDate,
+        isHistory: isHistoryMode,
+    };
+
     // 搜尋面板項目（依群組排列，群組名也可被搜尋）
     const paletteItems = [
         { id: 'team', group: '球隊／球員', label: '全隊', hint: 'Timberwolves', run: () => setViewMode('TEAM') },
@@ -817,7 +826,8 @@ const App = () => {
                 issueSeason={isHistoryMode ? curOpt?.season : window.CURRENT_SEASON}
                 issueType={isHistoryMode ? (curOpt?.type === 'playoffs' ? '季後賽' : '例行賽') : stTypeLabel}
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
-                onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)} />
+                onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
+                onCopyLink={() => window.UI.doCopy(window.location.href)} />
 
             {/* 休賽期 / 陳舊資料提示（細條） */}
             {seasonStatus && (

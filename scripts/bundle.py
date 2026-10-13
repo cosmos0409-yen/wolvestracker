@@ -39,6 +39,7 @@ TAILWIND = ROOT / "node_modules" / "tailwindcss" / "lib" / "cli.js"
 ORDER = [
     "Icons.js",
     "ui.js",
+    "glossary.js",
     "constants.js",
     "MetricComponents.js",
     "PlayTypeCard.js",
@@ -49,6 +50,7 @@ ORDER = [
     "gameAggregates.js",
     "gamesData.js",
     "SingleGamePanel.js",
+    "Highlights.js",
     "OverviewTab.js",
     "SplitsTab.js",
     "ShootingTab.js",

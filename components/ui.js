@@ -6,6 +6,7 @@
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
 //   Seg       膠囊分段切換（aria-pressed）
 //   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
+//   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js）、toast
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
     // 「切入次數 (Drives)」→ ['切入次數', 'Drives']；沒有括號就整串當中文
@@ -56,12 +57,96 @@ window.UI = (function () {
         );
     };
 
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel }) => {
+    // ── 寫作工具：複製引用、指標定義 ──
+    // 引用的「主體／賽季／日期」由 App 每次 render 寫入 window.CiteCtx：
+    //   { subject, season, asOfSnap（快照日期）, asOfAgg（逐場重算的截至日期）, isHistory }
+    // 每日快照的數字引用快照日；GameAgg 逐場重算的平均引用截至日——兩者可能不同，不可混用
+    const copyText = async (text) => {
+        try { await navigator.clipboard.writeText(text); return true; }
+        catch (e) {
+            try {   // 舊瀏覽器 / 非安全來源退回 execCommand
+                const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok;
+            } catch (e2) { return false; }
+        }
+    };
+    let toastTimer = null;
+    const toast = (msg) => {
+        let el = document.getElementById('wl-toast');
+        if (!el) {
+            el = document.createElement('div'); el.id = 'wl-toast'; el.setAttribute('role', 'status');
+            el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;max-width:min(92vw,560px);padding:10px 16px;background:#0C1A2E;border:1px solid rgba(255,255,255,.18);color:#F8FAFC;font-size:13px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .2s;';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg; el.style.opacity = '1';
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+    };
+    // 組引用句：主體｜賽季｜日期或期間｜指標（原文） 數值｜資料：來源
+    const citeLine = ({ label, en, value, unit = '', gkey, asOf = 'snap', note }) => {
+        const c = window.CiteCtx || {};
+        const g = (window.GLOSSARY || {})[gkey] || {};
+        const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
+        return [c.subject, c.season, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
+            `${label}${en ? `（${en}）` : ''} ${value}${unit}`, `資料：${g.src || 'NBA.com Stats'}`].filter(Boolean).join('｜');
+    };
+    const doCopy = async (text) => { const ok = await copyText(text); toast(ok ? `已複製：${text}` : '複製失敗，請手動選取'); };
+
+    const CopyIcon = () => (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="1" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+    );
+    // 複製鈕：桌面滑過格子才出現、觸控裝置常駐；stopPropagation 避免觸發外層「開走勢」
+    const CopyBtn = ({ text, className = '' }) => (
+        <button type="button" aria-label="複製引用" title="複製引用"
+            onClick={(e) => { e.stopPropagation(); doCopy(typeof text === 'function' ? text() : text); }}
+            className={`inline-flex h-6 w-6 items-center justify-center text-slate-500 hover:text-[#12A150] opacity-0 group-hover/cell:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 ${className}`}>
+            <CopyIcon />
+        </button>
+    );
+
+    // 指標定義「?」：點開小卡（定義／計算／來源），點外面或 Esc 關閉
+    const Info = ({ k, align = 'left' }) => {
+        const g = (window.GLOSSARY || {})[k];
+        const [open, setOpen] = React.useState(false);
+        const ref = React.useRef(null);
+        React.useEffect(() => {
+            if (!open) return;
+            const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+            const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+            document.addEventListener('mousedown', off); document.addEventListener('keydown', esc, true);
+            return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc, true); };
+        }, [open]);
+        if (!g) return null;
+        return (
+            <span ref={ref} className="relative inline-flex align-middle">
+                <button type="button" aria-label="指標定義" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                    className={`ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 hover:border-white/40 hover:text-slate-200'}`}>?</button>
+                {open && (
+                    <span role="tooltip" onClick={(e) => e.stopPropagation()}
+                        className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
+                        <span className="block">{g.def}</span>
+                        {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
+                        <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
+                        {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
+                    </span>
+                )}
+            </span>
+        );
+    };
+
+    // gkey：glossary 的 key（顯示「?」定義）；citeAsOf：'snap' 快照日 / 'agg' 截至日 / 'none'；citeNote：期間或場次等補充
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote }) => {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
         return (
-            <div className="border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                <div className="text-[11px] leading-tight text-slate-300 truncate" title={label}>{label}</div>
+            <div className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
+                {!missing && (
+                    <CopyBtn className="absolute right-1 top-1"
+                        text={() => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />
+                )}
+                <div className="flex items-center pr-5 text-[11px] leading-tight text-slate-300 min-w-0">
+                    <span className="truncate" title={label}>{label}</span>
+                    {gkey && <Info k={gkey} />}
+                </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate" title={en}>{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
                     {isNA ? (
@@ -125,11 +210,14 @@ window.UI = (function () {
                                     <th key={c.key} scope="col"
                                         aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                                         className={`px-3 py-2 font-normal whitespace-nowrap align-bottom ${c.align === 'left' ? 'text-left' : 'text-right'} ${ci === 0 ? 'max-sm:sticky max-sm:left-0 max-sm:z-[1] max-sm:bg-[#0A1626]' : ''}`}>
-                                        <button onClick={() => toggle(c.key)}
-                                            className={`inline-flex flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
-                                            <span className="text-[11px]">{c.label}{active && <span className="ml-1 text-[#12A150]">{sort.dir === 'asc' ? '↑' : '↓'}</span>}</span>
-                                            {c.en && <span className="font-mono text-[10px] text-slate-500">{c.en}</span>}
-                                        </button>
+                                        <span className={`inline-flex items-start gap-0.5 ${c.align === 'left' ? '' : 'flex-row-reverse'}`}>
+                                            <button onClick={() => toggle(c.key)}
+                                                className={`inline-flex flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
+                                                <span className="text-[11px]">{c.label}{active && <span className="ml-1 text-[#12A150]">{sort.dir === 'asc' ? '↑' : '↓'}</span>}</span>
+                                                {c.en && <span className="font-mono text-[10px] text-slate-500">{c.en}</span>}
+                                            </button>
+                                            {c.gkey && <Info k={c.gkey} align={ci === columns.length - 1 ? 'right' : 'left'} />}
+                                        </span>
                                     </th>
                                 );
                             })}
@@ -142,6 +230,7 @@ window.UI = (function () {
                                     <td key={c.key}
                                         className={`px-3 py-2 whitespace-nowrap ${c.align === 'left' ? 'text-left text-slate-200' : 'text-right font-mono tabular-nums text-slate-200'} ${ci === 0 ? 'max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626] max-sm:whitespace-normal max-sm:min-w-[7.5rem] max-sm:max-w-[9.5rem] max-sm:text-[13px] max-sm:leading-snug' : ''} ${c.cellClass ? c.cellClass(r) : ''}`}>
                                         {c.render ? c.render(r) : (isBlank(r[c.key]) ? '—' : r[c.key])}
+                                        {c.after && <span className="ml-1 inline-flex items-center align-middle">{c.after(r)}</span>}
                                     </td>
                                 ))}
                             </tr>
@@ -199,5 +288,5 @@ window.UI = (function () {
     );
     const selectClass = (active) => `shrink-0 rounded-full border bg-[#0A1626] px-3 py-1 text-xs focus:outline-none focus:border-[#12A150] ${active ? 'border-[#12A150] text-slate-50' : 'border-white/15 text-slate-400'}`;
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass };
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info };
 })();

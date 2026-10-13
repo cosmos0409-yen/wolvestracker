@@ -80,6 +80,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                     key={def.id} title={def.title} category={def.id}
                     metrics={def.metrics} current={entity} prev={null}
                     clickable={false}
+                    citeAsOf="none" citeNote={`單場 ${selectedDate}${meta.matchup ? ` ${meta.matchup}` : ''}${meta.wl ? ` ${meta.wl}` : ''}`}
                 />
             ))}
         </window.UI.Section>
