@@ -351,7 +351,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 | 干擾球 | Deflections | `leaguehustlestats{player|team}` `DEFLECTIONS` | 不是抄截 |
 | 搶回散球 | Loose Balls Recovered | `LOOSE_BALLS_RECOVERED` | |
 | 籃板機會轉換率 | REB Chance% | `REB_CHANCE_PCT`（輸出欄名沿用 `REB_COL_PCT`） | 籃板 ÷ 籃板機會 |
-| 切入得分佔比 | DRIVE_PTS_PCT | tracking Drives | 切入得分佔個人總得分 |
+| 每百次切入得分 | DRIVE_PTS_PCT | tracking Drives | ＝切入得分 ÷ 切入次數 × 100（含被犯規罰球得分），**不是**佔總得分比例（2026-10 經使用者指正並以資料驗證） |
 | Clutch（名稱保留） | Clutch | `*clutch`，PerGame | 第四節或延長賽最後 5 分鐘、分差 5 分內，場均 |
 | 五人陣容「總分鐘」 | MIN | `leaguedashlineups` Advanced | 此 endpoint 忽略 PerMode，MIN 一律總分鐘（2026-10 實測） |
 | 雷達軸 `PR` / `%` | — | Synergy `PERCENTILE` / tracking 原始值 | 兩種尺度共用 0–100 軸，軸名必帶尺度標示 |

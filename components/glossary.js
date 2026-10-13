@@ -49,7 +49,7 @@ window.GLOSSARY = (function () {
         DRIVE_FGM: { def: '切入後自己出手並命中的次數（場均）。', src: TRK },
         DRIVE_FG_PCT: { def: '切入後自己出手的命中率。', src: TRK },
         DRIVE_TOV_PCT: { def: '切入過程中發生失誤的比例，越低越好。', calc: '切入失誤 ÷ 切入次數', src: TRK },
-        DRIVE_PTS_PCT: { def: '切入得分佔總得分的比例（NBA.com Drives 頁的 PTS%）。', src: TRK, verify: true },
+        DRIVE_PTS_PCT: { def: '每 100 次切入的得分（含切入被犯規的罰球得分）。例如 78.8 ＝ 平均每次切入得 0.79 分。不是「切入得分佔總得分的比例」。', calc: '切入得分 ÷ 切入次數 × 100（已用資料驗證）', src: TRK },
         CATCH_SHOOT_FGA: { def: '接球跳投出手數：距籃 10 呎以外、接球後沒有運球、持球 2 秒內出手的跳投（場均）。', src: TRK },
         CATCH_SHOOT_FG3_PCT: { def: '接球跳投中三分球的命中率。', src: TRK },
         CATCH_SHOOT_EFG_PCT: { def: '接球跳投的有效命中率。', calc: '(命中 + 0.5 × 三分命中) ÷ 出手', src: TRK },

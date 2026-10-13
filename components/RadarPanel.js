@@ -12,7 +12,7 @@ const RadarPanel = ({ series, viewSide }) => {
     // 指標目錄（依攻守）
     const CATALOG = viewSide === 'offensive' ? [
         ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, scale: 'PR', pt, side: 'offensive' })),
-        { key: 'DRIVE_PTS_PCT', label: '切入得分佔比', scale: '%', tk: 'DRIVE_PTS_PCT' },
+        { key: 'DRIVE_PTS_PCT', label: '每百次切入得分', scale: '', tk: 'DRIVE_PTS_PCT' },  // 切入得分 ÷ 切入次數 × 100，不是百分比
         { key: 'DRIVE_FG_PCT', label: '切入命中率', scale: '%', tk: 'DRIVE_FG_PCT' },
         { key: 'CATCH_SHOOT_EFG_PCT', label: '接球跳投 eFG', scale: '%', tk: 'CATCH_SHOOT_EFG_PCT' },
         { key: 'CATCH_SHOOT_FG3_PCT', label: '接球跳投三分', scale: '%', tk: 'CATCH_SHOOT_FG3_PCT' },
@@ -23,7 +23,7 @@ const RadarPanel = ({ series, viewSide }) => {
         { key: 'REB_CONTEST_PCT', label: '競爭籃板率', scale: '%', tk: 'REB_CONTEST_PCT' },
     ];
     const catMap = Object.fromEntries(CATALOG.map(c => [c.key, c]));
-    const axisName = c => c ? `${c.label} ${c.scale}` : '';
+    const axisName = c => c ? [c.label, c.scale].filter(Boolean).join(' ') : '';
     const DEFAULTS = viewSide === 'offensive'
         ? ['pt_Isolation', 'DRIVE_PTS_PCT', 'CATCH_SHOOT_EFG_PCT', 'pt_Transition', 'pt_PRBallHandler']
         : ['pt_Isolation', 'pt_Spotup', 'pt_PRBallHandler', 'REB_CONTEST_PCT'];
@@ -101,7 +101,7 @@ const RadarPanel = ({ series, viewSide }) => {
             ) : <div className="w-full h-[240px] flex items-center justify-center text-slate-500 text-xs">雷達圖模組載入中...</div>}
 
             <p className="w-full px-2 pb-1 text-[10px] leading-relaxed text-slate-500">
-                PR＝Synergy 聯盟百分位（0–100）；%＝原始數值。兩種尺度共用 0–100 軸，形狀只代表各軸相對位置，不同尺度的軸不能直接互比。
+                PR＝Synergy 聯盟百分位（0–100）；%＝原始百分比；未標示者為原始數值（如每百次切入得分）。不同尺度共用 0–100 軸，形狀只代表各軸相對位置，不同尺度的軸不能直接互比。
             </p>
 
             {series.length > 1 && (

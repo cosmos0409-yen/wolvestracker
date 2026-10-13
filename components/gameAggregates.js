@@ -6,6 +6,7 @@ window.GameAgg = (function () {
     const RATIO_DEFS = {
         FG_PCT: ['FGM', 'FGA'], FG3_PCT: ['FG3M', 'FG3A'], FT_PCT: ['FTM', 'FTA'],
         DRIVE_FG_PCT: ['DRIVE_FGM', 'DRIVE_FGA'], DRIVE_TOV_PCT: ['DRIVE_TOV', 'DRIVES'],
+        DRIVE_PTS_PCT: ['DRIVE_PTS', 'DRIVES'],   // 每百次切入得分（非百分比；×100 是 NBA 原欄位的尺度）
         CATCH_SHOOT_FG3_PCT: ['CATCH_SHOOT_FG3M', 'CATCH_SHOOT_FG3A'],
         PULL_UP_FG3_PCT: ['PULL_UP_FG3M', 'PULL_UP_FG3A'],
         RA_FG_PCT: ['RA_FGM', 'RA_FGA'], PAINT_FG_PCT: ['PAINT_FGM', 'PAINT_FGA'],
