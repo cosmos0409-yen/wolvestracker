@@ -1,22 +1,25 @@
-# 🐺 Wolves PlayType & Tracking Daily Tracker
+# 🐺 Wolves Ledger｜灰狼數據帳本
 
-Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據追蹤儀表板。
+Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究站，設計目標是寫專欄時「找得快、看得準、引用得出去」。
 
 ## 功能總覽
 
-右欄採**六分頁**，可切**例行賽/季後賽**、用 header 日曆選「截至某日」的季平均：
+版面由上而下：刊頭（賽季／例行·季後／截至日期／搜尋）→ 頭像列（全隊＋球員）→ 身分列（4 個主數字）→ 章節列（六章節＋攻守）。
+
+- **網址記住畫面**：球員、章節、賽季、賽別、日期、攻守都寫進網址，貼到筆記裡下次一點就回到同一畫面
+- **快捷鍵**：`/` 搜尋球員／章節／賽季，`1–6` 切章節
 
 | 分頁 | 說明 |
 |---|---|
 | **總覽 (Overview)** | 傳統季平均摘要（得分/籃板/助攻/命中率等，可選截至日期）+ 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
 | **Splits** | 期間篩選（全季/每月/勝敗/主客/近N場/自訂區間/季後系列）→ 卡片牆（該期間 vs 全季 綠紅漲跌）+ 點卡展開趨勢折線（逐場/每週/每月） |
 | **投籃 (Shooting)** | 距離區間(5ft)/分區/出手方式卡片（命中率 + 出手佔比）+ 受助攻比例 + 可篩選的投籃熱圖 + 命中率趨勢 |
-| **防守 (Defense)** | 對位防守、Hustle、防守 box、對手分區命中 + 防守熱圖 |
-| **Playtype** | 11 種進攻 + 9 種防守戰術的 PPP、Percentile、FG%（點卡看當季走勢） |
+| **防守 (Defense)** | 最近防守者（Defense Dashboard）、Hustle、防守 box、對手分區命中 + 防守熱圖 |
+| **Playtype** | 11 種進攻 + 9 種防守戰術的 PPP、百分位色階條、FG%、Freq、Poss/G（點卡看當季走勢） |
 | **跨季比較 (Comparison)** | 多選賽季 × 數據類別 → 並列終點值表格 + 點指標畫逐季折線 |
-| **雷達圖** | 軸可自選（3~6 個 Playtype/Tracking 指標）+ 疊加歷史賽季或同季隊友 + 自選指標比較表 |
+| **雷達圖**（在總覽） | 軸可自選（3~6 個 Playtype/Tracking 指標）+ 疊加歷史賽季或同季隊友 + 自選指標比較表 |
 | **歷史賽季回補** | 2022-23 起各賽季例行賽/季後賽完整終點快照（供跨季比較） |
-| **中英雙語** | UI 標籤皆以「中文 (English)」格式呈現 |
+| **中英雙語** | 中文標籤旁一律以小字保留 NBA 原文（命名對照見 doc/handover.md） |
 
 季平均與 Splits 的百分比欄以「Σ分子/Σ分母」加權重算（非平均百分比），資料源為**逐場打包 bundle**（單一 doc，避免多次讀取）。
 
@@ -24,7 +27,7 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據追蹤�
 
 ```
 wolvestracker/
-├── index.html               # 前端 SPA (React 18 + Recharts, 鎖版本 CDN)
+├── index.html               # 前端 SPA「Wolves Ledger」(React 18 + Recharts, 鎖版本 CDN)
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
 │   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
 │   ├── gameAggregates.js    # GameAgg：逐場聚合（季平均/月/勝敗/趨勢，加權%）

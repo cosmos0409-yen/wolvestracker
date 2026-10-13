@@ -139,6 +139,14 @@ wolvestracker/
 - `index.html` 的 bundle 用 `<script defer>`：與 `type="module"` 的 Firebase 初始化同屬「解析完依序執行」，保證元件在 Firebase 之後執行
 - 合併後未編譯的 JSX 暫存在 `.build/`（不進版控）
 
+### 版面骨架與網址狀態（2026-10 Phase 3）
+- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉／例行·季後／截至日期／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips 沿用 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`）→ `ChapterNav`（sticky，01–06 章節＋攻守）→ 內容
+- 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
+- 網址 hash（`components/urlState.js`）：`#v=player&p=名字&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
+- 網址帶日期時用 `pendingDateRef` 延後套用：資料載入 effect 一開始會清空 `selectedDate`
+- 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
+- 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
+
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入
 - 背景：底色 `#0A1626`＋刊頭淡光暈＋極淡顆粒，寫在 `styles/app.css` 的 `@layer base`

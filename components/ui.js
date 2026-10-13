@@ -4,6 +4,7 @@
 //   StatCell  單一指標格（數值三態：真的 0 照常顯示／無資料「—」／不適用「—」+ tooltip）
 //   Ledger    StatCell 的容器（外框上/左線 + 每格右/下線，空位不畫線）
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
+//   Seg       膠囊分段切換（aria-pressed）
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
     // 「切入次數 (Drives)」→ ['切入次數', 'Drives']；沒有括號就整串當中文
@@ -150,5 +151,20 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable };
+    // 膠囊分段切換。options: [{ value, label, icon?, activeClass? }]；activeClass 讓攻（綠）/守（紅）各自上色
+    const Seg = ({ options, value, onChange, ariaLabel, size = 'md' }) => (
+        <div role="group" aria-label={ariaLabel} className="inline-flex shrink-0 rounded-full border border-white/15 p-[3px]">
+            {options.map(o => {
+                const on = o.value === value;
+                return (
+                    <button key={o.value} type="button" aria-pressed={on} onClick={() => onChange(o.value)}
+                        className={`inline-flex items-center gap-1.5 rounded-full whitespace-nowrap transition-colors ${size === 'sm' ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-[13px]'} ${on ? (o.activeClass || 'bg-[#C4CED2] text-[#0A1626] font-medium') : 'text-slate-400 hover:text-slate-100'}`}>
+                        {o.icon}{o.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg };
 })();

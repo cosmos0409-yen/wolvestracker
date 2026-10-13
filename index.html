@@ -4,7 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>灰狼隊 PlayType & Tracking 每日追蹤</title>
+    <title>Wolves Ledger｜灰狼數據帳本</title>
+    <meta name="description" content="明尼蘇達灰狼的 Synergy Playtype、Tracking、投籃分布、防守與跨季比較，每日更新，供專欄研究查證使用。">
+    <meta name="theme-color" content="#0A1626">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Wolves Ledger｜灰狼數據帳本">
+    <meta property="og:description" content="灰狼 Playtype、Tracking、投籃與防守數據，每日更新。">
+    <meta name="twitter:card" content="summary">
+    <!-- 網站圖示：深藍底 + 綠色 W（內嵌 SVG，免額外檔案） -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230A1626'/%3E%3Cpath d='M12 18h8l5 22 7-22h4l7 22 5-22h8l-9 30h-7l-6-19-6 19h-7z' fill='%2312A150'/%3E%3C/svg%3E">
 
     <!-- 字體：Barlow Condensed（數字/標題）、Noto Sans TC（中文）、JetBrains Mono（標籤/原文）；display=swap 避免字體載入前空白 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -147,13 +155,14 @@
         }
     </style>
     <!-- Tailwind 預編譯產物（python scripts/bundle.py 產生；?v= 為內容雜湊，勿手改） -->
-    <link rel="stylesheet" href="dist/app.css?v=7e61fd03">
+    <link rel="stylesheet" href="dist/app.css?v=d31b64dd">
 </head>
 
 <body>
     <div id="loading-screen">
+        <div style="font-family: 'Barlow Condensed', 'Noto Sans TC', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: .04em; text-transform: uppercase; color: #F8FAFC; margin-bottom: 18px;">Wolves <span style="color: #12A150;">Ledger</span></div>
         <div class="spinner"></div>
-        <p style="margin-top: 15px; color: #94a3b8; font-size: 0.9rem;">正在連線至雲端資料庫...</p>
+        <p style="margin-top: 15px; color: #94a3b8; font-size: 0.9rem;">正在連線至雲端資料庫…</p>
         <p id="error-log"
             style="margin-top: 10px; color: #ef4444; font-size: 0.8rem; white-space: pre-wrap; text-align: center; display: none;">
         </p>
@@ -174,7 +183,7 @@
         defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
         保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script defer src="dist/components-bundle.js?v=1ac9a391"></script>
+    <script defer src="dist/components-bundle.js?v=374ffd21"></script>
 </body>
 
 </html>

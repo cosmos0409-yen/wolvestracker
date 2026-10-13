@@ -29,10 +29,11 @@
 ## 前端架構（六分頁，React 18 CDN＋預編譯 JSX/Tailwind）
 - `components/*.js` 掛 `window.*`，`bundle.py` 依 ORDER 串接 → esbuild（es2018、不改名識別字）→ `dist/components-bundle.js`；Tailwind CLI → `dist/app.css`。class 必須完整寫在原始碼（不可字串拼接，否則 CLI 掃不到）
 - 提交前端改動要連 `dist/` 與 `index.html`（`?v=` 內容雜湊）一起提交
-- 右欄六分頁：總覽(`OverviewTab`)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`)
+- 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/日期/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar` → 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`)
+- 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
 - **資料層分工**：季平均/Splits/趨勢 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比
-- 賽別切換(例行/季後，預設依時節) + 日曆日期(截至該日季平均) 在 header；雷達軸自選在 `RadarPanel`
+- 賽別切換(例行/季後，預設依時節) + 日曆日期(截至該日季平均) 在刊頭；雷達軸自選在 `RadarPanel`
 
 ## 規格文件
 - `doc/handover.md`：交接手冊（架構/排程/資料結構/FAQ）

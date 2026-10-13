@@ -54,6 +54,12 @@ ORDER = [
     "ComparisonTab.js",
     "RadarPanel.js",
     "HistoryModal.js",
+    "urlState.js",
+    "Masthead.js",
+    "RosterRail.js",
+    "IdentityBar.js",
+    "ChapterNav.js",
+    "CommandPalette.js",
     "App.js",
 ]
 

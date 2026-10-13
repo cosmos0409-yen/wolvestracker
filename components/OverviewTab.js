@@ -1,7 +1,7 @@
 // 總覽分頁：季平均摘要卡（優先用 bundle 逐場算「截至該日」總計，退回快照 base）
 //   + On/Off（球員）+ Clutch + Lineups（球隊）+ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive' }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null }) => {
     const GA = window.GameAgg;
     const clutchDefs = window.clutchDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
@@ -67,6 +67,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     </div>
                 )}
             </div>
+
+            {/* 雷達 + 疊加比較（球員；由 App 組好傳入，原本在左側欄） */}
+            {radarSlot}
 
             {/* On/Off 跨隊不適用（新援該季不在灰狼，API 綁 TeamID 抓不到）。
                 onoffNA 預設 null → 留隊球員、以及本來就沒抓 onoff 的舊賽季 doc，
