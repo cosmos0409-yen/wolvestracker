@@ -58,7 +58,7 @@ window.GLOSSARY = (function () {
         PULL_UP_EFG_PCT: { def: '急停跳投的有效命中率。', calc: '(命中 + 0.5 × 三分命中) ÷ 出手', src: TRK },
         PASSES_MADE: { def: '傳球次數（場均）。', src: TRK },
         POTENTIAL_AST: { def: '潛在助攻：傳給隊友後，隊友在一次運球內出手的傳球；若投進就會是助攻（場均）。', src: TRK },
-        SECONDARY_AST: { def: '二傳助攻（hockey assist）：傳給隊友後，該隊友隨即傳出助攻的傳球（場均）。', src: TRK, verify: true },
+        SECONDARY_AST: { def: '二次助攻（hockey assist）：把球傳給隊友，該隊友接球後 1 秒內、未運球就傳出助攻，原傳球者記一次（場均；NBA.com 官方定義）。', src: TRK },
         AST_PTS_CREATED: { def: '助攻創造的得分：助攻所促成進球的分數總和（兩分助攻算 2 分、三分助攻算 3 分，場均）。', src: TRK },
         TOUCHES: { def: '觸球數：在進攻端持球的次數（場均）。', src: TRK },
         FRONT_CT_TOUCHES: { def: '前場觸球：在前場持球的次數（場均）。', src: TRK },

@@ -163,10 +163,10 @@ window.trackingDefs = [
         ]
     },
     {
-        id: 'Passing', title: '傳球與二傳 (Passing)', metrics: [
+        id: 'Passing', title: '傳球與助攻 (Passing)', metrics: [
             { key: 'PASSES_MADE', label: '傳球次數', englishLabel: 'Passes Made' },
             { key: 'POTENTIAL_AST', label: '潛在助攻', englishLabel: 'Potential AST' },
-            { key: 'SECONDARY_AST', label: '二傳助攻', englishLabel: 'Secondary AST' },
+            { key: 'SECONDARY_AST', label: '二次助攻', englishLabel: 'Secondary AST' },
             { key: 'AST_PTS_CREATED', label: '助攻創造得分', englishLabel: 'AST PTS Created' },
         ]
     },
