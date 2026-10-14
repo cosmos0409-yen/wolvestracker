@@ -48,3 +48,6 @@ AGENTS.md
 ### Frontend build ###
 node_modules/
 .build/
+
+### Claude Code 個人設定（launch.json 進版控，個人權限設定不進）###
+.claude/settings.local.json

@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-07-09（**六分頁大改版**：單場數據驅動 + bundle 架構 + 跨季比較 + 雷達軸自選；見下方「2026-07 六分頁大改版」）
+> 最後更新：2026-10-14（**Wolves Ledger 改版完成**：Phase 0–7，見「2026-10 Wolves Ledger 改版」；Phase 6 的效能／無障礙規範見「效能與無障礙」）
 
 ## 已完成項目
 
@@ -83,6 +83,23 @@
 
 （2026-07 後續批次：配色改版、防守數據、球隊/防守熱圖、球員互相比較、休賽期標示、單場數據回補+面板——詳見「已完成項目」23–27 與「給下一位 Agent 的維護重點」。）
 
+### 2026-10 Wolves Ledger 改版（專欄研究工具重設計）
+
+定位：使用者寫灰狼專欄時查資料用的研究工具；品質標竿為 Synergy（密集可排序表格）與 BBall Index（百分位色條、一眼看出強弱）。計畫檔：`~/.claude/plans/partitioned-knitting-fog.md`。
+
+| Phase | 內容 | 狀態 |
+|-------|------|------|
+| 0 | 數據命名精準度修正（見「指標命名對照」） | ✅ |
+| 1 | 預編譯建置（esbuild＋Tailwind CLI，移除瀏覽器內 Babel／Tailwind CDN） | ✅ |
+| 2 | 設計系統 `components/ui.js` | ✅ |
+| 3 | 版面骨架（刊頭／頭像列／身分列／章節列）＋網址狀態＋快速搜尋 | ✅ |
+| 4 | 各章節內容重排（Synergy 式 Playtype 表、強弱項等） | ✅ |
+| 5 | 寫作工具（複製引用、指標定義、近期異動、CSV／PNG 匯出） | ✅ |
+| 6 | 品質迭代：首屏只讀近期快照、移除阻斷載入、對比 AA、觸控目標、總覽近 N 場 | ✅ |
+| 7 | 更新規格文件、清理暫存 | ✅ |
+
+Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 MB→約 3.2 MB、SEO 100、最佳做法 96。效能分數見「常見問題：PageSpeed 效能分數」。
+
 ---
 
 ## 專案檔案結構
@@ -92,16 +109,23 @@ wolvestracker/
 ├── index.html                       ← HTML 骨架 + Firebase 初始化，引用 dist/components-bundle.js
 ├── components/                      ← React 元件原始碼（編輯這裡）
 │   ├── Icons.js                     ← SVG icon set，掛 window.Icons
-│   ├── constants.js                 ← PlayTypesList / 色票 / trackingDefs / shootingDefs / clutchDefs / defenseDefs / oppZonesDefs / SEASON_OPTIONS / getSeasonPhase
-│   ├── MetricComponents.js          ← TrendValue / SimpleLineChart / SimpleMetricCard
-│   ├── PlayTypeCard.js              ← PlayType 卡片
-│   ├── TrackingCardRow.js           ← 數據卡片群組（source 參數:tracking/shooting/clutch/defense）
-│   ├── ShotChart.js                 ← 投籃熱圖（SVG 半場點雲，teamMode 讀 TEAM_ doc）
-│   ├── DefenseHeatmap.js            ← 防守熱圖（半場 5 區依對手命中率偏差著色）
-│   ├── SingleGamePanel.js           ← 單場數據面板（選日期看單場，只渲染有資料的群組）
-│   └── App.js                       ← 主容器、Firebase 連線、HistoryModal、雷達圖、跨賽季/球員比較、單場面板掛載
+│   ├── ui.js                        ← 設計系統 window.UI（StatCell/Ledger/DataTable/Seg/Section/PctBar、複製引用、匯出）
+│   ├── glossary.js                  ← 指標定義 window.GLOSSARY（「?」小卡內容）
+│   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）
+│   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
+│   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
+│   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle 載入
+│   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
+│   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
+│   ├── urlState.js                  ← 網址 hash 讀寫
+│   ├── Masthead.js / RosterRail.js / IdentityBar.js / ChapterNav.js / CommandPalette.js ← 版面骨架與快速搜尋
+│   └── App.js                       ← 主容器：資料訂閱、狀態、版面組裝
+├── styles/app.css                   ← Tailwind 入口＋全站基礎樣式（背景、焦點框、減少動態）
+├── tailwind.config.js               ← 字體、slate-500/600 對比調整
+├── package.json / package-lock.json ← 鎖定 esbuild、tailwindcss 版本（npm ci）
 ├── dist/
-│   └── components-bundle.js         ← 自動產生，勿手改
+│   ├── components-bundle.js(.map)   ← 自動產生，勿手改
+│   └── app.css                      ← 自動產生，勿手改
 ├── scripts/
 │   ├── nba_common.py                ← 共用模組：SESSION/重試/欄位設定表/所有抓取函式
 │   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重）
@@ -148,7 +172,7 @@ wolvestracker/
 - 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
 
 ### 寫作工具（2026-10 Phase 5）
-- **複製引用**：`UI.CopyBtn` + `UI.citeLine`，格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源」。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
+- **複製引用**：`UI.CopyBtn` + `UI.citeLine`，格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
 - **近期異動**：`components/Highlights.js`，近 5/10 場 vs 全季（截至 untilDate），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
 - 刊頭「複製連結」＝複製含 hash 的目前網址
@@ -166,7 +190,7 @@ wolvestracker/
 - 新區塊一律用這些元件組，標籤寫「中文＋小字原文」，風格自動一致
 
 ### 各章節（2026-10 Phase 4）
-- 總覽：季平均只列身分列沒有的 6 項；**Playtype 強弱項**（Synergy 百分位，門檻每場球權 ≥ 1.0、排除 Misc；強項只列 ≥ 50、弱項只列 < 50——攻守百分位皆越高越好，已用資料驗證：防守 PPP 越低百分位越高）；雷達移入；On/Off 顯示「在場 − 離場」差值；陣容手機只顯示姓氏
+- 總覽：季平均可切「全季｜近 5 場｜近 10 場」（同一截至日，`GameAgg.lastN`＋`aggregate`；全季只列身分列沒有的 6 項，近 N 場列完整 10 項）；**Playtype 強弱項**（Synergy 百分位，門檻每場球權 ≥ 1.0、排除 Misc；強項只列 ≥ 50、弱項只列 < 50——攻守百分位皆越高越好，已用資料驗證：防守 PPP 越低百分位越高）；雷達移入；On/Off 顯示「在場 − 離場」差值；陣容手機只顯示姓氏
 - Playtype：`PlaytypeSection.js`，預設 Synergy 式可排序表格（Freq/Poss/PPP/百分位/FG%），可切卡片（`wt_pref_playtypeView`）
 - 投籃：命中率格可點看趨勢；熱圖命中＝實心綠點、未中＝空心紅環，球場線月光銀畫在點下方
 - 防守熱圖：顏色為「不透明預混色」（`blend()`），避免各區半透明疊色互相污染；基準值 `ZONE_REF` 為寫死的聯盟約略均值，畫面上會直接標出，**非官方即時數字**
@@ -174,6 +198,30 @@ wolvestracker/
 - 雷達關閉進場動畫（使用者不要進場動畫，且截圖/切換時圖形不會只畫一半）
 - 當季快照訂閱：略過「fromCache 且為空」的 snapshot——斷網時 Firestore 會先丟本機空結果，不可顯示成「當季尚無快照資料」
 - 已知資料缺口：2025-26 球員季後賽 06-15 快照的 Playtype `freq`（POSS_PCT）NBA 全回 0 → 前端視為「未提供」顯示「—」，**不自行用 possTotal 推算**（NBA 不列低球權類型，推算值失真）
+
+### 效能與無障礙（2026-10 Phase 6）
+- **當季快照先只讀近期**（`App.js` 的 `snapFull`／`snapFullReady`，`constants.js` 的 `snapshotWindowStart()`）：
+  - 開站只讀最近幾天：賽季中＝今天往前 10 天；休賽期＝6/30 往前 30 天。整季約 120 份、首次傳輸近 9 MB，第一屏只需要「當期＋前一期」
+  - 何時補讀整季：選了日期、開走勢 Modal、目前賽別在近期快照裡不足兩份、或近期查詢回 `failed-precondition`（缺索引）
+  - 補讀期間顯示載入骨架，**不可**顯示「沒有快照」，也不可把最新一天的數字標成所選日期（`showSkeleton` 的兩個條件）
+  - 只用 doc id 範圍查詢：`orderBy(documentId,'desc')`／`limitToLast` 需要 `__name__` 降冪索引，已實測會被拒
+  - 權限或網路錯誤**不**改讀整季（改讀也不會好），照常顯示錯誤
+- **不擋首屏**：React／Recharts／prop-types 用 `<script defer>`（與 module 型 Firebase 初始化、bundle 同屬依序執行佇列，順序不變）；Google Fonts 用 `rel="preload" onload` 非阻斷載入＋`<noscript>` 退路
+- **對比（WCAG AA，小字 ≥ 4.5:1）**：`tailwind.config.js` 把 slate-500 改 `#8493A8`、slate-600 改 `#7C8CA2`（原生值在 `#0A1626` 上只有 3.8／2.4）。全站 slate-500/600 只當文字色用；若要拿來當底色或框線，先確認不受影響
+  - 品牌色當底時字用深藍 `#0A1626`（白字在綠底 3.4、紅底 3.8 皆不足）；品牌色字配同色淡底用 `/[0.08]`
+  - 結構藍 `#236192` 在深底只有 2.8，不可當小字色；連結改用月光銀
+- **觸控目標 ≥ 24×24 且不重疊**（PageSpeed 量的是按鈕本身的框，不算 `::before` 外擴）：
+  - `UI.Info`（「?」）按鈕本身 24px、內圈 16px，只用上下負邊距，**不可用左右負邊距**（會壓到相鄰複製鈕／排序鈕）
+  - `StatCell` 標題列右側留 `pr-8`，避開右上角複製鈕
+  - 表頭排序鈕 `min-h/min-w-[24px]`；小按鈕用 `py-1` 補高度
+- 鍵盤焦點：`styles/app.css` 的 `:focus-visible` 綠框；`prefers-reduced-motion` 時關過場動畫
+- **驗證方式**（無自動化測試，皆手動執行）：
+  1. `python scripts/bundle.py` 後用本地 `python -m http.server 8000`
+  2. 背景 Chrome（Node 內建 WebSocket＋CDP）跑情境腳本：桌面 1440／手機 375–412 截圖、讀 DOM 斷言、console 錯誤
+  3. 無障礙：逐一文字節點算對比（含疊加的半透明底）、找無名稱按鈕、檢查按鈕框大小與重疊
+  4. 效能：CDP 加慢速 4G（1.6 Mbps、150ms）＋CPU 4 倍降速，量 `first-contentful-paint`／LCP 與各網域傳輸量
+  5. 上線後用 PageSpeed Insights（網頁版；API 匿名額度為 0）看無障礙與總傳輸量
+  - 測試腳本放在 session scratchpad，未進版控；重建時照上述方法即可
 
 ### bundle.py 合併順序
 見 `scripts/bundle.py` 的 `ORDER`（依賴者在後，`App.js` 最後）。元件靠共用 script scope 與 `window.*` 互相引用，所以順序就是依賴順序。
@@ -286,7 +334,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 `fetch_data.py` 寫入前會抓最近 14 天最新一筆，深度比對 `DATA_KEYS`（stats / tracking / shooting / clutch / lineups / defense），完全相同則跳過寫入避免堆積無意義文件。
 
 ### Firestore 免費方案（Spark）用量
-按「文件讀寫次數」計費，非大小。新增數據是往同一份每日文件加欄位（非新增文件），故寫入次數不變（每天約 2 份 + 熱圖每週約 19 份）。球員每日文件約 52 KB（單文件上限 1 MiB 的 5%），一整季約 4.7 MB（儲存上限 1 GiB）。唯一隨流量成長的是「讀取次數」（前端 onSnapshot 讀整個當季 collection），個人用量離 50,000/天 很遠。
+按「文件讀寫次數」計費，非大小。新增數據是往同一份每日文件加欄位（非新增文件），故寫入次數不變（每天約 2 份 + 熱圖每週約 19 份）。球員每日文件約 52 KB（單文件上限 1 MiB 的 5%），一整季約 4.7 MB（儲存上限 1 GiB）。唯一隨流量成長的是「讀取次數」：前端開站只讀近期快照（約 10–15 份），需要整季時才讀整個當季 collection（約 120 份），個人用量離 50,000/天 很遠。
 
 ---
 
@@ -309,7 +357,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ## 前端架構重點
 
 ### 賽季模式（`selectedSeasonKey`）
-- `'current'`：當季 onSnapshot 兩個集合，date 為實際日期，可逐日左右切換
+- `'current'`：當季 onSnapshot 兩個集合（先近期、需要時整季，見「效能與無障礙」），date 為實際日期，刊頭日曆選日期
 - 其他（如 `'2024-25_playoffs'`）：history mode，`getDoc` 一次拿賽季終點快照，date 顯示賽季 label，日期切換隱藏
 
 ### localStorage 快取
@@ -394,6 +442,9 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: 想追蹤其他球隊
 改 `scripts/nba_common.py` 的 `TEAM_ID` 常數（所有腳本共用）。
 
+### Q: PageSpeed 效能分數為什麼和實際感受差很多
+PageSpeed 的效能分數是「模擬推算」，每次會跳動：同一版曾給第一個畫面 1.6 秒與 8.4 秒兩種估算。以同樣條件（慢速 4G、CPU 降速、全新訪客）實測為準：2026-10 為第一個畫面約 1.6 秒、主要內容約 9.7 秒（「近期異動」要等 Firestore 資料）。另外 PageSpeed 的測試環境裡匿名登入會失敗（Google 驗證端點 403），所以「最佳做法」會被扣錯誤紀錄，一般讀者不受影響。看 PageSpeed 時以**無障礙分數與總傳輸量**為主。
+
 ### Q: 歷史快取要怎麼清
 DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key。或在 console 跑 `Object.keys(localStorage).filter(k=>k.startsWith('wt_history_')).forEach(k=>localStorage.removeItem(k))`。
 
@@ -440,10 +491,13 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **新每日欄位要加進 `DATA_KEYS`**（`fetch_data.py`）：否則去重不會比對它，可能漏寫或誤判相同。
 - **改 `components/*.js` 後一定要 `python scripts/bundle.py`**：前端讀的是 `dist/components-bundle.js` 與 `dist/app.css`；新元件還要加進 `bundle.py` 的 `ORDER`（放在 `App.js` 之前）。
 - **GitHub Pages 偶發 `Deployment failed, try again later`**：GitHub 暫時性，`gh run rerun <id>` 重跑即可，不是程式問題。
+- **Firestore 查詢只用 doc id 升冪範圍**：`orderBy(documentId(),'desc')`、`limitToLast` 都需要另建索引，會回 `failed-precondition`；`onSnapshot` 必帶 error callback，否則失敗時畫面永遠停在骨架。
+- **slate-500/600 已被改成較亮的自訂值**（對比 AA）：看到 `text-slate-500` 不等於 Tailwind 原生色。
 
 ### D. 效能與擴充強化點
 
-- **讀取配額是唯一會隨流量成長的**：前端當季用 `onSnapshot(collection(...))` 每次載入讀**整個當季 collection**（季末約 82 份/collection）。個人用量離免費上限 50,000/天 很遠，但若之後流量變大，優化方向：當季只讀最近 N 天、或分頁、或改 `getDocs` + 日期範圍。寫入/儲存都極寬鬆（見「Firestore 免費方案用量」）。
+- **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入/儲存都極寬鬆（見「Firestore 免費方案用量」）。
+- **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
 - **每日請求預算**：目前約 53/天（含防守）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`backfill_games.py` / `capture_single_game()` 只抓 tracking + 對位防守 + Hustle + 分區投籃。想讓單場也有投籃拆分 / 防守 box / 對手分區，要在**這兩處**都加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
@@ -455,3 +509,9 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - `scripts/backfill_queue.txt`、`run_backfill_next.bat`、`cleanup_and_tag.py` 是 Phase 1 一次性產物，queue 已空、`WolvesBackfill` 排程已刪，可視需要移除。
 - G2 每日單場「有比賽才抓」是靠去重信號（`not skip_player`）判斷；若哪天去重邏輯改動，記得這個相依關係。
 - `capture_single_game`（每日）沒存 matchup/wl，`backfill_games` 有；若要每日單場也顯示對手/勝負，補上即可（可從 `teamgamelog` 或索引查）。
+
+---
+
+## 更新紀錄
+
+- 2026-10-14 — Wolves Ledger 改版 Phase 6–7：近期快照載入、移除阻斷載入、對比 AA、觸控目標、總覽近 N 場、引用附網址；新增「效能與無障礙」「2026-10 Wolves Ledger 改版」，更新檔案結構、Spark 用量、雷區與常見問題

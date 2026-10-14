@@ -14,6 +14,7 @@
 - 主色（進攻/選中/圖表主線/命中）：`#12A150`  · 結構藍（切換/連結）：`#236192`
 - 底色：`#0A1626`  · 月光銀（logo 環/標題底線 `/30`）：`#C4CED2`  · 防守/未命中/負值：`#EF4444`
 
+- 無障礙（WCAG AA）：`tailwind.config.js` 已把 slate-500/600 調亮（只當文字色）；品牌色當底時字用 `#0A1626`；`#236192` 不可當小字色；按鈕框 ≥ 24×24 且不重疊（「?」鈕不可用左右負邊距）
 - 字體：`font-sans` Noto Sans TC／`font-display` Barlow Condensed（數字/標題）／`font-mono` JetBrains Mono（標籤/原文）；共用介面元件在 `components/ui.js`（`window.UI`：Section/StatCell/Ledger/PctBar/DataTable/Seg/Chip/Note），新區塊一律用它組；只給真的有 percentile 的資料畫百分位條
 
 ## 硬性約束
@@ -33,6 +34,8 @@
 - 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
 - **資料層分工**：季平均/Splits/趨勢 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比
+- 當季快照先只讀近期（`snapshotWindowStart`），選日期／開走勢／賽別不足時才補讀整季（`snapFull`）；Firestore 只用 doc id **升冪範圍**查詢（`orderBy desc`／`limitToLast` 需索引會被拒），`onSnapshot` 必帶 error callback
+- 複製引用格式含當下畫面網址（`UI.citeLine`）；PageSpeed 效能分數是推算、會跳動，以實測與無障礙/傳輸量為準（見 doc/handover.md「效能與無障礙」）
 - 賽別切換(例行/季後，預設依時節) + 日曆日期(截至該日季平均) 在刊頭；雷達軸自選在 `RadarPanel`
 
 ## 規格文件

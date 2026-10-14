@@ -8,14 +8,18 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 
 - **網址記住畫面**：球員、章節、賽季、賽別、日期、攻守都寫進網址，貼到筆記裡下次一點就回到同一畫面
 - **快捷鍵**：`/` 搜尋球員／章節／賽季，`1–6` 切章節
+- **複製引用**：每個數字可一鍵複製「球員｜賽季｜截至日期｜指標 數值｜資料來源｜畫面網址」
+- **指標定義**：指標旁的「?」說明定義、計算方式與資料來源
+- **匯出**：表格可匯出 CSV（Excel 可直接開），圖表與表格可匯出 16:9／1:1 PNG 專欄配圖
+- **無障礙**：文字對比符合 WCAG AA、按鈕點擊範圍至少 24px、鍵盤操作有焦點框（PageSpeed 無障礙 100）
 
 | 分頁 | 說明 |
 |---|---|
-| **總覽 (Overview)** | 傳統季平均摘要（得分/籃板/助攻/命中率等，可選截至日期）+ 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
+| **總覽 (Overview)** | 近期異動（近 5/10 場 vs 全季）+ 季平均（可切全季／近 5 場／近 10 場，可選截至日期）+ Playtype 強弱項 + 雷達 + 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
 | **Splits** | 期間篩選（全季/每月/勝敗/主客/近N場/自訂區間/季後系列）→ 卡片牆（該期間 vs 全季 綠紅漲跌）+ 點卡展開趨勢折線（逐場/每週/每月） |
 | **投籃 (Shooting)** | 距離區間(5ft)/分區/出手方式卡片（命中率 + 出手佔比）+ 受助攻比例 + 可篩選的投籃熱圖 + 命中率趨勢 |
 | **防守 (Defense)** | 最近防守者（Defense Dashboard）、Hustle、防守 box、對手分區命中 + 防守熱圖 |
-| **Playtype** | 11 種進攻 + 9 種防守戰術的 PPP、百分位色階條、FG%、Freq、Poss/G（點卡看當季走勢） |
+| **Playtype** | 11 種進攻 + 9 種防守戰術，Synergy 式可排序表格（Freq、Poss/G、PPP、百分位色階條、FG%），可切卡片；點類型看當季走勢 |
 | **跨季比較 (Comparison)** | 多選賽季 × 數據類別 → 並列終點值表格 + 點指標畫逐季折線 |
 | **雷達圖**（在總覽） | 軸可自選（3~6 個 Playtype/Tracking 指標）+ 疊加歷史賽季或同季隊友 + 自選指標比較表 |
 | **歷史賽季回補** | 2022-23 起各賽季例行賽/季後賽完整終點快照（供跨季比較） |
@@ -55,7 +59,7 @@ wolvestracker/
 
 ```
 NBA Stats API ──(Python, 本機排程)──▶ Firebase Firestore ◀──(JS)── index.html (GitHub Pages)
-                每日 14:00 / 每週一 14:30                      即時讀取 (onSnapshot)
+                每日 14:00 / 每週一 14:30                      即時讀取 (onSnapshot，開站先讀近期快照)
 ```
 
 ## 快速開始
@@ -75,8 +79,8 @@ python scripts/fetch_data.py
 npm ci
 # 改過 components/ 之後先重新打包
 python scripts/bundle.py
-# 任何靜態伺服器即可
-python -m http.server 8080
+# 任何靜態伺服器即可；用 8000 埠（Firebase API Key 的網址白名單只開 localhost:8000）
+python -m http.server 8000
 ```
 
 ## 自動化排程（Windows 工作排程器）
