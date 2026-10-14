@@ -17,15 +17,20 @@
     <!-- 字體：Barlow Condensed（數字/標題）、Noto Sans TC（中文）、JetBrains Mono（標籤/原文）；display=swap 避免字體載入前空白 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+    <!-- 非阻斷載入：字體 CSS 約 100 KB（中文字型切片多），若當一般 stylesheet 會擋住首屏繪製；
+         先以系統字顯示，字體到了再換上（display=swap）。noscript 為停用 JS 時的退路 -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap"></noscript>
 
-    <!-- 版本一律鎖定：未鎖版的 CDN 網址會在上游發新版時悄悄改變網站行為 -->
-    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <!-- 版本一律鎖定：未鎖版的 CDN 網址會在上游發新版時悄悄改變網站行為。
+         defer：不擋首屏繪製（載入畫面先出來）；defer 與下方 type="module" 同屬「解析完依文件順序執行」，
+         所以執行順序仍是 React → Recharts → Firebase 初始化 → 元件 bundle -->
+    <script defer crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script defer crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 
     <!-- Recharts Dependencies & CDN -->
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    <script crossorigin src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"></script>
+    <script defer src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script defer crossorigin src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"></script>
 
     <script>
         window.isCloudEnabled = false;
@@ -155,7 +160,7 @@
         }
     </style>
     <!-- Tailwind 預編譯產物（python scripts/bundle.py 產生；?v= 為內容雜湊，勿手改） -->
-    <link rel="stylesheet" href="dist/app.css?v=2f8d9e64">
+    <link rel="stylesheet" href="dist/app.css?v=ca3d90d8">
 </head>
 
 <body>
@@ -183,7 +188,7 @@
         defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
         保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script defer src="dist/components-bundle.js?v=985b49be"></script>
+    <script defer src="dist/components-bundle.js?v=933d91dd"></script>
 </body>
 
 </html>

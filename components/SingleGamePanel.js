@@ -60,7 +60,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
         <window.UI.Section title="單場數據" en="Single Game" accent="blue"
             sub="單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）"
             right={<>
-                {meta.wl && <span className={`px-2 py-0.5 font-mono text-[11px] ${meta.wl === 'W' ? 'bg-[#12A150]/15 text-[#12A150]' : 'bg-[#EF4444]/15 text-[#EF4444]'}`}>{meta.matchup} {meta.wl}</span>}
+                {meta.wl && <span className={`px-2 py-0.5 font-mono text-[11px] ${meta.wl === 'W' ? 'bg-[#12A150]/[0.08] text-[#12A150]' : 'bg-[#EF4444]/[0.08] text-[#EF4444]'}`}>{meta.matchup} {meta.wl}</span>}
                 <label className="sr-only" htmlFor="single-game-date">選擇比賽</label>
                 <select id="single-game-date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                     className="rounded-full border border-white/15 bg-[#0A1626] px-3 py-1 text-xs text-slate-200 focus:outline-none focus:border-[#12A150]">

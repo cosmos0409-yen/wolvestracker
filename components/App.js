@@ -54,6 +54,12 @@ const App = () => {
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
     const [curSnapReceived, setCurSnapReceived] = useState(false);
     const [snapError, setSnapError] = useState(null);   // 當季快照訂閱失敗訊息
+    // 當季快照先只讀最近幾天（第一屏只需要「當期＋前一期」），整季序列等真的用到才補讀：
+    // 開走勢視窗、選日期、或目前賽別在近期快照裡湊不到兩份。整季約 120 份、首次傳輸近 9 MB，
+    // 每次開站都整包讀會拖慢手機首屏，也吃 Firestore 每日讀取額度
+    const [snapFull, setSnapFull] = useState(false);
+    const [snapFullReady, setSnapFullReady] = useState(false);   // 整季資料已從伺服器到達
+    const lastSnapSeasonRef = useRef(null);
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -145,10 +151,16 @@ const App = () => {
     useEffect(() => {
         if (!window.db || !window.firebaseModules) return;
         const { collection, onSnapshot } = window.firebaseModules;
-        setSelectedDate(pendingDateRef.current || ''); // 切賽季時回到最新日期（首次載入則套用網址帶的日期）
-        pendingDateRef.current = null;
-        setCurSnapReceived(false);
-        setSnapError(null);
+        // snapFull 從「最新幾份」升級成「整季」時也會重跑本 effect：此時不可清日期、不可回到載入中，
+        // 舊資料留在畫面上直到整季資料到達
+        const seasonChanged = lastSnapSeasonRef.current !== selectedSeasonKey;
+        lastSnapSeasonRef.current = selectedSeasonKey;
+        if (seasonChanged) {
+            setSelectedDate(pendingDateRef.current || ''); // 切賽季時回到最新日期（首次載入則套用網址帶的日期）
+            pendingDateRef.current = null;
+            setCurSnapReceived(false);
+            setSnapError(null);
+        }
 
         if (selectedSeasonKey === 'current') {
             setHistoryLoading(false);
@@ -157,15 +169,18 @@ const App = () => {
             // 缺索引時會靜默失敗讓整個面板空掉。詳見 constants.js 的 SNAPSHOT_SINCE
             const { query, where, documentId } = window.firebaseModules;
             // 加上界：doc id 是日期字串，但非日期 id（如 'latest'、'meta'）字典序都大於數字，
-            // 只有下界會把它們一併撈進來，之後 new Date(id) 變 NaN 污染排序
-            const recent = (name) => query(
-                collection(window.db, name),
-                where(documentId(), '>=', window.SNAPSHOT_SINCE),
-                where(documentId(), '<=', window.SNAPSHOT_UNTIL)
-            );
+            // 只有下界會把它們一併撈進來，之後 new Date(id) 變 NaN 污染排序。
+            // 只讀最近幾天時，只是把下界往後移（同樣是 doc id 範圍查詢，免建索引）。
+            // 不用 orderBy(documentId,'desc')/limitToLast：那需要 __name__ 降冪索引，已實測會被拒
+            const partial = !snapFull;
+            const since = partial ? window.snapshotWindowStart() : window.SNAPSHOT_SINCE;
+            const recent = (name) => query(collection(window.db, name),
+                where(documentId(), '>=', since), where(documentId(), '<=', window.SNAPSHOT_UNTIL));
             // 必須帶 error callback：沒有的話，查詢被安全規則擋下或缺索引時
             // callback 永遠不會被呼叫，畫面就永遠停在骨架，看不出哪裡錯了
             const onErr = (which) => (err) => {
+                // 只讀最新幾份的查詢若被拒（例如索引行為改變），直接退回整季查詢，不讓畫面空掉
+                if (partial) { console.warn(`snapshot ${which} partial query failed, loading full season`, err); setSnapFull(true); return; }
                 console.error(`snapshot ${which} failed`, err);
                 setSnapError(`${which}：${err.code || err.message || err}`);
                 setCurSnapReceived(true);
@@ -176,17 +191,21 @@ const App = () => {
             const offlineEmpty = (snapshot) => snapshot.empty && snapshot.metadata && snapshot.metadata.fromCache;
             const unsubA = onSnapshot(recent("wolves_team_stats"), (snapshot) => {
                 if (offlineEmpty(snapshot)) return;
+                if (partial && snapshot.size < 2) { setSnapFull(true); return; }
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setTeamHistory(data);
                 setCurSnapReceived(true);
+                if (!partial && !snapshot.metadata.fromCache) setSnapFullReady(true);
             }, onErr('wolves_team_stats'));
             const unsubB = onSnapshot(recent("wolves_player_stats"), (snapshot) => {
                 if (offlineEmpty(snapshot)) return;
+                if (partial && snapshot.size < 2) { setSnapFull(true); return; }
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
                 setPlayerHistory(data);
                 setCurSnapReceived(true);
+                if (!partial && !snapshot.metadata.fromCache) setSnapFullReady(true);
             }, onErr('wolves_player_stats'));
             return () => { unsubA(); unsubB(); };
         }
@@ -225,7 +244,7 @@ const App = () => {
             }
         })();
         return () => { cancelled = true; };
-    }, [selectedSeasonKey, isCloud]);
+    }, [selectedSeasonKey, isCloud, snapFull]);
 
     // 歷史終點快照的唯一取得路徑（快取 → Firestore），回傳未 normalize 的原始 doc pair。
     // 刻意「往上拋」而非吞錯回 null：呼叫端需要區分「載入失敗」與「查無此球員」，
@@ -372,6 +391,10 @@ const App = () => {
     };
     const teamIdx = seqIndex(teamSeq);
     const playerIdx = seqIndex(playerSeq);
+    // 何時要補讀整季快照（見 snapFull 說明）：選了日期、開了走勢視窗、或目前賽別在近期快照裡不足兩份
+    const needFullSnap = !isHistoryMode && !snapFull && curSnapReceived
+        && (!!selectedDate || !!selectedCard || (teamSeq.length < 2 && playerSeq.length < 2));
+    useEffect(() => { if (needFullSnap) setSnapFull(true); }, [needFullSnap]);
 
     if (viewMode === 'TEAM') {
         const current = teamSeq[teamIdx]; const prev = teamSeq[teamIdx + 1];
@@ -590,11 +613,15 @@ const App = () => {
     // 球隊沒打進季後賽時就會踩到
     const curNoDocsAtAll = selectedSeasonKey === 'current' && curSnapReceived
         && teamHistory.length === 0 && playerHistory.length === 0;
-    const curNoDocsThisType = selectedSeasonKey === 'current' && curSnapReceived
+    // 只讀了近期快照時（!snapFull），這個賽別沒有不代表整季沒有——整季正在補讀，先顯示載入中
+    const curNoDocsThisType = selectedSeasonKey === 'current' && curSnapReceived && snapFullReady
         && !curNoDocsAtAll && teamSeq.length === 0 && playerSeq.length === 0;
     const noCurrentSnapshots = !!snapError || curNoDocsAtAll || curNoDocsThisType;
     const showSkeleton = !noCurrentSnapshots
-        && (historyLoading || (teamHistory.length === 0 && playerHistory.length === 0 && isCloud));
+        && (historyLoading || (teamHistory.length === 0 && playerHistory.length === 0 && isCloud)
+            || (!isHistoryMode && !snapFullReady && teamSeq.length === 0 && playerSeq.length === 0)
+            // 選了日期但整季還沒到：手上只有近期快照，硬顯示會把最新一天的數字標成所選日期
+            || (!isHistoryMode && !!selectedDate && !snapFullReady));
 
     // 載入骨架：與新版「區塊標題 + 細線數據表」同形狀，載入完成時版面不跳動
     const SkeletonBlock = () => (
@@ -821,7 +848,7 @@ const App = () => {
                 isHistoryMode={isHistoryMode} historyLoading={historyLoading} displayDate={displayDate}
                 seasonTypeView={seasonTypeView} onSeasonTypeChange={(t) => { setSeasonTypeView(t); setSelectedDate(''); }}
                 effectiveDate={effectiveDate}
-                minDate={(teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date || undefined}
+                minDate={(snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined}
                 maxDate={latestDate || undefined} onDateChange={setSelectedDate}
                 issueSeason={isHistoryMode ? curOpt?.season : window.CURRENT_SEASON}
                 issueType={isHistoryMode ? (curOpt?.type === 'playoffs' ? '季後賽' : '例行賽') : stTypeLabel}

@@ -14,6 +14,11 @@ module.exports = {
                 display: ['"Barlow Condensed"', '"Noto Sans TC"', 'system-ui', 'sans-serif'],
                 mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
             },
+            // 無障礙對比（WCAG AA，小字需 ≥ 4.5:1）：Tailwind 原生 slate-500 在 #0A1626 上只有 3.8、
+            // slate-600 只有 2.4。全站 slate-500/600 只當文字色用，故直接調亮（各約 5.8 / 5.3）
+            colors: {
+                slate: { 500: '#8493A8', 600: '#7C8CA2' },
+            },
         },
     },
     plugins: [],

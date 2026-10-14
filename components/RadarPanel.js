@@ -76,7 +76,7 @@ const RadarPanel = ({ series, viewSide }) => {
                 <div className="mb-1 w-full border border-white/10 p-2">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] text-slate-500">勾選 3~6 個軸（{axes.length}/6）</span>
-                        <button onClick={resetAxes} className="text-[10px] text-[#236192] hover:underline">恢復預設</button>
+                        <button onClick={resetAxes} className="text-[10px] text-[#C4CED2] underline-offset-2 hover:underline">恢復預設</button>
                     </div>
                     <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto">
                         {CATALOG.map(c => {

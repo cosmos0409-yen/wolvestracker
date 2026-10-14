@@ -21,13 +21,20 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         { key: 'TOV', label: '失誤', en: 'TOV' },
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
     ];
+    // 期間切換：全季／近 5 場／近 10 場（截至同一天）。專欄最常查「最近幾場」，不必再跳到 Splits。
+    // 近 N 場時身分列（全季數字）不再重複，故顯示完整 10 項
+    const [range, setRange] = React.useState('all');
     const IN_IDENTITY = viewMode === 'TEAM' ? ['PTS', 'REB', 'AST', 'PLUS_MINUS'] : ['PTS', 'REB', 'AST', 'FG_PCT'];
-    const summary = SUMMARY.filter(s => !IN_IDENTITY.includes(s.key));
 
-    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base
-    const bundleAgg = (games && games.length) ? GA.seasonToDate(games, untilDate, null, 'TEAM') : null;
+    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base（沒有逐場就不能切近 N 場）
+    const gamesUntil = (games && games.length) ? games.filter(g => !untilDate || g.date <= untilDate) : null;
+    const bundleAgg = gamesUntil ? GA.aggregate(range === 'all' ? gamesUntil : GA.lastN(gamesUntil, Number(range)), null, 'TEAM') : null;
     const baseAgg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
     const agg = (bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg;
+    const canRange = !!(bundleAgg && bundleAgg.GP > 0);
+    const isRecent = canRange && range !== 'all';
+    const summary = isRecent ? SUMMARY : SUMMARY.filter(s => !IN_IDENTITY.includes(s.key));
+    const rangeLabel = isRecent ? `近 ${range} 場平均` : '季平均';
     const loadingAvg = games === null && !baseAgg;
 
     const valOf = (v, s) => {
@@ -75,7 +82,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         <div className="space-y-10">
             {window.Highlights && <window.Highlights games={games} untilDate={untilDate} />}
 
-            <UI.Section title="季平均" en="Season Averages" accent="green"
+            <UI.Section title={isRecent ? `近 ${range} 場` : '季平均'} en={isRecent ? `Last ${range} Games` : 'Season Averages'} accent="green"
+                right={canRange && <UI.Seg size="sm" ariaLabel="平均期間" value={range} onChange={setRange}
+                    options={[{ value: 'all', label: '全季' }, { value: '5', label: '近 5 場' }, { value: '10', label: '近 10 場' }]} />}
                 sub={[agg ? `${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W} 勝 ${agg.L} 敗` : ''}` : null, seasonLabel, untilDate ? `截至 ${untilDate}` : '整季', '百分比以 Σ命中 ÷ Σ出手 重算'].filter(Boolean).join(' · ')}>
                 {!agg ? (
                     <div className={`py-6 text-center text-sm text-slate-500 ${loadingAvg ? 'animate-pulse' : ''}`}>
@@ -85,7 +94,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <UI.Ledger cols={UI.ledgerCols(summary.length)}>
                         {summary.map(s => (
                             <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
-                                gkey={s.key} citeAsOf="agg" citeNote="季平均" />
+                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} />
                         ))}
                     </UI.Ledger>
                 )}

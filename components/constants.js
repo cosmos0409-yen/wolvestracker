@@ -123,6 +123,20 @@ window.SNAPSHOT_SINCE = `${parseInt(window.CURRENT_SEASON.slice(0, 4), 10)}-07-0
 // （'latest'、'meta' 之類字母 id 字典序都大於數字，只有下界會把它們一起撈進來，
 //   之後 new Date(id) 變 NaN 污染排序）
 window.SNAPSHOT_UNTIL = `${parseInt(window.CURRENT_SEASON.slice(0, 4), 10) + 1}-06-30`;
+// 開站時只讀「最近幾天」的快照（當期＋前一期算增減就夠），其餘等需要時才補讀整季（見 App.js snapFull）。
+// 賽季中：今天往前 10 天（每日快照，約 10 份）。
+// 休賽期（今天已過賽季上界 6/30）：從 6/30 往前 30 天——總冠軍賽結束日每年不同（約 6 月中），要留足夠緩衝。
+// 窗口內湊不到兩份時，App.js 會自動改讀整季，不會顯示成沒資料
+window.snapshotWindowStart = () => {
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const off = today > window.SNAPSHOT_UNTIL;
+    const d = new Date((off ? window.SNAPSHOT_UNTIL : today) + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - (off ? 30 : 10));
+    const start = d.toISOString().slice(0, 10);
+    return start > window.SNAPSHOT_SINCE ? start : window.SNAPSHOT_SINCE;
+};
 
 // Tracking 卡片定義（每個 metric 含中英對照）
 window.trackingDefs = [

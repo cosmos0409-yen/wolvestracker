@@ -22,7 +22,7 @@ const ChapterNav = ({ tabs, activeTab, onTab, viewSide, onSide }) => {
                 <UI.Seg ariaLabel="攻守" size="sm" value={viewSide} onChange={onSide}
                     options={[
                         { value: 'offensive', label: '進攻', activeClass: 'bg-[#12A150] text-[#0A1626] font-medium' },
-                        { value: 'defensive', label: '防守', activeClass: 'bg-[#EF4444] text-white font-medium' },
+                        { value: 'defensive', label: '防守', activeClass: 'bg-[#EF4444] text-[#0A1626] font-medium' },
                     ]} />
             </div>
         </nav>

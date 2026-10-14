@@ -86,8 +86,10 @@ window.UI = (function () {
         const c = window.CiteCtx || {};
         const g = (window.GLOSSARY || {})[gkey] || {};
         const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
+        // 最後附上當下畫面的網址（hash 記住球員/章節/賽季/日期），日後可從引用直接回到原畫面查證
+        const url = `${location.origin}${location.pathname}${location.hash}`;
         return [c.subject, c.season, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
-            `${label}${en ? `（${en}）` : ''} ${value}${unit}`, `資料：${g.src || 'NBA.com Stats'}`].filter(Boolean).join('｜');
+            `${label}${en ? `（${en}）` : ''} ${value}${unit}`, `資料：${g.src || 'NBA.com Stats'}`, url].filter(Boolean).join('｜');
     };
     const doCopy = async (text) => { const ok = await copyText(text); toast(ok ? `已複製：${text}` : '複製失敗，請手動選取'); };
 
@@ -119,7 +121,7 @@ window.UI = (function () {
         return (
             <span ref={ref} className="relative inline-flex align-middle">
                 <button type="button" aria-label="指標定義" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-                    className={`ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 hover:border-white/40 hover:text-slate-200'}`}>?</button>
+                    className={`relative ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] before:absolute before:-inset-1 before:content-[''] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 hover:border-white/40 hover:text-slate-200'}`}>?</button>
                 {open && (
                     <span role="tooltip" onClick={(e) => e.stopPropagation()}
                         className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
