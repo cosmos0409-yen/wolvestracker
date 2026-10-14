@@ -179,8 +179,9 @@ const App = () => {
             // 必須帶 error callback：沒有的話，查詢被安全規則擋下或缺索引時
             // callback 永遠不會被呼叫，畫面就永遠停在骨架，看不出哪裡錯了
             const onErr = (which) => (err) => {
-                // 只讀最新幾份的查詢若被拒（例如索引行為改變），直接退回整季查詢，不讓畫面空掉
-                if (partial) { console.warn(`snapshot ${which} partial query failed, loading full season`, err); setSnapFull(true); return; }
+                // 近期查詢若因「缺索引」被拒（failed-precondition），退回整季查詢，不讓畫面空掉。
+                // 其他錯誤（權限、網路）改讀整季也不會好，照常顯示錯誤，免得白白多抓整季資料
+                if (partial && err && err.code === 'failed-precondition') { console.warn(`snapshot ${which} partial query failed, loading full season`, err); setSnapFull(true); return; }
                 console.error(`snapshot ${which} failed`, err);
                 setSnapError(`${which}：${err.code || err.message || err}`);
                 setCurSnapReceived(true);

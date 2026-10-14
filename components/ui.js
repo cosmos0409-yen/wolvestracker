@@ -120,8 +120,11 @@ window.UI = (function () {
         if (!g) return null;
         return (
             <span ref={ref} className="relative inline-flex align-middle">
+                {/* 按鈕本身 24px（觸控目標下限，檢測工具量的是按鈕框），負邊距抵銷多出的空間；圓圈仍是 16px */}
                 <button type="button" aria-label="指標定義" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-                    className={`relative ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] before:absolute before:-inset-1 before:content-[''] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 hover:border-white/40 hover:text-slate-200'}`}>?</button>
+                    className="group/info -my-1 -mr-1 inline-flex h-6 w-6 items-center justify-center">
+                    <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 group-hover/info:border-white/40 group-hover/info:text-slate-200'}`}>?</span>
+                </button>
                 {open && (
                     <span role="tooltip" onClick={(e) => e.stopPropagation()}
                         className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
