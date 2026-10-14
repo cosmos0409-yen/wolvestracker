@@ -68,7 +68,7 @@ const RadarPanel = ({ series, viewSide }) => {
                 <span className="flex items-center gap-2">
                 <window.UI.ExportMenu title={viewSide === 'offensive' ? '進攻雷達' : '防守雷達'} getNode={() => chartRef.current}
                     csv={() => ({ header: ['軸', ...series.map(s => s.label)], rows: axes.map(k => { const c = catMap[k]; return [c ? axisName(c) : k, ...series.map(s => { const v = getVal(c, s); return v == null ? '' : v; })]; }) })} />
-                <button onClick={() => setEditing(e => !e)} className="rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-slate-400 hover:text-slate-100">自訂軸</button>
+                <button onClick={() => setEditing(e => !e)} className="rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-slate-400 hover:text-slate-100">自訂軸</button>
                 </span>
             </div>
 

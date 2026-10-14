@@ -22,7 +22,7 @@ const Masthead = ({
                             Wolves <span className="text-[#12A150]">Ledger</span>
                         </div>
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
-                            className="mt-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
+                            className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
                             {[issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：下一列的日期控制項已顯示，避免期別行被截斷 */}
                             <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>

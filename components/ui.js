@@ -120,9 +120,10 @@ window.UI = (function () {
         if (!g) return null;
         return (
             <span ref={ref} className="relative inline-flex align-middle">
-                {/* 按鈕本身 24px（觸控目標下限，檢測工具量的是按鈕框），負邊距抵銷多出的空間；圓圈仍是 16px */}
+                {/* 按鈕本身 24px（觸控目標下限，檢測工具量的是按鈕框），上下負邊距抵銷多出的高度；圓圈仍是 16px。
+                    左右不可用負邊距：會吃進相鄰的複製鈕／排序鈕，造成點擊範圍重疊 */}
                 <button type="button" aria-label="指標定義" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-                    className="group/info -my-1 -mr-1 inline-flex h-6 w-6 items-center justify-center">
+                    className="group/info -my-1 inline-flex h-6 w-6 items-center justify-center">
                     <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 group-hover/info:border-white/40 group-hover/info:text-slate-200'}`}>?</span>
                 </button>
                 {open && (
@@ -271,7 +272,8 @@ window.UI = (function () {
                     <CopyBtn className="absolute right-1 top-1"
                         text={() => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />
                 )}
-                <div className="flex items-center pr-5 text-[11px] leading-tight text-slate-300 min-w-0">
+                {/* pr-8：右上角複製鈕佔 4–28px，標題（含「?」鈕）要留到 32px 外，兩個點擊範圍才不重疊 */}
+                <div className="flex items-center pr-8 text-[11px] leading-tight text-slate-300 min-w-0">
                     <span className="truncate" title={label}>{label}</span>
                     {gkey && <Info k={gkey} />}
                 </div>
@@ -350,7 +352,7 @@ window.UI = (function () {
                                         className={`px-3 py-2 font-normal whitespace-nowrap align-bottom ${c.align === 'left' ? 'text-left' : 'text-right'} ${ci === 0 ? 'max-sm:sticky max-sm:left-0 max-sm:z-[1] max-sm:bg-[#0A1626]' : ''}`}>
                                         <span className={`inline-flex items-start gap-0.5 ${c.align === 'left' ? '' : 'flex-row-reverse'}`}>
                                             <button onClick={() => toggle(c.key)}
-                                                className={`inline-flex flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
+                                                className={`inline-flex min-h-[24px] min-w-[24px] flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
                                                 <span className="text-[11px]">{c.label}{active && <span className="ml-1 text-[#12A150]">{sort.dir === 'asc' ? '↑' : '↓'}</span>}</span>
                                                 {c.en && <span className="font-mono text-[10px] text-slate-500">{c.en}</span>}
                                             </button>
