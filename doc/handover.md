@@ -313,6 +313,7 @@ wolves_player_stats/{YYYY-MM-DD}
 欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `tracking`, `shooting`, `clutch`, `defense`, `lineups`（lineups 僅球隊文件）
 
 球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` / `defense` 皆為 `{playerName: {...}}` 同構。
+- **灰狼球員以名冊 PlayerID 過濾，不比名字**（`pid_to_name_keyed(..., keep_ids=roster_ids)`；Synergy 比 `playerId`）。名冊 API（commonteamroster）與數據 API（leaguedash*／synergyplaytypes）的寫法可能不同——2025-26 名冊 `Terrence Shannon Jr.`、數據 `Terrence Shannon Jr`，舊版比名字時他整個從快照消失（2026-10-19 修）。key 一律取**數據 API 的寫法**；`onoff` 的名字（endpoint 本身是 `Last, First`）也取 base 的寫法、沒有才退回名冊，確保 `current.onoff[球員名]` 對得上。前端跨季比對另有 `nameKey`（去句點/重音）兜底。
 - `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）。
 
 ### 投籃熱圖（`fetch_shotchart.py` 寫入，每週）

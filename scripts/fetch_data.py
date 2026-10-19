@@ -228,38 +228,44 @@ def main():
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
     roster_full = fetch_roster_with_ids(SEASON)
-    active_roster = [p["name"] for p in roster_full]
-    normalized_active = [p.strip().lower() for p in active_roster]
-    # On/Off endpoint 的球員名為 'Last, First'，改以 PlayerID 對照名單取正規名稱
-    id2name = {str(p["id"]): p["name"] for p in roster_full}
+    # 以 PlayerID 過濾，不比名字：名冊 API 與數據 API 的名字寫法可能不同
+    # （2025-26 名冊 "Terrence Shannon Jr." vs 數據 "Terrence Shannon Jr"，比名字會整個人消失）。
+    # 輸出 key 一律用數據 API 的寫法（pid_to_name_keyed 取 playerName）
+    roster_ids = {str(p["id"]) for p in roster_full}
+    # 小寫名字清單只留給單場擷取當後備（box score 抓不到時）
+    normalized_active = [p["name"].strip().lower() for p in roster_full]
 
-    # 3. 抓取球員資料（全聯盟後以現役名單過濾）
+    # 3. 抓取球員資料（全聯盟後以現役名單 PlayerID 過濾）
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
     player_tracking = pid_to_name_keyed(
-        fetch_tracking_data(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
+        fetch_tracking_data(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
     player_shooting = pid_to_name_keyed(merge_maps(
         fetch_shot_locations(SEASON, season_type_api, "Player"),
         fetch_pt_shots(SEASON, season_type_api, "Player"),
-    ), normalized_active, casefold=True)
+    ), keep_ids=roster_ids)
     player_clutch = pid_to_name_keyed(
-        fetch_clutch(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
+        fetch_clutch(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
     player_defense = pid_to_name_keyed(merge_maps(
         fetch_matchup_defense(SEASON, season_type_api),
         fetch_hustle(SEASON, season_type_api, "Player"),
         fetch_defense_box(SEASON, season_type_api, "Player"),
-    ), normalized_active, casefold=True)
-    player_base = pid_to_name_keyed(
-        fetch_base_box(SEASON, season_type_api, "Player"), normalized_active, casefold=True)
-    # On/Off（在場/不在場效率）：以 PlayerID 對照名單轉為球員名 key
+    ), keep_ids=roster_ids)
+    base_raw = fetch_base_box(SEASON, season_type_api, "Player")
+    player_base = pid_to_name_keyed(base_raw, keep_ids=roster_ids)
+    # On/Off（在場/不在場效率）：endpoint 的球員名為 'Last, First'，改以 PlayerID 取名。
+    # 優先用 base 的寫法（與其他類別 key 一致，前端 current.onoff[球員名] 直接查），沒有才退回名冊
+    id2name = {str(p["id"]): p["name"] for p in roster_full}
+    id2name.update({pid: v["playerName"].strip() for pid, v in base_raw.items()
+                    if pid in id2name and (v.get("playerName") or "").strip()})
     onoff_raw = fetch_onoff(SEASON, season_type_api)
     player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
 
-    # 將 Synergy 資料轉換以球員名稱為 key 的 dict
+    # 將 Synergy 資料轉換以球員名稱為 key 的 dict（同樣以 PlayerID 過濾）
     player_stats_map = {}
     for item in player_synergy:
-        item.pop("playerId", None)
+        pid = str(item.pop("playerId", ""))
         ident = item.pop("playerName").strip()
-        if normalized_active and ident.lower() not in normalized_active:
+        if roster_ids and pid not in roster_ids:
             continue
         player_stats_map.setdefault(ident, []).append(item)
 

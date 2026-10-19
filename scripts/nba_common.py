@@ -893,11 +893,15 @@ def merge_maps(*maps):
     return merged
 
 
-def pid_to_name_keyed(pid_map, keep=None, casefold=False):
+def pid_to_name_keyed(pid_map, keep=None, casefold=False, keep_ids=None):
     """
     PlayerID 為 key 的 dict → 球員名稱為 key（每日/單場快照的既有格式）。
+    名稱取自數據 API 的 playerName（前端以 nameKey 比對，句點/重音差異不影響）。
 
-    keep：保留名單（None 或空 = 不過濾）。
+    keep_ids：保留的 PlayerID 字串集合（None 或空 = 不過濾）。**過濾灰狼球員優先用這個**：
+        名冊 API（commonteamroster）與數據 API（leaguedash*/synergyplaytypes）的名字寫法可能不同，
+        例 2025-26 名冊 "Terrence Shannon Jr." vs 數據 "Terrence Shannon Jr"，用名字比對會整個人漏掉。
+    keep：保留名單（None 或空 = 不過濾）。只給沒有 PlayerID 名單的情境（單場 box 抓不到時的後備、回補 rotation）。
     casefold：以小寫比對（keep 也必須是小寫）。
         兩種比對方式刻意保留：fetch_data.py 的 normalized_active 是小寫清單，
         backfill_games.py 的 rotation 名單是原樣，收斂時若統一成其中一種會
@@ -905,6 +909,8 @@ def pid_to_name_keyed(pid_map, keep=None, casefold=False):
     """
     out = {}
     for pid_str, data in pid_map.items():
+        if keep_ids and pid_str not in keep_ids:
+            continue
         data = dict(data)
         name = (data.pop("playerName", "") or "").strip()
         if not name:
