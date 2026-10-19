@@ -43,7 +43,7 @@ def fetch_rotation_names(season, season_type_api, min_gp):
 
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 單場數據回補")
-    parser.add_argument("--season", default="2025-26")
+    parser.add_argument("--season", default=nc.get_current_season())
     parser.add_argument("--type", required=True, choices=["regular", "playoffs"])
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 場（0=全部）")
     parser.add_argument("--start", type=int, default=0, help="從第幾場開始（分批用）")
@@ -92,19 +92,7 @@ def main():
     done = 0
     for doc_date, api_date, matchup, wl in games:
         print(f"\n--- {doc_date} {matchup} {wl} ---")
-        player = nc.pid_to_name_keyed(nc.merge_maps(
-            nc.fetch_base_box(season, season_type_api, "Player", game_date=api_date),
-            nc.fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
-            nc.fetch_matchup_defense(season, season_type_api, game_date=api_date),
-            nc.fetch_hustle(season, season_type_api, "Player", game_date=api_date),
-            nc.fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
-        ), rotation)
-        team = nc.merge_maps(
-            nc.fetch_base_box(season, season_type_api, "Team", game_date=api_date),
-            nc.fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
-            nc.fetch_hustle(season, season_type_api, "Team", game_date=api_date),
-            nc.fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
-        ).get("MIN", {})
+        player, team, _partial = nc.fetch_single_game(season, season_type_api, api_date, rotation)
 
         if not player and not team:
             print(f"[FAILED] {doc_date} 無資料，跳過")

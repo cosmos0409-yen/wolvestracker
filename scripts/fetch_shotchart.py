@@ -21,14 +21,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nba_common import (
     TEAM_ID,
     get_season_type,
+    get_current_season,
+    get_roster_season,
     init_firebase,
     fetch_roster_with_ids,
     fetch_with_retry,
     fetch_assisted_pct,
 )
 
-SEASON = "2025-26"
-CURRENT_SEASON = "2026-27"  # 現役名單來源：讓新援在舊東家的出手也被抓進來
+SEASON = get_current_season()        # 資料賽季（10/20 起切換）
+CURRENT_SEASON = get_roster_season()  # 現役名單來源（7/1 起切換）：讓新援在舊東家的出手也被抓進來
 
 
 def _norm_gdate(raw):

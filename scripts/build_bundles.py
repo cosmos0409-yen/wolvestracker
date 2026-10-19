@@ -83,6 +83,46 @@ def build_one(db, index_id):
     print(f"   ✅ 逐球員 {len(per_player)} 份（最大 ~{max_p/1024:.0f} KB）→ wolves_pgames_bundle/{index_id}_*")
 
 
+def _upsert_entry(games, entry):
+    """依 date 取代或加入一場，回傳由舊到新排序的新 list"""
+    out = [g for g in games if g.get("date") != entry["date"]]
+    out.append(entry)
+    out.sort(key=lambda g: g.get("date", ""))
+    return out
+
+
+def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team_stats, players):
+    """增量更新：把單場併入既有 bundle（每日 fetch_data.py 用；同日重抓會取代舊的那場）。
+    只讀寫這場有關的 doc（球隊 1 份 + 當場出賽球員各 1 份），不像 build_one 重讀整季。
+    players：球員名為 key 的 dict（同 wolves_player_games.players），值須含 playerId。"""
+    import json
+    ts = int(datetime.now().timestamp() * 1000)
+    base = {"season": season, "seasonType": season_type_label, "type": "逐場打包", "timestamp": ts}
+
+    if team_stats:
+        ref = db.collection("wolves_games_bundle").document(index_id)
+        snap = ref.get()
+        games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
+                              {"date": date, "matchup": matchup, "wl": wl, "stats": team_stats})
+        ref.set({**base, "count": len(games), "games": games})
+
+    n = 0
+    for name, pdata in (players or {}).items():
+        pid = str(pdata.get("playerId", ""))
+        if not pid:
+            continue
+        ref = db.collection("wolves_pgames_bundle").document(f"{index_id}_{pid}")
+        snap = ref.get()
+        games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
+                              {"date": date, "matchup": matchup, "wl": wl, "stats": pdata})
+        pdoc = {**base, "playerId": int(pid), "playerName": name, "count": len(games), "games": games}
+        if len(json.dumps(pdoc, ensure_ascii=False).encode("utf-8")) > 0.95 * MiB:
+            print(f"   ⚠️ {name} bundle 逼近 1 MiB")
+        ref.set(pdoc)
+        n += 1
+    print(f"   ✅ bundle 增量更新 {index_id} @ {date}（球隊 {'1' if team_stats else '0'} 份、球員 {n} 份）")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 逐場打包")
     parser.add_argument("--season", help="例：2025-26")

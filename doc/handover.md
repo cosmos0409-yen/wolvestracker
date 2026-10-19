@@ -319,6 +319,9 @@ wolves_team_games/{YYYY-MM-DD}     球隊單場（stats:{...}）
 ```
 含 Tracking(6) + 對位防守 + Hustle + 分區投籃的單場值（`DateFrom=DateTo` 抓）。不含 Clutch（單日不穩）與 Synergy（不支援日期）。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
+- **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程在台北 14:00＝美東凌晨，當天日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
+- 單場文件多兩個欄位：`partial`（base 有資料但 tracking/hustle 等來源缺，NBA 單場資料偶爾晚更新）與 `captureTries`；partial 場次下次執行自動重抓，最多 3 次（`CAPTURE_MAX_TRIES`）。漏跑幾天也會自動補（5 場內）。
+- 單場抓取邏輯集中在 `nba_common.fetch_single_game()`，`backfill_games.py` 與每日共用。
 - 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
 
 ### 歷史賽季快照（`backfill_history.py` 寫入）
@@ -499,17 +502,15 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入/儲存都極寬鬆（見「Firestore 免費方案用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 53/天（含防守）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
-- **單場資料是累積欄位的子集**：`backfill_games.py` / `capture_single_game()` 只抓 tracking + 對位防守 + Hustle + 分區投籃。想讓單場也有投籃拆分 / 防守 box / 對手分區，要在**這兩處**都加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
+- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場 20。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓 tracking + 對位防守 + Hustle + 分區投籃。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
-- **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`（`backfill_games.py --index-only` 產生）。每季回補完記得跑一次 `--index-only` 更新索引；否則選單不會有新賽季。
+- **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
 
 ### E. 可清理 / 待整理（低優先）
 
 - 專案根目錄有早期開發遺留的 `debug_*.py` / `test_*.py`（約 10 個），可清。
 - `scripts/backfill_queue.txt`、`run_backfill_next.bat`、`cleanup_and_tag.py` 是 Phase 1 一次性產物，queue 已空、`WolvesBackfill` 排程已刪，可視需要移除。
-- G2 每日單場「有比賽才抓」是靠去重信號（`not skip_player`）判斷；若哪天去重邏輯改動，記得這個相依關係。
-- `capture_single_game`（每日）沒存 matchup/wl，`backfill_games` 有；若要每日單場也顯示對手/勝負，補上即可（可從 `teamgamelog` 或索引查）。
 
 ---
 

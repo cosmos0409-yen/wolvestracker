@@ -39,9 +39,10 @@ from nba_common import (
     fetch_onoff,
     fetch_player_season_teams,
     merge_maps,
+    get_roster_season,
 )
 
-CURRENT_SEASON = "2026-27"  # 用來抓現役名單：作為 isCurrentRoster 對照，並讓新援納入回補
+CURRENT_SEASON = get_roster_season()  # 用來抓現役名單（7/1 起即為新一季名冊）：作為 isCurrentRoster 對照，並讓新援納入回補
 
 # 球員終點快照的類別欄位（除 synergy 走 stats[] 陣列外，其餘為 dict）
 PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff"]

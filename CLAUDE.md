@@ -19,6 +19,7 @@
 
 ## 硬性約束
 - 抓取邏輯與欄位對應集中在 `scripts/nba_common.py`——**新增數據改設定表（`*_FIELDS`），不要在 fetch_data.py / backfill_history.py / backfill_games.py 寫重複邏輯**
+- **賽季不寫死**：資料賽季 `nba_common.get_current_season()` ＝ 前端 `constants.js` 的 `seasonForDate()`（美東 10/20 切換，兩邊同規則，改界線要一起改）；名冊賽季 `get_roster_season()`（7/1 切換，新援判定用）
 - 每日快照球員以 playerName 為 key；歷史快照以 PlayerID 為 key（前端 `normalizeHistoryPlayer` 對齊，已展開 base/tracking/shooting/clutch/defense/onoff 各類別），勿更動
 - 每日文件欄位：`stats`(Synergy)/`base`/`tracking`/`shooting`/`clutch`/`defense`/`lineups`/`onoff`，新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）
 - **新 Firestore 集合必加安全規則 read 白名單**（Firebase Console，見 doc/handover.md）——已踩過多次，症狀是前端 `Missing or insufficient permissions`

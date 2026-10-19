@@ -35,9 +35,12 @@ from nba_common import (
     fetch_opp_shot_locations,
     fetch_base_box,
     fetch_onoff,
+    fetch_single_game,
+    get_current_season,
 )
+from build_bundles import upsert_game
 
-SEASON = "2025-26"
+SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
 
 # 每日快照文件中參與去重比對的資料欄位
 DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
@@ -91,49 +94,65 @@ def should_skip_write(db, collection, today_str, new_data):
 
 
 # ==========================================
-# 單場擷取（G2）：每日順抓當天單場 → wolves_*_games（未來賽季免回補）
+# 單場擷取（G2）：每日補抓「已完賽但尚未擷取」的場次 → wolves_*_games + bundle 增量更新
 # ==========================================
-def capture_single_game(db, season, season_type_api, season_type_label, today, normalized_active):
-    """抓當天單場(DateFrom=DateTo=today)寫入 games collection；當天無比賽則 sg 為空、不寫。
-    同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用，未來賽季免另跑回補）。"""
-    api_date = datetime.strptime(today, "%Y-%m-%d").strftime("%m/%d/%Y")
-    player = pid_to_name_keyed(merge_maps(
-        fetch_base_box(season, season_type_api, "Player", game_date=api_date),
-        fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
-        fetch_matchup_defense(season, season_type_api, game_date=api_date),
-        fetch_hustle(season, season_type_api, "Player", game_date=api_date),
-        fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
-    ), normalized_active, casefold=True)
-    team = merge_maps(
-        fetch_base_box(season, season_type_api, "Team", game_date=api_date),
-        fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
-        fetch_hustle(season, season_type_api, "Team", game_date=api_date),
-        fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
-    ).get("MIN", {})
-    if not player and not team:
-        print(f"（{today} 當天無單場資料，不寫 games）")
+# 往回檢查最近幾場：排程漏跑（電腦關機）或某場被標 partial 時，下次執行自動補上
+CAPTURE_LOOKBACK_GAMES = 5
+# partial 場次最多擷取幾次就放棄（避免某來源永久沒資料時每天白打 ~20 個 request）
+CAPTURE_MAX_TRIES = 3
+
+
+def capture_recent_games(db, season, season_type_api, season_type_label, normalized_active):
+    """以賽程（teamgamelog，只列已完賽場次）找出缺漏或不完整的單場，逐場擷取。
+    場次日期取自賽程本身，不用執行當天日期——排程在台北 14:00（美東凌晨）執行，
+    當天日期永遠是比賽隔天，用它查單場會落空。
+    同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用），並增量更新 bundle（前端 Splits/總覽用）。"""
+    if not normalized_active:
+        # 名單抓失敗時 pid_to_name_keyed 不過濾 → 會把全聯盟球員寫進單場與 bundle
+        print("（現役名單為空，本次不擷取單場）")
         return
-    # 取賽程：找當天 matchup/wl，並重建整季索引（idempotent，永遠反映最新已打場次）
     game_log = fetch_team_game_log(season, season_type_api)
-    matchup, wl = "", ""
-    for d, _api, m, w in game_log:
-        if d == today:
-            matchup, wl = m, w
-            break
-    ts = int(datetime.now().timestamp() * 1000)
-    db.collection("wolves_player_games").document(today).set(
-        {"date": today, "seasonType": season_type_label, "type": "單場",
-         "matchup": matchup, "wl": wl, "timestamp": ts, "players": player})
-    db.collection("wolves_team_games").document(today).set(
-        {"date": today, "seasonType": season_type_label, "type": "單場",
-         "matchup": matchup, "wl": wl, "timestamp": ts, "stats": team})
-    if game_log:
-        type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
-        db.collection("wolves_games_index").document(f"{season}_{type_key}").set({
-            "season": season, "seasonType": season_type_label,
-            "games": [{"date": d, "matchup": m, "wl": w} for d, _api, m, w in game_log],
-        })
-    print(f"✅ 單場已寫入 wolves_*_games/{today}（球員 {len(player)} 人）+ 更新比賽索引")
+    if not game_log:
+        print("（賽程為空或抓取失敗，本次不擷取單場）")
+        return
+    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    index_id = f"{season}_{type_key}"
+    db.collection("wolves_games_index").document(index_id).set({
+        "season": season, "seasonType": season_type_label,
+        "games": [{"date": d, "matchup": m, "wl": w} for d, _api, m, w in game_log],
+    })
+
+    todo = []
+    for d, api_date, m, w in game_log[-CAPTURE_LOOKBACK_GAMES:]:
+        snap = db.collection("wolves_player_games").document(d).get(field_paths=["partial", "captureTries"])
+        if not snap.exists:
+            todo.append((d, api_date, m, w, 0, "缺漏"))
+            continue
+        prev = snap.to_dict() or {}
+        tries = prev.get("captureTries", 1)
+        if prev.get("partial") and tries < CAPTURE_MAX_TRIES:
+            todo.append((d, api_date, m, w, tries, f"上次不完整，第 {tries + 1} 次"))
+    if not todo:
+        print(f"（最近 {min(len(game_log), CAPTURE_LOOKBACK_GAMES)} 場皆已擷取，比賽索引已更新）")
+        return
+
+    for d, api_date, m, w, tries, why in todo:
+        print(f"--- 擷取單場 {d} {m} {w}（{why}）---")
+        player, team, partial = fetch_single_game(
+            season, season_type_api, api_date, normalized_active, casefold=True)
+        if not player and not team:
+            print(f"[FAILED] {d} 單場無資料，下次再試")
+            continue
+        ts = int(datetime.now().timestamp() * 1000)
+        common = {"date": d, "seasonType": season_type_label, "type": "單場",
+                  "matchup": m, "wl": w, "timestamp": ts,
+                  "partial": partial, "captureTries": tries + 1}
+        db.collection("wolves_player_games").document(d).set({**common, "players": player})
+        db.collection("wolves_team_games").document(d).set({**common, "stats": team})
+        upsert_game(db, index_id, season, season_type_label, d, m, w, team, player)
+        flag = ("完整" if not partial else
+                "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
+        print(f"✅ 單場已寫入 wolves_*_games/{d}（球員 {len(player)} 人，{flag}）")
 
 
 # ==========================================
@@ -266,10 +285,10 @@ def main():
             db.collection('wolves_player_stats').document(today).set(final_player_data)
             print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
 
-        # G2：僅在累積數據有變動（= 今天有比賽）時擷取當天單場，避免非比賽日浪費請求
+        # G2：每次都對賽程補抓缺漏單場（無缺漏時只花 1 個 request 讀賽程）
         # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）
-        if not skip_player and not force:
-            capture_single_game(db, SEASON, season_type_api, season_type_label, today, normalized_active)
+        if not force:
+            capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
 
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
     with open("local_test_data.json", "w", encoding="utf-8") as f:

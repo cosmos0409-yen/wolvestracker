@@ -336,6 +336,24 @@ def get_season_type():
         return None, None  # 休賽期
 
 
+def _season_str(start_year):
+    return f"{start_year}-{(start_year + 1) % 100:02d}"
+
+
+def get_current_season():
+    """資料賽季（每日快照/投籃熱圖/前端「當季」）：10/20 例行賽起點切換，與 get_season_type 同界。
+    休賽期仍指向剛打完的那季（前端顯示「最終」）。前端 constants.js 的 seasonForDate 為同一規則，改界線要兩邊一起改。"""
+    east_time = datetime.utcnow() - timedelta(hours=5)
+    y, m, d = east_time.year, east_time.month, east_time.day
+    return _season_str(y if (m, d) >= (10, 20) else y - 1)
+
+
+def get_roster_season():
+    """名冊賽季（新援判定/isCurrentRoster）：7/1 切換，休賽期即看下一季的新名冊。"""
+    east_time = datetime.utcnow() - timedelta(hours=5)
+    return _season_str(east_time.year if east_time.month >= 7 else east_time.year - 1)
+
+
 # ==========================================
 # Firebase 初始化
 # ==========================================
@@ -890,3 +908,32 @@ def pid_to_name_keyed(pid_map, keep=None, casefold=False):
             continue
         out[name] = {"playerId": int(pid_str), **data}
     return out
+
+
+# ==========================================
+# 單場擷取（每日 fetch_data.py 與 backfill_games.py 共用）
+# ==========================================
+def fetch_single_game(season, season_type_api, api_date, keep=None, casefold=False):
+    """抓指定日期（MM/DD/YYYY）的單場數據，回傳 (player, team, partial)。
+    player：球員名為 key（keep/casefold 語意同 pid_to_name_keyed）；team：灰狼當場 dict。
+    partial：base 有資料但其他來源有缺（NBA 單場 tracking/hustle 偶爾比 box 晚更新），
+    寫入時標記 partial=True，每日腳本下次會重抓該場。"""
+    p_sources = [
+        fetch_base_box(season, season_type_api, "Player", game_date=api_date),
+        fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
+        fetch_matchup_defense(season, season_type_api, game_date=api_date),
+        fetch_hustle(season, season_type_api, "Player", game_date=api_date),
+        fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
+    ]
+    t_sources = [
+        fetch_base_box(season, season_type_api, "Team", game_date=api_date),
+        fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
+        fetch_hustle(season, season_type_api, "Team", game_date=api_date),
+        fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
+    ]
+    player = pid_to_name_keyed(merge_maps(*p_sources), keep, casefold=casefold)
+    team = merge_maps(*t_sources).get("MIN", {})
+    # 球隊來源看灰狼那列（全聯盟有別場時 dict 不會空）；球員來源全聯盟，看非空即可
+    partial = bool(player or team) and (
+        any(not s for s in p_sources) or any(not s.get("MIN") for s in t_sources))
+    return player, team, partial

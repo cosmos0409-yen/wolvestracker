@@ -1,6 +1,5 @@
 // 全域常數
 window.PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
-window.CURRENT_SEASON = "2025-26"; // 投籃熱圖 doc id 用，需與 scripts/fetch_data.py 的 SEASON 一致
 
 // 名稱比對用 key：去句點/重音/多餘空白後小寫。
 // 必要性：同一人的名字在不同季的 API 回傳不一致
@@ -26,6 +25,17 @@ window.getSeasonPhase = function (date) {
         return { type: null, label: '休賽期', inSeason: false };
     }
 };
+// 「當季」賽季字串：美東 10/20（例行賽起點，與 getSeasonPhase 同界）切換到新賽季，
+// 休賽期仍指向剛打完的那季。必須與 scripts/nba_common.py 的 get_current_season() 同規則
+// （每日快照、投籃熱圖 doc id、bundle id 都靠它對上），改界線要兩邊一起改。
+window.seasonForDate = function (date) {
+    const d = date || new Date();
+    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
+    const y = eastTime.getUTCFullYear(), m = eastTime.getUTCMonth() + 1, day = eastTime.getUTCDate();
+    const start = (m > 10 || (m === 10 && day >= 20)) ? y : y - 1;
+    return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+};
+window.CURRENT_SEASON = window.seasonForDate();
 // 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照。
 // 單一來源：App.js 的跨季比較清單也讀 HISTORY_SEASON_OPTIONS，勿另建第二份。
 // 不變式：option.key === Firestore 的 history docId（`${season}_${type}`）

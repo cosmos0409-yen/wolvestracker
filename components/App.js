@@ -899,9 +899,7 @@ const App = () => {
                                 <p className="text-amber-300 font-bold mb-2">當季（{window.CURRENT_SEASON}）尚無快照資料</p>
                                 <p className="text-slate-400 text-sm leading-relaxed">
                                     查詢範圍為 {window.SNAPSHOT_SINCE} ~ {window.SNAPSHOT_UNTIL}，此區間內沒有任何每日快照。<br />
-                                    若剛換賽季，請確認 <code className="text-slate-300">scripts/fetch_data.py</code> 已對新賽季執行過；
-                                    <code className="text-slate-300">constants.js</code> 的 <code className="text-slate-300">CURRENT_SEASON</code>{' '}
-                                    必須等新賽季第一份快照寫入後才能更新。<br />
+                                    當季會在美東 10/20 自動切換到新賽季；新賽季第一場比賽打完後，隔天的每日抓取才會寫入第一份快照。<br />
                                     也可以先從上方賽季選單改看歷史賽季。
                                 </p>
                             </>)}
