@@ -4,7 +4,7 @@
 ## 常用指令
 - 每日抓取：`python scripts/fetch_data.py`（休賽期自動跳過；補期末快照用 `--force-type playoffs --date YYYY-MM-DD`）
 - 投籃熱圖（每週）：`python scripts/fetch_shotchart.py`（跨季重跑 `--season 2024-25 --type regular`）
-- 單場回補：`python scripts/backfill_games.py --season 2024-25 --type regular`（補失敗場 `--dates 2024-11-21,2025-01-09`）
+- 單場回補：`python scripts/backfill_games.py --season 2024-25 --type regular`（補失敗場 `--dates 2024-11-21,2025-01-09`；只補 box score `--box-only`，每場 2 requests，2025-26 已補）
 - 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照）
 - **逐場打包**：回補 games 後跑 `python scripts/build_bundles.py --all`（前端 Splits/總覽讀 bundle）
 - 前端打包：改 `components/*.js` 後必跑 `python scripts/bundle.py`（esbuild 編 JSX＋Tailwind 產 CSS＋index.html 蓋版本號；勿手改 dist/；新電腦先 `npm ci`）
@@ -32,11 +32,14 @@
 ## 前端架構（六分頁，React 18 CDN＋預編譯 JSX/Tailwind）
 - `components/*.js` 掛 `window.*`，`bundle.py` 依 ORDER 串接 → esbuild（es2018、不改名識別字）→ `dist/components-bundle.js`；Tailwind CLI → `dist/app.css`。class 必須完整寫在原始碼（不可字串拼接，否則 CLI 掃不到）
 - 提交前端改動要連 `dist/` 與 `index.html`（`?v=` 內容雜湊）一起提交
-- 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/日期/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar` → 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`)
-- 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
-- **資料層分工**：季平均/Splits/趨勢 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score → `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（2026-10 起的場次）
+- 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/日期/比賽/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar` → 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
+- 單場比賽頁 `GamePage`（`#game=日期[&p=球員]`，獨立整頁，取代主區）：灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
+- 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；Splits 走勢 `m=指標&hl=日期`；單場頁 `game=` 沒有 `v=`）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
+- **資料層分工**：季平均/Splits/趨勢 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score → `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比
 - 當季快照先只讀近期（`snapshotWindowStart`），選日期／開走勢／賽別不足時才補讀整季（`snapFull`）；Firestore 只用 doc id **升冪範圍**查詢（`orderBy desc`／`limitToLast` 需索引會被拒），`onSnapshot` 必帶 error callback
+- 次數類指標（觸球、切入次數等）在 defs 加 `neutral: true`：單場頁／疊圖不標好壞色
+- 讀 Firestore 的 effect 必等匿名登入（`isCloud`），否則被安全規則拒絕且錯誤不會自動清掉
 - 複製引用格式含當下畫面網址（`UI.citeLine`）；PageSpeed 效能分數是推算、會跳動，以實測與無障礙/傳輸量為準（見 doc/handover.md「效能與無障礙」）
 - 賽別切換(例行/季後，預設依時節) + 日曆日期(截至該日季平均) 在刊頭；雷達軸自選在 `RadarPanel`
 
