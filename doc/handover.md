@@ -66,6 +66,10 @@
 - **fetch_data 未瘦身**：每日 tracking（雷達用）/defense（防守分頁用）仍需要；只有 shooting 真正沒用（省 1-2 requests，不值得砍）。防守分頁的 defense_box/對手分區不在 games 內，故防守維持快照。
 - **2025-26 當季每日快照的類別不齊**：base/shooting/clutch/lineups/defense/onoff 是賽季中途才加進抓取，例行賽只有 2026-04-14（2026-10 以 `fetch_data.py --force-type regular --date 2026-04-14` 補寫完整期末快照）、季後賽只有 2026-05-15 / 06-15 有完整類別。前端防守分頁遇缺會說明並提供「改看 {最近有資料日期}」按鈕；新賽季起每日快照皆完整，不再有此問題
 - 排程環境：`.bat` 用 Python312 絕對路徑（裸 `python` 會抓到沒 curl_cffi 的版本）。
+- **折線疊圖（未做，2026-10 討論過）**：目前 `TrendChart` 只畫單一序列、跨季比較一次只展開一個指標；能疊加的只有雷達圖（跨賽季 overlay）。要做得先決定疊什麼：
+  - 同指標、多球員（如 Randle vs Edwards 得分逐季）：單位相同可直接疊，最直觀
+  - 同球員、多指標（如得分＋命中率）：數值範圍差很多（20 分 vs 48%），硬疊會有一條被壓平 → 需改畫「相對首季變化 %」或雙 Y 軸
+  - 做的話 `TrendChart` 要改成吃多序列（圖例／配色／hover／純文字複製都要跟著改），且三個分頁共用，需一起驗
 
 ---
 
@@ -181,6 +185,10 @@ wolvestracker/
   - 配圖不放 NBA Logo／頭像：跨網域圖片會讓畫布無法輸出，也避免在配圖上用官方商標
   - 踩過的雷：配圖根節點不可 `position:fixed`+負座標（會整張空白）→ 外層 holder 負責藏到畫面外
   - 匯出時移除複製鈕、「?」與 `data-export-hide` 標記的元素
+- **複製純文字（臉書）**（2026-10）：`ExportMenu` 的 `text` 選項（`() => string`，回 `null`＝呼叫端自行處理，例如資料未載完就跳 toast 不複製），複製到剪貼簿；臉書不吃表格、字寬不一，所以**不靠空格對齊**，改用「｜」分隔
+  - 跨季比較表（`ComparisonTab` 的 `fbText`）：標題【主體｜跨季比較・類別】→ 賽季表頭列 → 一行一指標「指標 原文｜各季值」→ 說明 → 資料來源 → 畫面網址。數字格式與表格同（`fmt`）；全選同賽別時表頭只寫年份、第一格放賽別，混選才用「24-25例」並附圖例；有「—」／「@隊名」才附對應說明；Playtype 列前加中文名（取 `GLOSSARY.PT_*` 定義冒號前的字）
+  - 折線圖（`TrendChart`，跨季／Splits／投籃三處共用）：點 ≤6 寫成一行箭頭「24-25例 34.4% → 25-26例 31.5%」，點多則一行一點「日期｜值」；有基準線附「全季平均」。`unit` 參數決定數值後綴（百分比傳 `'%'`）；標題賽季預設取 `CiteCtx.season`，跨季比較傳 `citeSeason={false}` 省略（各點已標賽季）
+  - `TrendChart` X 軸：只有日期標籤（`YYYY-MM(-DD)`）去掉年份，其他標籤原樣顯示（曾用 `slice(5)` 一律砍前 5 字，跨季的「24-25例」只剩「例」）
 
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入

@@ -237,8 +237,9 @@ window.UI = (function () {
         }
     };
 
-    // 匯出選單：CSV（有 csv 時）＋ PNG 16:9 / 1:1。getNode 回傳要輸出成圖的 DOM 節點
-    const ExportMenu = ({ title, getNode, csv }) => {
+    // 匯出選單：CSV（有 csv 時）＋ PNG 16:9 / 1:1 ＋ 純文字（有 text 時，貼臉書等不吃表格的地方）。
+    // getNode 回傳要輸出成圖的 DOM 節點；text() 回傳字串，回 null 表示呼叫端自己處理（例如資料未載完）
+    const ExportMenu = ({ title, getNode, csv, text }) => {
         const [open, setOpen] = React.useState(false);
         const ref = React.useRef(null);
         React.useEffect(() => {
@@ -257,6 +258,11 @@ window.UI = (function () {
                         {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '16:9' }); }}>配圖 PNG · 16:9</button>}
                         {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '1:1' }); }}>配圖 PNG · 1:1</button>}
                         {csv && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportCSV({ title, ...csv() }); }}>表格 CSV（Excel）</button>}
+                        {text && <button type="button" role="menuitem" className={item} onClick={async () => {
+                            setOpen(false);
+                            const t = text(); if (t == null) return;
+                            toast(await copyText(t) ? `已複製純文字：${title}（可直接貼到臉書）` : '複製失敗，請改用 CSV 匯出');
+                        }}>複製純文字（臉書）</button>}
                     </span>
                 )}
             </span>

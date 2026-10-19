@@ -137,6 +137,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
                                         options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
                                 </div>
                                 <TrendChart points={trendPts} baseline={trendBaseline}
+                                    unit={(def.metrics.find(m => m.key === trendMetric) || {}).unit === '%' ? '%' : ''}
                                     title={`${(def.metrics.find(m => m.key === trendMetric) || {}).label || ''}趨勢（${gran === 'game' ? '逐場' : gran === 'week' ? '每週' : '每月'}）`} />
                             </div>
                         )}
@@ -149,9 +150,31 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs }) => {
 };
 
 // 簡易 SVG 折線：逐點值 + 全季均線；hover 顯示精確值、上方圖例、虛線右端標基準值
-const TrendChart = ({ points, baseline, title }) => {
+// unit：純文字複製時接在數值後（'%'）；citeSeason：純文字標題的賽季，預設取 CiteCtx.season，跨季比較傳 false 省略
+const TrendChart = ({ points, baseline, title, unit = '', citeSeason }) => {
     const UI = window.UI;
     const chartRef = React.useRef(null);
+    // X 軸：日期標籤去掉年份（2025-01-15 → 01-15、2025-01 → 01）；其他標籤（跨季的「24-25例」）原樣顯示
+    const axisLabel = (l) => /^\d{4}-\d{2}(-\d{2})?$/.test(String(l)) ? String(l).slice(5) : String(l);
+    // 臉書用純文字：點少（≤6，如跨季）寫成一行箭頭，點多（逐場）一行一點
+    const fbText = () => {
+        const c = window.CiteCtx || {};
+        const subject = c.subject === 'Minnesota Timberwolves' ? '灰狼全隊' : c.subject;
+        const season = citeSeason === undefined ? c.season : citeSeason;
+        const v = (x) => `${x}${unit}`;
+        const body = points.length <= 6
+            ? [points.map(p => `${p.label} ${v(p.value)}`).join(' → ')]
+            : points.map(p => `${p.label}｜${v(p.value)}`);
+        return [
+            `【${[subject, season, title].filter(Boolean).join('｜')}】`,
+            '',
+            ...body,
+            ...(baseline != null ? ['', `全季平均 ${v(baseline)}`] : []),
+            '',
+            '資料：NBA.com Stats',
+            `${location.origin}${location.pathname}${location.hash}`,
+        ].join('\n');
+    };
     if (!points || points.length < 1) return <div className="py-8 text-center text-xs text-slate-500">資料不足，無法繪製趨勢</div>;
     const W = 640, H = 160, padL = 34, padR = 46, padT = 12, padB = 22; // padR 加大留基準標籤空間
     const vals = points.map(p => p.value);
@@ -171,7 +194,8 @@ const TrendChart = ({ points, baseline, title }) => {
                 {baseline != null && <span className="flex items-center gap-1.5"><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" stroke="#C4CED2" strokeWidth="1.5" strokeDasharray="4 3" /></svg>全季平均 {baseline}</span>}
                 <span className="text-slate-600" data-export-hide>滑鼠移到點看數值</span>
                 {title && <span className="ml-auto"><UI.ExportMenu title={title} getNode={() => chartRef.current}
-                    csv={() => ({ header: ['期間', '數值', '全季平均'], rows: points.map(p => [p.label, p.value, baseline == null ? '' : baseline]) })} /></span>}
+                    csv={() => ({ header: ['期間', '數值', '全季平均'], rows: points.map(p => [p.label, p.value, baseline == null ? '' : baseline]) })}
+                    text={fbText} /></span>}
             </div>
             <div className="overflow-x-auto">
                 <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 480 }} role="img" aria-label="趨勢折線圖">
@@ -187,7 +211,7 @@ const TrendChart = ({ points, baseline, title }) => {
                         <g key={i}>
                             <circle cx={x(i)} cy={y(p.value)} r="2.5" fill="#12A150" />
                             <circle cx={x(i)} cy={y(p.value)} r="10" fill="transparent" style={{ cursor: 'pointer' }}><title>{p.label}：{p.value}</title></circle>
-                            {points.length <= 16 && <text x={x(i)} y={H - 8} fill="#64748b" fontSize="8" textAnchor="middle" fontFamily={MONO}>{String(p.label).slice(5)}</text>}
+                            {points.length <= 16 && <text x={x(i)} y={H - 8} fill="#64748b" fontSize="8" textAnchor="middle" fontFamily={MONO}>{axisLabel(p.label)}</text>}
                         </g>
                     ))}
                 </svg>

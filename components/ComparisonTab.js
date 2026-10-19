@@ -94,6 +94,40 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
     };
     const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
 
+    // 臉書用純文字：臉書不吃表格、字是比例字寬對不齊，改成「指標｜各季值」一行一項，第一行是賽季表頭。
+    // 數字格式與畫面上的表格相同（fmt）；全部同賽別時表頭只寫年份、賽別放第一格，混選才用「24-25例」並附圖例
+    const fbText = () => {
+        if (cols.some(c => !data[c.key])) { UI.toast('資料還在載入，請稍候再複製'); return null; }
+        const TYPE_LABEL = { regular: '例行賽', playoffs: '季後賽' };
+        const sameType = cols.every(c => c.type === cols[0].type) && TYPE_LABEL[cols[0].type];
+        const tags = cols.map(c => window.tagOfMeta(metaOf(c.key)));
+        const head = cols.map((c, i) => (sameType && c.season ? c.season.slice(2) : (c.short || c.label)) + tags[i]);
+        // Playtype 表格只有英文 key，臉書讀者看不懂 → 取 glossary 定義冒號前的中文名（去掉括號補充）放前面
+        const ptName = k => (((window.GLOSSARY || {})[`PT_${k}`] || {}).def || '').split('：')[0].replace(/（.*?）/g, '');
+        const rows = metrics.map(m => {
+            const vals = cols.map(c => fmt(getVal(c.key, m), m));
+            const name = m.playtype ? [ptName(m.k), m.k].filter(Boolean).join(' ')
+                : `${m.l}${m.e && m.e !== m.l ? ` ${m.e}` : ''}`;
+            return { line: `${name}｜${vals.join('｜')}`, hasNull: vals.includes('—') };
+        });
+        const notes = [
+            !sameType && '例＝例行賽、季＝季後賽',
+            tags.some(Boolean) && '@隊名＝該季效力他隊',
+            rows.some(r => r.hasNull) && '—＝該季無此項資料',
+        ].filter(Boolean);
+        const subject = viewMode === 'PLAYER' ? selectedPlayer : '灰狼全隊';
+        return [
+            `【${subject}｜跨季比較・${CATS[activeCat].label}${activeCat === 'playtype' ? '（進攻 PPP）' : ''}】`,
+            `${sameType || '賽季'}｜${head.join('｜')}`,
+            '',
+            ...rows.map(r => r.line),
+            '',
+            ...(notes.length ? [notes.join('；')] : []),
+            `資料：NBA.com Stats${activeCat === 'playtype' ? '／Synergy' : ''}，各季期末快照`,
+            `${location.origin}${location.pathname}${location.hash}`,
+        ].join('\n');
+    };
+
     const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
 
     const UI = window.UI;
@@ -130,13 +164,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                         {openMetric && TrendChart && trendPts.length > 0 && (
                             <div className="border border-white/10 p-4">
                                 <div className="mb-3 text-[13px] font-medium text-slate-100">{openMetric.l} 逐季變化</div>
-                                <TrendChart points={trendPts} baseline={null} title={`${openMetric.l} 逐季變化`} />
+                                <TrendChart points={trendPts} baseline={null} title={`${openMetric.l} 逐季變化`}
+                                    unit={openMetric.pct ? '%' : ''} citeSeason={false} />
                             </div>
                         )}
                         {/* 比較表：列＝指標、欄＝賽季（依時間排序） */}
                         <div className="flex justify-end">
                             <UI.ExportMenu title={`跨季比較（${CATS[activeCat].label}）`} getNode={() => tableRef.current}
-                                csv={() => ({ header: ['指標', '原文', ...cols.map(c => c.label)], rows: metrics.map(m => [m.l, m.e || '', ...cols.map(c => { const v = getVal(c.key, m); return v == null ? '' : v; })]) })} />
+                                csv={() => ({ header: ['指標', '原文', ...cols.map(c => c.label)], rows: metrics.map(m => [m.l, m.e || '', ...cols.map(c => { const v = getVal(c.key, m); return v == null ? '' : v; })]) })}
+                                text={fbText} />
                         </div>
                         <div ref={tableRef} className="overflow-x-auto border-t border-white/[0.08]">
                             <table className="w-full text-sm border-collapse">

@@ -179,7 +179,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                             <UI.Seg ariaLabel="趨勢粒度" size="sm" value={gran} onChange={setGran}
                                 options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
                         </div>
-                        <TrendChart points={trendPts} baseline={trendBaseline}
+                        <TrendChart points={trendPts} baseline={trendBaseline} unit="%"
                             title={`${openItem.label}命中率趨勢（${gran === 'game' ? '逐場' : gran === 'week' ? '每週' : '每月'}）`} />
                     </div>
                 )}
