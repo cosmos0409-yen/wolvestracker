@@ -342,8 +342,20 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ### 寫入前去重
 `fetch_data.py` 寫入前會抓最近 14 天最新一筆，深度比對 `DATA_KEYS`（stats / tracking / shooting / clutch / lineups / defense），完全相同則跳過寫入避免堆積無意義文件。
 
-### Firestore 免費方案（Spark）用量
-按「文件讀寫次數」計費，非大小。新增數據是往同一份每日文件加欄位（非新增文件），故寫入次數不變（每天約 2 份 + 熱圖每週約 19 份）。球員每日文件約 52 KB（單文件上限 1 MiB 的 5%），一整季約 4.7 MB（儲存上限 1 GiB）。唯一隨流量成長的是「讀取次數」：前端開站只讀近期快照（約 10–15 份），需要整季時才讀整個當季 collection（約 120 份），個人用量離 50,000/天 很遠。
+### Firestore 方案與用量（2026-10-19 實測更正）
+- **專案是 Blaze（即付即用），不是 Spark**（Firebase Console 專案總覽可見）。免費額度：儲存 1 GiB、讀取 5 萬次/天等；**超過不會停擺而是開始計費**（單價見 Google Cloud 價目，本手冊不記數字以免過期）。單欄位索引設定上限 1,000 個（開帳單的專案）。
+- **儲存量要連索引一起算**：Firestore 預設替每個欄位（含 map 裡每個子欄位、整個 map 值）建遞增＋遞減索引、陣列建 array-contains。我們的文件是深層巢狀數值，2026-10-19 依官方 storage-size 規則逐份估算：資料 25 MiB、**索引約 157 MiB**（`wolves_player_games` 單場一份資料 19 KB、索引約 305 KB）。照此每季約 +139 MiB，約 6 季後會超過免費額度。
+- **已處理：10 個集合全部設 `*` 索引豁免**（見下節），每季增量估計降到約 16～19 MiB（≈ 只剩資料本身）。
+- 讀取次數：前端開站只讀近期快照（約 10–15 份），需要整季時才讀整個當季 collection（約 120 份）；逐場用 bundle（一份 = 1 次讀取）。個人用量離 50,000/天 很遠。
+- 實際儲存量：服務帳戶無 Monitoring 權限，需用自己的帳號到 Google Cloud Console → 監控 → Metrics Explorer → 資源「Firestore Database」的 storage 指標查看。
+
+### Firestore 索引豁免（2026-10-19 起）
+- **10 個集合都在 Firebase Console → Firestore → 索引 → 自動 → 豁免項目，設定 `欄位路徑 = *`、範圍「集合」、遞增/遞減/陣列全停用**：`wolves_team_games`、`wolves_player_games`、`wolves_player_stats`、`wolves_team_stats`、`wolves_shotcharts`、`wolves_pgames_bundle`、`wolves_games_bundle`、`wolves_player_history`、`wolves_team_history`、`wolves_games_index`。map 欄位的子欄位會繼承豁免；之後新增的欄位（如對手 `opp`/`oppPlayers`/`box`）自動涵蓋。
+- **為什麼可以全關**：前端與腳本只用「文件 ID 範圍查詢」（`App.js` 的 `where(documentId(), ...)`）、單一文件讀取（`getDoc`）與整集合讀取（`stream()`），這三種用的是內建的文件 ID 索引，不受豁免影響（2026-10-19 逐集合實測通過）。
+- **副作用**：任何依欄位內容的查詢（`where('date', ...)`、`where('stats.PTS', ...)`、`orderBy('timestamp')`）都會回 `FAILED_PRECONDITION: The query requires an index`。真的需要時，只替那一個欄位在同頁新增一筆「啟用」的豁免即可，不必整個集合恢復。
+- **復原**：同頁刪除該集合那一筆豁免，Firestore 會在背景重建索引（數分鐘，視文件數）。
+- 設定前的原始索引設定（全預設）備份在 `~/.claude/ops/backup-20261019/wolvestracker/firestore_index_config_before.json`。
+- 服務帳戶只有讀取索引設定的權限、不能修改（刻意不提權：金鑰在本機，權限越小外洩風險越低），所以豁免一律在 Console 手動設定。
 
 ---
 
@@ -496,6 +508,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ### C. 常見雷區（都踩過，務必記得）
 
+- **新 Firestore 集合 = 必加 `*` 索引豁免**：否則該集合的每個欄位都會自動建索引，儲存量約是資料的 5～16 倍（見「Firestore 索引豁免」）。和下一條 read 規則一起做。
 - **新 Firestore 集合 = 必加 read 規則**：每加一個集合，都要去 Firebase Console 在 `match /databases/{database}/documents { ... }` **大括號內**加 `allow read: if request.auth != null`。這個 session 踩了兩次（`wolves_shotcharts`、`wolves_*_games`），症狀都是前端 `Missing or insufficient permissions`。放到大括號外會靜默失效。
 - **`.bat` / 重導向輸出要 `PYTHONIOENCODING=utf-8`**：腳本裡有 emoji（🔑✅），Windows 預設 cp950 會在 `print` 時崩潰。正式 `.bat` 已設；手動 `python x.py > log.txt` 也要設，否則死在第一個 emoji。
 - **新每日欄位要加進 `DATA_KEYS`**（`fetch_data.py`）：否則去重不會比對它，可能漏寫或誤判相同。
@@ -506,7 +519,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ### D. 效能與擴充強化點
 
-- **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入/儲存都極寬鬆（見「Firestore 免費方案用量」）。
+- **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
 - **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場 20。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓 tracking + 對位防守 + Hustle + 分區投籃。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
@@ -521,6 +534,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 ---
 
 ## 更新紀錄
+
+- 2026-10-19 — 開季前修正：賽季改由日期推算、每日單場改依賽程補抓＋bundle 增量更新＋定稿規則、排程改台北 03:00；Firestore 更正為 Blaze 方案、10 個集合設 `*` 索引豁免（儲存估算由每季 ~139 MiB 降至 ~16～19 MiB）
 
 - 2026-10-14 — SECONDARY_AST 依 NBA.com 官方定義改寫並更名「二次助攻」，glossary 已無待確認條目
 - 2026-10-14 — Wolves Ledger 改版 Phase 6–7：近期快照載入、移除阻斷載入、對比 AA、觸控目標、總覽近 N 場、引用附網址；新增「效能與無障礙」「2026-10 Wolves Ledger 改版」，更新檔案結構、Spark 用量、雷區與常見問題
