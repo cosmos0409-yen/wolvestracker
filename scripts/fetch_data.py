@@ -36,6 +36,7 @@ from nba_common import (
     fetch_base_box,
     fetch_onoff,
     fetch_single_game,
+    game_docs,
     get_current_season,
 )
 from build_bundles import upsert_game
@@ -130,46 +131,45 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
     index_id = f"{season}_{type_key}"
     db.collection("wolves_games_index").document(index_id).set({
         "season": season, "seasonType": season_type_label,
-        "games": [{"date": d, "matchup": m, "wl": w} for d, _api, m, w in game_log],
+        "games": [{"date": d, "matchup": m, "wl": w, "gameId": gid} for d, _api, m, w, gid in game_log],
     })
 
     todo = []
-    for d, api_date, m, w in game_log[-CAPTURE_LOOKBACK_GAMES:]:
+    for d, api_date, m, w, gid in game_log[-CAPTURE_LOOKBACK_GAMES:]:
         snap = db.collection("wolves_player_games").document(d).get(
             field_paths=["partial", "final", "captureTries"])
         if not snap.exists:
-            todo.append((d, api_date, m, w, 0, "缺漏"))
+            todo.append((d, api_date, m, w, gid, 0, "缺漏"))
             continue
         prev = snap.to_dict() or {}
         # 舊文件（回補產生、無 final 欄）一律視為已定稿
         if not prev.get("final", True):
-            todo.append((d, api_date, m, w, 0, "上次未定稿"))
+            todo.append((d, api_date, m, w, gid, 0, "上次未定稿"))
             continue
         tries = prev.get("captureTries", 1)
         if prev.get("partial") and tries < CAPTURE_MAX_TRIES:
-            todo.append((d, api_date, m, w, tries, f"上次不完整，第 {tries + 1} 次"))
+            todo.append((d, api_date, m, w, gid, tries, f"上次不完整，第 {tries + 1} 次"))
     if not todo:
         print(f"（最近 {min(len(game_log), CAPTURE_LOOKBACK_GAMES)} 場皆已擷取，比賽索引已更新）")
         return
 
-    for d, api_date, m, w, tries, why in todo:
-        print(f"--- 擷取單場 {d} {m} {w}（{why}）---")
-        player, team, partial = fetch_single_game(
-            season, season_type_api, api_date, normalized_active, casefold=True)
+    for d, api_date, m, w, gid, tries, why in todo:
+        print(f"--- 擷取單場 {d} {m} {w} [{gid}]（{why}）---")
+        g = fetch_single_game(season, season_type_api, api_date, gid, normalized_active, casefold=True)
+        player, team, partial = g["player"], g["team"], g["partial"]
         if not player and not team:
             print(f"[FAILED] {d} 單場無資料，下次再試")
             continue
         final = is_final_capture(d)
-        ts = int(datetime.now().timestamp() * 1000)
-        common = {"date": d, "seasonType": season_type_label, "type": "單場",
-                  "matchup": m, "wl": w, "timestamp": ts,
-                  "partial": partial, "final": final, "captureTries": tries + 1 if final else 0}
-        db.collection("wolves_player_games").document(d).set({**common, "players": player})
-        db.collection("wolves_team_games").document(d).set({**common, "stats": team})
-        upsert_game(db, index_id, season, season_type_label, d, m, w, team, player)
+        player_doc, team_doc = game_docs(d, season_type_label, m, w, g, extra={
+            "partial": partial, "final": final, "captureTries": tries + 1 if final else 0})
+        db.collection("wolves_player_games").document(d).set(player_doc)
+        db.collection("wolves_team_games").document(d).set(team_doc)
+        upsert_game(db, index_id, season, season_type_label, d, m, w, team, player,
+                    opp_stats=g["opp_team"], opp_abbr=g["opp_abbr"])
         flag = ("未定稿（距比賽未滿 12 小時），下次重抓" if not final else "完整" if not partial else
                 "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
-        print(f"✅ 單場已寫入 wolves_*_games/{d}（球員 {len(player)} 人，{flag}）")
+        print(f"✅ 單場已寫入 wolves_*_games/{d}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人，{flag}）")
 
 
 # ==========================================

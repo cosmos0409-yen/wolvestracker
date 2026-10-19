@@ -51,7 +51,7 @@ def build_one(db, index_id):
         if tg.exists:
             t = tg.to_dict()
             m, w = t.get("matchup", ""), t.get("wl", "")
-            team_games.append({"date": d, "matchup": m, "wl": w, "stats": t.get("stats", {})})
+            team_games.append(_team_entry(d, m, w, t.get("stats", {}), t.get("opp"), t.get("oppAbbr", "")))
         pg = db.collection("wolves_player_games").document(d).get()
         if pg.exists:
             p = pg.to_dict()
@@ -91,7 +91,16 @@ def _upsert_entry(games, entry):
     return out
 
 
-def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team_stats, players):
+def _team_entry(date, matchup, wl, stats, opp=None, opp_abbr=""):
+    """球隊 bundle 的一場；有對手數據（2026-10 起擷取的場次）才帶 opp/oppAbbr，舊場次維持原形狀"""
+    e = {"date": date, "matchup": matchup, "wl": wl, "stats": stats}
+    if opp:
+        e["opp"], e["oppAbbr"] = opp, opp_abbr
+    return e
+
+
+def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team_stats, players,
+                opp_stats=None, opp_abbr=""):
     """增量更新：把單場併入既有 bundle（每日 fetch_data.py 用；同日重抓會取代舊的那場）。
     只讀寫這場有關的 doc（球隊 1 份 + 當場出賽球員各 1 份），不像 build_one 重讀整季。
     players：球員名為 key 的 dict（同 wolves_player_games.players），值須含 playerId。"""
@@ -103,7 +112,7 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
         ref = db.collection("wolves_games_bundle").document(index_id)
         snap = ref.get()
         games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
-                              {"date": date, "matchup": matchup, "wl": wl, "stats": team_stats})
+                              _team_entry(date, matchup, wl, team_stats, opp_stats, opp_abbr))
         ref.set({**base, "count": len(games), "games": games})
 
     n = 0

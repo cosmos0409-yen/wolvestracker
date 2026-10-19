@@ -260,6 +260,11 @@ LEAGUE_DASH_COMMON = (
 )
 
 
+def _team_key(team_id):
+    """球隊模式結果的 key：灰狼固定 'MIN'（既有文件格式），其他隊用 TEAM_ID 字串（單場抓對手用）"""
+    return "MIN" if int(team_id) == TEAM_ID else str(team_id)
+
+
 def _with_date(url, game_date):
     """把 leaguedash URL 的空 DateFrom/DateTo 換成指定單日（MM/DD/YYYY）以抓單場；
     game_date=None 時原樣回傳（不過濾）。Synergy 不吃日期，不適用此函式。"""
@@ -402,7 +407,7 @@ def fetch_roster_with_ids(season):
 
 
 def fetch_team_game_log(season, season_type_api):
-    """灰狼賽程（teamgamelog），回傳 [(doc_date 'YYYY-MM-DD', api_date 'MM/DD/YYYY', matchup, wl), ...]，由舊到新。
+    """灰狼賽程（teamgamelog），回傳 [(doc_date 'YYYY-MM-DD', api_date 'MM/DD/YYYY', matchup, wl, game_id), ...]，由舊到新。
     供單場回補（每場日期）與每日單場擷取（找當天 matchup/wl + 寫比賽索引）共用。"""
     url = (f"https://stats.nba.com/stats/teamgamelog?LeagueID=00&Season={season}"
            f"&SeasonType={season_type_api}&TeamID={TEAM_ID}")
@@ -415,7 +420,7 @@ def fetch_team_game_log(season, season_type_api):
     for r in rows:
         gd = datetime.strptime(r[h.index("GAME_DATE")], "%b %d, %Y")
         out.append((gd.strftime("%Y-%m-%d"), gd.strftime("%m/%d/%Y"),
-                    r[h.index("MATCHUP")], r[h.index("WL")]))
+                    r[h.index("MATCHUP")], r[h.index("WL")], r[h.index("Game_ID")]))
     out.reverse()  # 由舊到新
     return out
 
@@ -480,17 +485,17 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
 # ==========================================
 # Tracking（leaguedashptstats 進階數據）
 # ==========================================
-def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_date=None):
+def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_date=None, team_id=TEAM_ID):
     """
     抓取 Tracking 進階數據（欄位由 TRACKING_FIELDS 設定表決定）
     球員模式回傳 dict，key 為 PlayerID 字串，值含 playerName（抓全聯盟，由呼叫端過濾）
-    球隊模式回傳 dict，key 為 'MIN'
+    球隊模式回傳 dict，key 為 'MIN'（team_id=0 時含當天所有球隊，其他隊 key 為 TEAM_ID 字串）
     game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）
     """
     results = {}
     for measure_type in TRACKING_TYPES:
         # 球員模式抓全聯盟（TeamID=0），解決季中轉隊數據歸屬未更新的問題
-        team_id_param = TEAM_ID if player_or_team == "Team" else 0
+        team_id_param = team_id if player_or_team == "Team" else 0
         url = _with_date((f"https://stats.nba.com/stats/leaguedashptstats?{LEAGUE_DASH_COMMON}"
                f"&PlayerOrTeam={player_or_team}&PtMeasureType={measure_type}"
                f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
@@ -504,7 +509,7 @@ def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_dat
                 if ident not in results:
                     results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
             else:
-                ident = "MIN"
+                ident = _team_key(row[headers_list.index("TEAM_ID")])
                 if ident not in results:
                     results[ident] = {}
             apply_fields(results[ident], row, headers_list, TRACKING_FIELDS[measure_type])
@@ -514,7 +519,7 @@ def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_dat
 # ==========================================
 # 投籃數據：分區命中率 + 投籃拆分
 # ==========================================
-def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_date=None):
+def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_date=None, team_id=TEAM_ID):
     """
     抓取分區投籃數據（leaguedash{player|team}shotlocations, DistanceRange=By Zone）
     此 endpoint 的 resultSets 為 dict 且 headers 為雙層（區域層 + 欄位層），需獨立解析。
@@ -523,7 +528,7 @@ def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_
     game_date（MM/DD/YYYY）指定時抓該單場
     """
     endpoint = "leaguedashplayershotlocations" if player_or_team == "Player" else "leaguedashteamshotlocations"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&DistanceRange=By+Zone&MeasureType=Base&PaceAdjust=N&PlusMinus=N&Rank=N"
            f"&Period=0&ShotClockRange=&GameSegment="
@@ -543,7 +548,7 @@ def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_
             ident = str(row[flat_columns.index("PLAYER_ID")])
             results[ident] = {"playerName": row[flat_columns.index("PLAYER_NAME")]}
         else:
-            ident = "MIN"
+            ident = _team_key(row[flat_columns.index("TEAM_ID")])
             results[ident] = {}
         for prefix, zone_name in SHOT_ZONES:
             if zone_name not in zone_names:
@@ -642,7 +647,7 @@ def fetch_lineups(season, season_type_api, top_n=10):
 # ==========================================
 # 防守：對位防守（leaguedashptdefend，僅球員）
 # ==========================================
-def fetch_matchup_defense(season, season_type_api, game_date=None):
+def fetch_matchup_defense(season, season_type_api, game_date=None, team_id=TEAM_ID):
     """
     對位防守（被該球員防守時對手的命中率）。此 endpoint 以 defender 為主鍵，僅球員層級。
     合併 Overall 與 3 Pointers 兩類。回傳 {PlayerID字串: {playerName, ...}}。
@@ -654,7 +659,7 @@ def fetch_matchup_defense(season, season_type_api, game_date=None):
         ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
     ]:
         url = _with_date((f"https://stats.nba.com/stats/leaguedashptdefend?{LEAGUE_DASH_COMMON}"
-               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}"), game_date)
+               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={team_id}"), game_date)
         data = fetch_with_retry(url, f"MatchupDefense {label}")
         if data is None:
             continue
@@ -670,11 +675,11 @@ def fetch_matchup_defense(season, season_type_api, game_date=None):
 # ==========================================
 # 防守：Hustle 拼勁（leaguehustlestats{player|team}）
 # ==========================================
-def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=None):
+def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=None, team_id=TEAM_ID):
     """抓取拼勁數據。球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
     game_date（MM/DD/YYYY）指定時抓該單場。"""
     endpoint = "leaguehustlestatsplayer" if player_or_team == "Player" else "leaguehustlestatsteam"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&PlayerOrTeam={player_or_team}&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}"), game_date)
     results = {}
@@ -687,7 +692,7 @@ def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=Non
             ident = str(row[headers_list.index("PLAYER_ID")])
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
         else:
-            ident = "MIN"
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, HUSTLE_FIELDS)
     return results
@@ -724,7 +729,7 @@ def fetch_defense_box(season, season_type_api, player_or_team="Player"):
 # 傳統基本數據（leaguedash{player|team}stats?MeasureType=Base）
 # ==========================================
 def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=None,
-                   with_team_abbr=False):
+                   with_team_abbr=False, team_id=TEAM_ID):
     """傳統基本數據（PTS/REB/AST/FG% 等，欄位見 BASE_FIELDS）。
     球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
     game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）。
@@ -733,7 +738,7 @@ def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=N
     預設關閉：每日快照與單場文件的 to_name_keyed / pid_to_name 只 pop playerName，
     多出來的 key 會流進文件汙染 schema，並讓 fetch_data 的去重比對永遠不相等。"""
     endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&MeasureType=Base&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
            f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
@@ -752,7 +757,7 @@ def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=N
             if with_team_abbr:
                 results[ident]["teamAbbr"] = row[headers_list.index("TEAM_ABBREVIATION")]
         else:
-            ident = "MIN"
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, BASE_FIELDS)
     return results
@@ -911,13 +916,106 @@ def pid_to_name_keyed(pid_map, keep=None, casefold=False):
 
 
 # ==========================================
+# 單場 box score（boxscoretraditionalv3 + boxscoresummaryv3，以 GameID 查）
+# ==========================================
+# box score 球員/球隊數據欄位：(輸出欄名, v3 statistics 欄名, 是否百分比)。輸出名沿用 BASE_FIELDS 慣例。
+# 想多存欄位：在這裡加一行即可（v3 欄名見 boxscoretraditionalv3 的 statistics）
+BOX_STAT_FIELDS = [
+    ("MIN", "minutes", False),            # 字串 "38:01"（DNP 為空字串）
+    ("PTS", "points", False),
+    ("FGM", "fieldGoalsMade", False), ("FGA", "fieldGoalsAttempted", False), ("FG_PCT", "fieldGoalsPercentage", True),
+    ("FG3M", "threePointersMade", False), ("FG3A", "threePointersAttempted", False), ("FG3_PCT", "threePointersPercentage", True),
+    ("FTM", "freeThrowsMade", False), ("FTA", "freeThrowsAttempted", False), ("FT_PCT", "freeThrowsPercentage", True),
+    ("OREB", "reboundsOffensive", False), ("DREB", "reboundsDefensive", False), ("REB", "reboundsTotal", False),
+    ("AST", "assists", False), ("STL", "steals", False), ("BLK", "blocks", False),
+    ("TOV", "turnovers", False), ("PF", "foulsPersonal", False), ("PLUS_MINUS", "plusMinusPoints", False),
+]
+
+
+def _box_stats(st):
+    out = {}
+    for name, key, pct in BOX_STAT_FIELDS:
+        v = (st or {}).get(key)
+        out[name] = (round(v * 100, 1) if v is not None else 0) if pct else (v if v is not None else 0)
+    return out
+
+
+def _full_name(pl):
+    return f"{pl.get('firstName', '')} {pl.get('familyName', '')}".strip()
+
+
+def fetch_boxscore(game_id):
+    """單場完整 box score（兩隊）。回傳 (box, complete)；traditional 抓不到回 (None, False)。
+    box = {gameId, homeTeamId, awayTeamId, arena, attendance, duration, officials[],
+           teams: [{teamId, tricode, name, home, score, periods[{period,type,pts}], totals{}}],
+           players: [{personId, name, nameI, tricode, jersey, starter, position, comment, stats{}}]（DNP 的 stats 為空）,
+           inactives: [{personId, name, tricode, jersey}]}
+    先發判定：v3 只有先發球員有 position（F/C/G），替補為空字串。背號只有 summary 有。
+    complete=False 表示 summary（每節比分/傷停/背號）沒抓到，呼叫端應視為 partial。"""
+    trad = fetch_with_retry(
+        f"https://stats.nba.com/stats/boxscoretraditionalv3?GameID={game_id}"
+        f"&StartPeriod=0&EndPeriod=0&StartRange=0&EndRange=0&RangeType=0", f"BoxScore {game_id}")
+    if not trad or "boxScoreTraditional" not in trad:
+        return None, False
+    summ = fetch_with_retry(f"https://stats.nba.com/stats/boxscoresummaryv3?GameID={game_id}", f"BoxSummary {game_id}")
+    bt = trad["boxScoreTraditional"]
+    sm = (summ or {}).get("boxScoreSummary") or {}
+    jersey = {}
+    for side in ("homeTeam", "awayTeam"):
+        for pl in (sm.get(side) or {}).get("players") or []:
+            jersey[pl.get("personId")] = (pl.get("jerseyNum") or "").strip()
+    box = {"gameId": game_id, "homeTeamId": bt.get("homeTeamId"), "awayTeamId": bt.get("awayTeamId"),
+           "teams": [], "players": [], "inactives": []}
+    if sm:
+        arena = sm.get("arena") or {}
+        box["arena"] = ", ".join(x for x in (arena.get("arenaName"), arena.get("arenaCity")) if x)
+        box["attendance"] = sm.get("attendance") or 0
+        box["duration"] = sm.get("duration") or ""
+        box["officials"] = [o.get("name", "") for o in sm.get("officials") or []]
+    for side in ("homeTeam", "awayTeam"):
+        t = bt.get(side) or {}
+        st = sm.get(side) or {}
+        tri = t.get("teamTricode", "")
+        box["teams"].append({
+            "teamId": t.get("teamId"), "tricode": tri, "home": side == "homeTeam",
+            "name": f"{t.get('teamCity', '')} {t.get('teamName', '')}".strip(),
+            "score": st.get("score", (t.get("statistics") or {}).get("points", 0)),
+            "periods": [{"period": x.get("period"), "type": x.get("periodType"), "pts": x.get("score")}
+                        for x in st.get("periods") or []],
+            "totals": _box_stats(t.get("statistics")),
+        })
+        for pl in t.get("players") or []:
+            played = bool((pl.get("statistics") or {}).get("minutes"))
+            box["players"].append({
+                "personId": pl.get("personId"), "tricode": tri, "name": _full_name(pl), "nameI": pl.get("nameI", ""),
+                "jersey": jersey.get(pl.get("personId"), ""), "position": pl.get("position", ""),
+                "starter": bool(pl.get("position")), "comment": pl.get("comment", ""),
+                "stats": _box_stats(pl.get("statistics")) if played else {},
+            })
+        for pl in st.get("inactives") or []:
+            box["inactives"].append({"personId": pl.get("personId"), "tricode": tri, "name": _full_name(pl),
+                                     "jersey": (pl.get("jerseyNum") or "").strip()})
+    return box, bool(sm)
+
+
+# ==========================================
 # 單場擷取（每日 fetch_data.py 與 backfill_games.py 共用）
 # ==========================================
-def fetch_single_game(season, season_type_api, api_date, keep=None, casefold=False):
-    """抓指定日期（MM/DD/YYYY）的單場數據，回傳 (player, team, partial)。
-    player：球員名為 key（keep/casefold 語意同 pid_to_name_keyed）；team：灰狼當場 dict。
-    partial：base 有資料但其他來源有缺（NBA 單場 tracking/hustle 偶爾比 box 晚更新），
-    寫入時標記 partial=True，每日腳本下次會重抓該場。"""
+def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, casefold=False, keep_is_fallback=True):
+    """抓指定日期（MM/DD/YYYY）、GameID 的單場數據（灰狼＋對手），回傳 dict：
+      player / team          灰狼球員（球員名 key）/ 灰狼球隊
+                             球員以 box score 上場名單的 PlayerID 過濾（不靠名字：名冊 API 與數據 API 的寫法
+                             可能不同，例 "Terrence Shannon Jr." vs "Terrence Shannon Jr"，用名字會整個人漏掉）。
+                             keep（名字清單，語意同 pid_to_name_keyed）只在 box 抓不到時當後備；
+                             keep_is_fallback=False 時另外再套用（回補 --min-gp 用）
+      opp_players / opp_team 對手球員（以 box score 上場名單篩，球員名 key）/ 對手球隊
+      opp_id / opp_abbr      對手 TEAM_ID / 三碼縮寫（取自 box score）
+      box                    完整 box score（見 fetch_boxscore）
+      partial                某來源缺漏（NBA 單場資料偶爾晚更新），寫入時標記、每日腳本下次重抓
+    request 數約 24：box 2 + 球員 11（全聯盟）+ 對手對位防守 2 + 球隊 9（TeamID=0 一次拿兩隊）。"""
+    box, box_complete = fetch_boxscore(game_id)
+    opp = next((t for t in (box or {}).get("teams", []) if t.get("teamId") != TEAM_ID), None)
+    opp_id = opp["teamId"] if opp else None
     p_sources = [
         fetch_base_box(season, season_type_api, "Player", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
@@ -925,15 +1023,46 @@ def fetch_single_game(season, season_type_api, api_date, keep=None, casefold=Fal
         fetch_hustle(season, season_type_api, "Player", game_date=api_date),
         fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
     ]
+    opp_def = fetch_matchup_defense(season, season_type_api, game_date=api_date, team_id=opp_id) if opp_id else {}
     t_sources = [
-        fetch_base_box(season, season_type_api, "Team", game_date=api_date),
-        fetch_tracking_data(season, season_type_api, "Team", game_date=api_date),
-        fetch_hustle(season, season_type_api, "Team", game_date=api_date),
-        fetch_shot_locations(season, season_type_api, "Team", game_date=api_date),
+        fetch_base_box(season, season_type_api, "Team", game_date=api_date, team_id=0),
+        fetch_tracking_data(season, season_type_api, "Team", game_date=api_date, team_id=0),
+        fetch_hustle(season, season_type_api, "Team", game_date=api_date, team_id=0),
+        fetch_shot_locations(season, season_type_api, "Team", game_date=api_date, team_id=0),
     ]
-    player = pid_to_name_keyed(merge_maps(*p_sources), keep, casefold=casefold)
-    team = merge_maps(*t_sources).get("MIN", {})
-    # 球隊來源看灰狼那列（全聯盟有別場時 dict 不會空）；球員來源全聯盟，看非空即可
+    league = merge_maps(*p_sources)
+    min_pids = {str(pl["personId"]) for pl in (box or {}).get("players", [])
+                if pl.get("tricode") == "MIN" and pl.get("stats")}
+    if min_pids:
+        player = pid_to_name_keyed({pid: v for pid, v in league.items() if pid in min_pids},
+                                   None if keep_is_fallback else keep, casefold=casefold)
+    else:
+        player = pid_to_name_keyed(league, keep, casefold=casefold)
+    teams = merge_maps(*t_sources)
+    team = teams.get("MIN", {})
+    opp_team = teams.get(str(opp_id), {}) if opp_id else {}
+    # 對手球員：box score 中該隊有上場者（DNP 不列）；對位防守另以對手 TeamID 抓
+    opp_tri = (opp or {}).get("tricode")
+    opp_pids = {str(pl["personId"]) for pl in (box or {}).get("players", [])
+                if pl.get("tricode") == opp_tri and pl.get("stats")}
+    opp_players = pid_to_name_keyed(merge_maps(
+        {pid: v for pid, v in league.items() if pid in opp_pids},
+        {pid: v for pid, v in opp_def.items() if pid in opp_pids}))
+    # 球隊來源看兩隊那列（全聯盟有別場時 dict 不會空）；球員來源全聯盟，看非空即可
     partial = bool(player or team) and (
-        any(not s for s in p_sources) or any(not s.get("MIN") for s in t_sources))
-    return player, team, partial
+        any(not s for s in p_sources) or any(not s.get("MIN") for s in t_sources)
+        or not box_complete or not opp_id or not opp_def
+        or any(not s.get(str(opp_id)) for s in t_sources))
+    return {"player": player, "team": team, "opp_players": opp_players, "opp_team": opp_team,
+            "opp_id": opp_id, "opp_abbr": opp_tri or "", "box": box, "partial": partial}
+
+
+def game_docs(date, season_type_label, matchup, wl, g, extra=None):
+    """由 fetch_single_game 結果組 wolves_player_games / wolves_team_games 文件（每日與回補共用格式）。
+    extra：額外欄位（每日擷取的 partial/final/captureTries）。回傳 (player_doc, team_doc)。"""
+    common = {"date": date, "seasonType": season_type_label, "type": "單場", "matchup": matchup, "wl": wl,
+              "timestamp": int(datetime.now().timestamp() * 1000), **(extra or {})}
+    meta = {"gameId": (g["box"] or {}).get("gameId", ""), "oppId": g["opp_id"], "oppAbbr": g["opp_abbr"]}
+    player_doc = {**common, **meta, "players": g["player"], "oppPlayers": g["opp_players"]}
+    team_doc = {**common, **meta, "stats": g["team"], "opp": g["opp_team"], "box": g["box"]}
+    return player_doc, team_doc

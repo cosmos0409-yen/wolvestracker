@@ -19,7 +19,6 @@ import sys
 import os
 import time
 import argparse
-from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nba_common as nc
@@ -72,7 +71,7 @@ def main():
         index_id = f"{season}_{args.type}"
         db.collection("wolves_games_index").document(index_id).set({
             "season": season, "seasonType": season_type_label,
-            "games": [{"date": d, "matchup": m, "wl": w} for d, _, m, w in games],
+            "games": [{"date": d, "matchup": m, "wl": w, "gameId": gid} for d, _, m, w, gid in games],
         })
         print(f"✅ 已寫入比賽索引 wolves_games_index/{index_id}（{total} 場）")
     if args.index_only:
@@ -90,23 +89,25 @@ def main():
     print(f"共 {total} 場，本次處理 {len(games)} 場（start={args.start}, limit={args.limit or '全部'}）")
 
     done = 0
-    for doc_date, api_date, matchup, wl in games:
-        print(f"\n--- {doc_date} {matchup} {wl} ---")
-        player, team, _partial = nc.fetch_single_game(season, season_type_api, api_date, rotation)
+    for doc_date, api_date, matchup, wl, gid in games:
+        print(f"\n--- {doc_date} {matchup} {wl} [{gid}] ---")
+        # 球員以 box score 上場名單（ID）過濾；--min-gp > 0 時再加套輪換門檻
+        g = nc.fetch_single_game(season, season_type_api, api_date, gid, rotation,
+                                 keep_is_fallback=(args.min_gp == 0))
+        player, team = g["player"], g["team"]
 
         if not player and not team:
             print(f"[FAILED] {doc_date} 無資料，跳過")
             continue
 
-        ts = int(datetime.now().timestamp() * 1000)
-        player_doc = {"date": doc_date, "seasonType": season_type_label, "type": "單場",
-                      "matchup": matchup, "wl": wl, "timestamp": ts, "players": player}
-        team_doc = {"date": doc_date, "seasonType": season_type_label, "type": "單場",
-                    "matchup": matchup, "wl": wl, "timestamp": ts, "stats": team}
+        # 回補為事後抓取，數據已定稿；partial 照實標記，之後可用 --dates 重補
+        player_doc, team_doc = nc.game_docs(doc_date, season_type_label, matchup, wl, g,
+                                            extra={"partial": g["partial"], "final": True, "captureTries": 1})
         if db:
             db.collection("wolves_player_games").document(doc_date).set(player_doc)
             db.collection("wolves_team_games").document(doc_date).set(team_doc)
-            print(f"✅ 已寫入 {doc_date}（球員 {len(player)} 人）")
+            print(f"✅ 已寫入 {doc_date}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人"
+                  f"{'，⚠️ 部分來源缺漏' if g['partial'] else ''}）")
         else:
             print(f"（無 DB）{doc_date} 球員 {len(player)} 人、球隊 {len(team)} 欄")
         done += 1
