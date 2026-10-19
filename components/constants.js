@@ -225,6 +225,22 @@ window.shootingDefs = [
     },
 ];
 
+// 傳統基本數據（逐場 bundle 的 base 欄位）：Splits「基本」組、單場頁、賽季軌跡疊圖共用
+window.SPLITS_BASE_DEF = {
+    id: 'Base', title: '基本數據 (Traditional)', metrics: [
+        { key: 'PTS', label: '得分', englishLabel: 'PTS' },
+        { key: 'REB', label: '籃板', englishLabel: 'REB' },
+        { key: 'AST', label: '助攻', englishLabel: 'AST' },
+        { key: 'FG_PCT', label: '命中率', englishLabel: 'FG%', unit: '%' },
+        { key: 'FG3_PCT', label: '三分%', englishLabel: '3P%', unit: '%' },
+        { key: 'FT_PCT', label: '罰球%', englishLabel: 'FT%', unit: '%' },
+        { key: 'STL', label: '抄截', englishLabel: 'STL' },
+        { key: 'BLK', label: '阻攻', englishLabel: 'BLK' },
+        { key: 'TOV', label: '失誤', englishLabel: 'TOV', betterIsLarger: false },
+        { key: 'PLUS_MINUS', label: '正負值', englishLabel: '+/-' },
+    ]
+};
+
 // Clutch 卡片定義（資料來源為 doc.clutch；NBA 定義：第四節或延長賽最後 5 分鐘、分差 5 分內；PerMode=PerGame 為場均）
 window.clutchDefs = [
     {

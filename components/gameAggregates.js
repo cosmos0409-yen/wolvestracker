@@ -136,12 +136,12 @@ window.GameAgg = (function () {
             groups = Object.keys(m).sort().map(k => ({ label: k, games: m[k] }));
         } else if (granularity === 'month') {
             groups = splitByMonth(games);
-        } else { // game
-            groups = games.slice().sort(byDate).map(g => ({ label: g.date, games: [g] }));
+        } else { // game：每點多帶 wl（走勢勝負底色）
+            groups = games.slice().sort(byDate).map(g => ({ label: g.date, games: [g], wl: g.wl }));
         }
         return groups.map(gr => {
             const agg = aggregate(gr.games, entityKey, viewMode);
-            return { label: gr.label, value: agg[metricKey], gp: agg.GP };
+            return { label: gr.label, value: agg[metricKey], gp: agg.GP, ...(gr.wl ? { wl: gr.wl } : {}) };
         }).filter(p => typeof p.value === 'number');
     }
 

@@ -60,6 +60,12 @@ const App = () => {
     const [snapFull, setSnapFull] = useState(false);
     const [snapFullReady, setSnapFullReady] = useState(false);   // 整季資料已從伺服器到達
     const lastSnapSeasonRef = useRef(null);
+    // Splits 打開逐場走勢的指標（網址 m=）與圈出的那一場（hl=）。綁定「實體＋章節」：
+    // 換球員／球隊或離開 Splits 就自動失效，不會帶著舊的 m/hl 跑到別的畫面
+    const focusKeyOf = (vm, p, tab) => `${vm}|${vm === 'PLAYER' ? p : ''}|${tab}`;
+    const [focus, setFocus] = useState(() => urlInit.focusMetric
+        ? { m: urlInit.focusMetric, hl: urlInit.highlightDate || null, key: focusKeyOf(urlInit.viewMode, urlInit.selectedPlayer, urlInit.activeTab) }
+        : null);
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -111,7 +117,7 @@ const App = () => {
     // 快取帶 TTL：賽季中 fetch_data.py 每天會重建索引，永久快取會讓新比賽永遠不出現。
     const GAMES_INDEX_TTL = 6 * 3600 * 1000;
     useEffect(() => {
-        if (!window.db || !window.firebaseModules) return;
+        if (!window.db || !window.firebaseModules || !isCloud) return;   // 等匿名登入完成，否則被安全規則拒絕
         let cancelled = false;
         const indexId = `${window.CURRENT_SEASON}_${seasonTypeView}`;
         const cacheKey = `wt_games_index_v2_${indexId}`;
@@ -149,7 +155,8 @@ const App = () => {
 
     // 資料載入：依 selectedSeasonKey 切換 onSnapshot（current）或 getDoc + localStorage 快取（history）
     useEffect(() => {
-        if (!window.db || !window.firebaseModules) return;
+        // 必須等匿名登入完成（isCloud）：安全規則要求已登入，先訂閱會被拒且錯誤狀態不會自己清掉
+        if (!window.db || !window.firebaseModules || !isCloud) return;
         const { collection, onSnapshot } = window.firebaseModules;
         // snapFull 從「最新幾份」升級成「整季」時也會重跑本 effect：此時不可清日期、不可回到載入中，
         // 舊資料留在畫面上直到整季資料到達
@@ -749,12 +756,25 @@ const App = () => {
         { key: 'comparison', label: '跨季' },
     ];
 
+    // 換球員／球隊但仍在 Splits：SplitsTab 沒有重新掛載，走勢還開著 → 網址保留 m、拿掉 hl（那場屬於原本的人）；
+    // 離開 Splits：SplitsTab 卸載、走勢關閉 → 清掉。網址帶來的新 focus 已用新 key 建立，這裡不會動到
+    useEffect(() => {
+        if (!focus) return;
+        const k = focusKeyOf(viewMode, selectedPlayer, activeTab);
+        if (focus.key === k) return;
+        setFocus(activeTab === 'splits' && focus.key.endsWith('|splits') ? { m: focus.m, hl: null, key: k } : null);
+    }, [viewMode, selectedPlayer, activeTab]);
+    const activeFocus = focus && focus.key === focusKeyOf(viewMode, selectedPlayer, activeTab) ? focus : null;
+    // Splits 開關走勢／換指標 → 更新 m（保留原本圈出的那一場）
+    const onSplitsFocus = (m) => setFocus(m ? { m, hl: activeFocus ? activeFocus.hl : null, key: focusKeyOf(viewMode, selectedPlayer, activeTab) } : null);
+
     // 網址狀態同步：狀態一變就 replaceState（不新增瀏覽紀錄，返回鍵不會一格格倒退）
     useEffect(() => {
         if (!window.UrlState) return;
-        const h = '#' + window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide });
+        const h = '#' + window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
+            focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null });
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus]);
 
     // 同一分頁貼上另一個連結時只有 hash 變（不會重新載入）→ 套用新狀態。replaceState 不會觸發 hashchange
     const seasonKeyRef = useRef(selectedSeasonKey);
@@ -763,6 +783,7 @@ const App = () => {
         if (!window.UrlState) return;
         const onHash = () => {
             const st = window.UrlState.parse(window.location.hash);
+            setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
             setActiveTab(st.activeTab || 'overview');
@@ -925,6 +946,8 @@ const App = () => {
                             <window.SplitsTab
                                 games={seasonGames} seasonLabel={primaryLabel}
                                 isPlayoffs={isHistoryMode ? currentSeasonType === '季後賽' : seasonTypeView === 'playoffs'}
+                                focusMetric={activeFocus ? activeFocus.m : null} highlightDate={activeFocus ? activeFocus.hl : null}
+                                onFocusChange={onSplitsFocus}
                             />
                         )}
 

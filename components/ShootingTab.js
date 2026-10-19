@@ -98,7 +98,9 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
             const k = gran === 'week' ? weekKey(s.gdate) : gran === 'month' ? (s.gdate || '').slice(0, 7) : s.gdate;
             (groups[k] = groups[k] || []).push(s);
         });
-        return Object.keys(groups).sort().map(k => { const g = groups[k]; const m = g.filter(s => s.made === 1).length; return { label: k, value: g.length ? +(100 * m / g.length).toFixed(1) : 0 }; });
+        // 逐場的點帶 wl（gameMeta）→ 走勢鋪勝負底色
+        return Object.keys(groups).sort().map(k => { const g = groups[k]; const m = g.filter(s => s.made === 1).length; const wl = gran === 'game' ? (meta[k] || {}).wl : null;
+            return { label: k, value: g.length ? +(100 * m / g.length).toFixed(1) : 0, ...(wl ? { wl } : {}) }; });
     };
     const openItem = items.find(it => it.key === openKey);
     const trendPts = openItem ? trendFor(openItem.fn) : [];
