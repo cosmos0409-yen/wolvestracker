@@ -13,6 +13,7 @@ Usage:
     python backfill_games.py --season 2025-26 --type regular --limit 2   # 小樣本測試(前2場)
     python backfill_games.py --season 2025-26 --type regular             # 全季
     python backfill_games.py --season 2025-26 --type regular --start 40 --limit 20  # 分批(第40場起20場)
+    python backfill_games.py --season 2025-26 --type regular --box-only  # 只替既有單場補 box score（每場約 2 requests）
 """
 
 import sys
@@ -40,6 +41,41 @@ def fetch_rotation_names(season, season_type_api, min_gp):
     return {r[name_i].strip() for r in data['resultSets'][0]['rowSet'] if r[gp_i] >= min_gp}
 
 
+def backfill_box_only(db, games):
+    """只替既有單場文件補 box score（2026-10 前的場次沒抓過 box）。
+    用 update 合併寫入 box/gameId，不覆寫 stats/opp 等既有欄位；文件不存在的場次跳過（不建空文件）。
+    summary 沒抓到（complete=False）的場次標 [PARTIAL]，之後用 --dates 重補。"""
+    if not db:
+        print("❌ --box-only 需要 Firebase（找不到憑證），終止")
+        sys.exit(1)
+    done, partial, skipped, failed = 0, [], [], []
+    for doc_date, _api_date, matchup, wl, gid in games:
+        ref = db.collection("wolves_team_games").document(doc_date)
+        if not ref.get().exists:
+            print(f"[SKIP] {doc_date} {matchup}：wolves_team_games 無此文件")
+            skipped.append(doc_date)
+            continue
+        box, complete = nc.fetch_boxscore(gid)
+        if not box:
+            print(f"[FAILED] {doc_date} {matchup} [{gid}]：box score 抓不到")
+            failed.append(doc_date)
+            continue
+        ref.update({"box": box, "gameId": gid})
+        score = " - ".join(f"{t['tricode']} {t['score']}" for t in box["teams"])
+        print(f"✅ {doc_date} {matchup} {wl}｜{score}｜球員 {len(box['players'])} 人"
+              f"{'' if complete else '｜[PARTIAL] 缺每節比分／傷停／背號'}")
+        if not complete:
+            partial.append(doc_date)
+        done += 1
+    print(f"\n=== box score 完成 {done}/{len(games)} 場 ===")
+    if partial:
+        print(f"[PARTIAL] {len(partial)} 場：--dates {','.join(partial)}")
+    if failed:
+        print(f"[FAILED] {len(failed)} 場：--dates {','.join(failed)}")
+    if skipped:
+        print(f"[SKIP] {len(skipped)} 場無單場文件：{', '.join(skipped)}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 單場數據回補")
     parser.add_argument("--season", default=nc.get_current_season())
@@ -49,6 +85,8 @@ def main():
     parser.add_argument("--min-gp", type=int, default=DEFAULT_MIN_GP, help="輪換門檻出賽數")
     parser.add_argument("--index-only", action="store_true", help="只寫比賽索引(前端日期選單用)後結束")
     parser.add_argument("--dates", default="", help="只回補指定日期(逗號分隔 YYYY-MM-DD)，補失敗場用")
+    parser.add_argument("--box-only", action="store_true",
+                        help="只補 box score（每場約 2 requests），合併寫入既有 wolves_team_games，不動其他欄位")
     args = parser.parse_args()
 
     season = args.season
@@ -56,8 +94,9 @@ def main():
     season_type_label = "例行賽" if args.type == "regular" else "季後賽"
 
     print(f"=== 單場回補 {season} {season_type_label} ===")
-    rotation = fetch_rotation_names(season, season_type_api, args.min_gp)
-    print(f"輪換球員（GP>={args.min_gp}）：{len(rotation)} 人 — {', '.join(sorted(rotation))}")
+    if not args.box_only:   # --box-only 不需要球員名單，省一次 request
+        rotation = fetch_rotation_names(season, season_type_api, args.min_gp)
+        print(f"輪換球員（GP>={args.min_gp}）：{len(rotation)} 人 — {', '.join(sorted(rotation))}")
 
     games = nc.fetch_team_game_log(season, season_type_api)
     if not games:
@@ -87,6 +126,10 @@ def main():
         if args.limit:
             games = games[:args.limit]
     print(f"共 {total} 場，本次處理 {len(games)} 場（start={args.start}, limit={args.limit or '全部'}）")
+
+    if args.box_only:
+        backfill_box_only(db, games)
+        return
 
     done = 0
     for doc_date, api_date, matchup, wl, gid in games:

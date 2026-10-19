@@ -18,6 +18,7 @@ scripts/__pycache__/
 fetch_log.txt
 backfill_log.txt
 backfill_*.json
+backfill_*log*.txt
 scripts/backfill_queue.txt
 
 ### Local-only helpers ###

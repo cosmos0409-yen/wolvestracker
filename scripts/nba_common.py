@@ -1001,7 +1001,10 @@ def fetch_boxscore(game_id):
         for pl in st.get("inactives") or []:
             box["inactives"].append({"personId": pl.get("personId"), "tricode": tri, "name": _full_name(pl),
                                      "jersey": (pl.get("jerseyNum") or "").strip()})
-    return box, bool(sm)
+    # summary 偶爾回傳空殼（2025-11-19 實例：有回應但兩隊 periods 皆空、無背號/傷停/場館），
+    # 只看 bool(sm) 會誤判完整 → 以「兩隊都有每節比分」為準
+    complete = bool(sm) and all(t["periods"] for t in box["teams"])
+    return box, complete
 
 
 # ==========================================
