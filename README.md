@@ -59,7 +59,7 @@ wolvestracker/
 
 ```
 NBA Stats API ──(Python, 本機排程)──▶ Firebase Firestore ◀──(JS)── index.html (GitHub Pages)
-                每日 14:00 / 每週一 14:30                      即時讀取 (onSnapshot，開站先讀近期快照)
+                每日 03:00 / 每週一 14:30                      即時讀取 (onSnapshot，開站先讀近期快照)
 ```
 
 ## 快速開始
@@ -90,7 +90,7 @@ python -m http.server 8000
 
 | 工作名稱 | 頻率 | 執行內容 |
 |---|---|---|
-| `WolvesTracker` | 每日 14:00 | `run_fetch.bat` → `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（賽後 12 小時數據才齊；喚醒＋錯過補跑） | `run_fetch.bat` → `fetch_log.txt` |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` → `shotchart_log.txt` |
 
 建立每週排程的指令：

@@ -11,7 +11,7 @@
 | 3 | 前端 UI 全面改寫 | ✅ | 雷達圖、Tracking 卡片、球員頭像、賽季標籤 |
 | 4 | 反爬蟲機制 | ✅ | curl_cffi 瀏覽器 TLS 模擬 + retry |
 | 5 | 賽季類型自動判斷 | ✅ | `get_season_type()`（後端）+ `getSeasonPhase()`（前端） |
-| 6 | Windows 排程器自動執行 | ✅ | 每日 14:00 抓當日（`WolvesTracker`）、每週一 14:30 抓熱圖（`WolvesShotchart`）；詳見「自動化排程」 |
+| 6 | Windows 排程器自動執行 | ✅ | 每日 03:00 抓前一晚比賽（`WolvesTracker`）、每週一 14:30 抓熱圖（`WolvesShotchart`）；詳見「自動化排程」 |
 | 7 | `seasonType` / `season` 欄位 | ✅ | 所有文件含「例行賽 / 季後賽」標籤 |
 | 8 | **Phase 0：前端元件拆檔（bundle 模式）** | ✅ | components/ 9 檔；`scripts/bundle.py` 合併為 `dist/components-bundle.js` |
 | 9 | **Phase 1：歷史賽季回補** | ✅ | 22-23 / 23-24 / 24-25 × 例行 / 季後 共 12 個 history 文件 |
@@ -232,10 +232,12 @@ wolvestracker/
 
 | 排程名稱 | 時間 | 腳本 | 用途 | Log |
 |---|---|---|---|---|
-| `WolvesTracker` | 每日 14:00 | `run_fetch.bat` | 抓當日數據；若與前一筆完全相同則跳過寫入 | `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場 | `fetch_log.txt` |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
 
 （`WolvesBackfill` 已刪除；backfill queue 完成後不再需要）
+
+**為什麼是台北 03:00（2026-10 由 14:00 改）**：NBA 賽後最多約 12 小時才把數據補齊。台北 03:00 ≈ 美東 14:00～15:00，距最晚的西岸場結束也超過 12 小時，累積快照各類別（含 Synergy）與單場都是最終數字；快照 doc id 仍是比賽隔天（美東日期），語意不變。排程設 `WakeToRun`＋`StartWhenAvailable`：睡眠中會喚醒（電源計畫「允許喚醒計時器」目前只在接電源時啟用），關機錯過則開機後補跑。單場另有定稿保險（`FINAL_AFTER_HOURS`，見「單場數據」），手動提早執行也不會鎖住半成品。
 
 **建立 / 手動執行**：
 ```powershell
@@ -319,8 +321,12 @@ wolves_team_games/{YYYY-MM-DD}     球隊單場（stats:{...}）
 ```
 含 Tracking(6) + 對位防守 + Hustle + 分區投籃的單場值（`DateFrom=DateTo` 抓）。不含 Clutch（單日不穩）與 Synergy（不支援日期）。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
-- **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程在台北 14:00＝美東凌晨，當天日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
-- 單場文件多兩個欄位：`partial`（base 有資料但 tracking/hustle 等來源缺，NBA 單場資料偶爾晚更新）與 `captureTries`；partial 場次下次執行自動重抓，最多 3 次（`CAPTURE_MAX_TRIES`）。漏跑幾天也會自動補（5 場內）。
+- **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
+- 單場文件多三個欄位：
+  - `final`：擷取時間是否已過「比賽隔天美東（UTC-5）13:00」（`FINAL_AFTER_HOURS`＝最晚場結束＋12 小時）。未定稿的下次一定重抓——各來源都有值但還沒更新完的半成品，`partial` 抓不到，只能靠時間判斷。
+  - `partial`：base 有資料但 tracking/hustle 等某來源整個空；定稿後最多重抓 3 次（`CAPTURE_MAX_TRIES`）。
+  - `captureTries`：定稿後的擷取次數（未定稿時為 0）。舊回補文件沒有這些欄位，視為已定稿完整。
+  漏跑幾天也會自動補（5 場內）。
 - 單場抓取邏輯集中在 `nba_common.fetch_single_game()`，`backfill_games.py` 與每日共用。
 - 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
 

@@ -98,12 +98,23 @@ def should_skip_write(db, collection, today_str, new_data):
 # ==========================================
 # 往回檢查最近幾場：排程漏跑（電腦關機）或某場被標 partial 時，下次執行自動補上
 CAPTURE_LOOKBACK_GAMES = 5
-# partial 場次最多擷取幾次就放棄（避免某來源永久沒資料時每天白打 ~20 個 request）
+# partial 場次最多擷取幾次就放棄（避免某來源永久沒資料時每天白打 ~20 個 request）；只計「定稿」後的擷取
 CAPTURE_MAX_TRIES = 3
+# 定稿門檻：比賽隔天美東（UTC-5 計）13:00。NBA 賽後最多約 12 小時才把數據補齊，
+# 最晚的西岸場約美東 01:00 結束 → +12h ≈ 13:00。早於此時擷取的單場標 final=False，下次一定重抓，
+# 避免把「各來源都有值但還沒更新完」的半成品鎖死（partial 只抓得到「某來源整個空」的情況）。
+# 正式排程在台北 03:00（≈ UTC-5 14:00），一次即可定稿。
+FINAL_AFTER_HOURS = 24 + 13
+
+
+def is_final_capture(game_date, now_east=None):
+    """game_date 'YYYY-MM-DD'；now_east 預設為現在的 UTC-5 時間"""
+    now_east = now_east or (datetime.utcnow() - timedelta(hours=5))
+    return now_east >= datetime.strptime(game_date, "%Y-%m-%d") + timedelta(hours=FINAL_AFTER_HOURS)
 
 
 def capture_recent_games(db, season, season_type_api, season_type_label, normalized_active):
-    """以賽程（teamgamelog，只列已完賽場次）找出缺漏或不完整的單場，逐場擷取。
+    """以賽程（teamgamelog，只列已完賽場次）找出缺漏、未定稿或不完整的單場，逐場擷取。
     場次日期取自賽程本身，不用執行當天日期——排程在台北 14:00（美東凌晨）執行，
     當天日期永遠是比賽隔天，用它查單場會落空。
     同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用），並增量更新 bundle（前端 Splits/總覽用）。"""
@@ -124,11 +135,16 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
 
     todo = []
     for d, api_date, m, w in game_log[-CAPTURE_LOOKBACK_GAMES:]:
-        snap = db.collection("wolves_player_games").document(d).get(field_paths=["partial", "captureTries"])
+        snap = db.collection("wolves_player_games").document(d).get(
+            field_paths=["partial", "final", "captureTries"])
         if not snap.exists:
             todo.append((d, api_date, m, w, 0, "缺漏"))
             continue
         prev = snap.to_dict() or {}
+        # 舊文件（回補產生、無 final 欄）一律視為已定稿
+        if not prev.get("final", True):
+            todo.append((d, api_date, m, w, 0, "上次未定稿"))
+            continue
         tries = prev.get("captureTries", 1)
         if prev.get("partial") and tries < CAPTURE_MAX_TRIES:
             todo.append((d, api_date, m, w, tries, f"上次不完整，第 {tries + 1} 次"))
@@ -143,14 +159,15 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         if not player and not team:
             print(f"[FAILED] {d} 單場無資料，下次再試")
             continue
+        final = is_final_capture(d)
         ts = int(datetime.now().timestamp() * 1000)
         common = {"date": d, "seasonType": season_type_label, "type": "單場",
                   "matchup": m, "wl": w, "timestamp": ts,
-                  "partial": partial, "captureTries": tries + 1}
+                  "partial": partial, "final": final, "captureTries": tries + 1 if final else 0}
         db.collection("wolves_player_games").document(d).set({**common, "players": player})
         db.collection("wolves_team_games").document(d).set({**common, "stats": team})
         upsert_game(db, index_id, season, season_type_label, d, m, w, team, player)
-        flag = ("完整" if not partial else
+        flag = ("未定稿（距比賽未滿 12 小時），下次重抓" if not final else "完整" if not partial else
                 "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
         print(f"✅ 單場已寫入 wolves_*_games/{d}（球員 {len(player)} 人，{flag}）")
 
