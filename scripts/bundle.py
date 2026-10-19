@@ -50,6 +50,7 @@ ORDER = [
     "gameAggregates.js",
     "gamesData.js",
     "SingleGamePanel.js",
+    "GamePage.js",
     "Highlights.js",
     "OverviewTab.js",
     "SplitsTab.js",

@@ -50,6 +50,9 @@ const App = () => {
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
     const [activeTab, setActiveTab] = useState(() => pick('activeTab', loadPref('activeTab', 'overview'))); // 章節
+    // 單場比賽頁（網址 #game=）：有值時主區改顯示 GamePage；gamePlayer＝展開進階的球員（網址 p=）
+    const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
+    const [gamePlayer, setGamePlayer] = useState(() => urlInit.gamePlayer || '');
     const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
     const [curSnapReceived, setCurSnapReceived] = useState(false);
@@ -111,30 +114,16 @@ const App = () => {
         return { ...doc, ...out };
     };
 
-    // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取）
+    // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取，見 gamesData.js 的 loadGamesIndex）
     // 索引依賽別分開存（backfill_games.py / fetch_data.py 寫 {season}_{type}），必須跟著賽別切換，
     // 否則看季後賽時選單會列出例行賽場次。
-    // 快取帶 TTL：賽季中 fetch_data.py 每天會重建索引，永久快取會讓新比賽永遠不出現。
-    const GAMES_INDEX_TTL = 6 * 3600 * 1000;
     useEffect(() => {
-        if (!window.db || !window.firebaseModules || !isCloud) return;   // 等匿名登入完成，否則被安全規則拒絕
+        if (!window.db || !window.firebaseModules || !isCloud || !window.loadGamesIndex) return;   // 等匿名登入完成，否則被安全規則拒絕
         let cancelled = false;
-        const indexId = `${window.CURRENT_SEASON}_${seasonTypeView}`;
-        const cacheKey = `wt_games_index_v2_${indexId}`;
-        try {
-            const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-            if (c && Date.now() - c.t < GAMES_INDEX_TTL) { setGamesIndex(c.games); return; }
-        } catch (e) { /* fall through */ }
         setGamesIndex([]);
-        (async () => {
-            const { doc: docFn, getDoc } = window.firebaseModules;
-            try {
-                const snap = await getDoc(docFn(window.db, 'wolves_games_index', indexId));
-                const games = snap.exists() ? (snap.data().games || []) : [];
-                try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
-                if (!cancelled) setGamesIndex(games);
-            } catch (e) { console.error('games index fetch fail', e); }
-        })();
+        window.loadGamesIndex(window.CURRENT_SEASON, seasonTypeView)
+            .then(games => { if (!cancelled) setGamesIndex(games); })
+            .catch(e => console.error('games index fetch fail', e));
         return () => { cancelled = true; };
     }, [isCloud, seasonTypeView]);
 
@@ -771,10 +760,15 @@ const App = () => {
     // 網址狀態同步：狀態一變就 replaceState（不新增瀏覽紀錄，返回鍵不會一格格倒退）
     useEffect(() => {
         if (!window.UrlState) return;
-        const h = '#' + window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
-            focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null });
+        const h = '#' + (gameDate
+            ? window.UrlState.serialize({ gameDate, gamePlayer })
+            : window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
+                focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer]);
+    // 進出單場頁一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
+    const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
+    const leaveGame = () => { if (gameDate) { setGameDate(null); setGamePlayer(''); } };
 
     // 同一分頁貼上另一個連結時只有 hash 變（不會重新載入）→ 套用新狀態。replaceState 不會觸發 hashchange
     const seasonKeyRef = useRef(selectedSeasonKey);
@@ -783,6 +777,9 @@ const App = () => {
         if (!window.UrlState) return;
         const onHash = () => {
             const st = window.UrlState.parse(window.location.hash);
+            // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
+            if (st.gameDate) { setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); window.scrollTo(0, 0); return; }
+            setGameDate(null); setGamePlayer('');
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
@@ -801,7 +798,9 @@ const App = () => {
         return () => window.removeEventListener('hashchange', onHash);
     }, []);
 
-    // 快捷鍵：/ 開搜尋、1–6 切章節。輸入框聚焦、搜尋面板或走勢 Modal 開著時不攔截
+    const leaveGameRef = useRef(leaveGame);
+    leaveGameRef.current = leaveGame;
+    // 快捷鍵：/ 開搜尋、1–6 切章節（在單場頁按會回到主畫面該章節）。輸入框聚焦、搜尋面板或走勢 Modal 開著時不攔截
     useEffect(() => {
         const keys = TABS.map(t => t.key);
         const onKey = (e) => {
@@ -810,7 +809,7 @@ const App = () => {
             if (e.metaKey || e.ctrlKey || e.altKey || paletteOpen || selectedCard) return;
             if (e.key === '/') { e.preventDefault(); setPaletteOpen(true); return; }
             const n = parseInt(e.key, 10);
-            if (n >= 1 && n <= keys.length) setActiveTab(keys[n - 1]);
+            if (n >= 1 && n <= keys.length) { leaveGameRef.current(); setActiveTab(keys[n - 1]); }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
@@ -841,7 +840,7 @@ const App = () => {
     };
 
     // 搜尋面板項目（依群組排列，群組名也可被搜尋）
-    const paletteItems = [
+    const paletteBase = [
         { id: 'team', group: '球隊／球員', label: '全隊', hint: 'Timberwolves', run: () => setViewMode('TEAM') },
         ...availablePlayers.map(n => ({ id: 'p_' + n, group: '球隊／球員', label: n, run: () => pickPlayer(n) })),
         ...missingRosterNames.map(n => ({ id: 'm_' + n, group: '本季無數據（查最近一季）', label: n, run: () => jumpToPlayerHistory(n) })),
@@ -853,6 +852,10 @@ const App = () => {
             { id: 'ty_r', group: '檢視', label: '例行賽', run: () => { setSeasonTypeView('regular'); setSelectedDate(''); } },
             { id: 'ty_p', group: '檢視', label: '季後賽', run: () => { setSeasonTypeView('playoffs'); setSelectedDate(''); } },
         ]),
+    ];
+    const paletteItems = [
+        ...paletteBase.map(it => ({ ...it, run: () => { leaveGame(); it.run(); } })),
+        ...gamesIndex.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: '最近比賽', label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
     ];
 
     // 雷達 + 疊加比較（原左側欄）→ 移入總覽章節
@@ -866,17 +869,19 @@ const App = () => {
     return (
         <div className="min-h-screen text-slate-200 font-sans pb-20">
             <window.Masthead
-                seasonOptions={SEASON_OPTIONS} selectedSeasonKey={selectedSeasonKey} onSeasonChange={setSelectedSeasonKey}
+                seasonOptions={SEASON_OPTIONS} selectedSeasonKey={selectedSeasonKey} onSeasonChange={(k) => { leaveGame(); setSelectedSeasonKey(k); }}
                 isHistoryMode={isHistoryMode} historyLoading={historyLoading} displayDate={displayDate}
-                seasonTypeView={seasonTypeView} onSeasonTypeChange={(t) => { setSeasonTypeView(t); setSelectedDate(''); }}
+                seasonTypeView={seasonTypeView} onSeasonTypeChange={(t) => { leaveGame(); setSeasonTypeView(t); setSelectedDate(''); }}
                 effectiveDate={effectiveDate}
                 minDate={(snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined}
-                maxDate={latestDate || undefined} onDateChange={setSelectedDate}
+                maxDate={latestDate || undefined} onDateChange={(d) => { leaveGame(); setSelectedDate(d); }}
                 issueSeason={isHistoryMode ? curOpt?.season : window.CURRENT_SEASON}
                 issueType={isHistoryMode ? (curOpt?.type === 'playoffs' ? '季後賽' : '例行賽') : stTypeLabel}
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
-                onCopyLink={() => window.UI.doCopy(window.location.href)} />
+                onCopyLink={() => window.UI.doCopy(window.location.href)}
+                latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate}
+                onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)} />
 
             {/* 休賽期 / 陳舊資料提示（細條） */}
             {seasonStatus && (
@@ -887,6 +892,17 @@ const App = () => {
                 </div>
             )}
 
+            {gameDate ? (
+                <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
+                    {/* 回主畫面：主畫面狀態（球員、章節、走勢）在單場頁期間保持不動，直接切回即可。
+                        不用 history.back()：從外部連結直接打開單場頁時，上一頁會離開本站 */}
+                    <button type="button" onClick={leaveGame}
+                        className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">← 回主畫面</button>
+                    {window.GamePage && isCloud
+                        ? <window.GamePage date={gameDate} gamePlayer={gamePlayer} onExpand={setGamePlayer} />
+                        : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
+                </main>
+            ) : (<>
             <window.RosterRail viewMode={viewMode} selectedPlayer={selectedPlayer} players={availablePlayers}
                 playerIdOf={playerIdOf} tagOf={tagOf} onTeam={() => setViewMode('TEAM')} onPlayer={pickPlayer}
                 missing={missingRosterNames} probing={probing} onProbe={jumpToPlayerHistory} probeMsg={probeMsg} />
@@ -948,6 +964,7 @@ const App = () => {
                                 isPlayoffs={isHistoryMode ? currentSeasonType === '季後賽' : seasonTypeView === 'playoffs'}
                                 focusMetric={activeFocus ? activeFocus.m : null} highlightDate={activeFocus ? activeFocus.hl : null}
                                 onFocusChange={onSplitsFocus}
+                                onGameClick={(d) => openGame(d, viewMode === 'PLAYER' ? selectedPlayer : '')}
                             />
                         )}
 
@@ -1012,6 +1029,7 @@ const App = () => {
                     </div>
                     )}
             </main>
+            </>)}
 
             {selectedCard && <window.HistoryModal
                 cardInfo={selectedCard} onClose={() => setSelectedCard(null)}

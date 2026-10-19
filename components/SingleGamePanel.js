@@ -68,6 +68,12 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                         <option key={g.date} value={g.date}>{g.date} {g.matchup} {g.wl}</option>
                     ))}
                 </select>
+                {selectedDate && window.UrlState && (
+                    <a href={window.UrlState.gameHref(selectedDate, viewMode === 'PLAYER' ? playerName : '')}
+                        className="inline-flex min-h-[24px] items-center rounded-full border border-[#12A150]/50 px-3 py-1 text-xs text-[#12A150] hover:bg-[#12A150]/10">
+                        看完整比賽 →
+                    </a>
+                )}
             </>}>
             {doc === undefined && <div className="py-6 text-center text-sm text-slate-500 animate-pulse">載入單場資料中…</div>}
             {doc !== undefined && groups.length === 0 && (

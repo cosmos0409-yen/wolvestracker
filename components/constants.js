@@ -152,7 +152,7 @@ window.snapshotWindowStart = () => {
 window.trackingDefs = [
     {
         id: 'Drives', title: '切入次數 (Drives)', metrics: [
-            { key: 'DRIVES', label: '切入次數', englishLabel: 'Drives' },
+            { key: 'DRIVES', label: '切入次數', englishLabel: 'Drives', neutral: true },
             { key: 'DRIVE_FGM', label: '切入進球', englishLabel: 'Drive FGM' },
             { key: 'DRIVE_FG_PCT', label: '切入命中率', englishLabel: 'Drive FG%', unit: '%' },
             { key: 'DRIVE_TOV_PCT', label: '失誤率', englishLabel: 'Drive TOV%', unit: '%', betterIsLarger: false },
@@ -182,8 +182,8 @@ window.trackingDefs = [
     },
     {
         id: 'Touches', title: '觸球數 (Touches)', metrics: [
-            { key: 'TOUCHES', label: '觸球總數', englishLabel: 'Touches' },
-            { key: 'FRONT_CT_TOUCHES', label: '前場觸球', englishLabel: 'Front Ct Touches' },
+            { key: 'TOUCHES', label: '觸球總數', englishLabel: 'Touches', neutral: true },
+            { key: 'FRONT_CT_TOUCHES', label: '前場觸球', englishLabel: 'Front Ct Touches', neutral: true },
             { key: 'TIME_OF_POSS', label: '持球時間(分)', englishLabel: 'Time of Poss' },
             { key: 'PTS_PER_TOUCH', label: '每次觸球得分', englishLabel: 'PTS / Touch' },
         ]
@@ -193,7 +193,7 @@ window.trackingDefs = [
             { key: 'REB', label: '籃板數', englishLabel: 'REB' },
             { key: 'OREB', label: '進攻籃板', englishLabel: 'OREB' },
             { key: 'DREB', label: '防守籃板', englishLabel: 'DREB' },
-            { key: 'REB_CHANCES', label: '籃板機會', englishLabel: 'REB Chances' },
+            { key: 'REB_CHANCES', label: '籃板機會', englishLabel: 'REB Chances', neutral: true },
             { key: 'REB_COL_PCT', label: '籃板機會轉換率', englishLabel: 'REB Chance%', unit: '%' },
             { key: 'REB_CONTEST', label: '競爭籃板', englishLabel: 'Contested REB' },
             { key: 'REB_CONTEST_PCT', label: '競爭籃板率', englishLabel: 'Contested REB%', unit: '%' },
@@ -262,7 +262,7 @@ window.clutchDefs = [
 window.defenseDefs = [
     {
         id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', metrics: [
-            { key: 'D_FGA', label: '防守出手數', englishLabel: 'DFGA' },
+            { key: 'D_FGA', label: '防守出手數', englishLabel: 'DFGA', neutral: true },
             { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'DFG%', unit: '%', betterIsLarger: false },
             { key: 'PCT_PLUSMINUS', label: '對手命中率 vs 平常', englishLabel: 'DIFF%（負=守得好）', unit: '%', betterIsLarger: false },
             { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'DFG% · 3 Pointers', unit: '%', betterIsLarger: false },

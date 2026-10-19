@@ -5,6 +5,7 @@ const Masthead = ({
     seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
     seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
+    latestGame, onGames, inGame,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -53,6 +54,12 @@ const Masthead = ({
                             onChange={e => onDateChange(e.target.value)}
                             className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150]" />
                     </>)}
+                    {/* 比賽：開最新一場的單場頁（Game Center） */}
+                    <button type="button" onClick={onGames} disabled={!latestGame}
+                        title={latestGame ? `最新一場：${latestGame.date} ${latestGame.matchup} ${latestGame.wl}` : '目前賽別沒有比賽資料'}
+                        className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inGame ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : latestGame ? 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
+                        比賽
+                    </button>
                     <button type="button" onClick={onCopyLink} title="網址記住目前畫面（球員、章節、賽季、日期、攻守），貼到筆記裡可回到同一畫面"
                         className="shrink-0 rounded-full border border-white/15 px-3.5 py-1.5 text-[13px] text-slate-400 hover:text-slate-100 hover:border-white/30">
                         複製連結
