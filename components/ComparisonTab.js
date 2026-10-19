@@ -1,17 +1,22 @@
-// 跨季比較分頁：多選賽季 × 數據類別 → 並列各季終點值表格 + 點指標畫逐季折線
+// 跨季比較分頁：賽季軌跡疊圖（逐場對齊）＋ 多選賽季 × 數據類別 → 並列各季終點值表格 + 點指標畫逐季折線
 // seasons：可選賽季清單 [{key,label,short,order}]；loadSeason(key)→{team,player}（normalized）
-const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
+// 逐季折線：單一指標可疊加其他球員／全隊（他隊季別空心點＋@隊名）；多選指標改小圖並排或指數化疊圖
+const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
     const shootingDefs = window.shootingDefs || [];
     const defenseDefs = window.defenseDefs || [];
     const PLAY = window.PlayTypesList || [];
-    const TrendChart = window.TrendChart;
+    const LineOverlay = window.LineOverlay;
 
     const [selected, setSelected] = useState([]);
     const [data, setData] = useState({});
     const [cat, setCat] = useState('base');
-    const [openMetric, setOpenMetric] = useState(null);
+    const [openKeys, setOpenKeys] = useState([]);      // 點選的指標 key（可多選，最多 MAX_OPEN）
+    const [extras, setExtras] = useState([]);          // 疊加比較的其他球員名；'__TEAM__'＝全隊
+    const [multiMode, setMultiMode] = useState('small'); // 多指標：small 小圖並排／index 指數化疊圖
+    const chartRef = React.useRef(null);
+    const MAX_OPEN = 8, MAX_EXTRAS = 3, TEAM = '__TEAM__';
     const tableRef = React.useRef(null);
 
     // 預設選最近兩季
@@ -59,17 +64,20 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
     // 選取的賽季（依 order 排序，供折線 X 軸）
     const cols = seasons.filter(s => selected.includes(s.key)).sort((a, b) => a.order - b.order);
 
-    const getVal = (key, m) => {
+    // who：省略＝頁面主角（全隊或 selectedPlayer）；TEAM＝全隊；其他字串＝該球員
+    const getVal = (key, m, who) => {
         const sd = data[key];
         if (!sd) return null;
+        const isTeam = who === TEAM || (!who && viewMode === 'TEAM');
+        const pname = who && who !== TEAM ? who : selectedPlayer;
         if (m.playtype) {
-            const arr = viewMode === 'TEAM' ? (sd.team && sd.team.stats) : (sd.player && sd.player.stats && sd.player.stats[selectedPlayer]);
+            const arr = isTeam ? (sd.team && sd.team.stats) : (sd.player && sd.player.stats && sd.player.stats[pname]);
             const it = (arr || []).find(s => s.playType === m.k && (s.side || 'offensive') === 'offensive');
             return it ? it.ppp : null;
         }
-        const dict = viewMode === 'TEAM'
+        const dict = isTeam
             ? (sd.team && sd.team[activeCat])
-            : (sd.player && sd.player[activeCat] && sd.player[activeCat][selectedPlayer]);
+            : (sd.player && sd.player[activeCat] && sd.player[activeCat][pname]);
         const v = dict && dict[m.k];
         return typeof v === 'number' ? v : null;
     };
@@ -81,7 +89,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
         : activeCat === 'base' || activeCat === 'onoff' ? v.toFixed(1) : v;
 
     // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
-    const metaOf = (key) => viewMode === 'PLAYER' ? (data[key]?.player?.meta?.[selectedPlayer] || null) : null;
+    const metaOf = (key, who) => (who === TEAM || (!who && viewMode !== 'PLAYER')) ? null : (data[key]?.player?.meta?.[who || selectedPlayer] || null);
     // 對位防守的指標 key 集合：同屬 defense 類別，但只有這一組綁 TeamID。
     // Hustle / DefenseBox 走 leaguedash，跨隊拿得到值，不可一併標成不適用
     const MATCHUP_KEYS = new Set(((defenseDefs.find(d => d.id === 'MatchupDefense') || {}).metrics || []).map(m => m.key));
@@ -128,7 +136,32 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
         ].join('\n');
     };
 
-    const trendPts = openMetric ? cols.map(c => ({ label: c.short || c.label, value: getVal(c.key, openMetric) })).filter(p => typeof p.value === 'number') : [];
+    // ── 逐季折線（疊圖）──
+    const openMetrics = metrics.filter(m => openKeys.includes(m.k));
+    const toggleMetric = (m) => setOpenKeys(prev => prev.includes(m.k) ? prev.filter(k => k !== m.k) : (prev.length >= MAX_OPEN ? prev : [...prev, m.k]));
+    // 可加入比較的球員：已載入各季資料裡出現過的名字（不含主角）
+    const playerPool = viewMode !== 'PLAYER' ? [] : [...new Set(cols.flatMap(c => Object.keys(data[c.key]?.player?.meta || {})))]
+        .filter(n => n !== selectedPlayer).sort();
+    const SERIES_COLORS = ['#12A150', '#5B9BD5', '#F59E0B', '#A78BFA'];
+    const INDEX_COLORS = ['#12A150', '#5B9BD5', '#F59E0B', '#A78BFA', '#C4CED2', '#2DD4BF', '#F472B6', '#FBBF24'];
+    const nameOf = who => who === TEAM || (!who && viewMode === 'TEAM') ? '全隊' : (who || selectedPlayer);
+    // 圖上標籤用姓（Jr. 之類連同前一個字）
+    const shortName = n => { if (n === '全隊') return n; const w = n.split(' '); return /^(Jr\.?|Sr\.?|II|III|IV)$/.test(w[w.length - 1]) ? w.slice(-2).join(' ') : w[w.length - 1]; };
+    const xsOf = () => cols.map(c => c.short || c.label);
+    const seriesFor = (m) => [null, ...extras].map((who, i) => {
+        const tags = cols.map(c => window.tagOfMeta(metaOf(c.key, who)) || '');
+        return {
+            key: who || 'main', label: shortName(nameOf(who)), color: who === TEAM ? '#C4CED2' : SERIES_COLORS[i % SERIES_COLORS.length],
+            dashed: who === TEAM, values: cols.map(c => getVal(c.key, m, who)), hollow: tags.map(Boolean), tags,
+        };
+    });
+    const fmtOf = m => v => m.playtype ? v.toFixed(2) : m.pct ? v.toFixed(1) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+    // 指數化：每項以「第一個有值的季」＝100，不同單位才能放同一把尺看成長幅度
+    const indexSeries = () => openMetrics.map((m, i) => {
+        const vals = cols.map(c => getVal(c.key, m));
+        const base = vals.find(v => typeof v === 'number' && v !== 0);
+        return { key: m.k, label: m.l, color: INDEX_COLORS[i % INDEX_COLORS.length], values: vals.map(v => typeof v === 'number' && base ? +(v / base * 100).toFixed(1) : null) };
+    });
 
     const UI = window.UI;
     const catSub = {
@@ -142,6 +175,8 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
 
     return (
         <div className="space-y-8">
+            {window.SeasonPaceChart && <window.SeasonPaceChart viewMode={viewMode} playerId={playerId} playerName={selectedPlayer} />}
+
             {/* 賽季多選 + 類別 */}
             <div className="space-y-2.5">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -153,19 +188,77 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
             </div>
 
             <UI.Section title={viewMode === 'PLAYER' ? selectedPlayer : '全隊'} en="Season by Season" accent="blue"
-                sub={`${catSub} · 點指標列看逐季折線 · 「—」表示該季無此類別資料`}
-                right={<UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenMetric(null); }}
+                sub={`${catSub} · 點指標列看逐季折線（可多選，同一指標可疊加其他球員）· 「—」表示該季無此類別資料`}
+                right={<UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenKeys([]); }}
                     options={catKeys.map(c => ({ value: c, label: CATS[c].label }))} />}>
                 {cols.length === 0 ? (
                     <UI.Note>請至少選一個賽季</UI.Note>
                 ) : (
                     <div className="space-y-4">
-                        {/* 折線（點指標展開） */}
-                        {openMetric && TrendChart && trendPts.length > 0 && (
-                            <div className="border border-white/10 p-4">
-                                <div className="mb-3 text-[13px] font-medium text-slate-100">{openMetric.l} 逐季變化</div>
-                                <TrendChart points={trendPts} baseline={null} title={`${openMetric.l} 逐季變化`}
-                                    unit={openMetric.pct ? '%' : ''} citeSeason={false} />
+                        {/* 逐季折線（點指標列展開；可多選、可疊加球員） */}
+                        {openMetrics.length > 0 && LineOverlay && (
+                            <div ref={chartRef} className="border border-white/10 p-4">
+                                <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                                    <span className="text-[13px] font-medium text-slate-100">
+                                        {openMetrics.length === 1 ? `${openMetrics[0].l} 逐季變化` : `${openMetrics.length} 項指標逐季變化`}
+                                    </span>
+                                    {openMetrics.length > 1 && (
+                                        <UI.Seg ariaLabel="多指標呈現" size="sm" value={multiMode} onChange={setMultiMode}
+                                            options={[{ value: 'small', label: '小圖並排' }, { value: 'index', label: '指數化疊圖（首季＝100）' }]} />
+                                    )}
+                                    <span className="ml-auto flex items-center gap-2">
+                                        <button type="button" onClick={() => setOpenKeys([])} className="min-h-[24px] text-[12px] text-slate-400 hover:text-slate-100">✕ 收合</button>
+                                        <UI.ExportMenu title={`跨季折線（${openMetrics.map(m => m.l).join('、')}）`} getNode={() => chartRef.current}
+                                            csv={() => ({ header: ['指標', '對象', ...cols.map(c => c.label)],
+                                                rows: openMetrics.flatMap(m => [null, ...extras].map(who => [m.l, nameOf(who), ...cols.map(c => { const v = getVal(c.key, m, who); return v == null ? '' : v; })])) })} />
+                                    </span>
+                                </div>
+                                {/* 疊加球員（球員模式；多指標指數化時只畫主角） */}
+                                {viewMode === 'PLAYER' && !(openMetrics.length > 1 && multiMode === 'index') && (
+                                    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                                        <span className="mr-1 text-[11px] text-slate-500">疊加比較</span>
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#12A150] px-3 py-1 text-xs text-slate-100">
+                                            <i className="inline-block h-[3px] w-3 bg-[#12A150]"></i>{selectedPlayer}
+                                        </span>
+                                        {extras.map((who, i) => (
+                                            <button key={who} type="button" onClick={() => setExtras(x => x.filter(y => y !== who))} title="移除"
+                                                className="inline-flex min-h-[24px] items-center gap-1.5 rounded-full border border-white/20 px-3 py-1 text-xs text-slate-200 hover:border-white/40">
+                                                <i className="inline-block h-[3px] w-3" style={{ background: who === TEAM ? '#C4CED2' : SERIES_COLORS[(i + 1) % SERIES_COLORS.length] }}></i>
+                                                {nameOf(who)} ✕
+                                            </button>
+                                        ))}
+                                        {extras.length < MAX_EXTRAS && (<>
+                                            <label className="sr-only" htmlFor="cmp-add">加入比較</label>
+                                            <select id="cmp-add" value="" onChange={e => { const v = e.target.value; if (v) setExtras(x => x.includes(v) ? x : [...x, v]); }}
+                                                className={UI.selectClass(false)}>
+                                                <option value="">＋加入比較</option>
+                                                {!extras.includes(TEAM) && <option value={TEAM}>全隊</option>}
+                                                {playerPool.filter(n => !extras.includes(n)).map(n => <option key={n} value={n}>{n}</option>)}
+                                            </select>
+                                        </>)}
+                                    </div>
+                                )}
+                                {openMetrics.length === 1 ? (
+                                    <LineOverlay xs={xsOf()} series={seriesFor(openMetrics[0])} unit={openMetrics[0].pct ? '%' : ''} fmt={fmtOf(openMetrics[0])}
+                                        height={260} ariaLabel={`${openMetrics[0].l} 逐季折線`} />
+                                ) : multiMode === 'index' ? (
+                                    <LineOverlay xs={xsOf()} series={indexSeries()} height={280} ariaLabel="指數化疊圖" />
+                                ) : (
+                                    <div className="grid grid-cols-1 border-l border-t border-white/[0.08] sm:grid-cols-2 lg:grid-cols-4">
+                                        {openMetrics.map(m => (
+                                            <div key={m.k} className="border-b border-r border-white/[0.08] px-3 pb-2 pt-2.5">
+                                                <div className="mb-1 flex justify-between gap-2 text-[12px] text-slate-300"><span>{m.l}</span>{m.e && <span className="truncate font-mono text-[10px] text-slate-500">{m.e}</span>}</div>
+                                                <LineOverlay mini xs={xsOf()} series={seriesFor(m)} unit={m.pct ? '%' : ''} fmt={fmtOf(m)} ariaLabel={`${m.l} 逐季小圖`} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="mt-2 text-[11px] text-slate-500">
+                                    {openMetrics.length > 1 && multiMode === 'index'
+                                        ? '每項以第一個有值的賽季＝100：看各面向成長幅度，不比絕對高低'
+                                        : openMetrics.length > 1 ? '各小圖 Y 軸獨立：看形狀，不比高度' : '空心點＋虛線＝該季效力他隊（@隊名）'}
+                                    {extras.includes(TEAM) && ' · 銀色虛線＝全隊'}
+                                </p>
                             </div>
                         )}
                         {/* 比較表：列＝指標、欄＝賽季（依時間排序） */}
@@ -193,9 +286,9 @@ const ComparisonTab = ({ viewMode, selectedPlayer, seasons, loadSeason }) => {
                                 </thead>
                                 <tbody>
                                     {metrics.map(m => {
-                                        const open = openMetric && openMetric.k === m.k;
+                                        const open = openKeys.includes(m.k);
                                         return (
-                                            <tr key={m.k} onClick={() => setOpenMetric(open ? null : m)}
+                                            <tr key={m.k} onClick={() => toggleMetric(m)} aria-selected={open}
                                                 className={`cursor-pointer border-b border-white/[0.06] transition-colors ${open ? 'bg-[#12A150]/[0.08]' : 'odd:bg-white/[0.015] hover:bg-white/[0.04]'}`}>
                                                 <th scope="row" className="px-3 py-2 text-left font-normal max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626]">
                                                     <span className="text-slate-200">{m.l}</span>

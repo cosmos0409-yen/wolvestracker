@@ -44,12 +44,6 @@ window.GameAgg = (function () {
         const out = { GP, W, L };
         if (!GP) return out;
 
-        const sum = k => rows.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : 0), 0);
-        const meanOf = k => {
-            const vals = rows.filter(r => typeof r[k] === 'number').map(r => r[k]);
-            return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-        };
-
         const keys = new Set();
         rows.forEach(r => Object.keys(r).forEach(k => { if (typeof r[k] === 'number') keys.add(k); }));
         // 只要分母資料在，就一定算出該比率欄（即使某場未存 _PCT 本身）
@@ -59,20 +53,39 @@ window.GameAgg = (function () {
             if (k === 'playerId') { out[k] = rows[0][k]; continue; }
             // GP/W/L 由場次計算，勿被單場 base 的 per-game 值（每場 GP=1）覆寫
             if (k === 'GP' || k === 'W' || k === 'L') continue;
-            if (RATIO_DEFS[k]) {
-                const d = sum(RATIO_DEFS[k][1]);
-                out[k] = d ? round1(100 * sum(RATIO_DEFS[k][0]) / d) : 0;
-            } else if (EFG_DEFS[k]) {
-                const [fgm, fg3m, fga] = EFG_DEFS[k];
-                const d = sum(fga);
-                out[k] = d ? round1(100 * (sum(fgm) + 0.5 * sum(fg3m)) / d) : 0;
-            } else if (isAvgKey(k)) {
-                out[k] = round1(meanOf(k));
-            } else {
-                out[k] = round1(sum(k) / GP); // 場均
-            }
+            out[k] = valueOf(rows, k);
         }
         return out;
+    }
+
+    // 單一欄位的聚合值（aggregate 與 metricOf 共用，確保兩條路徑規則一致）
+    function valueOf(rows, k) {
+        const sum = key => rows.reduce((a, r) => a + (typeof r[key] === 'number' ? r[key] : 0), 0);
+        if (RATIO_DEFS[k]) {
+            const d = sum(RATIO_DEFS[k][1]);
+            return d ? round1(100 * sum(RATIO_DEFS[k][0]) / d) : 0;
+        }
+        if (EFG_DEFS[k]) {
+            const [fgm, fg3m, fga] = EFG_DEFS[k];
+            const d = sum(fga);
+            return d ? round1(100 * (sum(fgm) + 0.5 * sum(fg3m)) / d) : 0;
+        }
+        if (isAvgKey(k)) {
+            const vals = rows.filter(r => typeof r[k] === 'number').map(r => r[k]);
+            return round1(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+        }
+        return round1(sum(k) / rows.length); // 場均
+    }
+
+    // 只算一個指標（賽季軌跡疊圖要對每個前 N 場重算，整包 aggregate 會多算上百個欄位）。
+    // 這組比賽完全沒有該欄位（或比率的分母）→ null，不當成 0
+    function metricOf(games, entityKey, viewMode, k) {
+        const rows = [];
+        for (const g of games) { const e = entityOf(g, entityKey, viewMode); if (e) rows.push(e); }
+        if (!rows.length) return null;
+        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : k;
+        if (!rows.some(r => typeof r[need] === 'number')) return null;
+        return valueOf(rows, k);
     }
 
     // ── 篩選 / 分組 ──
@@ -146,7 +159,7 @@ window.GameAgg = (function () {
     }
 
     return {
-        RATIO_DEFS, EFG_DEFS, aggregate, seasonToDate,
+        RATIO_DEFS, EFG_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,
     };

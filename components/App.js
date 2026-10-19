@@ -1022,7 +1022,7 @@ const App = () => {
                             (viewMode === 'PLAYER' && !selectedPlayer)
                                 ? <window.UI.Note>請先從頭像列選一位球員</window.UI.Note>
                                 : <window.ComparisonTab
-                                    viewMode={viewMode} selectedPlayer={selectedPlayer}
+                                    viewMode={viewMode} selectedPlayer={selectedPlayer} playerId={currentPlayerId}
                                     seasons={comparisonSeasons} loadSeason={loadHistoryByDocId}
                                 />
                         )}

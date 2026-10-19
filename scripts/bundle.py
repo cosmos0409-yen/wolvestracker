@@ -55,6 +55,7 @@ ORDER = [
     "OverviewTab.js",
     "SplitsTab.js",
     "ShootingTab.js",
+    "SeasonPaceChart.js",
     "ComparisonTab.js",
     "RadarPanel.js",
     "HistoryModal.js",
