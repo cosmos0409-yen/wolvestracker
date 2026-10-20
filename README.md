@@ -1,14 +1,20 @@
 # 🐺 Wolves Ledger｜灰狼數據帳本
 
-Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究站，設計目標是寫專欄時「找得快、看得準、引用得出去」。
+Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究站（另附薪資與奢侈稅頁），設計目標是寫專欄時「找得快、看得準、引用得出去」。
 
 ## 功能總覽
 
-版面由上而下：刊頭（賽季／例行·季後／截至日期／比賽／搜尋）→ 頭像列（全隊＋球員）→ 身分列（4 個主數字）→ 章節列（六章節＋攻守）。
+版面由上而下：刊頭（賽季／例行·季後／截至日期／比賽／薪資／搜尋）→ 頭像列（全隊＋球員）→ 身分列（4 個主數字；球員另顯示該季薪資）→ 章節列（六章節＋攻守）。
 
 - **網址記住畫面**：球員、章節、賽季、賽別、日期、攻守、打開的走勢指標、單場比賽都寫進網址，貼到筆記裡下次一點就回到同一畫面
 - **單場比賽頁（Game Center）**：比分看板與每節比分、本場焦點與 Four Factors、兩隊 Box Score（點灰狼球員展開本場進階並標出優於季平均的項目）、球隊對比、本場 vs 季平均、本場投籃；點指標直接看該指標逐場走勢並圈出這場
-- **快捷鍵**：`/` 搜尋球員／章節／賽季／最近比賽，`1–6` 切章節
+- **薪資頁（Cap Sheet，`#cap`）**：分「總覽／合約／選秀權／規則」四頁——
+  - 總覽：所在層級、是否鎖死在 apron（hard cap）、奢侈稅率（依繳稅紀錄自動判定是否累犯），奢侈稅薪資／apron 薪資／各門檻空間、門檻儀表、奢侈稅分級估算
+  - 合約：逐年薪資總表（往後 5 季、選項與保障標記、點球員名開球員頁）、薪資結構、薪資占比 vs 貢獻占比（公式常駐、可關閉）
+  - 選秀權：2027 起各年首輪／次輪狀態，可展開原文條件與出處
+  - 規則：超過薪資帽／奢侈稅線／第一、第二 apron 會受到的操作限制，附出處
+  - 縮寫金額滑鼠移上去顯示完整金額；資料人工整理自 Spotrac、Hoops Rumors 等公開資料，與 Spotrac 逐元對帳
+- **快捷鍵**：`/` 搜尋球員／章節／賽季／最近比賽／薪資，`1–6` 切章節
 - **複製引用**：每個數字可一鍵複製「球員｜賽季｜截至日期｜指標 數值｜資料來源｜畫面網址」
 - **指標定義**：指標旁的「?」說明定義、計算方式與資料來源
 - **匯出**：表格可匯出 CSV（Excel 可直接開），圖表與表格可匯出 16:9／1:1 PNG 專欄配圖
@@ -36,6 +42,7 @@ wolvestracker/
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
 │   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
 │   ├── GamePage.js          # 單場比賽頁（#game=日期）
+│   ├── CapPage.js           # 薪資頁（#cap）：計算、四分頁區塊
 │   ├── SeasonPaceChart.js   # 疊圖：賽季軌跡＋通用多序列折線 LineOverlay
 │   ├── gameAggregates.js    # GameAgg：逐場聚合（季平均/月/勝敗/趨勢，加權%）
 │   └── gamesData.js         # 讀逐場 bundle（單一 getDoc）
@@ -49,6 +56,7 @@ wolvestracker/
 │   ├── backfill_history.py  # 歷史賽季完整終點快照回補
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
 │   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週；含出手方式/日期/受助攻）
+│   ├── sync_salary.py       # 薪資同步（Google Sheet 發佈的 CSV → Firestore，每日排程順跑）
 │   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
 ├── run_fetch.bat            # Windows 排程入口（每日）
 ├── run_shotchart.bat        # Windows 排程入口（每週）
@@ -63,6 +71,8 @@ wolvestracker/
 ```
 NBA Stats API ──(Python, 本機排程)──▶ Firebase Firestore ◀──(JS)── index.html (GitHub Pages)
                 每日 03:00 / 每週一 14:30                      即時讀取 (onSnapshot，開站先讀近期快照)
+
+Google Sheet（人工維護薪資）──(sync_salary.py，每日順跑)──▶ Firestore wolves_salary/main
 ```
 
 ## 快速開始
@@ -93,7 +103,7 @@ python -m http.server 8000
 
 | 工作名稱 | 頻率 | 執行內容 |
 |---|---|---|
-| `WolvesTracker` | 每日 03:00（賽後 12 小時數據才齊；喚醒＋錯過補跑） | `run_fetch.bat` → `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（賽後 12 小時數據才齊；喚醒＋錯過補跑） | `run_fetch.bat`（當季數據＋薪資同步）→ `fetch_log.txt` |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` → `shotchart_log.txt` |
 
 建立每週排程的指令：
@@ -110,7 +120,9 @@ schtasks /create /tn "WolvesShotchart" /tr "C:\wolvestracker\run_shotchart.bat" 
 - 集合：`wolves_team_stats` / `wolves_player_stats`（每日快照）、
   `wolves_team_history` / `wolves_player_history`（歷史終點快照）、`wolves_shotcharts`（逐球熱圖）、
   `wolves_team_games` / `wolves_player_games`（單場，doc id=日期）、`wolves_games_index`（比賽索引）、
-  `wolves_games_bundle` / `wolves_pgames_bundle`（逐場打包，前端 Splits/總覽讀取）
+  `wolves_games_bundle` / `wolves_pgames_bundle`（逐場打包，前端 Splits/總覽讀取）、
+  `wolves_salary`（薪資頁，單一 doc，由 Google Sheet 同步）
+- **新增集合必加 `*` 索引豁免**（Console → 索引 → 自動 → 豁免項目；所有集合皆已設定）
 - **新增集合必到 Firebase Console 加 read 白名單**（否則前端 `Missing or insufficient permissions`）
 - 安全規則：匿名讀取、後端寫入（新集合需在規則中加入 read 白名單）
 - 本地憑證：`firebase-key.json`（在 .gitignore，勿提交）

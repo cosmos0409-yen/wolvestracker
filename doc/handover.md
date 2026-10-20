@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-19（**單場比賽頁＋跨季疊圖完成**：Phase 1–6，見「2026-10-19 單場比賽頁＋跨季疊圖」；之前的 Wolves Ledger 改版見同名章節）
+> 最後更新：2026-10-20（**薪資頁（Cap Sheet）完成**：Phase 1–6，見「2026-10-20 薪資頁」；之前的單場比賽頁＋跨季疊圖、Wolves Ledger 改版見同名章節）
 
 ## 已完成項目
 
@@ -39,6 +39,7 @@
 | 31 | **走勢勝負底色** | ✅ | Splits／投籃的逐場走勢鋪綠勝紅敗色帶 |
 | 32 | **跨季疊圖** | ✅ | 賽季軌跡疊圖（`SeasonPaceChart.js`）＋逐季折線多序列（多球員／多指標／指數化） |
 | 33 | **投籃分區與上季比** | ✅ | `ShootingTab` 分區加上季命中率／差距／占比＋分區差異半場圖 |
+| 34 | **薪資頁（Cap Sheet）** | ✅ | `CapPage.js`，網址 `#cap`：門檻與奢侈稅、累犯自動判定、門檻限制、逐年薪資總表、薪資結構、選秀權、薪資×表現；資料由 Google Sheet 經 `sync_salary.py` 同步 |
 
 ---
 
@@ -127,6 +128,35 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 對手 Tracking／Hustle 只有 2026-10 起的比賽有；**2025-26 不回補對手數據**（使用者：「缺對手的沒差」）
 - 投籃點維持每週更新（本週比賽可能還沒有點位，頁面有說明）
 
+### 2026-10-20 薪資頁（Cap Sheet）
+
+需求：類似 Spotrac yearly 的灰狼薪資頁，看薪資結構、離各條門檻多遠、奢侈稅、選秀權。NBA API 沒有薪資、Spotrac 等網站禁止爬取，所以**人工維護 Google Sheet 當唯一資料來源**。計畫檔：`~/.claude/plans/sprightly-twirling-harbor.md`。
+
+| Phase | 內容 | 狀態 | 提交 |
+|-------|------|------|------|
+| 1 | 種子資料（使用者截圖 Spotrac／Fanspo，Claude 轉檔並逐季對帳）＋建立 Google Sheet 並發佈 CSV | ✅ | —（資料在 Sheet） |
+| 2 | `scripts/sync_salary.py`（Sheet → `wolves_salary/main`）＋排程＋Firebase 規則與索引豁免 | ✅ | `3afdf29` |
+| 3 | `#cap` 路由、刊頭入口、門檻與奢侈稅、門檻限制、累犯自動判定（`tax_history`）、懸停完整金額、球員薪資膠囊 | ✅ | `178905c` |
+| 4 | 逐年薪資總表、薪資結構、選秀權、球員名連到球員頁；改成四個分頁＋固定分頁列 | ✅ | `d818b7d` |
+| 5 | 薪資占比 vs 貢獻占比（可關閉、公式常駐） | ✅ | `5de5c8d` |
+| 6 | 更新規格文件 | ✅ | — |
+
+使用者確認過的決定（之後改動前先問）：
+- 資料流程：**Google Sheet → `sync_salary.py`（只檢查格式與對帳）→ Firestore → 前端計算**。計算只放前端，Python 不重複計算邏輯
+- 薪資頁是**獨立整頁**（同單場頁，不是第七章節），入口在刊頭；頁內分「總覽／合約／選秀權／規則」四個分頁，**唯一的賽季選單在分頁列**（刊頭的賽季／賽別／日期在薪資頁隱藏，避免兩組賽季控制項）
+- 用詞：「第一／第二 apron」指門檻線；「鎖死在第二 apron（hard cap）」指做了特定操作後本季不能超過。**使用者原本把 apron 叫「硬上限」**，混用曾造成誤解
+- 狀態資訊不用膠囊（膠囊只給可點的控制項）：狀態列＋色點；累犯試算是勾選框
+- 薪資×表現：只是**隊內相對比較**，公式與限制必須常駐顯示；可用 Sheet `settings.show_value` 關閉
+- 縮寫金額（$214.93M）滑鼠移上去要顯示完整金額（$214,930,954）
+- 回填 2024-25、2025-26（逐年總表可看到 2030-31）
+- 資料核對：2024-25／2025-26 的 apron 薪資、2026-27 的奢侈稅薪資與 apron 薪資，都和 Spotrac 截圖**逐元相符**；選秀權以 RealGM 為主、和 Fanspo 交叉核對（差異記在 `picks.verify`）
+
+後續（未完成，需要時再做）：
+- [ ] 2026-27 開季後隔天確認：球員頁薪資膠囊出現、薪資×表現當季有數據（今天還沒有任何 2026-27 快照）
+- [ ] 2026-27 季末：在 Sheet `tax_history` 加一列（是否繳稅）。若季末仍超過奢侈稅線，2027-28 起自動判定為累犯
+- [ ] 待確認的數字（Sheet 的 `verify` 欄有標）：2024-25／2025-26 的 BAE 是 3.32%×cap 推算；2024-25 的稅率（1.50/1.75/2.50/3.25）與 2025-26 稅率（推定同 2026-27）；2024-25 是否有 hard cap；第二 apron 凍結籤「移到第 30 順位」的次數規則（4 季 2 季或 5 季 3 季）
+- [ ] 每年 7 月聯盟公布新門檻時：Sheet `thresholds` 加下一季一列、`tax_rates` 加該季級距
+
 ---
 
 ## 專案檔案結構
@@ -144,6 +174,7 @@ wolvestracker/
 │   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle 載入
 │   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
 │   ├── GamePage.js                  ← 單場比賽頁（#game=日期）
+│   ├── CapPage.js                   ← 薪資頁（#cap）：CapCalc 計算、loadCapDoc／loadCapContrib 載入、各分頁區塊
 │   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
 │   ├── SeasonPaceChart.js           ← 疊圖：LineOverlay（通用多序列折線）＋ SeasonPaceChart（賽季軌跡）
 │   ├── urlState.js                  ← 網址 hash 讀寫
@@ -161,10 +192,12 @@ wolvestracker/
 │   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common）
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
 │   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score）
+│   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
 │   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
-├── run_fetch.bat                    ← Windows 排程：當日數據
+├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步（*.bat 被 .gitignore 排除，不進版控）
+├── _salary_seed/                    ← 薪資 Sheet 的本地參考副本（未進版控；Sheet 才是資料來源）
 ├── run_shotchart.bat                ← Windows 排程：每週投籃熱圖
 ├── run_backfill_next.bat            ← Windows 排程：回補 queue 第一行（已可刪）
 └── doc/
@@ -199,6 +232,7 @@ wolvestracker/
 - **2026-10-19 新增**：
   - `m`＝Splits 打開逐場走勢的指標 key、`hl`＝走勢上圈出的那一場日期（僅 `tab=splits`）。App 以 `focus = {m, hl, key}` 保存，`key`＝「實體＋章節」：Splits 內換球員保留 `m`、拿掉 `hl`；離開 Splits 清掉。Splits 開關走勢／換指標會回報（`onFocusChange`），網址跟著記住
   - 單場頁 `#game=日期&p=展開的球員`（**沒有 `v=`**）。`p` 在這裡是展開進階的灰狼球員，不改主畫面的 `selectedPlayer`
+  - 薪資頁 `#cap&s=2025-26&tab=contracts`（2026-10-20，**沒有 `v=`**）：`s`＝薪資賽季（省略＝薪資當季，7/1 切換）、`tab`＝contracts／picks／rules（省略＝總覽）。進出同單場頁（改 `location.hash`、「← 回主畫面」直接切回）；切分頁、換賽季用 `replaceState`
   - 進出單場頁一律改 `location.hash`（產生瀏覽紀錄，返回鍵可回上一頁）；單場頁期間主畫面狀態不動，「← 回主畫面」直接切回（不用 `history.back()`：從外部連結直接打開時會離開本站）
   - 單場頁按 `1–6`、改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁
 - 網址帶日期時用 `pendingDateRef` 延後套用：資料載入 effect 一開始會清空 `selectedDate`
@@ -273,7 +307,7 @@ wolvestracker/
 
 | 排程名稱 | 時間 | 腳本 | 用途 | Log |
 |---|---|---|---|---|
-| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場 | `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
 
 （`WolvesBackfill` 已刪除；backfill queue 完成後不再需要）
@@ -315,6 +349,7 @@ service cloud.firestore {
     match /wolves_games_index/{docId}      { allow read: if request.auth != null; allow write: if false; }
     match /wolves_games_bundle/{docId}     { allow read: if request.auth != null; allow write: if false; }
     match /wolves_pgames_bundle/{docId}    { allow read: if request.auth != null; allow write: if false; }
+    match /wolves_salary/{docId}           { allow read: if request.auth != null; allow write: if false; }
   }
 }
 ```
@@ -392,18 +427,33 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 
 前端 `App.js` 內 `normalizeHistoryPlayer()` 把 PlayerID-keyed 結構轉成 playerName-keyed，與每日快照相容。
 
+### 薪資資料（`sync_salary.py` 寫入，2026-10-20）
+- **資料來源**：Google Sheet「Wolves Tracker 薪資資料」（使用者的雲端硬碟），整份「發佈到網路」為 CSV；發佈網址與各分頁 gid 在 `nba_common.py` 的 `SALARY_SHEET_PUB`／`SALARY_SHEET_GIDS`（公開唯讀，非機密）。新增分頁會自動包含在發佈範圍，但要把 gid 加進 `SALARY_SHEET_GIDS`
+- **8 個分頁**（Sheet 欄名＝Firestore 欄名，Sheet 即 schema）：
+  - `contracts`：一位球員一個賽季一列——`season`、`player`、`playerId`、`salary`（cap hit，含 likely incentives）、`unlikely`（unlikely incentives，只計入 apron 薪資）、`guarantee`（full/partial/none）、`guaranteed_amt`、`option`（PO/TO/ETO）、`type`（Spotrac 代碼：VET-EXT、DRK-EXT、RK-1ST、MIN、MLE-TP、TWO-WAY…）、`note`。雙向合約 `salary` 填 0、`type`＝TWO-WAY
+  - `dead`：死錢（`season`、`player`、`amount`、`reason`）
+  - `thresholds`：每季門檻（`cap`、`tax`、`apron1`、`apron2`、`min_team`、`tax_bracket`、MLE／BAE、`apron_final` 季末層級、`hard_cap` 鎖死狀態＋原因、`ref_tax_total`／`ref_apron_total` 外部參考總額、`verify`）
+  - `tax_rates`：每季每級的 `rate`、`repeater_rate`（稅率依賽季不同，不寫死）
+  - `tax_history`：逐季是否繳奢侈稅（`paid`），前端據此自動判定累犯（前 4 季有 3 季）。**不再有手填的 repeater 欄**
+  - `rules`：門檻限制條文（`tier`＝cap/tax/apron1/apron2/hardcap、`order`、`text_zh`、`detail`、`source_url`）
+  - `picks`：選秀權（`year`、`round`、`status`＝own/out/swap/conditional/frozen/in、`summary_zh`、`terms` 原文、`source_url`、`as_of`、`verify`）
+  - `settings`：`show_value`（薪資×表現區塊開關）
+- **Firestore**：`wolves_salary/main` 單一 doc（約 25 KB），欄位＝上述分頁轉型後的內容＋`contentHash`／`source`／`updatedAt`
+- **sync_salary.py 檢查**：必要欄位、型別、允許值清單、同人同季重複、門檻順序、薪資當季（含）以前有合約的賽季必須有門檻與稅率；有錯誤就不寫入並以 exit 1 結束（印出分頁與列號）。對帳（逐季加總 vs `ref_*_total`）不符只警告。內容 hash 與 Firestore 相同就略過寫入。`--dry-run` 只印摘要、`--local DIR` 改讀本地 CSV（測試用）
+- **兩種總額**（用 Spotrac 數字逐元驗證過）：奢侈稅薪資＝Σ 標準合約 cap hit＋死錢（薪資帽空間、奢侈稅都用它）；apron 薪資＝奢侈稅薪資＋Σ unlikely incentives（判定兩條 apron 用它）。薪資帽空間不含 cap hold，所以和 Spotrac 的 Cap Space 不同（Spotrac 含 cap hold）
+
 ### 寫入前去重
 `fetch_data.py` 寫入前會抓最近 14 天最新一筆，深度比對 `DATA_KEYS`（stats / tracking / shooting / clutch / lineups / defense），完全相同則跳過寫入避免堆積無意義文件。
 
 ### Firestore 方案與用量（2026-10-19 實測更正）
 - **專案是 Blaze（即付即用），不是 Spark**（Firebase Console 專案總覽可見）。免費額度：儲存 1 GiB、讀取 5 萬次/天等；**超過不會停擺而是開始計費**（單價見 Google Cloud 價目，本手冊不記數字以免過期）。單欄位索引設定上限 1,000 個（開帳單的專案）。
 - **儲存量要連索引一起算**：Firestore 預設替每個欄位（含 map 裡每個子欄位、整個 map 值）建遞增＋遞減索引、陣列建 array-contains。我們的文件是深層巢狀數值，2026-10-19 依官方 storage-size 規則逐份估算：資料 25 MiB、**索引約 157 MiB**（`wolves_player_games` 單場一份資料 19 KB、索引約 305 KB）。照此每季約 +139 MiB，約 6 季後會超過免費額度。
-- **已處理：10 個集合全部設 `*` 索引豁免**（見下節），每季增量估計降到約 16～19 MiB（≈ 只剩資料本身）。
+- **已處理：所有集合都設 `*` 索引豁免**（見下節），每季增量估計降到約 16～19 MiB（≈ 只剩資料本身）。
 - 讀取次數：前端開站只讀近期快照（約 10–15 份），需要整季時才讀整個當季 collection（約 120 份）；逐場用 bundle（一份 = 1 次讀取）。個人用量離 50,000/天 很遠。
 - 實際儲存量：服務帳戶無 Monitoring 權限，需用自己的帳號到 Google Cloud Console → 監控 → Metrics Explorer → 資源「Firestore Database」的 storage 指標查看。
 
 ### Firestore 索引豁免（2026-10-19 起）
-- **10 個集合都在 Firebase Console → Firestore → 索引 → 自動 → 豁免項目，設定 `欄位路徑 = *`、範圍「集合」、遞增/遞減/陣列全停用**：`wolves_team_games`、`wolves_player_games`、`wolves_player_stats`、`wolves_team_stats`、`wolves_shotcharts`、`wolves_pgames_bundle`、`wolves_games_bundle`、`wolves_player_history`、`wolves_team_history`、`wolves_games_index`。map 欄位的子欄位會繼承豁免；之後新增的欄位（如對手 `opp`/`oppPlayers`/`box`）自動涵蓋。
+- **11 個集合都在 Firebase Console → Firestore → 索引 → 自動 → 豁免項目，設定 `欄位路徑 = *`、範圍「集合」、遞增/遞減/陣列全停用**：`wolves_team_games`、`wolves_player_games`、`wolves_player_stats`、`wolves_team_stats`、`wolves_shotcharts`、`wolves_pgames_bundle`、`wolves_games_bundle`、`wolves_player_history`、`wolves_team_history`、`wolves_games_index`、`wolves_salary`（2026-10-20 加）。map 欄位的子欄位會繼承豁免；之後新增的欄位（如對手 `opp`/`oppPlayers`/`box`）自動涵蓋。
 - **為什麼可以全關**：前端與腳本只用「文件 ID 範圍查詢」（`App.js` 的 `where(documentId(), ...)`）、單一文件讀取（`getDoc`）與整集合讀取（`stream()`），這三種用的是內建的文件 ID 索引，不受豁免影響（2026-10-19 逐集合實測通過）。
 - **副作用**：任何依欄位內容的查詢（`where('date', ...)`、`where('stats.PTS', ...)`、`orderBy('timestamp')`）都會回 `FAILED_PRECONDITION: The query requires an index`。真的需要時，只替那一個欄位在同頁新增一筆「啟用」的豁免即可，不必整個集合恢復。
 - **復原**：同頁刪除該集合那一筆豁免，Firestore 會在背景重建索引（數分鐘，視文件數）。
@@ -472,6 +522,17 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - **逐季折線多序列**（`ComparisonTab`）：表格列可多選（`openKeys`，最多 8）；單一指標可「＋加入比較」最多 3 位球員或全隊（`extras`，資料取已載入的 `data[k].player`）；他隊季別空心點＋虛線＋@隊名（`tagOfMeta`）；多指標＝小圖並排或指數化（首季＝100）
 - `LineOverlay`：通用多序列 SVG（十字線提示、末端標籤避讓、`mini` 小圖模式）。要再加疊圖優先重用它
 
+### 薪資頁（`CapPage.js`，2026-10-20）
+- App 的 `capView` 有值時主區改渲染 `CapPage`（同 `gameDate` 的模式），隱藏 RosterRail／IdentityBar／ChapterNav；刊頭在薪資頁隱藏賽季／賽別／日期，期別行改「薪資 · Cap Sheet」
+- **計算全在 `window.CapCalc`**（同檔頂端）：`payroll`（兩種總額）、`taxOf`（奢侈稅分級，Sheet 只列到第 n 級、之後每級 +0.50）、`tierOf`（所在層級）、`repeaterOf`（依 `tax_history` 判定累犯；有缺資料時「缺的全算有繳也到不了 3 季」→ 一般、已滿 3 季 → 累犯、其餘 → 無法判定；另算下一季展望）。已用手算值驗證：2026-27 一般 $21,956,339、累犯 $50,962,247
+- **薪資當季**＝`capSeasonForDate()`（美東 7/1 切換），與 Python `get_roster_season()` 同規則
+- **載入**：`window.loadCapDoc()` 讀 `wolves_salary/main`（記憶體快取，薪資頁與球員身分列共用；`unavailable` 自動重試 2 次）。錯誤分兩種提示：`permission-denied` → 缺安全規則；其他 → 連線中斷＋「重試」鈕
+- **分頁**：總覽（狀態列：所在層級／鎖死狀態／奢侈稅率、8 格數字、門檻儀表、奢侈稅估算＋累犯判定）／合約（逐年薪資總表、薪資結構、薪資×表現）／選秀權／規則（四層限制卡片＋鎖死規則）
+- **懸停完整金額**：`CapAmt`（虛線底線）、`CapCellAmt`（表格內）、`UI.StatCell` 的 `valueTitle`
+- **球員連結**：逐年總表的球員名 → 同季球員頁（`playerId` 對快照名，對不到才用合約名；當季→`current`、其他→`{季}_regular`）。反向：`IdentityBar` 的薪資膠囊（App 依 `currentPlayerId` 對 `contracts`，顯示目前檢視賽季的 cap hit，點擊開該季薪資頁）
+- **薪資×表現**（`CapValue`）：貢獻用**逐場 bundle**（`window.loadCapContrib` → `loadSeasonGames`），分子＝有合約球員各自的 `wolves_pgames_bundle`，分母＝球隊 `wolves_games_bundle` 逐場加總（上場時間＝比賽分鐘 × 5）。**不可改用季末／每日快照**：那是整季合併數據，季中轉隊球員會混入他隊比賽（2025-26 Kyle Anderson 快照 43 場、在灰狼只有 19 場；全隊上場時間會多出約 8%）
+- **匯出**：`UI.ExportMenu`／`exportCSV`／`exportPNG` 新增 `source` 參數；薪資相關匯出標「Spotrac 等公開資料」，不沿用預設的 NBA.com
+
 ### Modal 跨賽季比較分頁
 - 每張卡片皆可用，含 PlayType 與 Tracking
 - 進入時自動載入全部 6 個歷史快照
@@ -531,6 +592,12 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 
 不確定 API 欄名時，先抓一次 response 印 `resultSets[0]['headers']` 對照（欄名錯誤會被 `safe_col` 靜默吞成 0）。
 
+### Q: 薪資資料怎麼更新
+改 Google Sheet（或把 Spotrac／Fanspo 截圖、網頁文字給 Claude 轉成新列）。每日排程會自動同步；想立刻生效就手動跑 `python scripts/sync_salary.py`（先 `--dry-run` 看摘要）。發佈的 CSV 有幾分鐘快取，剛改完可能讀到舊版，稍等再跑。何時要更新：休賽期簽約、選項執行、交易截止日、裁員、10 天合約、牽涉選秀權的交易、觸發鎖死；每年 7 月新門檻；每季季末 `tax_history` 加一列。
+
+### Q: 想關掉薪資×表現
+Sheet `settings` 分頁的 `show_value` 改成 FALSE，同步後整個區塊消失，不必改程式。
+
 ### Q: 想追蹤其他球隊
 改 `scripts/nba_common.py` 的 `TEAM_ID` 常數（所有腳本共用）。
 
@@ -589,6 +656,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **讀 Firestore 要等匿名登入完成（`isCloud`）**（2026-10-19 修）：安全規則要求已登入。原本當季快照訂閱只檢查 `window.db`，登入較慢時先被拒，錯誤狀態又只在換賽季時清除，畫面卡在「讀取失敗」。新增讀取的 effect 一律加 `isCloud` 條件
 - **`UI.Section` 的 `right` 區不換行**：放很多按鈕（球員 chips 等）會把手機版面撐寬，改放區塊內容第一行
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
+- **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
+- **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
 
 ### D. 效能與擴充強化點
 
@@ -608,6 +677,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-20 — 薪資頁（Cap Sheet，Phase 1–6）：Google Sheet＋`sync_salary.py`＋`wolves_salary/main`（安全規則、索引豁免已設）；`CapPage.js` 四分頁（總覽／合約／選秀權／規則）、累犯依 `tax_history` 自動判定、懸停完整金額、球員薪資膠囊與雙向連結、薪資×表現（逐場 bundle 計算）；`ui.js` 匯出加 `source`；新增「2026-10-20 薪資頁」「薪資資料」「薪資頁」章節與相關 FAQ、雷區
 - 2026-10-19 — 單場比賽頁＋跨季疊圖（Phase 1–6）：`--box-only` 補 2025-26 box score、網址 m/hl/game、Splits 防守組、走勢勝負底色、`GamePage.js`、`SeasonPaceChart.js`／`LineOverlay`、ComparisonTab 多序列、投籃與上季比；修登入時序 bug；更正 22-23／23-24 逐場已有資料；新增「2026-10-19 單場比賽頁＋跨季疊圖」「單場比賽頁」「跨季疊圖」章節
 - 2026-10-19 — 單場加抓對手球隊／球員與完整 box score（先發、DNP、每節比分、傷停）；灰狼單場球員改以 box score PlayerID 過濾（修 Terrence Shannon Jr 名字寫法不一致被漏掉）
 - 2026-10-19 — 開季前修正：賽季改由日期推算、每日單場改依賽程補抓＋bundle 增量更新＋定稿規則、排程改台北 03:00；Firestore 更正為 Blaze 方案、10 個集合設 `*` 索引豁免（儲存估算由每季 ~139 MiB 降至 ~16～19 MiB）
