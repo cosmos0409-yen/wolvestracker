@@ -163,6 +163,62 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         return { key: m.k, label: m.l, color: INDEX_COLORS[i % INDEX_COLORS.length], values: vals.map(v => typeof v === 'number' && base ? +(v / base * 100).toFixed(1) : null) };
     });
 
+    // 折線的臉書純文字：與上方表格匯出（fbText）同格式——第一行賽季表頭、一行一項「名稱｜各季值」，數字格式同表格（fmt）。
+    // 只有主角＝每項指標一行；有疊加球員＝每位球員一行（多指標時名稱寫「球員・指標」）；指數化＝各季值改成指數（首季＝100）
+    const chartText = () => {
+        if (cols.some(c => !data[c.key])) { UI.toast('資料還在載入，請稍候再複製'); return null; }
+        const TYPE_LABEL = { regular: '例行賽', playoffs: '季後賽' };
+        const sameType = cols.every(c => c.type === cols[0].type) && TYPE_LABEL[cols[0].type];
+        const tags = cols.map(c => window.tagOfMeta(metaOf(c.key)));
+        const head = cols.map((c, i) => (sameType && c.season ? c.season.slice(2) : (c.short || c.label)) + tags[i]);
+        const ptName = k => (((window.GLOSSARY || {})[`PT_${k}`] || {}).def || '').split('：')[0].replace(/（.*?）/g, '');
+        const mName = m => m.playtype ? [ptName(m.k), m.k].filter(Boolean).join(' ') : `${m.l}${m.e && m.e !== m.l ? ` ${m.e}` : ''}`;
+        const isIndex = openMetrics.length > 1 && multiMode === 'index';
+        let extraTag = false;
+        const rows = [];
+        if (isIndex) {
+            indexSeries().forEach(s => {
+                const m = openMetrics.find(x => x.k === s.key);
+                rows.push(`${mName(m)}｜${s.values.map(v => v == null ? '—' : String(v)).join('｜')}`);
+            });
+        } else {
+            openMetrics.forEach(m => {
+                [null, ...extras].forEach(who => {
+                    const vals = cols.map(c => {
+                        const v = fmt(getVal(c.key, m, who), m);
+                        // 疊加球員的他隊季別：表頭只標得出主角，其他人的 @隊名 接在數值後
+                        const t = who && who !== TEAM && v !== '—' ? window.tagOfMeta(metaOf(c.key, who)) : '';
+                        if (t) extraTag = true;
+                        return v + (t || '');
+                    });
+                    const label = !extras.length ? mName(m)
+                        : openMetrics.length === 1 ? nameOf(who)
+                        : `${nameOf(who)}・${m.l}`;
+                    rows.push(`${label}｜${vals.join('｜')}`);
+                });
+            });
+        }
+        const hasNull = rows.some(r => r.split('｜').slice(1).includes('—'));
+        const notes = [
+            !sameType && '例＝例行賽、季＝季後賽',
+            (tags.some(Boolean) || extraTag) && '@隊名＝該季效力他隊',
+            isIndex && '數值為指數：每項以第一個有值的賽季＝100',
+            hasNull && '—＝該季無此項資料',
+        ].filter(Boolean);
+        const subject = viewMode === 'PLAYER' ? selectedPlayer : '灰狼全隊';
+        const what = openMetrics.length === 1 && extras.length ? `・${mName(openMetrics[0])}` : '';
+        return [
+            `【${subject}｜跨季比較・${CATS[activeCat].label}${what}${isIndex ? '（指數化）' : ''}】`,
+            `${sameType || '賽季'}｜${head.join('｜')}`,
+            '',
+            ...rows,
+            '',
+            ...(notes.length ? [notes.join('；')] : []),
+            `資料：NBA.com Stats${activeCat === 'playtype' ? '／Synergy' : ''}，各季期末快照`,
+            `${location.origin}${location.pathname}${location.hash}`,
+        ].join('\n');
+    };
+
     const UI = window.UI;
     const catSub = {
         base: '傳統數據，各季終點快照',
@@ -210,7 +266,8 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
                                         <button type="button" onClick={() => setOpenKeys([])} className="min-h-[24px] text-[12px] text-slate-400 hover:text-slate-100">✕ 收合</button>
                                         <UI.ExportMenu title={`跨季折線（${openMetrics.map(m => m.l).join('、')}）`} getNode={() => chartRef.current}
                                             csv={() => ({ header: ['指標', '對象', ...cols.map(c => c.label)],
-                                                rows: openMetrics.flatMap(m => [null, ...extras].map(who => [m.l, nameOf(who), ...cols.map(c => { const v = getVal(c.key, m, who); return v == null ? '' : v; })])) })} />
+                                                rows: openMetrics.flatMap(m => [null, ...extras].map(who => [m.l, nameOf(who), ...cols.map(c => { const v = getVal(c.key, m, who); return v == null ? '' : v; })])) })}
+                                            text={chartText} />
                                     </span>
                                 </div>
                                 {/* 疊加球員（球員模式；多指標指數化時只畫主角） */}
