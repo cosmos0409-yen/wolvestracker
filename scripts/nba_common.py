@@ -25,6 +25,15 @@ from datetime import datetime, timedelta
 # ==========================================
 TEAM_ID = 1610612750  # 灰狼
 
+# 薪資資料來源：Google Sheet「Wolves Tracker 薪資資料」發佈到網路的 CSV（公開唯讀，非機密）
+# 每個分頁用 gid 取：{SALARY_SHEET_PUB}?gid=<gid>&single=true&output=csv；sync_salary.py 讀取
+SALARY_SHEET_PUB = ("https://docs.google.com/spreadsheets/d/e/"
+                    "2PACX-1vSvujkKyJ0bqE9wU8_Wnj02hQOuW0MXkZAxouQ20CQpJLCwL2BdfMUT3SpEEJbHhsh7AXewedGDSa-8/pub")
+SALARY_SHEET_GIDS = {
+    "contracts": 718360859, "dead": 4688222, "thresholds": 50931558, "tax_rates": 1979221895,
+    "rules": 732556980, "picks": 631729626, "settings": 1385596547,
+}
+
 PLAY_TYPES = [
     "Transition", "Isolation", "PRBallHandler", "PRRollMan",
     "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"
