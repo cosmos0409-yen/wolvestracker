@@ -296,6 +296,8 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
                 <div className="space-y-10">
                     <CapYearly doc={doc} s={s} onPlayer={openPlayer} />
                     <CapStructure doc={doc} s={s} />
+                    {/* 薪資×表現：Sheet 的 settings.show_value 設成 FALSE 就整個隱藏（不必改程式） */}
+                    {(doc.settings || {}).show_value !== false && <CapValue doc={doc} s={s} />}
                 </div>
             )}
             {tab === 'picks' && <CapPicks doc={doc} />}
@@ -529,12 +531,12 @@ const CapStructure = ({ doc, s }) => {
                     <figcaption className="mb-3 text-[12px] text-slate-400">{s} 每人佔奢侈稅薪資（<CapAmt v={p.tax} />）的比例</figcaption>
                     <ul className="space-y-1.5">
                         {items.map(it => (
-                            <li key={it.name} className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-2 text-[12px]">
+                            <li key={it.name} className="grid grid-cols-[minmax(0,8.5rem)_1fr_7.5rem] items-center gap-2 text-[12px]">
                                 <span className={`truncate ${it.dead ? 'text-slate-400' : 'text-slate-200'}`} title={it.name}>{it.name}</span>
                                 <span className="relative h-2.5 bg-white/[0.05]">
                                     <span className={`absolute inset-y-0 left-0 ${it.dead ? 'bg-slate-500' : 'bg-[#12A150]'}`} style={{ width: (it.v / max * 100) + '%' }}></span>
                                 </span>
-                                <span className="font-mono tabular-nums text-slate-300 whitespace-nowrap">
+                                <span className="text-right font-mono tabular-nums text-slate-300 whitespace-nowrap">
                                     <CapCellAmt v={it.v} /> <span className="text-slate-500">{(it.v / p.tax * 100).toFixed(1)}%</span>
                                 </span>
                             </li>
@@ -637,6 +639,164 @@ const CapPicks = ({ doc }) => {
                         ))}
                     </tbody>
                 </table>
+            </div>
+        </UI.Section>
+    );
+};
+
+// ── Phase 5：薪資占比 vs 貢獻占比（Sheet 的 settings.show_value＝FALSE 時整個區塊不顯示）──
+// 貢獻資料一律用逐場 bundle（只含替灰狼出賽的比賽）：季末／每日快照的球員數據是「整季合併」，
+// 季中轉隊的球員會混進他隊的比賽（例：2025-26 Kyle Anderson 快照 43 場、在灰狼只有 19 場），不能拿來算占比。
+//   分子：有合約球員各自的 wolves_pgames_bundle（最多約 15 份，gamesData 有快取）
+//   分母：球隊 wolves_games_bundle 逐場加總（上場時間＝比賽分鐘 × 5）
+window.loadCapContrib = function (season, pids) {
+    const cache = (window.__capContrib = window.__capContrib || {});
+    const key = `${season}|${pids.slice().sort().join(',')}`;
+    if (cache[key] !== undefined) return Promise.resolve(cache[key]);
+    const sumG = (games, f) => games.reduce((a, g) => a + (f(g.stats || {}) || 0), 0);
+    const tot = (games) => ({
+        min: sumG(games, x => x.MIN), pts: sumG(games, x => x.PTS), ra: sumG(games, x => (x.REB || 0) + (x.AST || 0)),
+    });
+    return window.loadSeasonGames(season, 'regular', 'TEAM').then(team => {
+        const tg = team.games || [];
+        if (!tg.length) return null;
+        const teamTot = tot(tg);
+        teamTot.min *= 5;   // 球隊 MIN 是比賽分鐘（每場 48），× 5 才是全隊球員上場時間
+        return Promise.all(pids.map(pid => window.loadSeasonGames(season, 'regular', 'PLAYER', pid)
+            .then(r => [pid, (r.games || []).filter(g => (g.stats && g.stats.MIN) > 0)])))
+            .then(list => {
+                const per = {};
+                list.forEach(([pid, games]) => { per[pid] = { gp: games.length, ...tot(games) }; });
+                return { teamTot, per, games: tg.length, asOf: tg[tg.length - 1].date };
+            });
+    }).then(v => { cache[key] = v; return v; });
+};
+
+const CAP_METRICS = [
+    { key: 'min', label: '上場時間', unit: '分鐘' },
+    { key: 'pts', label: '得分', unit: '分' },
+    { key: 'ra', label: '籃板＋助攻', unit: '次' },
+];
+
+const CapValue = ({ doc, s }) => {
+    const UI = window.UI, C = window.CapCalc;
+    const [data, setData] = React.useState(undefined);   // undefined=載入中, null=沒有數據
+    const [err, setErr] = React.useState(null);
+    const [metric, setMetric] = React.useState('min');
+    const ref = React.useRef(null);
+    const p = C.payroll(doc, s);
+    const pids = p.std.map(c => c.playerId);
+    React.useEffect(() => {
+        let cancelled = false;
+        setData(undefined); setErr(null);
+        window.loadCapContrib(s, pids)
+            .then(v => { if (!cancelled) setData(v); })
+            .catch(e => {
+                console.error('cap contrib fetch fail', s, e);
+                if (!cancelled) { setErr(String(e.code || e.message || e)); setData(null); }
+            });
+        return () => { cancelled = true; };
+    }, [s, pids.join(',')]);
+
+    const m = CAP_METRICS.find(x => x.key === metric);
+    const salTotal = p.std.reduce((a, c) => a + c.salary, 0);
+    const conTotal = data ? data.teamTot[metric] : 0;
+    const rows = data && conTotal > 0 ? p.std.map(c => {
+        const r = data.per[c.playerId];
+        const played = r && r.gp > 0;
+        return {
+            name: c.player, sal: c.salary / salTotal, con: played ? r[metric] / conTotal : null,
+            why: played ? '' : '本季未替灰狼出賽（例行賽）',
+        };
+    }).sort((a, b) => b.sal - a.sal) : [];
+    const listedCon = rows.reduce((a, r) => a + (r.con || 0), 0);
+    const restCon = rows.length ? Math.max(0, 1 - listedCon) : 0;
+    const maxShare = Math.max(0.0001, ...rows.map(r => Math.max(r.sal, r.con || 0)), restCon);
+    const pctTxt = (v) => (v * 100).toFixed(1) + '%';
+    const fmtNum = (v) => Math.round(v).toLocaleString('en-US');
+    const when = data ? `${s} 例行賽 ${data.games} 場，截至 ${data.asOf}` : '';
+
+    const csv = () => ({
+        header: ['球員', '薪資占比', `${m.label}占比`, '差距（百分點）'],
+        rows: [...rows.map(r => [r.name, pctTxt(r.sal), r.con == null ? r.why : pctTxt(r.con), r.con == null ? '' : ((r.con - r.sal) * 100).toFixed(1)]),
+            ...(restCon > 0.0005 ? [['其他球員（雙向、季中離隊等）', '', pctTxt(restCon), '']] : [])],
+    });
+
+    return (
+        <UI.Section title="薪資 × 表現" en="Pay vs. Contribution"
+            sub="錢的分配和場上貢獻的分配對不對得上。這是隊內相對比較，請一併看下方的公式與限制。"
+            right={<>
+                <UI.Seg ariaLabel="貢獻指標" size="sm" value={metric} onChange={setMetric}
+                    options={CAP_METRICS.map(x => ({ value: x.key, label: x.label }))} />
+                {rows.length > 0 && <UI.ExportMenu title={`薪資占比與${m.label}占比 ${s}`} getNode={() => ref.current} csv={csv}
+                    source="資料：薪資＝Spotrac 等公開資料（人工整理）；貢獻＝NBA.com 逐場數據" />}
+            </>}>
+            {data === undefined ? (
+                <div className="py-10 text-center text-sm text-slate-500 animate-pulse">載入表現數據…</div>
+            ) : err ? (
+                <UI.Note tone="warn">表現數據讀取失敗：<code className="text-amber-100">{err}</code>。請稍後重新整理。</UI.Note>
+            ) : !rows.length ? (
+                <UI.Note>{s === window.CURRENT_SEASON ? '本季還沒有例行賽數據，開季後隔天的每日抓取完成就會出現。' : `${s} 沒有可用的例行賽季末數據。`}</UI.Note>
+            ) : (
+                <div ref={ref}>
+                    <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-3 bg-[#C4CED2]/70"></span>薪資占比</span>
+                        <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-3 bg-[#12A150]"></span>{m.label}占比</span>
+                        <span>右側＝貢獻占比 − 薪資占比（百分點）</span>
+                    </div>
+                    <ul className="divide-y divide-white/[0.06] border-y border-white/[0.08]">
+                        {rows.map(r => {
+                            const d = r.con == null ? null : (r.con - r.sal) * 100;
+                            return (
+                                <li key={r.name} className="grid grid-cols-[minmax(0,7.5rem)_1fr_3.75rem] items-center gap-3 py-2 sm:grid-cols-[minmax(0,10rem)_1fr_4.5rem]">
+                                    <span className="truncate text-[13px] text-slate-200" title={r.name}>{r.name}</span>
+                                    <span className="space-y-1">
+                                        <span className="flex items-center gap-2">
+                                            <span className="relative h-2 flex-1 bg-white/[0.04]"><span className="absolute inset-y-0 left-0 bg-[#C4CED2]/70" style={{ width: (r.sal / maxShare * 100) + '%' }}></span></span>
+                                            <span className="w-12 text-right font-mono text-[11px] tabular-nums text-slate-400">{pctTxt(r.sal)}</span>
+                                        </span>
+                                        {r.con == null ? (
+                                            <span className="block text-[11px] text-slate-500">{r.why}</span>
+                                        ) : (
+                                            <span className="flex items-center gap-2">
+                                                <span className="relative h-2 flex-1 bg-white/[0.04]"><span className="absolute inset-y-0 left-0 bg-[#12A150]" style={{ width: (r.con / maxShare * 100) + '%' }}></span></span>
+                                                <span className="w-12 text-right font-mono text-[11px] tabular-nums text-slate-200">{pctTxt(r.con)}</span>
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className={`text-right font-mono text-[13px] tabular-nums ${d == null ? 'text-slate-500' : d >= 0 ? 'text-[#12A150]' : 'text-[#EF4444]'}`}
+                                        title={r.con == null ? r.why : `${m.label}占比 ${pctTxt(r.con)} − 薪資占比 ${pctTxt(r.sal)}`}>
+                                        {d == null ? '—' : `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                        {restCon > 0.0005 && (
+                            <li className="grid grid-cols-[minmax(0,7.5rem)_1fr_3.75rem] items-center gap-3 py-2 sm:grid-cols-[minmax(0,10rem)_1fr_4.5rem]">
+                                <span className="text-[12px] text-slate-400">其他球員</span>
+                                <span className="flex items-center gap-2">
+                                    <span className="relative h-2 flex-1 bg-white/[0.04]"><span className="absolute inset-y-0 left-0 bg-slate-500" style={{ width: (restCon / maxShare * 100) + '%' }}></span></span>
+                                    <span className="w-12 text-right font-mono text-[11px] tabular-nums text-slate-400">{pctTxt(restCon)}</span>
+                                </span>
+                                <span className="text-right text-[11px] text-slate-500">雙向、離隊</span>
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            )}
+
+            {/* 公式與限制：常駐顯示、不收合，讓讀者自己判斷這組數字可信到什麼程度 */}
+            <div className="mt-4 border-l-2 border-[#C4CED2]/40 pl-4 text-[12px] leading-relaxed text-slate-300">
+                <p className="font-medium text-slate-100">計算公式</p>
+                <p>薪資占比 ＝ 該員 cap hit ÷ 全隊標準合約 cap hit 合計（{rows.length ? <CapAmt v={salTotal} /> : '—'}；不含雙向合約與死錢）</p>
+                <p>{m.label}占比 ＝ 該員替灰狼出賽的累計{m.label} ÷ 灰狼全隊的合計（{rows.length ? `${fmtNum(conTotal)} ${m.unit}` : '—'}，含雙向與季中離隊球員）</p>
+                <p>只計例行賽中替灰狼出賽的比賽（NBA.com 逐場數據加總）；季中轉隊的球員只算在灰狼的部分。{metric === 'min' ? '全隊上場時間＝每場比賽分鐘數 × 5。' : ''}資料：{when || '—'}。</p>
+                <p className="mt-2 font-medium text-slate-100">限制</p>
+                <ul className="list-disc pl-4 text-slate-400">
+                    <li>只是隊內相對比較，不代表合約在市場上值不值得。</li>
+                    <li>防守、掩護、拉開空間等沒有計數的貢獻不在內，防守型球員的貢獻占比會被低估。</li>
+                    <li>傷停或季中才加入的球員，出賽場次少，貢獻占比會偏低。</li>
+                </ul>
             </div>
         </UI.Section>
     );
