@@ -15,13 +15,14 @@
 //   #game=2026-04-10&p=Rudy%20Gobert
 //   game 比賽日期；p 展開進階的灰狼球員（可省略）
 // 薪資頁（另一種畫面，沒有 v=）：
-//   #cap&s=2025-26
-//   cap 薪資頁；s 薪資賽季（省略＝薪資當季，見 constants.js capSeasonForDate）
+//   #cap&s=2025-26&tab=contracts
+//   cap 薪資頁；s 薪資賽季（省略＝薪資當季，見 constants.js capSeasonForDate）；tab 分頁 contracts/picks/rules（省略＝總覽）
 window.UrlState = (function () {
     const TABS = ['overview', 'splits', 'shooting', 'defense', 'playtype', 'comparison'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     const METRIC_RE = /^[A-Z0-9_]+$/;
     const SEASON_RE = /^\d{4}-\d{2}$/;
+    const CAP_TABS = ['contracts', 'picks', 'rules'];
 
     const parse = (hash) => {
         const out = {};
@@ -36,6 +37,7 @@ window.UrlState = (function () {
         if (q.has('cap') && !q.get('v')) {
             out.capView = true;
             out.capSeason = SEASON_RE.test(q.get('s') || '') ? q.get('s') : '';
+            out.capTab = CAP_TABS.includes(q.get('tab')) ? q.get('tab') : '';
             return out;
         }
         const v = q.get('v');
@@ -73,7 +75,7 @@ window.UrlState = (function () {
             if (st.gamePlayer) q.set('p', st.gamePlayer);
             return toStr(q);
         }
-        if (st.capView) return st.capSeason ? `cap&s=${st.capSeason}` : 'cap';
+        if (st.capView) return ['cap', st.capSeason && `s=${st.capSeason}`, st.capTab && `tab=${st.capTab}`].filter(Boolean).join('&');
         q.set('v', st.viewMode === 'PLAYER' ? 'player' : 'team');
         if (st.viewMode === 'PLAYER' && st.selectedPlayer) q.set('p', st.selectedPlayer);
         if (st.activeTab && st.activeTab !== 'overview') q.set('tab', st.activeTab);
@@ -91,7 +93,7 @@ window.UrlState = (function () {
 
     // 給連結用的 href（一般 <a href>：會產生瀏覽紀錄，返回鍵可回上一頁）
     const gameHref = (date, player) => '#' + serialize({ gameDate: date, gamePlayer: player || '' });
-    const capHref = (season) => '#' + serialize({ capView: true, capSeason: season || '' });
+    const capHref = (season, tab) => '#' + serialize({ capView: true, capSeason: season || '', capTab: tab || '' });
 
     return { parse, serialize, gameHref, capHref, TABS };
 })();

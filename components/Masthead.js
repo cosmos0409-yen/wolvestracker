@@ -24,9 +24,9 @@ const Masthead = ({
                         </div>
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
                             className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
-                            {[issueSeason, issueType].filter(Boolean).join(' · ')}
+                            {inCap ? '薪資 · Cap Sheet' : [issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：下一列的日期控制項已顯示，避免期別行被截斷 */}
-                            <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>
+                            {!inCap && <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>}
                             <span className="mx-1.5 text-slate-600">·</span>{statusEl}
                         </button>
                     </div>
@@ -37,6 +37,8 @@ const Masthead = ({
                 </div>
 
                 <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0 [scrollbar-width:none]">
+                    {/* 主畫面的賽季／賽別／日期：薪資頁有自己的賽季選單，這裡隱藏避免兩組賽季控制項 */}
+                    {!inCap && (<>
                     <label className="sr-only" htmlFor="season-select">賽季</label>
                     <select id="season-select" value={selectedSeasonKey} onChange={e => onSeasonChange(e.target.value)}
                         className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 text-[13px] text-slate-200 focus:outline-none focus:border-[#12A150]">
@@ -53,6 +55,7 @@ const Masthead = ({
                         <input id="asof-date" type="date" value={effectiveDate} min={minDate} max={maxDate}
                             onChange={e => onDateChange(e.target.value)}
                             className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150]" />
+                    </>)}
                     </>)}
                     {/* 比賽：開最新一場的單場頁（Game Center） */}
                     <button type="button" onClick={onGames} disabled={!latestGame}

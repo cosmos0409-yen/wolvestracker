@@ -153,15 +153,17 @@ window.UI = (function () {
         document.body.appendChild(a); a.click();
         setTimeout(() => { if (href.startsWith('blob:')) URL.revokeObjectURL(href); a.remove(); }, 1500);
     };
-    const provenance = (title) => {
+    // source：資料來源說明（預設 NBA.com；薪資頁等非 NBA.com 資料要傳自己的來源）
+    const DEFAULT_SOURCE = '資料：NBA.com Stats／Synergy';
+    const provenance = (title, source) => {
         const c = window.CiteCtx || {};
-        return [`Wolves Ledger`, title, c.subject, c.season, c.isHistory ? '期末快照' : (c.asOfSnap ? `截至 ${c.asOfSnap}` : null), '資料：NBA.com Stats／Synergy']
+        return [`Wolves Ledger`, title, c.subject, c.season, c.isHistory ? '期末快照' : (c.asOfSnap ? `截至 ${c.asOfSnap}` : null), source || DEFAULT_SOURCE]
             .filter(Boolean).join('｜');
     };
     // CSV：第一列為出處說明，空一列後才是表頭；加 UTF-8 BOM 讓 Excel 正確顯示中文
-    const exportCSV = ({ title, header, rows }) => {
+    const exportCSV = ({ title, header, rows, source }) => {
         const esc = (v) => { const s = v == null ? '' : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-        const lines = [[provenance(title)], [], header, ...rows].map(r => r.map(esc).join(','));
+        const lines = [[provenance(title, source)], [], header, ...rows].map(r => r.map(esc).join(','));
         const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
         download(URL.createObjectURL(blob), fileName(title, 'csv'));
         toast(`已匯出 CSV：${title}`);
@@ -181,7 +183,7 @@ window.UI = (function () {
     };
     // 把目標節點複製到固定尺寸的配圖版面（字標＋標題＋圖＋出處），等比縮放置中後輸出 PNG。
     // 不放 NBA Logo／頭像：跨網域圖片會讓畫布無法輸出，也避免在配圖上使用官方商標
-    const exportPNG = async (node, { title, ratio = '16:9' }) => {
+    const exportPNG = async (node, { title, ratio = '16:9', source }) => {
         if (!node) return;
         const [W, H] = ratio === '1:1' ? [1080, 1080] : [1600, 900];
         const c = window.CiteCtx || {};
@@ -211,6 +213,7 @@ window.UI = (function () {
             // 文字一律用 textContent 寫入（標題含球員名等資料，不可當 HTML 解析）
             frame.children[0].children[0].children[0].textContent = title;
             frame.children[0].children[0].children[1].textContent = [c.subject, c.season, when].filter(Boolean).join('　·　');
+            frame.children[2].children[0].textContent = source || DEFAULT_SOURCE;
             frame.children[2].children[1].textContent = `${location.host}${location.pathname}`;
             const body = frame.querySelector('[data-body]');
             const clone = node.cloneNode(true);
@@ -240,7 +243,7 @@ window.UI = (function () {
 
     // 匯出選單：CSV（有 csv 時）＋ PNG 16:9 / 1:1 ＋ 純文字（有 text 時，貼臉書等不吃表格的地方）。
     // getNode 回傳要輸出成圖的 DOM 節點；text() 回傳字串，回 null 表示呼叫端自己處理（例如資料未載完）
-    const ExportMenu = ({ title, getNode, csv, text }) => {
+    const ExportMenu = ({ title, getNode, csv, text, source }) => {
         const [open, setOpen] = React.useState(false);
         const ref = React.useRef(null);
         React.useEffect(() => {
@@ -256,9 +259,9 @@ window.UI = (function () {
                     className="rounded-full border border-white/15 px-3 py-1 text-xs text-slate-400 hover:border-white/30 hover:text-slate-100">匯出 ▾</button>
                 {open && (
                     <span role="menu" className="absolute right-0 top-8 z-40 block w-44 border border-white/15 bg-[#0C1A2E] py-1 shadow-2xl">
-                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '16:9' }); }}>配圖 PNG · 16:9</button>}
-                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '1:1' }); }}>配圖 PNG · 1:1</button>}
-                        {csv && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportCSV({ title, ...csv() }); }}>表格 CSV（Excel）</button>}
+                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '16:9', source }); }}>配圖 PNG · 16:9</button>}
+                        {getNode && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportPNG(getNode(), { title, ratio: '1:1', source }); }}>配圖 PNG · 1:1</button>}
+                        {csv && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); exportCSV({ title, source, ...csv() }); }}>表格 CSV（Excel）</button>}
                         {text && <button type="button" role="menuitem" className={item} onClick={async () => {
                             setOpen(false);
                             const t = text(); if (t == null) return;

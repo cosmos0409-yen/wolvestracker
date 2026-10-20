@@ -56,6 +56,7 @@ const App = () => {
     // 薪資頁（網址 #cap）：有值時主區改顯示 CapPage；capSeason＝薪資賽季（網址 s=，空＝薪資當季）
     const [capView, setCapView] = useState(() => !!urlInit.capView);
     const [capSeason, setCapSeason] = useState(() => urlInit.capSeason || '');
+    const [capTab, setCapTab] = useState(() => urlInit.capTab || '');   // 薪資頁分頁（網址 tab=，空＝總覽）
     const [capDoc, setCapDoc] = useState(window.__capDoc);   // 薪資資料（球員身分列顯示該季薪資用；與薪資頁共用同一份）
     const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
@@ -775,14 +776,14 @@ const App = () => {
         const h = '#' + (gameDate
             ? window.UrlState.serialize({ gameDate, gamePlayer })
             : capView
-            ? window.UrlState.serialize({ capView, capSeason })
+            ? window.UrlState.serialize({ capView, capSeason, capTab })
             : window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, capView, capSeason]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, capView, capSeason, capTab]);
     // 進出單場頁／薪資頁一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
-    const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason).slice(1); };
+    const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
     // 回主畫面（單場頁與薪資頁共用）：主畫面狀態在這兩頁期間保持不動
     const leaveGame = () => {
         if (gameDate) { setGameDate(null); setGamePlayer(''); }
@@ -800,7 +801,7 @@ const App = () => {
             if (st.gameDate) { setCapView(false); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); window.scrollTo(0, 0); return; }
             setGameDate(null); setGamePlayer('');
             // 薪資頁：同單場頁，只切換薪資頁狀態
-            if (st.capView) { setCapView(true); setCapSeason(st.capSeason || ''); window.scrollTo(0, 0); return; }
+            if (st.capView) { setCapView(true); setCapSeason(st.capSeason || ''); setCapTab(st.capTab || ''); window.scrollTo(0, 0); return; }
             setCapView(false);
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (st.viewMode) setViewMode(st.viewMode);
@@ -949,7 +950,8 @@ const App = () => {
                     <button type="button" onClick={leaveGame}
                         className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">← 回主畫面</button>
                     {window.CapPage && isCloud
-                        ? <window.CapPage season={capSeason} onSeason={setCapSeason} />
+                        ? <window.CapPage season={capSeason} onSeason={setCapSeason} capTab={capTab} onTab={(k) => { setCapTab(k); window.scrollTo(0, 0); }}
+                            playerNameOf={(pid) => availablePlayers.find(n => Number(playerIdOf(n)) === Number(pid)) || null} />
                         : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
                 </main>
             ) : (<>
