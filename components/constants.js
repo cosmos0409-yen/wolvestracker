@@ -36,6 +36,15 @@ window.seasonForDate = function (date) {
     return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 };
 window.CURRENT_SEASON = window.seasonForDate();
+// 薪資賽季（聯盟年度）：美東 7/1 切換（休賽期就看下一季的合約與門檻）。
+// 必須與 scripts/nba_common.py 的 get_roster_season() 同規則（sync_salary.py 用它判斷哪些賽季必須有門檻）
+window.capSeasonForDate = function (date) {
+    const d = date || new Date();
+    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
+    const y = eastTime.getUTCFullYear(), m = eastTime.getUTCMonth() + 1;
+    const start = m >= 7 ? y : y - 1;
+    return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+};
 // 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照。
 // 單一來源：App.js 的跨季比較清單也讀 HISTORY_SEASON_OPTIONS，勿另建第二份。
 // 不變式：option.key === Firestore 的 history docId（`${season}_${type}`）

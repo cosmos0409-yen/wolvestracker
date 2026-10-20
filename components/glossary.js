@@ -13,6 +13,7 @@ window.GLOSSARY = (function () {
     const ADV = 'NBA.com 進階數據（Advanced）';
     const SYN = 'Synergy Playtype（NBA.com synergyplaytypes）';
     const SCOR = 'NBA.com 得分組成（leaguedash*stats，Scoring）';
+    const CAP = 'Spotrac、Hoops Rumors 等公開資料，人工整理於本站薪資 Google Sheet';
 
     const G = {
         // ── 傳統數據 ──
@@ -116,6 +117,15 @@ window.GLOSSARY = (function () {
         PT_OffScreen: { def: '繞掩護：無球繞過隊友掩護後接球出手。', src: SYN },
         PT_OffRebound: { def: '進攻籃板補進（Putbacks）：搶到進攻籃板後直接出手。', src: SYN },
         PT_Misc: { def: '其他：不屬於以上類型的球權（例如殘局、特殊狀況），分析時通常排除。', src: SYN },
+        // ── 薪資頁（Cap Sheet） ──
+        CAP_TAX_PAYROLL: { def: '計算薪資帽與奢侈稅用的球隊薪資。', calc: 'Σ 標準合約 cap hit（含 likely incentives）＋ 死錢；不含雙向合約', src: CAP },
+        CAP_APRON_PAYROLL: { def: '判定第一／第二 apron 用的球隊薪資，比奢侈稅薪資多算 unlikely incentives。', calc: '奢侈稅薪資 ＋ Σ unlikely incentives', src: CAP },
+        CAP_SPACE: { def: '薪資帽減奢侈稅薪資；負數代表超過薪資帽。不含 cap hold，所以可能和 Spotrac 顯示的不同。', calc: '薪資帽 − 奢侈稅薪資', src: CAP },
+        CAP_TAX_SPACE: { def: '奢侈稅線減奢侈稅薪資；負數代表要繳奢侈稅。', calc: '奢侈稅線 − 奢侈稅薪資', src: CAP },
+        CAP_APRON1_SPACE: { def: '第一 apron 減 apron 薪資；負數代表已超過第一 apron，受相應限制。', calc: '第一 apron − apron 薪資', src: CAP },
+        CAP_APRON2_SPACE: { def: '第二 apron 減 apron 薪資；負數代表已超過第二 apron，受相應限制。', calc: '第二 apron − apron 薪資', src: CAP },
+        CAP_TAX_EST: { def: '依目前名單估算的奢侈稅。實際以例行賽最後一天的薪資計算，季中交易、獎金與按比例分攤都會改變結果。', calc: '超出奢侈稅線的金額分級，各級 × 該級稅率後加總', src: CAP },
+        CAP_ROSTER: { def: '本季列入薪資表的標準合約人數；雙向合約另計，不算入薪資。', src: CAP },
     };
     return G;
 })();

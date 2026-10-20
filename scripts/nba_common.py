@@ -31,7 +31,7 @@ SALARY_SHEET_PUB = ("https://docs.google.com/spreadsheets/d/e/"
                     "2PACX-1vSvujkKyJ0bqE9wU8_Wnj02hQOuW0MXkZAxouQ20CQpJLCwL2BdfMUT3SpEEJbHhsh7AXewedGDSa-8/pub")
 SALARY_SHEET_GIDS = {
     "contracts": 718360859, "dead": 4688222, "thresholds": 50931558, "tax_rates": 1979221895,
-    "rules": 732556980, "picks": 631729626, "settings": 1385596547,
+    "rules": 732556980, "picks": 631729626, "settings": 1385596547, "tax_history": 854944861,
 }
 
 PLAY_TYPES = [
@@ -363,7 +363,8 @@ def get_current_season():
 
 
 def get_roster_season():
-    """名冊賽季（新援判定/isCurrentRoster）：7/1 切換，休賽期即看下一季的新名冊。"""
+    """名冊賽季（新援判定/isCurrentRoster、薪資當季）：7/1 切換，休賽期即看下一季的新名冊。
+    前端 constants.js 的 capSeasonForDate 為同一規則，改界線要兩邊一起改。"""
     east_time = datetime.utcnow() - timedelta(hours=5)
     return _season_str(east_time.year if east_time.month >= 7 else east_time.year - 1)
 

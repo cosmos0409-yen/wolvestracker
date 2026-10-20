@@ -2,8 +2,9 @@
 """
 Wolves Tracker - 薪資資料同步（Google Sheet → Firestore）
 
-Sheet「Wolves Tracker 薪資資料」是唯一資料來源（人工維護），7 個分頁各自發佈成 CSV：
-    contracts / dead / thresholds / tax_rates / rules / picks / settings
+Sheet「Wolves Tracker 薪資資料」是唯一資料來源（人工維護），8 個分頁各自發佈成 CSV：
+    contracts / dead / thresholds / tax_rates / tax_history / rules / picks / settings
+累犯（repeater）不手填：前端依 tax_history（逐季是否繳稅）自動判定。
 本腳本只負責「讀取 → 檢查格式 → 對帳 → 寫入」，不做任何薪資計算（總額、奢侈稅、
 距門檻差距一律在前端算，計算邏輯只放一處）。寫入：
     wolves_salary/main   單一 doc，欄位名沿用 Sheet 欄名（Sheet 即 schema）
@@ -32,14 +33,15 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nba_common as nc
 
-TABS = ["contracts", "dead", "thresholds", "tax_rates", "rules", "picks", "settings"]
+TABS = ["contracts", "dead", "thresholds", "tax_rates", "tax_history", "rules", "picks", "settings"]
 
 REQUIRED = {
     "contracts": ["season", "player", "playerId", "salary", "unlikely", "guarantee", "guaranteed_amt", "option", "type", "note"],
     "dead": ["season", "player", "amount", "reason"],
     "thresholds": ["season", "cap", "tax", "apron1", "apron2", "min_team", "tax_bracket", "ntmle", "tmle", "bae",
-                   "repeater", "apron_final", "hard_cap", "hard_cap_reason", "ref_tax_total", "ref_apron_total"],
+                   "apron_final", "hard_cap", "hard_cap_reason", "ref_tax_total", "ref_apron_total"],
     "tax_rates": ["season", "bracket", "rate", "repeater_rate"],
+    "tax_history": ["season", "paid", "tax_payroll", "note", "source_url"],
     "rules": ["tier", "order", "text_zh", "detail", "source_url"],
     "picks": ["year", "round", "status", "counterparty", "summary_zh", "terms", "source_url", "as_of"],
     "settings": ["key", "value"],
@@ -196,7 +198,6 @@ def parse_all(raw, rep):
     for i, r in enumerate(raw["thresholds"], start=2):
         season = _season(r.get("season"), rep, "thresholds", i)
         t = {c: _int(r.get(c), rep, "thresholds", i, c) for c in THRESHOLD_INTS}
-        t["repeater"] = _bool(r.get("repeater"), rep, "thresholds", i, "repeater")
         t["apron_final"] = _str(r.get("apron_final"))
         t["hard_cap"] = _str(r.get("hard_cap"))
         t["hard_cap_reason"] = _str(r.get("hard_cap_reason"))
@@ -229,6 +230,17 @@ def parse_all(raw, rep):
         if [x["bracket"] for x in rows] != list(range(1, len(rows) + 1)):
             rep.err("tax_rates", "-", f"{season} 的 bracket 應從 1 連續編號")
     out["tax_rates"] = tax_rates
+
+    tax_history, seen_h = [], set()
+    for i, r in enumerate(raw["tax_history"], start=2):
+        season = _season(r.get("season"), rep, "tax_history", i)
+        if season in seen_h:
+            rep.err("tax_history", i, f"{season} 重複")
+        seen_h.add(season)
+        tax_history.append({"season": season, "paid": _bool(r.get("paid"), rep, "tax_history", i, "paid"),
+                            "tax_payroll": _int(r.get("tax_payroll"), rep, "tax_history", i, "tax_payroll", allow_blank=True),
+                            "note": _str(r.get("note")), "source_url": _str(r.get("source_url"))})
+    out["tax_history"] = sorted(tax_history, key=lambda x: x["season"] or "")
 
     rules = []
     for i, r in enumerate(raw["rules"], start=2):
@@ -293,7 +305,7 @@ def summarize(data):
         if t and t["ref_tax_total"] is not None:
             mark = "✅" if abs(total - t["ref_tax_total"]) <= 1 else "❌"
         print(f"   {s}：{len(rows) - tw} 人（雙向 {tw}）、死錢 {dead:,}、奢侈稅薪資 {total:,} {mark}")
-    print(f"   rules {len(data['rules'])} 條、picks {len(data['picks'])} 筆、show_value={data['settings']['show_value']}")
+    print(f"   rules {len(data['rules'])} 條、picks {len(data['picks'])} 筆、繳稅紀錄 {len(data['tax_history'])} 季、show_value={data['settings']['show_value']}")
 
 
 # ==========================================

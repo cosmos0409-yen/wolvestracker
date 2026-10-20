@@ -139,7 +139,8 @@ window.UI = (function () {
         );
     };
 
-    // gkey：glossary 的 key（顯示「?」定義）；citeAsOf：'snap' 快照日 / 'agg' 截至日 / 'none'；citeNote：期間或場次等補充
+    // gkey：glossary 的 key（顯示「?」定義）；citeAsOf：'snap' 快照日 / 'agg' 截至日 / 'none'；citeNote：期間或場次等補充；
+    // valueTitle：滑鼠移上去顯示的完整數值（例如縮寫金額的完整金額）
     // ── 匯出：CSV 與 PNG 專欄配圖 ──
     const slug = (s) => String(s || '').replace(/[\\/:*?"<>|\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const fileName = (title, ext) => {
@@ -269,7 +270,7 @@ window.UI = (function () {
         );
     };
 
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote }) => {
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle }) => {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
         return (
@@ -290,7 +291,7 @@ window.UI = (function () {
                     ) : missing ? (
                         <span className="font-display text-[26px] font-semibold leading-none text-slate-600" title="此項無資料">—</span>
                     ) : (
-                        <span className="font-display text-[26px] font-semibold leading-none tabular-nums text-slate-50">
+                        <span title={valueTitle} className={`font-display text-[26px] font-semibold leading-none tabular-nums text-slate-50 ${valueTitle ? 'cursor-help' : ''}`}>
                             {value}{unit && <span className="ml-0.5 text-[15px] font-medium text-slate-400">{unit}</span>}
                         </span>
                     )}

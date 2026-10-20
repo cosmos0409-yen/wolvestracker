@@ -1,7 +1,8 @@
 // 精簡身分列：頭像（球隊為 Logo）＋ 名稱 ＋ 出賽/戰績 ＋ 4 個主數字，單行高度，第一屏就是數據
 // 數字與總覽「季平均」同源：逐場 bundle 以 GameAgg 算截至 untilDate；bundle 缺時退回快照 base
 // 要換顯示的指標 → 改下方 FIELDS（格式同 OverviewTab 的 SUMMARY）
-const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel }) => {
+// salary：球員檢視時的薪資膠囊 { season, text, title, badge }（App 依 playerId 對薪資資料組好），onSalary 點擊開薪資頁
+const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary }) => {
     const GA = window.GameAgg;
     const FIELDS = viewMode === 'TEAM'
         ? [{ key: 'PTS', en: 'PTS', label: '得分' }, { key: 'REB', en: 'REB', label: '籃板' },
@@ -39,6 +40,15 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                         <p className="mt-1 text-[12px] text-slate-400 truncate">
                             {[seasonLabel, record].filter(Boolean).join(' · ')}
                         </p>
+                        {viewMode === 'PLAYER' && salary && (
+                            <button type="button" onClick={onSalary} title={salary.title}
+                                className="mt-1 inline-flex min-h-[24px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-white/15 px-2.5 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-100">
+                                <span className="font-mono text-[10px] text-slate-500">{salary.season} 薪資</span>
+                                <span className="font-mono tabular-nums text-slate-100">{salary.text}</span>
+                                {salary.badge && <span className="text-[11px] text-amber-300">{salary.badge}</span>}
+                                <span aria-hidden="true" className="text-slate-500">↗</span>
+                            </button>
+                        )}
                     </div>
                 </div>
                 <dl className="grid grid-cols-4 sm:ml-auto sm:flex sm:items-end gap-x-6 gap-y-1">

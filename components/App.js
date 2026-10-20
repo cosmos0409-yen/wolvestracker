@@ -53,6 +53,10 @@ const App = () => {
     // 單場比賽頁（網址 #game=）：有值時主區改顯示 GamePage；gamePlayer＝展開進階的球員（網址 p=）
     const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
     const [gamePlayer, setGamePlayer] = useState(() => urlInit.gamePlayer || '');
+    // 薪資頁（網址 #cap）：有值時主區改顯示 CapPage；capSeason＝薪資賽季（網址 s=，空＝薪資當季）
+    const [capView, setCapView] = useState(() => !!urlInit.capView);
+    const [capSeason, setCapSeason] = useState(() => urlInit.capSeason || '');
+    const [capDoc, setCapDoc] = useState(window.__capDoc);   // 薪資資料（球員身分列顯示該季薪資用；與薪資頁共用同一份）
     const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
     const [curSnapReceived, setCurSnapReceived] = useState(false);
@@ -757,18 +761,33 @@ const App = () => {
     // Splits 開關走勢／換指標 → 更新 m（保留原本圈出的那一場）
     const onSplitsFocus = (m) => setFocus(m ? { m, hl: activeFocus ? activeFocus.hl : null, key: focusKeyOf(viewMode, selectedPlayer, activeTab) } : null);
 
+    // 球員檢視才需要薪資資料（身分列薪資膠囊）；讀不到就不顯示膠囊，不影響其他畫面
+    useEffect(() => {
+        if (viewMode !== 'PLAYER' || !isCloud || capDoc !== undefined || !window.loadCapDoc) return;
+        let cancelled = false;
+        window.loadCapDoc().then(v => { if (!cancelled) setCapDoc(v); }).catch(e => console.warn('salary for identity bar failed', e));
+        return () => { cancelled = true; };
+    }, [viewMode, isCloud, capDoc]);
+
     // 網址狀態同步：狀態一變就 replaceState（不新增瀏覽紀錄，返回鍵不會一格格倒退）
     useEffect(() => {
         if (!window.UrlState) return;
         const h = '#' + (gameDate
             ? window.UrlState.serialize({ gameDate, gamePlayer })
+            : capView
+            ? window.UrlState.serialize({ capView, capSeason })
             : window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer]);
-    // 進出單場頁一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, capView, capSeason]);
+    // 進出單場頁／薪資頁一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
-    const leaveGame = () => { if (gameDate) { setGameDate(null); setGamePlayer(''); } };
+    const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason).slice(1); };
+    // 回主畫面（單場頁與薪資頁共用）：主畫面狀態在這兩頁期間保持不動
+    const leaveGame = () => {
+        if (gameDate) { setGameDate(null); setGamePlayer(''); }
+        if (capView) setCapView(false);
+    };
 
     // 同一分頁貼上另一個連結時只有 hash 變（不會重新載入）→ 套用新狀態。replaceState 不會觸發 hashchange
     const seasonKeyRef = useRef(selectedSeasonKey);
@@ -778,8 +797,11 @@ const App = () => {
         const onHash = () => {
             const st = window.UrlState.parse(window.location.hash);
             // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
-            if (st.gameDate) { setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); window.scrollTo(0, 0); return; }
+            if (st.gameDate) { setCapView(false); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); window.scrollTo(0, 0); return; }
             setGameDate(null); setGamePlayer('');
+            // 薪資頁：同單場頁，只切換薪資頁狀態
+            if (st.capView) { setCapView(true); setCapSeason(st.capSeason || ''); window.scrollTo(0, 0); return; }
+            setCapView(false);
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
@@ -825,6 +847,24 @@ const App = () => {
     const pickPlayer = (name) => { setViewMode('PLAYER'); setSelectedPlayer(name); };
 
     const curOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
+    // 球員身分列的薪資膠囊：顯示「目前檢視賽季」的 cap hit，用 playerId 對 contracts（不比對名字），點擊開薪資頁
+    const salarySeason = isHistoryMode ? curOpt?.season : window.CURRENT_SEASON;
+    const salaryRow = (viewMode === 'PLAYER' && capDoc && currentPlayerId)
+        ? (capDoc.contracts || []).find(c => c.season === salarySeason && c.playerId === Number(currentPlayerId)) : null;
+    const identitySalary = salaryRow ? (() => {
+        const C = window.CapCalc;
+        const twoWay = salaryRow.type === 'TWO-WAY';
+        const team = C.payroll(capDoc, salarySeason).tax;
+        return {
+            season: salarySeason,
+            text: twoWay ? '雙向合約' : C.fmtM(salaryRow.salary),
+            title: twoWay ? '雙向合約，不計入球隊薪資｜點擊開啟薪資頁'
+                : `${C.fmtFull(salaryRow.salary)}｜佔全隊奢侈稅薪資 ${(salaryRow.salary / team * 100).toFixed(1)}%｜點擊開啟薪資頁`,
+            badge: salaryRow.option === 'PO' ? '球員選項' : salaryRow.option === 'TO' ? '球隊選項'
+                : salaryRow.option === 'ETO' ? '提前終止選項' : (!twoWay && salaryRow.guarantee !== 'full') ? '非全額保障' : '',
+        };
+    })() : null;
+    const openSalary = () => { window.location.hash = window.UrlState.capHref(salarySeason === window.capSeasonForDate() ? '' : salarySeason).slice(1); };
     const seasonDisplay = isHistoryMode
         ? (curOpt?.label || '')
         : `${window.CURRENT_SEASON} ${stTypeLabel}`;
@@ -856,6 +896,7 @@ const App = () => {
     const paletteItems = [
         ...paletteBase.map(it => ({ ...it, run: () => { leaveGame(); it.run(); } })),
         ...gamesIndex.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: '最近比賽', label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
+        { id: 'cap', group: '薪資', label: '薪資與奢侈稅', hint: 'Cap Sheet', run: openCap },
     ];
 
     // 雷達 + 疊加比較（原左側欄）→ 移入總覽章節
@@ -881,7 +922,8 @@ const App = () => {
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
                 latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate}
-                onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)} />
+                onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)}
+                inCap={capView} onCap={openCap} />
 
             {/* 休賽期 / 陳舊資料提示（細條） */}
             {seasonStatus && (
@@ -902,6 +944,14 @@ const App = () => {
                         ? <window.GamePage date={gameDate} gamePlayer={gamePlayer} onExpand={setGamePlayer} />
                         : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
                 </main>
+            ) : capView ? (
+                <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
+                    <button type="button" onClick={leaveGame}
+                        className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">← 回主畫面</button>
+                    {window.CapPage && isCloud
+                        ? <window.CapPage season={capSeason} onSeason={setCapSeason} />
+                        : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
+                </main>
             ) : (<>
             <window.RosterRail viewMode={viewMode} selectedPlayer={selectedPlayer} players={availablePlayers}
                 playerIdOf={playerIdOf} tagOf={tagOf} onTeam={() => setViewMode('TEAM')} onPlayer={pickPlayer}
@@ -909,7 +959,8 @@ const App = () => {
 
             {!noCurrentSnapshots && (
                 <window.IdentityBar viewMode={viewMode} playerName={selectedPlayer} playerId={currentPlayerId} tag={selTag}
-                    games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay} />
+                    games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay}
+                    salary={identitySalary} onSalary={openSalary} />
             )}
 
             <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide} />

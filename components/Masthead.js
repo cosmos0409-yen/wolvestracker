@@ -1,11 +1,11 @@
 // 刊頭：Logo + 「Wolves Ledger」字標 + 期別行（賽季·賽別·截至日期·連線狀態）＋ 右側控制項
-// 控制項：賽季下拉、例行/季後（僅當季）、截至日期（僅當季）、搜尋（/）
+// 控制項：賽季下拉、例行/季後（僅當季）、截至日期（僅當季）、比賽、薪資、搜尋（/）
 // 手機：控制項換到第二列並可橫向捲動，不擠壓字標
 const Masthead = ({
     seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
     seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    latestGame, onGames, inGame,
+    latestGame, onGames, inGame, inCap, onCap,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -59,6 +59,11 @@ const Masthead = ({
                         title={latestGame ? `最新一場：${latestGame.date} ${latestGame.matchup} ${latestGame.wl}` : '目前賽別沒有比賽資料'}
                         className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inGame ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : latestGame ? 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
                         比賽
+                    </button>
+                    {/* 薪資：開薪資頁（#cap） */}
+                    <button type="button" onClick={onCap} title="薪資結構、奢侈稅與門檻（Cap Sheet）"
+                        className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inCap ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30'}`}>
+                        薪資
                     </button>
                     <button type="button" onClick={onCopyLink} title="網址記住目前畫面（球員、章節、賽季、日期、攻守），貼到筆記裡可回到同一畫面"
                         className="shrink-0 rounded-full border border-white/15 px-3.5 py-1.5 text-[13px] text-slate-400 hover:text-slate-100 hover:border-white/30">
