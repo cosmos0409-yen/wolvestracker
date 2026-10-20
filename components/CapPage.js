@@ -227,6 +227,17 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
                             <UI.StatCell label="第二 apron 空間" en="2nd Apron Space" value={capM(t.apron2 - p.apron)} valueTitle={capFull(t.apron2 - p.apron)} gkey="CAP_APRON2_SPACE" />
                         </UI.Ledger>
 
+                        {/* apron 薪資拆解：讀者看得到兩種總額差在哪幾筆 unlikely incentives */}
+                        {p.apron > p.tax && (
+                            <p className="mt-2 text-[12px] leading-relaxed text-slate-400">
+                                apron 薪資 ＝ 奢侈稅薪資 <CapAmt v={p.tax} /> ＋ unlikely incentives <CapAmt v={p.apron - p.tax} />（
+                                {p.std.filter(c => c.unlikely > 0).sort((a, b) => b.unlikely - a.unlikely).map((c, i) => (
+                                    <React.Fragment key={c.playerId}>{i > 0 && '、'}{c.player} <CapAmt v={c.unlikely} /></React.Fragment>
+                                ))}
+                                ）。unlikely incentives 是合約裡「預計達不到」的獎金，不計入薪資帽與奢侈稅，但判定第一／第二 apron 時要算進去。
+                            </p>
+                        )}
+
                         {recon.length > 0 && (
                             <div className="mt-3"><UI.Note tone="warn">
                                 資料對帳：{recon.join('；')}。通常是 Sheet 還缺部分明細（例如 unlikely incentives），相關空間數字可能略有偏差。
@@ -427,6 +438,12 @@ const CapYearly = ({ doc, s, onPlayer }) => {
         return (
             <span className="inline-flex flex-col items-end leading-tight">
                 <CapCellAmt v={c.salary} />
+                {c.unlikely > 0 && (
+                    <span className="cursor-help font-sans text-[10px] text-slate-400"
+                        title={`unlikely incentives ${capFull(c.unlikely)}：預計達不到的獎金，不計入 cap hit，只計入 apron 薪資`}>
+                        ＋獎金 {capM(c.unlikely)}
+                    </span>
+                )}
                 {tag && <span className={`font-sans text-[10px] ${cls}`}>{tag}</span>}
             </span>
         );
@@ -438,7 +455,9 @@ const CapYearly = ({ doc, s, onPlayer }) => {
                 const c = e.rows[x];
                 if (!c) return '';
                 if (c.type === 'TWO-WAY') return '雙向合約';
-                return c.salary + (c.option ? `（${CAP_OPT_LABEL[c.option]}）` : c.guarantee !== 'full' ? `（${c.guarantee === 'partial' ? '部分保障' : '非保障'}）` : '');
+                const notes = [c.option ? CAP_OPT_LABEL[c.option] : c.guarantee !== 'full' ? (c.guarantee === 'partial' ? '部分保障' : '非保障') : null,
+                    c.unlikely > 0 ? `unlikely incentives ${c.unlikely}` : null].filter(Boolean);
+                return c.salary + (notes.length ? `（${notes.join('；')}）` : '');
             })]),
             ['死錢', '', ...pay.map(p => p.deadTotal || '')],
             ['奢侈稅薪資合計', '', ...pay.map(p => p.tax)],
@@ -503,6 +522,7 @@ const CapYearly = ({ doc, s, onPlayer }) => {
                 <span><span className="text-[#EF4444]">球隊選項</span>：球隊可選擇是否執行</span>
                 <span><span className="text-amber-300">部分保障／非保障</span>：被裁時球隊不必付全額</span>
                 <span>雙向合約不計入薪資</span>
+                <span><span className="text-slate-300">＋獎金</span>：unlikely incentives，不計入 cap hit，只計入 apron 薪資</span>
             </p>
         </UI.Section>
     );
