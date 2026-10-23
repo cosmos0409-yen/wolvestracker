@@ -14,12 +14,14 @@ Usage:
     python backfill_games.py --season 2025-26 --type regular             # 全季
     python backfill_games.py --season 2025-26 --type regular --start 40 --limit 20  # 分批(第40場起20場)
     python backfill_games.py --season 2025-26 --type regular --box-only  # 只替既有單場補 box score（每場約 2 requests）
+    python backfill_games.py --season 2023-24 --type regular --clean-players --dry-run  # 對帳找出混入的非當時隊員（0 request）
 """
 
 import sys
 import os
 import time
 import argparse
+from itertools import combinations
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nba_common as nc
@@ -76,6 +78,79 @@ def backfill_box_only(db, games):
         print(f"[SKIP] {len(skipped)} 場無單場文件：{', '.join(skipped)}")
 
 
+# --clean-players 對帳欄位：球員加總必須「完全等於」球隊值。
+# TOV 不列入：球隊失誤含團隊失誤（24 秒違例等），球員加總只會 ≤ 球隊；改在 _fits 另外檢查
+CLEAN_FIELDS = ["PTS", "FGM", "FGA", "FG3M", "FTM", "FTA", "OREB", "DREB", "AST", "STL", "BLK", "PF"]
+CLEAN_MAX_REMOVE = 4      # 每場最多嘗試剔除幾人
+CLEAN_MIN_TOL = 1.5       # 上場時間加總容差（分鐘，逐人四捨五入累積）
+
+
+def _fits(players, team, exclude=()):
+    """剔除 exclude 後，球員加總是否與球隊對得上（CLEAN_FIELDS 全等、TOV 不超過、上場時間 ≈ 5×球隊 MIN）"""
+    keep = [p for n, p in players.items() if n not in exclude]
+    s = lambda f: sum(p.get(f) or 0 for p in keep)
+    if any(abs(s(f) - (team.get(f) or 0)) > 0.01 for f in CLEAN_FIELDS):
+        return False
+    if s("TOV") > (team.get("TOV") or 0) + 0.01:
+        return False
+    if team.get("MIN"):
+        return abs(s("MIN") - 5 * team["MIN"]) <= CLEAN_MIN_TOL
+    return True
+
+
+def clean_players(db, season, type_key, dry_run):
+    """對帳清理 wolves_player_games.players 裡混入的非當時隊員（0 次 NBA request）。
+    舊回補用「後來的名冊名字」過濾全聯盟單日數據，會混進當天替別隊出賽的同名球員。
+    每場比較球員加總與 wolves_team_games.stats；對不上時找出「剔除後所有欄位都對得上」的最少人數組合，
+    只有該人數下唯一一組時才剔除，其他情況只列出不動。日期取自 wolves_games_index。"""
+    if not db:
+        print("❌ --clean-players 需要 Firebase（找不到憑證），終止")
+        sys.exit(1)
+    idx = db.collection("wolves_games_index").document(f"{season}_{type_key}").get()
+    if not idx.exists:
+        print(f"❌ 無索引 wolves_games_index/{season}_{type_key}")
+        sys.exit(1)
+    dates = [g["date"] for g in idx.to_dict().get("games", [])]
+    ok, fixed, unresolved = 0, [], []
+    for d in dates:
+        pref = db.collection("wolves_player_games").document(d)
+        psnap, tsnap = pref.get(), db.collection("wolves_team_games").document(d).get()
+        if not psnap.exists or not tsnap.exists:
+            unresolved.append((d, "缺單場文件"))
+            continue
+        players = psnap.to_dict().get("players") or {}
+        team = tsnap.to_dict().get("stats") or {}
+        if _fits(players, team):
+            ok += 1
+            continue
+        hits = []
+        for k in range(1, CLEAN_MAX_REMOVE + 1):
+            hits = [c for c in combinations(sorted(players), k) if _fits(players, team, c)]
+            if hits:
+                break
+        if len(hits) != 1:
+            unresolved.append((d, f"{len(hits)} 組可行解" if hits else "找不到可行的剔除組合"))
+            continue
+        drop = hits[0]
+        desc = "、".join(f"{n}（{players[n].get('MIN', 0)} 分 {players[n].get('PTS', 0)} 分）" for n in drop)
+        print(f"{'[DRY] ' if dry_run else ''}{d}：剔除 {desc}")
+        if not dry_run:
+            pref.update({"players": {n: p for n, p in players.items() if n not in drop}})
+        fixed.append((d, drop))
+    print(f"\n=== {season} {type_key}：{len(dates)} 場，對得上 {ok}、{'可' if dry_run else '已'}剔除 {len(fixed)} 場"
+          f"（{sum(len(x) for _, x in fixed)} 人次）、未解決 {len(unresolved)} ===")
+    for d, why in unresolved:
+        print(f"   [未解決] {d}：{why}")
+    if fixed:
+        by_name = {}
+        for _, drop in fixed:
+            for n in drop:
+                by_name[n] = by_name.get(n, 0) + 1
+        print("   剔除人次：" + "、".join(f"{n} {c}" for n, c in sorted(by_name.items(), key=lambda x: -x[1])))
+        if not dry_run:
+            print(f"   ⚠️ 記得重建 bundle：python scripts/build_bundles.py --season {season} --type {type_key}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 單場數據回補")
     parser.add_argument("--season", default=nc.get_current_season())
@@ -87,7 +162,14 @@ def main():
     parser.add_argument("--dates", default="", help="只回補指定日期(逗號分隔 YYYY-MM-DD)，補失敗場用")
     parser.add_argument("--box-only", action="store_true",
                         help="只補 box score（每場約 2 requests），合併寫入既有 wolves_team_games，不動其他欄位")
+    parser.add_argument("--clean-players", action="store_true",
+                        help="對帳剔除單場球員文件裡混入的非當時隊員（只讀寫 Firestore，0 request）")
+    parser.add_argument("--dry-run", action="store_true", help="搭配 --clean-players：只列出、不寫入")
     args = parser.parse_args()
+
+    if args.clean_players:   # 不碰 NBA：日期取自既有索引
+        clean_players(nc.init_firebase(), args.season, args.type, args.dry_run)
+        return
 
     season = args.season
     season_type_api = "Regular+Season" if args.type == "regular" else "Playoffs"

@@ -1,9 +1,9 @@
 // 單場數據面板：選一場比賽，看該場的 Tracking / 投籃 / 防守單場數值
 // 資料來源 wolves_player_games/{date} 與 wolves_team_games/{date}（backfill_games.py / 每日順抓）
 // 單場只有部分欄位（tracking + 最近防守者 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
-// 刪掉 v1 快取（wt_game_wolves_…，2026-10-19 前的鍵）：內容可能含清理前的非當時隊員，且不刪會永久佔著儲存空間
+// 刪掉舊版快取（v1 wt_game_wolves_…、v2 wt_game_v2_…）：內容可能含清理前的非當時隊員，且不刪會永久佔著儲存空間
 try {
-    Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_')).forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_') || k.startsWith('wt_game_v2_')).forEach(k => localStorage.removeItem(k));
 } catch (e) { /* 私密模式等無法存取 localStorage */ }
 
 const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
@@ -29,7 +29,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
         if (!selectedDate || !window.db || !window.firebaseModules) return;
         let cancelled = false;
         setDoc(undefined);
-        const cacheKey = `wt_game_v2_${coll}_${selectedDate}`;   // v2：2026-10-19 清理 2025-26 非當時隊員後換版，讓舊快取失效
+        const cacheKey = `wt_game_v3_${coll}_${selectedDate}`;   // v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
             try { setDoc(JSON.parse(cached)); return; } catch (e) { /* fall through */ }
