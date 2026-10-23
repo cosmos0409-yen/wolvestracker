@@ -307,7 +307,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
 
     // ── 展開列：該員單場進階（Tracking／最近防守者／Hustle）vs 季平均 ──
     const EXP_GROUPS = [...(window.trackingDefs || []).filter(d => ['Touches', 'Drives', 'CatchShoot', 'PullUpShot', 'Passing', 'Rebounding'].includes(d.id)),
-        ...(window.defenseDefs || []).filter(d => d.id === 'MatchupDefense' || d.id === 'Hustle')];
+        ...(window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))];
     const metricRow = (name, k, v, avg, ent, link = true) => {
         const m = metaOf(k), j = judge(k, v, avg, ent), frac = fracOf(k, ent);
         return (
@@ -469,7 +469,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
             ['REB', T.REB, O.REB], ['OREB', T.OREB, O.OREB], ['AST', T.AST, O.AST], ['STL', T.STL, O.STL], ['BLK', T.BLK, O.BLK], ['TOV', T.TOV, O.TOV], ['PF', T.PF, O.PF],
         ] : []],
         ['TRACKING', ['TOUCHES', 'PASSES_MADE', 'DRIVES', 'POTENTIAL_AST', 'CATCH_SHOOT_EFG_PCT', 'PULL_UP_EFG_PCT'].map(k => [k, MS[k], OS ? OS[k] : null])],
-        ['HUSTLE', ['DEFLECTIONS', 'CONTESTED_SHOTS', 'SCREEN_ASSISTS', 'LOOSE_BALLS', 'BOX_OUTS', 'CHARGES_DRAWN'].map(k => [k, MS[k], OS ? OS[k] : null])],
+        ['HUSTLE', ['DEFLECTIONS', 'CONTESTED_SHOTS', 'SCREEN_ASSISTS', 'SCREEN_AST_PTS', 'LOOSE_BALLS', 'BOX_OUTS', 'CHARGES_DRAWN'].map(k => [k, MS[k], OS ? OS[k] : null])],
     ].map(([g, rows]) => [g, rows.filter(r => typeof r[1] === 'number')]).filter(([, rows]) => rows.length);
     const LOW_BETTER = new Set(['TOV', 'PF']);
     const cmpLabel = (k) => ({ OREB: ['進攻籃板', 'OREB'], PF: ['犯規', 'PF'] }[k] || [metaOf(k).label, metaOf(k).englishLabel]);

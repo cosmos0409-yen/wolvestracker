@@ -14,6 +14,7 @@ window.GameAgg = (function () {
         AB3_FG_PCT: ['AB3_FGM', 'AB3_FGA'],
         D_FG_PCT: ['D_FGM', 'D_FGA'], D_FG3_PCT: ['D_FG3M', 'D_FG3A'],
         REB_COL_PCT: ['REB', 'REB_CHANCES'],
+        PCT_BOX_OUTS_REB: ['BOX_OUT_REBS', 'BOX_OUTS'],   // 卡位後自己搶下比例（不以 _PCT 結尾，不加這行會被當次數相加）
     };
     // eFG 特殊公式：100 * (Σ分子 + 0.5*Σ三分分子) / Σ分母
     const EFG_DEFS = {

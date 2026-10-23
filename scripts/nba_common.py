@@ -214,15 +214,26 @@ MATCHUP_3PT_FIELDS = [
     ("NORMAL_FG3_PCT", "NS_FG3_PCT", True),
     ("D_FG3_PLUSMINUS", "PLUSMINUS", True),
 ]
-# leaguehustlestats{player|team} 拼勁數據（皆為每場計數，非百分比）
+# leaguehustlestats{player|team} 拼勁數據：計數為每場平均，PCT_* 為比例（×100）
+# 2026-10-23 補欄位。endpoint 另有 6 欄刻意不抓（已與使用者確認）：
+#   BOX_OUT_PLAYER_TEAM_REBS、PCT_BOX_OUTS_TEAM_REB——實測恆等於 BOX_OUTS／100%（NBA 只在球隊搶到籃板時記卡位）
+#   PCT_BOX_OUTS_OFF/DEF、PCT_LOOSE_BALLS_RECOVERED_OFF/DEF——可由進攻／防守次數推得
 HUSTLE_FIELDS = [
     ("CONTESTED_SHOTS", "CONTESTED_SHOTS", False),
+    ("CONTESTED_2PT", "CONTESTED_SHOTS_2PT", False),
     ("CONTESTED_3PT", "CONTESTED_SHOTS_3PT", False),
     ("DEFLECTIONS", "DEFLECTIONS", False),
     ("CHARGES_DRAWN", "CHARGES_DRAWN", False),
     ("SCREEN_ASSISTS", "SCREEN_ASSISTS", False),
+    ("SCREEN_AST_PTS", "SCREEN_AST_PTS", False),
     ("LOOSE_BALLS", "LOOSE_BALLS_RECOVERED", False),
+    ("OFF_LOOSE_BALLS", "OFF_LOOSE_BALLS_RECOVERED", False),
+    ("DEF_LOOSE_BALLS", "DEF_LOOSE_BALLS_RECOVERED", False),
     ("BOX_OUTS", "BOX_OUTS", False),
+    ("OFF_BOXOUTS", "OFF_BOXOUTS", False),
+    ("DEF_BOXOUTS", "DEF_BOXOUTS", False),
+    ("BOX_OUT_REBS", "BOX_OUT_PLAYER_REBS", False),
+    ("PCT_BOX_OUTS_REB", "PCT_BOX_OUTS_REB", True),
 ]
 # leaguedash{player|team}stats?MeasureType=Defense 防守 box
 DEFENSE_BOX_FIELDS = [

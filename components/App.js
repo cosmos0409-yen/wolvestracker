@@ -1068,7 +1068,8 @@ const App = () => {
                                 {hasDefenseData ? (
                                     <window.UI.Section title="防守數據" en="Defense" accent="red"
                                         sub={`${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
-                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id !== 'MatchupDefense'), ...oppZonesDefs]).map(def => (
+                                        {/* 球隊：防守 Box → 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
+                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...oppZonesDefs, ...defenseDefs.filter(d => d.id !== 'MatchupDefense' && d.id !== 'DefenseBox')]).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
                                                 metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
                                                 naReason={def.id === 'MatchupDefense' ? naCrossTeam : null} />

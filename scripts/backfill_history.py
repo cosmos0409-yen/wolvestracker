@@ -48,12 +48,46 @@ CURRENT_SEASON = get_roster_season()  # 用來抓現役名單（7/1 起即為新
 PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff"]
 
 
+def patch_hustle(season, season_type_api, doc_id, dry_run=False):
+    """只重抓 Hustle 併入既有歷史快照（球隊 defense、各球員 defense），其他欄位原封不動。
+    只更新 doc 裡已有的球員（不新增人）；讀整份 doc 改完再 set 回去，避免 dotted path 遇到數字 PlayerID 要跳脫"""
+    team_h = fetch_hustle(season, season_type_api, "Team").get("MIN", {})
+    player_h = fetch_hustle(season, season_type_api, "Player")
+    if not team_h or not player_h:
+        print("❌ Hustle 抓取失敗，終止（不寫入）")
+        sys.exit(1)
+    db = None if dry_run else init_firebase()
+    if not db:
+        print(f"🔍 dry-run：球隊 {len(team_h)} 欄、全聯盟球員 {len(player_h)} 位，略過寫入")
+        return
+    team_ref = db.collection("wolves_team_history").document(doc_id)
+    team_doc = team_ref.get().to_dict()
+    player_ref = db.collection("wolves_player_history").document(doc_id)
+    player_doc = player_ref.get().to_dict()
+    if not team_doc or not player_doc:
+        print(f"❌ {doc_id} 歷史快照不存在，請先跑完整回補")
+        sys.exit(1)
+    team_doc.setdefault("defense", {}).update(team_h)
+    n = 0
+    for pid_str, rec in (player_doc.get("stats") or {}).items():
+        h = player_h.get(pid_str)
+        if not h:
+            continue
+        rec.setdefault("defense", {}).update({k: v for k, v in h.items() if k != "playerName"})
+        n += 1
+    team_ref.set(team_doc)
+    player_ref.set(player_doc)
+    print(f"✅ {doc_id}：球隊 Hustle {len(team_h)} 欄、球員 {n}/{len(player_doc.get('stats') or {})} 位已併入")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 歷史賽季回補")
     parser.add_argument("--season", required=True, help="例：2022-23")
     parser.add_argument("--type", required=True, choices=["regular", "playoffs"], help="regular 或 playoffs")
     parser.add_argument("--dry-run", action="store_true",
                         help="只寫本地驗證檔，不寫入 Firestore（供上線前比對用）")
+    parser.add_argument("--only-hustle", action="store_true",
+                        help="只重抓 Hustle（2 requests）併入既有歷史快照的 defense，其他類別不動（新增 HUSTLE_FIELDS 欄位時用）")
     args = parser.parse_args()
 
     season = args.season
@@ -63,6 +97,10 @@ def main():
     doc_id = f"{season}_{type_key}"
 
     print(f"\n=== 開始回補 {season} {season_type_label}（{doc_id}）===\n")
+
+    if args.only_hustle:
+        patch_hustle(season, season_type_api, doc_id, args.dry_run)
+        return
 
     # Step 1: 抓歷史名單
     historical_roster = fetch_roster_with_ids(season)

@@ -127,7 +127,7 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
         ['基本', [window.SPLITS_BASE_DEF]],
         ['進階', window.trackingDefs || []],
         ['投籃分區', (window.shootingDefs || []).filter(d => d.id === 'ShotZones')],
-        ['防守', (window.defenseDefs || []).filter(d => d.id === 'MatchupDefense' || d.id === 'Hustle')],
+        ['防守', (window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))],
     ];
     // 同一 key 只列一次（追蹤數據的 REB 與基本 REB 同一個值，重複會出現「籃板」「籃板數」兩項）
     const seenKeys = new Set();

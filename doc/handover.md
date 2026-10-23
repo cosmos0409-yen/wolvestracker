@@ -239,7 +239,13 @@ wolvestracker/
 - 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
 - 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別/最近 10 場比賽，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
 
-### 2026-10-23 開季修正與 UI/UX 整理
+### 2026-10-23 Hustle 欄位補齊與防守分頁重排
+- `HUSTLE_FIELDS` 由 7 欄增為 15 欄：新增干擾兩分、掩護助攻得分、進攻／防守端地板球、進攻／防守卡位、卡位後自己搶下籃板與比例（干擾三分原本就有抓，這次才上畫面）。endpoint 另有 6 欄**刻意不抓**（已與使用者確認）：`BOX_OUT_PLAYER_TEAM_REBS`、`PCT_BOX_OUTS_TEAM_REB`（恆等於卡位／100%）、`PCT_BOX_OUTS_OFF/DEF`、`PCT_LOOSE_BALLS_RECOVERED_OFF/DEF`（可由次數推得）
+- 前端 `defenseDefs` 依重要性排序：最近防守者 → 防守 Box → 拼勁（`Hustle`，只放防守向）→ 掩護與卡位（`Screens`，新群組，資料同在 `doc.defense`）。球隊防守頁：防守 Box → 對手分區 → 拼勁 → 掩護與卡位
+- 有逐場資料的防守群組集中在 `window.GAME_DEFENSE_IDS`（單場頁展開列、Splits、跨季疊圖讀它）；新增 Hustle 類群組要加進來
+- `GameAgg.RATIO_DEFS` 加 `PCT_BOX_OUTS_REB`（不以 `_PCT` 結尾，不加會被當次數相加）
+- 歷史快照補齊：`backfill_history.py --season X --type Y --only-hustle`（每份 2 requests，只把 Hustle 併入既有 `defense`，其他類別不動；只更新 doc 裡已有的球員）。2023-24～2025-26 例行賽／季後賽與 2022-23 例行賽共 7 份已補；**2022-23 季後賽未補**（使用者決定放棄，該季新欄位顯示「—」）。注意：腳本寫入完成後 Python 程序可能卡住不退出（推測是 Firestore 連線收尾），看到 ✅ 就代表已寫入。**逐場資料（單場頁／Splits／疊圖）的新欄位只從 2026-10-24 之後的比賽開始有**，過去場次未回補（約 800 requests，需另外分批）
+
 - **起因**：開季 NBA 未釋出 Synergy → 舊守門整次不寫入 → 線上舊前端名單取 `stats` 為空，點球員全被當「本季無數據」自動探測到 2025-26。修法見「每日快照」的寫入守門，以及下列 UI 規則
 - **預設一律看進行中賽季**：當季點「本季無數據」的球員不自動切季（頭像列與搜尋面板同一個 `onMissingPlayer`），提示列附「查看最近一季 →」由使用者明確觸發 `jumpToPlayerHistory`
 - **刊頭賽季／賽別**：賽季選單只列年份（`window.SEASON_YEAR_OPTIONS`：`current` ＋ `HISTORY_SEASONS`），例行／季後切換常駐（歷史賽季也能切）。App 的 `changeYear`／`changeType` 把「年份＋賽別」對回既有狀態 `selectedSeasonKey`（`2025-26_playoffs`）＋`seasonTypeView`，**網址 `s=`／`t=` 格式不變**。換歷史年份沿用目前賽別；回當季改用時節預設賽別（10 月切去當季季後賽只會是空畫面）。當季沒有季後賽快照時「季後賽」停用（`playoffsAvailable`）；只有一天快照時日期選擇器停用。歷史賽季刊頭不放「期末快照」膠囊（期別行已寫）
@@ -567,7 +573,9 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 | 底角三分 / 非底角三分 | Corner 3 / Above the Break 3 | 同上 | 非底角含兩翼，不只弧頂 |
 | 最近防守者 (Defense Dashboard) | DFGA / DFG% / DIFF% | `leaguedashptdefend`（`MATCHUP_*_FIELDS`） | 是「最近防守者」資料，**不是** `leagueseasonmatchups` 的對位資料；DIFF% 負=守得好 |
 | 干擾球 | Deflections | `leaguehustlestats{player|team}` `DEFLECTIONS` | 不是抄截 |
-| 搶回散球 | Loose Balls Recovered | `LOOSE_BALLS_RECOVERED` | |
+| 地板球 | Loose Balls Recovered | `LOOSE_BALLS_RECOVERED`（進攻端／防守端 `OFF_`/`DEF_LOOSE_BALLS_RECOVERED`） | Loose Ball 譯「地板球」（2026-10-23 使用者指定，舊名「搶回散球」） |
+| 掩護助攻得分 | Screen AST PTS | Hustle `SCREEN_AST_PTS` | 掩護直接幫隊友投進的分數；與「掩護助攻」(次數) 同組 |
+| 卡位後自己搶下比例 | Box Out REB% | Hustle `PCT_BOX_OUTS_REB`（輸出同名，逐場以 `BOX_OUT_REBS ÷ BOX_OUTS` 重算） | NBA 只在卡位後**球隊**搶到籃板時記卡位，所以 `BOX_OUT_PLAYER_TEAM_REBS` 恆等於 `BOX_OUTS`、`PCT_BOX_OUTS_TEAM_REB` 恆 100%——這兩欄不抓 |
 | 籃板機會轉換率 | REB Chance% | `REB_CHANCE_PCT`（輸出欄名沿用 `REB_COL_PCT`） | 籃板 ÷ 籃板機會 |
 | 每百次切入得分 | DRIVE_PTS_PCT | tracking Drives | ＝切入得分 ÷ 切入次數 × 100（含被犯規罰球得分），**不是**佔總得分比例（2026-10 經使用者指正並以資料驗證） |
 | 二次助攻 | Secondary AST | tracking Passing `SECONDARY_AST` | 傳給隊友、隊友接球 1 秒內未運球就助攻，原傳球者記一次（NBA.com 官方定義，2026-10 查證）；舊名「二傳助攻」易與排球「二傳」混淆而改名，群組名同步改「傳球與助攻」 |

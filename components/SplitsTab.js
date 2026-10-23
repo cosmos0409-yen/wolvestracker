@@ -27,7 +27,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     const BASE_DEF = window.SPLITS_BASE_DEF;
     const ZONES_DEF = shootingDefs.find(d => d.id === 'ShotZones');
     // 單場有的防守資料：最近防守者（僅球員）＋ Hustle。DefenseBox（防守效率等）沒有單場值
-    const DEF_DEFS = defenseDefs.filter(d => d.id === 'MatchupDefense' || d.id === 'Hustle');
+    const DEF_DEFS = defenseDefs.filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id));
     const GROUP_DEFS = { base: [BASE_DEF], tracking: trackingDefs, zones: ZONES_DEF ? [ZONES_DEF] : [], defense: DEF_DEFS };
 
     // 網址帶指標 → 找所屬欄位組與群組（由 defs 反查，不另建對照表；新增指標自動適用）

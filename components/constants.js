@@ -112,7 +112,7 @@ window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER
 // 不只「結構」變更要 +1，**每次重跑 backfill_history.py 也要 +1**：
 // 快取只以 docId 為 key，內容變了（例如回補後多出新援）而版本沒動，
 // 已開過頁面的使用者在 TTL 內完全看不到新資料。
-window.HISTORY_CACHE_VER = 4;                 // v4 = 2025-26 / 2024-25 回補納入新援
+window.HISTORY_CACHE_VER = 5;                 // v5 = 各季歷史快照補齊 Hustle 欄位（2026-10-23）；v4 = 回補納入新援
 window.HISTORY_CACHE_TTL = 24 * 3600 * 1000;
 const _histKey = (docId) => `wt_history_v${window.HISTORY_CACHE_VER}_${docId}`;
 window.purgeHistoryCache = (all) => {
@@ -276,6 +276,7 @@ window.clutchDefs = [
 
 // 防守數據卡片定義（資料來源為 doc.defense）— 顯示於「防守」側
 // 最近防守者/防守box 多為「越小越好」，用 betterIsLarger:false 讓趨勢箭頭方向正確
+// 順序＝重要性：最近防守者 → 防守 Box → 拼勁 → 掩護與卡位（球隊防守頁另把對手分區插在防守 Box 後，見 App）
 window.defenseDefs = [
     {
         id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', metrics: [
@@ -286,16 +287,6 @@ window.defenseDefs = [
         ]
     },
     {
-        id: 'Hustle', title: '拼勁數據 (Hustle)', metrics: [
-            { key: 'CONTESTED_SHOTS', label: '干擾投籃', englishLabel: 'Contested Shots' },
-            { key: 'DEFLECTIONS', label: '干擾球', englishLabel: 'Deflections' },
-            { key: 'CHARGES_DRAWN', label: '製造進攻犯規', englishLabel: 'Charges Drawn' },
-            { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
-            { key: 'LOOSE_BALLS', label: '搶回散球', englishLabel: 'Loose Balls Recovered' },
-            { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
-        ]
-    },
-    {
         id: 'DefenseBox', title: '防守 Box (Defense)', metrics: [
             { key: 'DEF_RATING', label: '防守效率', englishLabel: 'Def Rating', betterIsLarger: false },
             { key: 'STL', label: '抄截', englishLabel: 'Steals' },
@@ -303,6 +294,30 @@ window.defenseDefs = [
             { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
             { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp PTS in Paint', betterIsLarger: false },
             { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp PTS Fast Break', betterIsLarger: false },
+        ]
+    },
+    {
+        id: 'Hustle', title: '拼勁數據 (Hustle)', metrics: [
+            { key: 'DEFLECTIONS', label: '干擾球', englishLabel: 'Deflections' },
+            { key: 'CONTESTED_SHOTS', label: '干擾投籃', englishLabel: 'Contested Shots' },
+            { key: 'CONTESTED_3PT', label: '干擾三分', englishLabel: 'Contested 3PT' },
+            { key: 'CONTESTED_2PT', label: '干擾兩分', englishLabel: 'Contested 2PT' },
+            { key: 'CHARGES_DRAWN', label: '製造進攻犯規', englishLabel: 'Charges Drawn' },
+            { key: 'LOOSE_BALLS', label: '地板球', englishLabel: 'Loose Balls Recovered' },
+            { key: 'DEF_LOOSE_BALLS', label: '防守端地板球', englishLabel: 'Def Loose Balls' },
+            { key: 'OFF_LOOSE_BALLS', label: '進攻端地板球', englishLabel: 'Off Loose Balls' },
+        ]
+    },
+    {
+        // 掩護與卡位：資料同樣來自 Hustle endpoint（doc.defense），但偏進攻端／籃板，獨立一組
+        id: 'Screens', title: '掩護與卡位 (Screens & Box Outs)', metrics: [
+            { key: 'SCREEN_AST_PTS', label: '掩護助攻得分', englishLabel: 'Screen AST PTS' },
+            { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
+            { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
+            { key: 'PCT_BOX_OUTS_REB', label: '卡位後自己搶下比例', englishLabel: 'Box Out REB%', unit: '%' },
+            { key: 'DEF_BOXOUTS', label: '防守卡位', englishLabel: 'Def Box Outs' },
+            { key: 'OFF_BOXOUTS', label: '進攻卡位', englishLabel: 'Off Box Outs' },
+            { key: 'BOX_OUT_REBS', label: '卡位後自己搶下籃板', englishLabel: 'Box Out Player REB' },
         ]
     },
 ];
@@ -319,6 +334,9 @@ window.oppZonesDefs = [
         ]
     },
 ];
+
+// 有逐場資料的防守群組（單場頁展開列、Splits、跨季疊圖用）；新增 Hustle 類群組要加進來
+window.GAME_DEFENSE_IDS = ['MatchupDefense', 'Hustle', 'Screens'];
 
 // 平鋪清單用的指標名稱：有 longLabel 用 longLabel（見 trackingDefs 註解）
 window.metricLabel = (m) => (m && (m.longLabel || m.label)) || '';
