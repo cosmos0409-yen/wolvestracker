@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-23（**開季抓取守門＋UI/UX 整理**：Synergy 未釋出時照常寫入、刊頭賽季只列年份＋賽別常駐、攻守切換只在用得到的章節，見「2026-10-23 開季修正與 UI/UX 整理」；之前的薪資頁、單場比賽頁見同名章節）
+> 最後更新：2026-10-23（**對戰分析**：對戰首頁 `#vs`、單隊對戰頁 `#vs=DEN`、Splits 對手篩選，並清理 2022-23～2024-25 單場球員文件混入的非當時隊員，見「2026-10-23 對戰分析」；之前的開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
 
@@ -40,6 +40,8 @@
 | 32 | **跨季疊圖** | ✅ | 賽季軌跡疊圖（`SeasonPaceChart.js`）＋逐季折線多序列（多球員／多指標／指數化） |
 | 33 | **投籃分區與上季比** | ✅ | `ShootingTab` 分區加上季命中率／差距／占比＋分區差異半場圖 |
 | 34 | **薪資頁（Cap Sheet）** | ✅ | `CapPage.js`，網址 `#cap`：門檻與奢侈稅、累犯自動判定、門檻限制、逐年薪資總表、薪資結構、選秀權、薪資×表現；資料由 Google Sheet 經 `sync_salary.py` 同步 |
+| 35 | **舊賽季單場球員清理** | ✅ | `backfill_games.py --clean-players`（多欄位對帳、0 request）：2022-23～2024-25 例行賽剔除 76 場、105 人次非當時隊員，重建 bundle |
+| 36 | **對戰分析** | ✅ | `matchupData.js`（`window.Matchup`）＋對戰首頁 `MatchupHome.js`（`#vs`）＋單隊對戰頁 `MatchupPage.js`（`#vs=DEN`）＋Splits 對手篩選；只用既有逐場資料 |
 
 ---
 
@@ -157,6 +159,31 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - [ ] 待確認的數字（Sheet 的 `verify` 欄有標）：2024-25／2025-26 的 BAE 是 3.32%×cap 推算；2024-25 的稅率（1.50/1.75/2.50/3.25）與 2025-26 稅率（推定同 2026-27）；2024-25 是否有 hard cap；第二 apron 凍結籤「移到第 30 順位」的次數規則（4 季 2 季或 5 季 3 季）
 - [ ] 每年 7 月聯盟公布新門檻時：Sheet `thresholds` 加下一季一列、`tax_rates` 加該季級距
 
+### 2026-10-23 對戰分析
+
+需求：做特定隊伍的交手前瞻或勝負預測時，能一眼看出灰狼對各隊的表現（勁敵、最擅長／最不擅長打的對手、特定數據對不同隊伍的好壞）。**不新增數據**：只用既有逐場資料在前端計算，不加 NBA request、不開新 Firestore 集合。計畫檔：`~/.claude/plans/majestic-launching-horizon.md`。
+
+| Phase | 內容 | 狀態 | 提交 |
+|-------|------|------|------|
+| 0 | `backfill_games.py --clean-players`：多欄位對帳剔除舊賽季單場球員文件裡的非當時隊員，重建三季 bundle；單場面板快取鍵換 v3 | ✅ | `710b0de` |
+| 1 | 資料層 `components/matchupData.js`（`window.Matchup`）＋`constants.js` 的 `MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES` | ✅ | `0aef57d` |
+| 2 | 對戰首頁 `MatchupHome.js`（`#vs`）：對手總表、指標 × 對手熱圖、單一指標排行、勝負關鍵因子、灰狼球員 × 對手；刊頭「對戰」與搜尋入口 | ✅ | `b4e7cb5` |
+| 3 | 單隊對戰頁 `MatchupPage.js`（`#vs=DEN`）；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵換 `wt_gc_v2_`）；單場頁「歷次交手」連結 | ✅ | `2710c44` |
+| 4 | Splits 期間加「對手」篩選 | ✅ | `b93aec0` |
+| 5 | 更新規格文件 | ✅ | — |
+
+驗證方式：Python 直接讀 Firestore **獨立實作**同一套計算，node 載入真正的前端原始碼（`constants.js`／`gameAggregates.js`／`matchupData.js`，加 window shim）餵同一批原始 bundle，逐值比對 850 項＋勝負關鍵因子 8 項全部一致；單隊頁 DEN／CLE／MIA 逐區塊和 Python 驗算一致；Splits 對手篩選和對戰頁同範圍 10 項一致。測試腳本在 session scratchpad，未進版控。
+
+使用者確認過的決定（之後改動前先問）：
+- **範圍**：預設「近三季」＝當季＋前兩季，**當季例行賽未滿 41 場時再多含一季**（開季時本季跟多數隊伍還沒交手，嚴格三季會有一半對手不到 6 場）；可切「只看本季」或指定單一賽季。賽別可選例行＋季後（預設）／例行／季後
+- **標籤用中性字眼**：勁敵／順手／棘手，不用任何貶低對手的詞（使用者否決過「提款機」）。三種標籤都要交手 ≥ 4 場：
+  - 勁敵＝「交手總場數＋季後賽場數」最高的前 3 隊（原本「季後賽交手過或 8 場以上分差 ±5 內」會標出 9 隊，太多）
+  - 順手／棘手＝其餘對手中，場均分差偏離程度 z 最高／最低各 3 隊，且 |z| ≥ 1
+- **排序與上色看偏離程度 z，不看原始差距**：z ＝（子集值 − 範圍值）÷（範圍內逐場標準差 ÷ √子集場數）。每個數字標場數，不足 4 場淡化。單季每隊只有 2–4 場，單季的「最擅長／最不擅長」大半是雜訊，這是預設近三季的原因
+- **不給勝率數字**，改做「勝負關鍵因子」：全範圍勝場 vs 敗場的標準化差 d，排除分差、得分、失分（本身就是比賽結果）
+- 對手本季整體表現（聯盟排名）**這次不做**，列為第二期（見 B2）
+- 舊賽季單場球員清理用「多欄位對帳」，不補 box score（使用者選的，0 request）
+
 ---
 
 ## 專案檔案結構
@@ -171,10 +198,12 @@ wolvestracker/
 │   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
 │   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
-│   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle 載入
+│   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
+│   ├── matchupData.js               ← 對戰分析資料層 window.Matchup（範圍、對手彙整、偏離程度 z、標籤、勝負關鍵因子）
 │   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
 │   ├── GamePage.js                  ← 單場比賽頁（#game=日期）
 │   ├── CapPage.js                   ← 薪資頁（#cap）：CapCalc 計算、loadCapDoc／loadCapContrib 載入、各分頁區塊
+│   ├── MatchupHome.js / MatchupPage.js ← 對戰首頁（#vs）、單隊對戰頁（#vs=三碼）
 │   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
 │   ├── SeasonPaceChart.js           ← 疊圖：LineOverlay（通用多序列折線）＋ SeasonPaceChart（賽季軌跡）
 │   ├── urlState.js                  ← 網址 hash 讀寫
@@ -191,7 +220,7 @@ wolvestracker/
 │   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重）
 │   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common）
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
-│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score）
+│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--clean-players 對帳剔除非當時隊員）
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
@@ -236,6 +265,7 @@ wolvestracker/
   - 薪資頁 `#cap&s=2025-26&tab=contracts`（2026-10-20，**沒有 `v=`**）：`s`＝薪資賽季（省略＝薪資當季，7/1 切換）、`tab`＝contracts／picks／rules（省略＝總覽）。進出同單場頁（改 `location.hash`、「← 回主畫面」直接切回）；切分頁、換賽季用 `replaceState`
   - 進出單場頁一律改 `location.hash`（產生瀏覽紀錄，返回鍵可回上一頁）；單場頁期間主畫面狀態不動，「← 回主畫面」直接切回（不用 `history.back()`：從外部連結直接打開時會離開本站）
   - 單場頁按 `1–6`、改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁
+  - 對戰分析（2026-10-23，**沒有 `v=`**）：首頁 `#vs[&r=cur|YYYY-YY][&t=regular|playoffs]`、單隊頁 `#vs=DEN[&r=][&t=][&m=指標]`。`r`／`t` 是對戰自己的範圍（省略＝近三季、例行＋季後），**不改主畫面的賽季／賽別**；`m` 只在單隊頁有效（從首頁熱圖點格子帶入，標亮並捲到該指標）。App 以單一 `vs` 物件 `{team, range, type, metric}` 保存；首頁↔單隊頁用 `openVs()` 改 `location.hash`（沿用目前範圍），切範圍／賽別用 `replaceState`；`leaveGame` 一併關掉對戰（`1–6` 快捷鍵也會離開）
 - 網址帶日期時用 `pendingDateRef` 延後套用：資料載入 effect 一開始會清空 `selectedDate`
 - 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
 - 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別/最近 10 場比賽，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
@@ -429,7 +459,9 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - Game ID 來自 `teamgamelog`（`fetch_team_game_log` 回傳 5 元組，第 5 個是 game_id；`wolves_games_index` 每場也帶 `gameId`）。
   - 球隊 bundle 的每場多 `opp`/`oppAbbr`（舊場次維持原形狀）；box score 不放 bundle（整季約 0.9 MB，會逼近 1 MiB 上限），前端看單場時讀 `wolves_team_games/{date}` 一份即可。
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
-- **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取。2024-25 以前的賽季 box 沒回補，無法用同法檢查
+- **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取
+- **2022-23～2024-25 清理（2026-10-23，`backfill_games.py --clean-players`）**：這三季沒有 box，改用**多欄位對帳**（0 request）。每場把 `players` 加總比 `wolves_team_games.stats`：PTS／FGM／FGA／FG3M／FTM／FTA／OREB／DREB／AST／STL／BLK／PF 必須全等，TOV 只要求不超過球隊（球隊失誤含 24 秒違例等團隊失誤），上場時間加總 ≈ 5 × 球隊 MIN（容差 1.5 分鐘）。對不上時找「剔除後全部對得上」的最少人數組合（1～4 人），**該人數下唯一一組才剔除**，否則只列出不動。先用已清理的 2025-26 校準：94 場零誤刪（唯一對不上的 2026-03-01 是 NBA 球員 DREB 加總比球隊少 1，全員都在 box，屬資料落差）。三季例行賽剔除 76 場、105 人次（2022-23：Conley 26、Alexander-Walker 23、Russell 9、Matt Ryan 7、A.J. Lawson 3；2023-24：Troy Brown Jr. 13、Monte Morris 5、Shake Milton 4、Wendell Moore Jr. 1；2024-25：Hyland 13、Tristen Newton 1），剔除日期與真實交易時間吻合；季後賽三季本來就對得上。重建三季 bundle 後，得分加總、對帳腳本、bundle 端反推三種核對全部歸零。用法：先 `--dry-run` 看名單，再拿掉 `--dry-run` 寫入，接著 `build_bundles.py --season X --type Y`
+- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v2_`（同日換版，舊 `wt_gc_{date}` 在 `gamesData.js` 載入時刪掉）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
 - **灰狼單場球員以 box score 上場名單的 PlayerID 過濾，不用名字**：名冊 API 與數據 API 的名字寫法可能不同（2025-26 實例：`Terrence Shannon Jr.` vs `Terrence Shannon Jr`），用名字過濾會整個人漏掉。名字清單只在 box score 抓不到時當後備（`keep_is_fallback`）；`backfill_games.py --min-gp > 0` 時才另外套輪換門檻。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
@@ -533,7 +565,8 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ### 單場比賽頁（`GamePage.js`，2026-10-19）
 - App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar；ChapterNav 保留但不標選中，點章節＝回主畫面該章節（2026-10-23）。Masthead 期別行改「單場 · 日期」、隱藏賽季／賽別
 - **賽程月曆 `GameCalendar.js`**（2026-10-23，取代「最新一場」按鈕）：App `scheduleSeason`＝單場頁時 `seasonForDate(gameDate)`、否則刊頭所選賽季 → `gamesData.loadSeasonSchedule(season)`（例行＋季後索引合併、每場帶 `type`）。月曆格子標對手縮寫（`@`＝客場）＋勝綠敗紅，季後賽標「季後」，點日期 `openGame`；彈出層用 `ReactDOM.createPortal` 掛 body（刊頭控制列是 overflow-x-auto，放裡面會被裁），fixed 定位、視窗太矮時內部捲動。搜尋「最近比賽」也讀同一份。2021-22 以前沒有 `wolves_games_index` → 按鈕停用並說明
-- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players）；記憶體快取＋ localStorage `wt_gc_{date}`（`final === false` 不寫，免得鎖住半成品）
+- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players），經 `gamesData.loadGameDocs(date)` 讀取（2026-10-23 抽出，與對戰頁共用）：記憶體快取 `window.__gameDocCache`＋ localStorage `wt_gc_v2_{date}`（`final === false` 不寫，免得鎖住半成品；對戰頁傳 `persist=false` 只讀不寫）
+- 比分下方「與 {對手} 歷次交手 →」連到 `#vs=對手`（2026-10-23；沒有 box 的場次也有）
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
 - 季平均＝該員 bundle 取「此場之前」的比賽（`GameAgg.aggregate`），各區塊共用 `avgCache`，換場次清空；比率類分母對照 `RATIO`（由 `GameAgg.RATIO_DEFS`／`EFG_DEFS` 推出＋ PCT_PLUSMINUS→D_FGA）
@@ -556,6 +589,21 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - **球員連結**：逐年總表的球員名 → 同季球員頁（`playerId` 對快照名，對不到才用合約名；當季→`current`、其他→`{季}_regular`）。反向：`IdentityBar` 的薪資膠囊（App 依 `currentPlayerId` 對 `contracts`，顯示目前檢視賽季的 cap hit，點擊開該季薪資頁）
 - **薪資×表現**（`CapValue`）：貢獻用**逐場 bundle**（`window.loadCapContrib` → `loadSeasonGames`），分子＝有合約球員各自的 `wolves_pgames_bundle`，分母＝球隊 `wolves_games_bundle` 逐場加總（上場時間＝比賽分鐘 × 5）。**不可改用季末／每日快照**：那是整季合併數據，季中轉隊球員會混入他隊比賽（2025-26 Kyle Anderson 快照 43 場、在灰狼只有 19 場；全隊上場時間會多出約 8%）
 - **匯出**：`UI.ExportMenu`／`exportCSV`／`exportPNG` 新增 `source` 參數；薪資相關匯出標「Spotrac 等公開資料」，不沿用預設的 NBA.com
+
+### 對戰分析（`matchupData.js`／`MatchupHome.js`／`MatchupPage.js`，2026-10-23）
+- App 的 `vs` 有值時主區改渲染對戰頁（同 `capView` 的模式），隱藏 RosterRail／IdentityBar／ChapterNav；刊頭隱藏賽季／賽別／日期，期別行改「對戰分析 · Matchups」，「對戰」按鈕在「薪資」左邊。搜尋面板有「對戰分析」與 29 隊「對戰 DEN 金塊」
+- **計算全在 `window.Matchup`**（`matchupData.js`，頁面只負責呈現）：
+  - `seasonList()`＝`[CURRENT_SEASON, ...HISTORY_SEASONS]` 去重、新到舊；`windowSeasons(mode, currentRegGP)` 決定範圍與說明文字；`currentRegularGP()` 讀當季例行賽索引
+  - `loadWindowGames(seasons, typeFilter, playerId?)`：沿用 `loadSeasonGames`（球隊或球員 bundle），每場加 `season`／`type`／`oppAbbr`；球隊另推導 `OPP_PTS`（得分 − 正負值，所有賽季都有；球員不推導）。**bundle 新場次的 `g.opp` 是對手數據物件，對手三碼放 `oppAbbr`**
+  - `groupDefs(viewMode)`：基本（球隊多「失分」）／投籃分區／Tracking／防守，直接吃 `window.*Defs`（與 Splits 同源），球隊拿掉 `playerOnly`；`flatMetrics` 平鋪去重
+  - `gameValue`：單場值一律 `GameAgg.metricOf`；**比率分母為 0 視為無值**（沒罰球的 FT% 不可當 0，否則灌進標準差）。`baseline` 只用有值的場次（舊賽季缺欄位不當 0）
+  - `deviation(base, subset, def)` → `{value, diff, n, se, z, goodZ, tone}`；n = 1 只給差距、z 為 null；`tone` 依 `betterIsLarger`，`neutral` 指標不分好壞
+  - `byOpponent`／`tagOpponents`（門檻 `MATCHUP_RULES`）／`keyFactors`（Cohen's d，排除 `PLUS_MINUS`／`PTS`／`OPP_PTS`）
+- **對戰首頁** `MatchupHome`：範圍列（`window.MatchupRangeBar`，單隊頁共用）→ 對手總表（`UI.DataTable`，可匯出）→ 指標 × 對手熱圖（底色＝z，|z| 3 封頂，單場不上色；第一欄固定、手機區塊內橫捲）→ 單一指標排行（HTML 百分比定位畫點與 ±1.96 標準誤橫線，不用 SVG 以免手機字縮小）→ 勝負關鍵因子（各對手 |z| ≥ 1 偏勝場／偏敗場）→ 灰狼球員 × 對手（讀該員範圍內 `wolves_pgames_bundle`，最多 8 份）。場數少時黃色提示附「改看近三季」。淡化套在格子內容上，不套在 sticky 欄（會透出橫捲的格子）
+- **單隊對戰頁** `MatchupPage`：頁首五格（戰績／場均比分／場均分差＋z／主場／客場）→ 最突出的 5 項 → 交手紀錄（逐季＋逐場，點日期開單場頁）→ 全部指標（`id="mu-m-KEY"`，`m=` 標亮並捲過去）→ 每節分差 → 對手打灰狼（兩隊 box 合計＋對手球員）→ 灰狼球員打這隊（點名字才讀他的範圍 bundle，`PlayerDetail` 比他自己的平均）→ 投籃分布（按了才讀，只讀有交手的 `TEAM_{season}_{type}`；`ShotChart` 自帶區塊標題，資料到了直接渲染它）
+- **交手場次的單場文件**：`loadGameDocs(date, false)`，同時最多 6 個（`mapLimit`）；**每節分差、對手 box、對手球員只算有 box 的場次（2025-26 起）**，畫面寫出涵蓋幾場
+- **讀取量**：首頁最多 8 份球隊 bundle（每份約 130 KB，記憶體快取）＋球員區塊最多 8 份；單隊頁另讀交手場次的單場文件 6～25 場 × 2 份；投籃每份約 0.5 MB，大檔會卡住同時進行的其他 Firestore 讀取，所以按了才讀
+- **Splits 對手篩選**（`SplitsTab.js`）：例行賽期間列「對手」下拉（三碼＋場數），沿用既有期間子集；選了會提示單季樣本少並連到該隊近三季對戰頁。季後賽用系列賽選單，不顯示
 
 ### Modal 跨賽季比較分頁
 - 每張卡片皆可用，含 PlayType 與 Tracking
@@ -624,6 +672,12 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: 想關掉薪資×表現
 Sheet `settings` 分頁的 `show_value` 改成 FALSE，同步後整個區塊消失，不必改程式。
 
+### Q: 對戰分析的標籤或近三季規則想調整
+只改 `components/constants.js` 的 `window.MATCHUP_RULES`（`halfSeasonGames` 近三季多含一季的門檻、`minGames` 標籤與淡化的最少場數、`rivalTopN` 勁敵幾隊、`topN`／`tagMinZ` 順手棘手幾隊與 z 門檻、`factorTopN` 關鍵因子幾項），再 `python scripts/bundle.py`。`glossary.js` 的 `MU_TAGS`／`MU_RANGE` 說明文字寫死了數字，改門檻時一起改。
+
+### Q: 發現單場球員文件混入不是當時隊員的球員
+症狀：某場 `players` 得分加總 ≠ 全隊得分，或球員 Splits 出現他還沒加入時的比賽。跑 `python scripts/backfill_games.py --season X --type Y --clean-players --dry-run` 看名單，確認後拿掉 `--dry-run` 寫入，再 `python scripts/build_bundles.py --season X --type Y`，最後把 `SingleGamePanel` 的 `wt_game_v3_` 與 `gamesData.loadGameDocs` 的 `wt_gc_v2_` 快取鍵各加一版（舊鍵在載入時刪掉）。`--clean-players` 只做多欄位對帳、不看 box；另一種更權威的做法是用 box 上場名單（tricode＝MIN 且有 stats）的 personId 比對，只適用於有 box 的場次（2025-26 起，2026-10-19 清理 2025-26 用的就是這個，見「單場數據」）。
+
 ### Q: 想追蹤其他球隊
 改 `scripts/nba_common.py` 的 `TEAM_ID` 常數（所有腳本共用）。
 
@@ -669,9 +723,13 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 3. 前端可把還原出的單場 PlayType 併進 `SingleGamePanel`（目前面板只有 Tracking/防守/分區投籃，缺 PlayType）。
 4. 只對**未來賽季**有效：2025-26 當時存的是舊結構（無整數總量），無法回溯還原；2026-27 起每天都有材料。
 
-### B2. 待辦：對戰對手分析（使用者提出，2026-10-23，尚未規劃）
+### B2. 對戰對手分析（2026-10-23 已完成第一期）
 
-彙整灰狼對同一對手的歷次交手（跨季），做對戰分析。材料已有：`wolves_team_games/{date}` 的 `opp`（對手球隊數據）、`box`（2025-26 起）、`wolves_player_games/{date}` 的 `oppPlayers`（2026-10 起），以及各季 `wolves_games_index`（`matchup` 含對手縮寫）。動手前先跟使用者逐項討論要看哪些指標。
+第一期已上線，見「2026-10-23 對戰分析」與前端架構的「對戰分析」。之後可以做（都要先跟使用者確認）：
+- [ ] **第二期：對手本季整體表現（聯盟排名）**——前瞻最缺的一塊。每日快照的球隊 request 目前帶 `TeamID=MIN`（伺服器端只回灰狼）；改成 `TeamID=0`（`_team_key()` 已支援，單場擷取就是這樣做）**request 次數不變**就能拿到全聯盟 30 隊，對戰頁可加「對手本季進攻／防守排第幾」。代價：要開新集合（**必加安全規則 read 白名單與 `*` 索引豁免**），且超出「只用現有資料」的範圍
+- [ ] 對手 Tracking／Hustle 逐場資料從 2026-10 起才有，累積幾季後可在單隊頁加「對手端進階數據」；舊場次要補得整場重跑（每場約 20 requests）或另寫只抓球隊端的模式（約 9 requests）
+- [ ] 2022-23～2024-25 若補 box score（`--box-only`，約 290 場 × 2 requests），每節分差、對手 box、對手球員就能涵蓋整個近三季範圍（使用者這次選擇不補）
+- [ ] 「急停出手數」等出手次數類指標目前沿用 defs 預設（越多越好），對戰頁會標綠；若使用者認為應不分好壞，在 `constants.js` 加 `neutral: true`，所有頁面一起改
 
 ### C. 常見雷區（都踩過，務必記得）
 
@@ -688,6 +746,9 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
+- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（`wt_gc_v2_`，單場頁／對戰頁）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
+- **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
+- **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 
 ### D. 效能與擴充強化點
 
@@ -707,6 +768,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期
 - 2026-10-20 — 薪資頁（Cap Sheet，Phase 1–6）：Google Sheet＋`sync_salary.py`＋`wolves_salary/main`（安全規則、索引豁免已設）；`CapPage.js` 四分頁（總覽／合約／選秀權／規則）、累犯依 `tax_history` 自動判定、懸停完整金額、球員薪資膠囊與雙向連結、薪資×表現（逐場 bundle 計算）；`ui.js` 匯出加 `source`；新增「2026-10-20 薪資頁」「薪資資料」「薪資頁」章節與相關 FAQ、雷區
 - 2026-10-19 — 單場比賽頁＋跨季疊圖（Phase 1–6）：`--box-only` 補 2025-26 box score、網址 m/hl/game、Splits 防守組、走勢勝負底色、`GamePage.js`、`SeasonPaceChart.js`／`LineOverlay`、ComparisonTab 多序列、投籃與上季比；修登入時序 bug；更正 22-23／23-24 逐場已有資料；新增「2026-10-19 單場比賽頁＋跨季疊圖」「單場比賽頁」「跨季疊圖」章節
 - 2026-10-19 — 單場加抓對手球隊／球員與完整 box score（先發、DNP、每節比分、傷停）；灰狼單場球員改以 box score PlayerID 過濾（修 Terrence Shannon Jr 名字寫法不一致被漏掉）

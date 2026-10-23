@@ -1058,7 +1058,7 @@ const App = () => {
                         : vs.team ? (window.MatchupPage
                             ? <window.MatchupPage team={vs.team} range={vs.range || 'recent'} type={vs.type || 'all'} metric={vs.metric}
                                 onRange={setVsRange} onType={setVsType} onOpenGame={openGame} />
-                            : <window.UI.Note>單隊對戰頁製作中。</window.UI.Note>)
+                            : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入中…</div>)
                         : window.MatchupHome && <window.MatchupHome range={vs.range || 'recent'} type={vs.type || 'all'}
                             onRange={setVsRange} onType={setVsType} onOpenTeam={openVs}
                             players={availablePlayers.map(n => ({ name: n, id: playerIdOf(n) })).filter(p => p.id)} />}
