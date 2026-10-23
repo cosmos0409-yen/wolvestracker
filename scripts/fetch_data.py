@@ -285,10 +285,13 @@ def main():
 
     print("=== 資料整理完成，準備寫入 Firebase ===")
 
-    # 防止 API 抓取失敗導致洗掉資料庫
+    # 防止 API 抓取失敗導致洗掉資料庫：Synergy 與 base 都空才視為被擋。
+    # 開季初 NBA 尚未釋出 Synergy（回傳 0 筆、非錯誤），此時其他類別與單場照常寫入
     if not team_synergy and not player_synergy:
-        print("❌ 警告：未成功抓取任何 Synergy 數據，可能遭到 NBA API 阻擋，本次終止寫入。")
-        return
+        if not team_base and not player_base:
+            print("❌ 警告：Synergy 與 base 皆無資料，可能遭到 NBA API 阻擋，本次終止寫入。")
+            return
+        print("⚠️ Synergy 無資料（開季初 NBA 尚未釋出？），其他類別與單場照常寫入。")
 
     db = init_firebase()
     if db:

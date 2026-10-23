@@ -1,7 +1,8 @@
 // 頭像列：「全隊」＋ 球員頭像 chips（橫向捲動），取代舊的左側欄球員名單
 // players：已依該快照輪換強度排序（App.availablePlayers）；playerIdOf(name) 取頭像用的 PlayerID
 // missing：在 2026-27 名冊上、但所選賽季沒有數據的人 → 淡色 chips，點擊探測最近有資料的賽季
-const RosterRail = ({ viewMode, selectedPlayer, players, playerIdOf, tagOf, onTeam, onPlayer, missing, probing, onProbe, probeMsg }) => {
+// probeTarget：進行中賽季點了缺數據球員時不自動切季，提示列附「查看最近一季」按鈕（onProbeHistory）
+const RosterRail = ({ viewMode, selectedPlayer, players, playerIdOf, tagOf, onTeam, onPlayer, missing, probing, onProbe, probeMsg, probeTarget, onProbeHistory }) => {
     const chip = 'flex shrink-0 items-center gap-2 rounded-full border py-1 pr-3.5 text-[13px] whitespace-nowrap transition-colors';
     const on = 'border-[#12A150] bg-[#12A150]/10 text-slate-50';
     const off = 'border-transparent text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]';
@@ -43,7 +44,13 @@ const RosterRail = ({ viewMode, selectedPlayer, players, playerIdOf, tagOf, onTe
                     </>)}
                 </div>
                 {probeMsg && (
-                    <p className="mb-2.5 px-3 py-1.5 text-[12px] leading-relaxed border border-amber-500/30 bg-amber-500/10 text-amber-300">{probeMsg}</p>
+                    <p className="mb-2.5 flex flex-wrap items-center gap-x-3 px-3 py-1.5 text-[12px] leading-relaxed border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                        {probeMsg}
+                        {probeTarget && (
+                            <button type="button" disabled={!!probing} onClick={() => onProbeHistory(probeTarget)}
+                                className="min-h-[24px] underline underline-offset-2 hover:text-amber-100 disabled:opacity-40">查看最近一季 →</button>
+                        )}
+                    </p>
                 )}
             </div>
         </nav>

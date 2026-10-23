@@ -415,8 +415,9 @@ const App = () => {
     } else {
         const current = playerSeq[playerIdx]; const prev = playerSeq[playerIdx + 1];
         if (current) { currentSeason = current.season; currentSeasonType = current.seasonType; }
-        if (current && current.stats?.[selectedPlayer]) {
-            currentStats = current.stats[selectedPlayer]; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
+        // 開季初 NBA 尚未釋出 Synergy，快照只有 base 等類別 → 以 base 判定球員存在
+        if (current && (current.stats?.[selectedPlayer] || current.base?.[selectedPlayer])) {
+            currentStats = current.stats?.[selectedPlayer] || []; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
             currentShooting = current.shooting?.[selectedPlayer] || {};
             currentClutch = current.clutch?.[selectedPlayer] || {};
             currentDefense = current.defense?.[selectedPlayer] || {};
@@ -424,6 +425,7 @@ const App = () => {
             currentBase = current.base?.[selectedPlayer] || {};
             if (currentStats.length > 0 && currentStats[0].playerId) currentPlayerId = currentStats[0].playerId;
             else if (currentTracking.playerId) currentPlayerId = currentTracking.playerId;
+            else if (currentBase.playerId) currentPlayerId = currentBase.playerId;
             // 第三層 fallback：新援若 Synergy 與 tracking 皆空（例如出賽極少），
             // 前兩層會撈不到 ID，導致投籃分頁誤顯示「請先選擇球員」
             else if (current.meta?.[selectedPlayer]?.playerId) currentPlayerId = current.meta[selectedPlayer].playerId;
@@ -518,11 +520,12 @@ const App = () => {
     const pendingPlayerRef = useRef(null);
     const [probing, setProbing] = useState('');
     const [probeMsg, setProbeMsg] = useState('');
+    const [probeTarget, setProbeTarget] = useState('');  // 提示列「查看最近一季」按鈕的對象
 
     // 依 HISTORY_PROBE_ORDER 逐季探測，找到第一個真的有資料的賽季後切過去。
     // 用探測而非硬編 rookie 旗標：同一套機制順帶處理「該季在海外聯賽」的情況（如 Trey Lyles）
     const jumpToPlayerHistory = async (name) => {
-        setProbing(name); setProbeMsg('');
+        setProbing(name); setProbeMsg(''); setProbeTarget('');
         try {
             for (const docId of (window.HISTORY_PROBE_ORDER || [])) {
                 const v = await loadHistoryByDocId(docId);
@@ -546,11 +549,20 @@ const App = () => {
         }
     };
 
+    // 進行中賽季點「本季無數據」的人：留在當季只提示，不自動切到舊賽季（預設一律看進行中賽季）；
+    // 要看舊資料由提示列按鈕明確觸發探測。瀏覽歷史賽季時維持直接探測
+    const onMissingPlayer = (name) => {
+        if (isHistoryMode) return jumpToPlayerHistory(name);
+        setProbeMsg(`${name}：本季尚無出賽數據`);
+        setProbeTarget(name);
+    };
+
     // 動態取得當前數據中有的球員清單
     const availablePlayers = useMemo(() => {
         const currentData = playerSeq[playerIdx];
-        if (!currentData || !currentData.stats) return [];
-        const names = Object.keys(currentData.stats);
+        if (!currentData || (!currentData.stats && !currentData.base)) return [];
+        // 名單取 stats ∪ base：開季初 Synergy 尚未釋出時 stats 為空，球員只出現在 base
+        const names = [...new Set([...Object.keys(currentData.stats || {}), ...Object.keys(currentData.base || {})])];
         // 依該份快照的輪換強度遞減排序 = 這一季實際的輪換順序。
         // 刻意不用硬編碼的先發名單：一份全域名單不可能同時對多個賽季正確
         // （看 2025-26 該是 Randle/Conley 在前，看 2026-27 該是 LaMelo/Kuminga 在前），
@@ -957,7 +969,8 @@ const App = () => {
             ) : (<>
             <window.RosterRail viewMode={viewMode} selectedPlayer={selectedPlayer} players={availablePlayers}
                 playerIdOf={playerIdOf} tagOf={tagOf} onTeam={() => setViewMode('TEAM')} onPlayer={pickPlayer}
-                missing={missingRosterNames} probing={probing} onProbe={jumpToPlayerHistory} probeMsg={probeMsg} />
+                missing={missingRosterNames} probing={probing} onProbe={onMissingPlayer} probeMsg={probeMsg}
+                probeTarget={probeTarget} onProbeHistory={jumpToPlayerHistory} />
 
             {!noCurrentSnapshots && (
                 <window.IdentityBar viewMode={viewMode} playerName={selectedPlayer} playerId={currentPlayerId} tag={selTag}
