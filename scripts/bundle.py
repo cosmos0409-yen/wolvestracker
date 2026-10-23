@@ -61,6 +61,7 @@ ORDER = [
     "RadarPanel.js",
     "HistoryModal.js",
     "urlState.js",
+    "GameCalendar.js",
     "Masthead.js",
     "RosterRail.js",
     "IdentityBar.js",

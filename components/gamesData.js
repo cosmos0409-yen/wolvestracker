@@ -49,3 +49,11 @@ window.loadGamesIndex = async function (season, type) {
     }
     return games;
 };
+
+// 整季賽程（例行賽＋季後賽合併、由舊到新，每場帶 type）：刊頭賽程月曆、搜尋「最近比賽」用。
+// 季後賽索引不存在（沒打進／還沒開打）時只回例行賽
+window.loadSeasonSchedule = async function (season) {
+    const [reg, po] = await Promise.all(['regular', 'playoffs'].map(t =>
+        window.loadGamesIndex(season, t).then(gs => gs.map(g => ({ ...g, type: t })))));
+    return [...reg, ...po].sort((a, b) => a.date.localeCompare(b.date));
+};

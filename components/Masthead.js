@@ -1,12 +1,12 @@
 // 刊頭：Logo + 「Wolves Ledger」字標 + 期別行（賽季·賽別·截至日期·連線狀態）＋ 右側控制項
-// 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、截至日期（僅當季）、最新一場、薪資、搜尋（/）
+// 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、截至日期（僅當季）、賽程月曆（GameCalendar）、薪資、搜尋（/）
 // 單場頁／薪資頁是獨立整頁：期別行改顯示頁名，並隱藏賽季／賽別／日期（避免刊頭寫的賽季和內容對不上）
 // 手機：控制項換到第二列並可橫向捲動，不擠壓字標
 const Masthead = ({
     yearOptions, viewYear, onYearChange, isHistoryMode, historyLoading, displayDate,
     viewType, onTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    latestGame, onGames, inGame, gameDate, inCap, onCap, playoffsAvailable = true,
+    schedule, scheduleSeason, onPickGame, inGame, gameDate, inCap, onCap, playoffsAvailable = true,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -61,13 +61,9 @@ const Masthead = ({
                             className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150] disabled:cursor-not-allowed disabled:border-white/10 disabled:text-slate-500" />
                     </>)}
                     </>)}
-                    {/* 最新一場：開最新一場的單場頁（Game Center）；按鈕上直接標日期／對手，不必滑過才知道去哪 */}
-                    <button type="button" onClick={onGames} disabled={!latestGame}
-                        title={latestGame ? `最新一場：${latestGame.date} ${latestGame.matchup} ${latestGame.wl}` : '目前賽別沒有比賽資料'}
-                        className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inGame ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : latestGame ? 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
-                        最新一場
-                        {latestGame && <span className="ml-1.5 font-mono text-[11px] text-slate-500">{latestGame.date.slice(5).replace('-', '/')} {latestGame.matchup.replace(/^MIN\s*/, '')}</span>}
-                    </button>
+                    {/* 賽程月曆：整季比賽畫在月曆上，點日期開該場單場頁（取代原「最新一場」按鈕） */}
+                    {window.GameCalendar && <window.GameCalendar games={schedule} season={scheduleSeason}
+                        activeDate={inGame ? gameDate : null} inGame={inGame} onPick={onPickGame} />}
                     {/* 薪資：開薪資頁（#cap） */}
                     <button type="button" onClick={onCap} title="薪資結構、奢侈稅與門檻（Cap Sheet）"
                         className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inCap ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30'}`}>

@@ -49,6 +49,7 @@ const App = () => {
     const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
     const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
     const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
+    const [schedule, setSchedule] = useState({ season: null, games: [] }); // 刊頭賽程月曆：整季（例行＋季後）賽程
     const [activeTab, setActiveTab] = useState(() => pick('activeTab', loadPref('activeTab', 'overview'))); // 章節
     // 單場比賽頁（網址 #game=）：有值時主區改顯示 GamePage；gamePlayer＝展開進階的球員（網址 p=）
     const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
@@ -131,6 +132,20 @@ const App = () => {
             .catch(e => console.error('games index fetch fail', e));
         return () => { cancelled = true; };
     }, [isCloud, seasonTypeView]);
+
+    // 賽程月曆的賽季：單場頁跟著那場比賽的賽季（直接開舊場次連結也對得上），其餘跟著刊頭所選賽季
+    const scheduleSeason = gameDate
+        ? window.seasonForDate(new Date(gameDate + 'T17:00:00Z'))
+        : (selectedSeasonKey === 'current' ? window.CURRENT_SEASON : (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey) || {}).season);
+    useEffect(() => {
+        if (!window.db || !window.firebaseModules || !isCloud || !window.loadSeasonSchedule || !scheduleSeason) return;
+        let cancelled = false;
+        window.loadSeasonSchedule(scheduleSeason)
+            .then(games => { if (!cancelled) setSchedule({ season: scheduleSeason, games }); })
+            .catch(e => console.error('schedule fetch fail', e));
+        return () => { cancelled = true; };
+    }, [isCloud, scheduleSeason]);
+    const scheduleGames = schedule.season === scheduleSeason ? schedule.games : [];
 
     // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
 
@@ -923,7 +938,7 @@ const App = () => {
     ];
     const paletteItems = [
         ...paletteBase.map(it => ({ ...it, run: () => { leaveGame(); it.run(); } })),
-        ...gamesIndex.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: '最近比賽', label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
+        ...scheduleGames.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: `${scheduleSeason} 最近比賽`, label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
         { id: 'cap', group: '薪資', label: '薪資與奢侈稅', hint: 'Cap Sheet', run: openCap },
     ];
 
@@ -949,9 +964,8 @@ const App = () => {
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
-                latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate} gameDate={gameDate}
+                schedule={scheduleGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate} gameDate={gameDate}
                 playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
-                onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)}
                 inCap={capView} onCap={openCap} />
 
             {/* 休賽期 / 陳舊資料提示（細條） */}
