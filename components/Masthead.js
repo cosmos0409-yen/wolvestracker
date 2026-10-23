@@ -5,7 +5,7 @@ const Masthead = ({
     seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
     seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    latestGame, onGames, inGame, inCap, onCap,
+    latestGame, onGames, inGame, inCap, onCap, playoffsAvailable = true,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -44,17 +44,20 @@ const Masthead = ({
                         className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 text-[13px] text-slate-200 focus:outline-none focus:border-[#12A150]">
                         {seasonOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
                     </select>
+                    {/* 歷史賽季不放膠囊（膠囊只給可點控制項）；「期末快照」已在期別行，這裡只在載入中給純文字 */}
                     {isHistoryMode ? (
-                        <span className="shrink-0 rounded-full border border-white/10 px-3.5 py-1.5 font-mono text-[12px] text-slate-400">
-                            {historyLoading ? '載入中…' : '期末快照'}
-                        </span>
+                        historyLoading && <span className="shrink-0 px-1 font-mono text-[12px] text-slate-400">載入中…</span>
                     ) : (<>
                         <UI.Seg ariaLabel="賽別" value={seasonTypeView} onChange={onSeasonTypeChange}
-                            options={[{ value: 'regular', label: '例行賽' }, { value: 'playoffs', label: '季後賽' }]} />
+                            options={[{ value: 'regular', label: '例行賽' },
+                                { value: 'playoffs', label: '季後賽', disabled: !playoffsAvailable && seasonTypeView !== 'playoffs',
+                                  title: playoffsAvailable ? undefined : `${issueSeason || '本季'} 尚無季後賽資料` }]} />
                         <label className="sr-only" htmlFor="asof-date">截至日期</label>
+                        {/* 只有一天快照時（min＝max）停用，避免看起來能選卻只有一個選項 */}
                         <input id="asof-date" type="date" value={effectiveDate} min={minDate} max={maxDate}
-                            onChange={e => onDateChange(e.target.value)}
-                            className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150]" />
+                            onChange={e => onDateChange(e.target.value)} disabled={!!minDate && minDate === maxDate}
+                            title={minDate && minDate === maxDate ? '本季目前只有一天的快照' : undefined}
+                            className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150] disabled:cursor-not-allowed disabled:border-white/10 disabled:text-slate-500" />
                     </>)}
                     </>)}
                     {/* 比賽：開最新一場的單場頁（Game Center） */}

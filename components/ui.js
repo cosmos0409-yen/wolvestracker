@@ -399,7 +399,8 @@ window.UI = (function () {
                 const on = o.value === value;
                 return (
                     <button key={o.value} type="button" aria-pressed={on} onClick={() => onChange(o.value)}
-                        className={`inline-flex items-center gap-1.5 rounded-full whitespace-nowrap transition-colors ${size === 'sm' ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-[13px]'} ${on ? (o.activeClass || 'bg-[#C4CED2] text-[#0A1626] font-medium') : 'text-slate-400 hover:text-slate-100'}`}>
+                        disabled={!!o.disabled} title={o.title}
+                        className={`inline-flex items-center gap-1.5 rounded-full whitespace-nowrap transition-colors ${size === 'sm' ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-[13px]'} ${on ? (o.activeClass || 'bg-[#C4CED2] text-[#0A1626] font-medium') : o.disabled ? 'cursor-not-allowed text-slate-600' : 'text-slate-400 hover:text-slate-100'}`}>
                         {o.icon}{o.label}
                     </button>
                 );

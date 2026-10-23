@@ -896,7 +896,7 @@ const App = () => {
     const paletteBase = [
         { id: 'team', group: '球隊／球員', label: '全隊', hint: 'Timberwolves', run: () => setViewMode('TEAM') },
         ...availablePlayers.map(n => ({ id: 'p_' + n, group: '球隊／球員', label: n, run: () => pickPlayer(n) })),
-        ...missingRosterNames.map(n => ({ id: 'm_' + n, group: '本季無數據（查最近一季）', label: n, run: () => jumpToPlayerHistory(n) })),
+        ...missingRosterNames.map(n => ({ id: 'm_' + n, group: '本季無數據', label: n, run: () => onMissingPlayer(n) })),
         ...TABS.map((t, i) => ({ id: 't_' + t.key, group: '章節', label: t.label, hint: String(i + 1), run: () => setActiveTab(t.key) })),
         ...SEASON_OPTIONS.map(o => ({ id: 's_' + o.key, group: '賽季', label: o.label, run: () => setSelectedSeasonKey(o.key) })),
         { id: 'side_off', group: '檢視', label: '進攻', run: () => setViewSide('offensive') },
@@ -935,6 +935,7 @@ const App = () => {
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
                 latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate}
+                playoffsAvailable={!teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)}
                 inCap={capView} onCap={openCap} />
 

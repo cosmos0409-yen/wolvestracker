@@ -520,7 +520,8 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
                 {avgAgg === null && <div className="mb-3"><UI.Note>本季沒有更早的逐場資料，無季平均可比（例如球季第一場）</UI.Note></div>}
                 <div className="grid grid-cols-2 border-l border-t border-white/[0.08] sm:grid-cols-3 lg:grid-cols-4">
                     {keys.map(k => {
-                        const m = metaOf(k), v = ent[k], avg = avgAgg ? avgAgg[k] : undefined;
+                        // undefined＝載入中（顯示 …）；null＝本季無更早逐場（fmtV 顯示 —），與展開列同規則
+                        const m = metaOf(k), v = ent[k], avg = avgAgg === undefined ? undefined : (avgAgg ? avgAgg[k] : null);
                         const j = judge(k, v, avg, ent);
                         const hi = Math.max(Math.abs(v), Math.abs(avg || 0)) * 1.3 || 1;
                         const color = j.good ? 'bg-[#12A150]' : j.bad ? 'bg-[#EF4444]' : 'bg-[#C4CED2]/50';

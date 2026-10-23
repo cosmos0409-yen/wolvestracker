@@ -27,6 +27,9 @@
     }
     #root { position: relative; z-index: 1; }
 
+    /* 捲軸配色：預設是淺色軌道，在深色底上很突兀（頭像列、寬表格）→ 月光銀半透明滑塊＋透明軌道 */
+    * { scrollbar-color: rgba(196, 206, 210, 0.3) transparent; }
+
     /* 鍵盤操作時的焦點框（滑鼠點擊不顯示）：品牌綠，所有按鈕、連結、選單一致 */
     :focus-visible {
         outline: 2px solid #12A150;
