@@ -14,6 +14,7 @@ window.GLOSSARY = (function () {
     const SYN = 'Synergy Playtype（NBA.com synergyplaytypes）';
     const SCOR = 'NBA.com 得分組成（leaguedash*stats，Scoring）';
     const CAP = 'Spotrac、Hoops Rumors 等公開資料，人工整理於本站薪資 Google Sheet';
+    const GAMES = '本站以逐場數據計算（NBA.com Stats 單場，wolves_games_bundle）';
 
     const G = {
         // ── 傳統數據 ──
@@ -135,6 +136,12 @@ window.GLOSSARY = (function () {
         CAP_APRON2_SPACE: { def: '第二 apron 減 apron 薪資；負數代表已超過第二 apron，受相應限制。', calc: '第二 apron − apron 薪資', src: CAP },
         CAP_TAX_EST: { def: '依目前名單估算的奢侈稅。實際以例行賽最後一天的薪資計算，季中交易、獎金與按比例分攤都會改變結果。', calc: '超出奢侈稅線的金額分級，各級 × 該級稅率後加總', src: CAP },
         CAP_ROSTER: { def: '本季列入薪資表的標準合約人數；雙向合約另計，不算入薪資。', src: CAP },
+        // ── 對戰分析（MatchupHome / MatchupPage；門檻見 constants.js MATCHUP_RULES） ──
+        OPP_PTS: { def: '場均失分（對手得分）。舊賽季沒有對手的完整數據，失分由灰狼得分與正負值推得，所有賽季都有。', calc: '得分 − 正負值', src: GAMES },
+        MU_RANGE: { def: '近三季＝本季＋前兩季；本季例行賽還沒打到一半（41 場）時再多含一季，避免開季時樣本太少。可改成只看本季或指定賽季。', src: GAMES },
+        MU_Z: { def: '偏離程度：打這隊時和範圍平均差多少，再除以「這麼少場數本來就會有的波動」。只打 2 場的極端值會被壓下去，交手很多場的穩定差異才會浮上來。|z| ≥ 2 大致可視為不只是手感起伏。', calc: '（對此隊 − 範圍平均）÷（逐場標準差 ÷ √場數）', src: GAMES },
+        MU_TAGS: { def: '只標交手至少 4 場的對手。勁敵：交手總場數＋季後賽場數最多的前 3 隊（季後賽等於算兩次）。順手／棘手：其餘對手中，場均分差偏離程度最高／最低的各 3 隊。標籤只描述灰狼打起來的結果，不評價對手。', src: GAMES },
+        MU_FACTOR: { def: '範圍內所有比賽的勝場和敗場相比，差異最大的指標（不分對手，所以不受單一對手場數少的影響）。分差、得分、失分本身就是比賽結果，不列入。', calc: '標準化差 d ＝（勝場平均 − 敗場平均）÷ 合併標準差', src: GAMES },
     };
     return G;
 })();

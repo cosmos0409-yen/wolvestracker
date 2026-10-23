@@ -344,7 +344,7 @@ window.metricLabel = (m) => (m && (m.longLabel || m.label)) || '';
 
 // 對戰分析門檻（matchupData.js 讀）：調整標籤或近三季規則只改這裡
 //   halfSeasonGames  當季例行賽未滿這個場數 → 「近三季」再多含一季（開季樣本不足）
-//   minGames         順手／棘手、排行榜的最少交手場數；未達的對手淡化顯示
+//   minGames         三種標籤、排行榜的最少交手場數；未達的對手淡化顯示
 //   rivalTopN        勁敵：「交手總場數＋季後賽場數」分數最高的前幾隊（季後賽交手等於算兩次）
 //   topN / tagMinZ   順手／棘手各取場均分差 z 最高／最低的 topN 隊，且 |z| ≥ tagMinZ（勁敵不重複標）
 //   factorTopN       勝負關鍵因子取前幾名

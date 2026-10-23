@@ -49,17 +49,20 @@ window.Matchup = (function () {
 
     // 逐場加上 season/type/oppAbbr 與推導欄位；不改動快取裡的 bundle 物件
     // 注意 bundle 新場次的 g.opp 是「對手球隊數據」物件，所以對手三碼另放 oppAbbr
-    function decorate(g, season, type) {
+    // 失分只對球隊有意義（球員的正負值是在場時段），球員 bundle 不推導
+    function decorate(g, season, type, isPlayer) {
         const s = g.stats || {};
-        const stats = isNum(s.PTS) && isNum(s.PLUS_MINUS) ? { ...s, OPP_PTS: s.PTS - s.PLUS_MINUS } : s;
+        const stats = !isPlayer && isNum(s.PTS) && isNum(s.PLUS_MINUS) ? { ...s, OPP_PTS: s.PTS - s.PLUS_MINUS } : s;
         return { ...g, stats, season, type, oppAbbr: g.oppAbbr || oppOf(g.matchup) };
     }
 
     // typeFilter：'all'（例行＋季後，預設）／'regular'／'playoffs'。季後賽 bundle 不存在時該季該賽別為空
-    async function loadWindowGames(seasons, typeFilter) {
+    // playerId：給了就讀該球員的逐場 bundle（各季最多 2 份；該季不在隊上的 doc 不存在，回空）
+    async function loadWindowGames(seasons, typeFilter, playerId) {
         const types = typeFilter === 'regular' ? ['regular'] : typeFilter === 'playoffs' ? ['playoffs'] : ['regular', 'playoffs'];
         const parts = await Promise.all(seasons.flatMap(season => types.map(type =>
-            window.loadSeasonGames(season, type, 'TEAM').then(r => (r.games || []).map(g => decorate(g, season, type))))));
+            window.loadSeasonGames(season, type, playerId ? 'PLAYER' : 'TEAM', playerId)
+                .then(r => (r.games || []).map(g => decorate(g, season, type, !!playerId))))));
         return parts.flat().sort(byDate);
     }
 
@@ -168,12 +171,14 @@ window.Matchup = (function () {
     }
 
     // 標籤（中性字眼，見 MATCHUP_TAGS）：每列加 marginDev（場均分差的偏離）、rivalScore 與 tag（'rival'|'favorable'|'tough'|null）
-    // 勁敵：rivalScore（交手總場數＋季後賽場數）前 rivalTopN 名；同分依季後賽場數、再依隊名排，結果固定
+    // 勁敵：場數 ≥ minGames 的對手中，rivalScore（交手總場數＋季後賽場數）前 rivalTopN 名；同分依季後賽場數、再依隊名排，結果固定
+    //（不設場數門檻的話，開季只看本季時打過 1 場的對手也會被標成勁敵）
     function tagOpponents(rows, games) {
         const R = rules();
         const base = baseline(games, 'PLUS_MINUS');
         const out = rows.map(r => ({ ...r, marginDev: deviation(base, r.games, MARGIN_DEF), rivalScore: r.n + r.playoffGames, tag: null }));
-        out.slice().sort((a, b) => b.rivalScore - a.rivalScore || b.playoffGames - a.playoffGames || (a.abbr < b.abbr ? -1 : 1))
+        out.filter(r => r.n >= R.minGames)
+            .sort((a, b) => b.rivalScore - a.rivalScore || b.playoffGames - a.playoffGames || (a.abbr < b.abbr ? -1 : 1))
             .slice(0, R.rivalTopN).forEach(r => { r.tag = 'rival'; });
         const pool = out.filter(r => !r.tag && r.n >= R.minGames && r.marginDev && r.marginDev.z !== null)
             .sort((a, b) => b.marginDev.z - a.marginDev.z);

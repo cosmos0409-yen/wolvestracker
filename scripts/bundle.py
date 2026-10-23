@@ -53,6 +53,7 @@ ORDER = [
     "SingleGamePanel.js",
     "GamePage.js",
     "CapPage.js",
+    "MatchupHome.js",
     "Highlights.js",
     "OverviewTab.js",
     "SplitsTab.js",
