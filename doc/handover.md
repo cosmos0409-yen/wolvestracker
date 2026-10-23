@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-20（**薪資頁（Cap Sheet）完成**：Phase 1–6，見「2026-10-20 薪資頁」；之前的單場比賽頁＋跨季疊圖、Wolves Ledger 改版見同名章節）
+> 最後更新：2026-10-23（**開季抓取守門＋UI/UX 整理**：Synergy 未釋出時照常寫入、刊頭賽季只列年份＋賽別常駐、攻守切換只在用得到的章節，見「2026-10-23 開季修正與 UI/UX 整理」；之前的薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
 
@@ -226,7 +226,7 @@ wolvestracker/
 - 合併後未編譯的 JSX 暫存在 `.build/`（不進版控）
 
 ### 版面骨架與網址狀態（2026-10 Phase 3）
-- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉／例行·季後／截至日期／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips 沿用 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`）→ `ChapterNav`（sticky，01–06 章節＋攻守）→ 內容
+- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／截至日期（僅當季）／最新一場／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`）→ `ChapterNav`（sticky，01–06 章節＋攻守；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
 - 網址 hash（`components/urlState.js`）：`#v=player&p=名字&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
@@ -239,8 +239,19 @@ wolvestracker/
 - 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
 - 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別/最近 10 場比賽，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
 
+### 2026-10-23 開季修正與 UI/UX 整理
+- **起因**：開季 NBA 未釋出 Synergy → 舊守門整次不寫入 → 線上舊前端名單取 `stats` 為空，點球員全被當「本季無數據」自動探測到 2025-26。修法見「每日快照」的寫入守門，以及下列 UI 規則
+- **預設一律看進行中賽季**：當季點「本季無數據」的球員不自動切季（頭像列與搜尋面板同一個 `onMissingPlayer`），提示列附「查看最近一季 →」由使用者明確觸發 `jumpToPlayerHistory`
+- **刊頭賽季／賽別**：賽季選單只列年份（`window.SEASON_YEAR_OPTIONS`：`current` ＋ `HISTORY_SEASONS`），例行／季後切換常駐（歷史賽季也能切）。App 的 `changeYear`／`changeType` 把「年份＋賽別」對回既有狀態 `selectedSeasonKey`（`2025-26_playoffs`）＋`seasonTypeView`，**網址 `s=`／`t=` 格式不變**。換歷史年份沿用目前賽別；回當季改用時節預設賽別（10 月切去當季季後賽只會是空畫面）。當季沒有季後賽快照時「季後賽」停用（`playoffsAvailable`）；只有一天快照時日期選擇器停用。歷史賽季刊頭不放「期末快照」膠囊（期別行已寫）
+- **攻守切換**：`App.TABS` 的 `sided: true`（目前總覽、Playtype）才在章節列顯示；新章節內容用到 `viewSide` 就加上
+- **「?」合併複製引用**：見「寫作工具」；`UI.Seg` 的 option 可帶 `disabled`／`title`
+- **指標長名稱**：defs 的 metric 可加 `longLabel`（例：兩個「有效命中率」→ 接球跳投／急停跳投）。平鋪清單（跨季疊圖下拉、跨季比較表）一律用 `window.metricLabel(m)`，卡片內維持短 `label`。疊圖選單同 key 只列一次（追蹤 REB 與基本 REB 重複）
+- **賽別縮寫**：`HISTORY_SEASON_OPTIONS.short` 由「例／季」改「例行／季後」（「季」會被讀成賽季）；跨季比較表表頭改兩行（上年份、下賽別）
+- 單場頁「本場 vs 季平均」：`avgAgg === null`（本季無更早逐場）顯示「—」，`undefined` 才是載入中「…」
+- 全站捲軸：`styles/app.css` 的 `scrollbar-color`（月光銀半透明＋透明軌道）
+
 ### 寫作工具（2026-10 Phase 5）
-- **複製引用**：`UI.CopyBtn` + `UI.citeLine`，格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
+- **複製引用**：`UI.citeLine` 組字串；入口是「?」小卡底部的「複製引用」（`UI.Info` 帶 `cite`，2026-10-23 起每格只留一個圖示），沒有 glossary 定義或沒有「?」的地方才用獨立 `UI.CopyBtn`。`cite`／`text` 一律傳**函式**（點擊當下才組字串，句尾網址才是當下畫面），格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
 - **近期異動**：`components/Highlights.js`，近 5/10 場 vs 全季（截至 untilDate），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
 - 刊頭「複製連結」＝複製含 hash 的目前網址
@@ -250,9 +261,9 @@ wolvestracker/
   - 踩過的雷：配圖根節點不可 `position:fixed`+負座標（會整張空白）→ 外層 holder 負責藏到畫面外
   - 匯出時移除複製鈕、「?」與 `data-export-hide` 標記的元素
 - **複製純文字（臉書）**（2026-10）：`ExportMenu` 的 `text` 選項（`() => string`，回 `null`＝呼叫端自行處理，例如資料未載完就跳 toast 不複製），複製到剪貼簿；臉書不吃表格、字寬不一，所以**不靠空格對齊**，改用「｜」分隔
-  - 跨季比較表（`ComparisonTab` 的 `fbText`）：標題【主體｜跨季比較・類別】→ 賽季表頭列 → 一行一指標「指標 原文｜各季值」→ 說明 → 資料來源 → 畫面網址。數字格式與表格同（`fmt`）；全選同賽別時表頭只寫年份、第一格放賽別，混選才用「24-25例」並附圖例；有「—」／「@隊名」才附對應說明；Playtype 列前加中文名（取 `GLOSSARY.PT_*` 定義冒號前的字）
-  - 折線圖（`TrendChart`，跨季／Splits／投籃三處共用）：點 ≤6 寫成一行箭頭「24-25例 34.4% → 25-26例 31.5%」，點多則一行一點「日期｜值」；有基準線附「全季平均」。`unit` 參數決定數值後綴（百分比傳 `'%'`）；標題賽季預設取 `CiteCtx.season`，跨季比較傳 `citeSeason={false}` 省略（各點已標賽季）
-  - `TrendChart` X 軸：只有日期標籤（`YYYY-MM(-DD)`）去掉年份，其他標籤原樣顯示（曾用 `slice(5)` 一律砍前 5 字，跨季的「24-25例」只剩「例」）
+  - 跨季比較表（`ComparisonTab` 的 `fbText`）：標題【主體｜跨季比較・類別】→ 賽季表頭列 → 一行一指標「指標 原文｜各季值」→ 說明 → 資料來源 → 畫面網址。數字格式與表格同（`fmt`）；全選同賽別時表頭只寫年份、第一格放賽別，混選才用「24-25例行」；有「—」／「@隊名」才附對應說明；Playtype 列前加中文名（取 `GLOSSARY.PT_*` 定義冒號前的字）
+  - 折線圖（`TrendChart`，跨季／Splits／投籃三處共用）：點 ≤6 寫成一行箭頭「24-25例行 34.4% → 25-26例行 31.5%」，點多則一行一點「日期｜值」；有基準線附「全季平均」。`unit` 參數決定數值後綴（百分比傳 `'%'`）；標題賽季預設取 `CiteCtx.season`，跨季比較傳 `citeSeason={false}` 省略（各點已標賽季）
+  - `TrendChart` X 軸：只有日期標籤（`YYYY-MM(-DD)`）去掉年份，其他標籤原樣顯示（曾用 `slice(5)` 一律砍前 5 字，跨季的「24-25例行」只剩「例行」）
   - `TrendChart`（2026-10-19）：點帶 `wl` 時鋪勝負底色（`GameAgg.trendSeries` 逐場粒度會帶；投籃走勢從 `gameMeta` 補）；`highlight`＝要圈出的點 label，窄螢幕會自動橫捲到該點；`onPointClick`＝點擊某點（Splits 用來開單場頁）。跨季章節已改用多序列的 `LineOverlay`，不再用 `TrendChart`
 
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
@@ -379,6 +390,8 @@ wolves_team_stats/{YYYY-MM-DD}
 wolves_player_stats/{YYYY-MM-DD}
 ```
 欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `tracking`, `shooting`, `clutch`, `defense`, `lineups`（lineups 僅球隊文件）
+
+- **寫入守門（2026-10-23 改）**：Synergy **與** base 都空才視為被 NBA 擋、終止寫入。開季初 NBA 尚未釋出 Synergy（`synergyplaytypes` 回 0 筆、不是錯誤），此時印 `⚠️ Synergy 無資料` 並照常寫入其他類別、擷取單場；`stats` 為空陣列／空物件，等 NBA 釋出後隔天自動補上。前端球員名單取 `stats ∪ base`、球員存在判定與 `playerId` 都退回 `base`，Playtype 分頁顯示「尚無資料」
 
 球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` / `defense` 皆為 `{playerName: {...}}` 同構。
 - **灰狼球員以名冊 PlayerID 過濾，不比名字**（`pid_to_name_keyed(..., keep_ids=roster_ids)`；Synergy 比 `playerId`）。名冊 API（commonteamroster）與數據 API（leaguedash*／synergyplaytypes）的寫法可能不同——2025-26 名冊 `Terrence Shannon Jr.`、數據 `Terrence Shannon Jr`，舊版比名字時他整個從快照消失（2026-10-19 修）。key 一律取**數據 API 的寫法**；`onoff` 的名字（endpoint 本身是 `Last, First`）也取 base 的寫法、沒有才退回名冊，確保 `current.onoff[球員名]` 對得上。前端跨季比對另有 `nameKey`（去句點/重音）兜底。
@@ -508,7 +521,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 面板右上「看完整比賽 →」連到該場單場頁（2026-10-19）
 
 ### 單場比賽頁（`GamePage.js`，2026-10-19）
-- App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar／ChapterNav（Masthead 保留，「比賽」按鈕開最新一場）
+- App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar／ChapterNav（Masthead 保留但期別行改「單場 · 日期」、隱藏賽季／賽別／日期；「最新一場」按鈕標日期與對手）
 - 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players）；記憶體快取＋ localStorage `wt_gc_{date}`（`final === false` 不寫，免得鎖住半成品）
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
