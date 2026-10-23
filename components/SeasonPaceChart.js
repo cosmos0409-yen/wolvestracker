@@ -132,6 +132,7 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
     // 同一 key 只列一次（追蹤數據的 REB 與基本 REB 同一個值，重複會出現「籃板」「籃板數」兩項）
     const seenKeys = new Set();
     const GROUP_METRICS = GROUPS.map(([g, defs]) => [g, defs.filter(Boolean).flatMap(d => d.metrics)
+        .filter(x => !(isTeam && x.playerOnly))   // 球隊沒有此欄
         .filter(x => !seenKeys.has(x.key) && seenKeys.add(x.key))]);
     const allMetrics = GROUP_METRICS.flatMap(([, ms]) => ms);
     const m = allMetrics.find(x => x.key === metric) || allMetrics[0];

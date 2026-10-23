@@ -310,14 +310,15 @@ window.defenseDefs = [
     },
     {
         // 掩護與卡位：資料同樣來自 Hustle endpoint（doc.defense），但偏進攻端／籃板，獨立一組
+        // playerOnly：球隊版 endpoint 沒有這欄（舊資料存成 0），全隊畫面一律不顯示
         id: 'Screens', title: '掩護與卡位 (Screens & Box Outs)', metrics: [
             { key: 'SCREEN_AST_PTS', label: '掩護助攻得分', englishLabel: 'Screen AST PTS' },
             { key: 'SCREEN_ASSISTS', label: '掩護助攻', englishLabel: 'Screen AST' },
             { key: 'BOX_OUTS', label: '卡位', englishLabel: 'Box Outs' },
-            { key: 'PCT_BOX_OUTS_REB', label: '卡位後自己搶下比例', englishLabel: 'Box Out REB%', unit: '%' },
+            { key: 'PCT_BOX_OUTS_REB', label: '卡位後自己搶下比例', englishLabel: 'Box Out REB%', unit: '%', playerOnly: true },
             { key: 'DEF_BOXOUTS', label: '防守卡位', englishLabel: 'Def Box Outs' },
             { key: 'OFF_BOXOUTS', label: '進攻卡位', englishLabel: 'Off Box Outs' },
-            { key: 'BOX_OUT_REBS', label: '卡位後自己搶下籃板', englishLabel: 'Box Out Player REB' },
+            { key: 'BOX_OUT_REBS', label: '卡位後自己搶下籃板', englishLabel: 'Box Out Player REB', playerOnly: true },
         ]
     },
 ];

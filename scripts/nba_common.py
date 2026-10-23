@@ -598,6 +598,9 @@ def fetch_pt_shots(season, season_type_api, player_or_team="Player"):
     if data is None:
         return results
     headers_list = data['resultSets'][0]['headers']
+    # 只寫 endpoint 真的有的欄位：球隊版沒有 BOX_OUT_PLAYER_REBS／PCT_BOX_OUTS_REB，
+    # 走 apply_fields 會被 safe_col 補成 0，前端就顯示成假的「0」
+    hustle_fields = [f for f in HUSTLE_FIELDS if f[1] in headers_list]
     for row in data['resultSets'][0]['rowSet']:
         if player_or_team == "Player":
             ident = str(row[headers_list.index("PLAYER_ID")])
@@ -715,7 +718,7 @@ def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=Non
         else:
             ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
-        apply_fields(results[ident], row, headers_list, HUSTLE_FIELDS)
+        apply_fields(results[ident], row, headers_list, hustle_fields)
     return results
 
 

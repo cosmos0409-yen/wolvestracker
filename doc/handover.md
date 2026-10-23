@@ -245,6 +245,7 @@ wolvestracker/
 - 前端 `defenseDefs` 依重要性排序：最近防守者 → 防守 Box → 拼勁（`Hustle`，只放防守向）→ 掩護與卡位（`Screens`，新群組，資料同在 `doc.defense`）。球隊防守頁：防守 Box → 對手分區 → 拼勁 → 掩護與卡位
 - 有逐場資料的防守群組集中在 `window.GAME_DEFENSE_IDS`（單場頁展開列、Splits、跨季疊圖讀它）；新增 Hustle 類群組要加進來
 - `GameAgg.RATIO_DEFS` 加 `PCT_BOX_OUTS_REB`（不以 `_PCT` 結尾，不加會被當次數相加）
+- **球隊版 endpoint 沒有 `BOX_OUT_PLAYER_REBS`／`PCT_BOX_OUTS_REB`**：`fetch_hustle` 只寫 headers 裡真的有的欄位（舊版被 `safe_col` 補成 0，2026-10-23 前寫入的球隊文件仍存著假 0）；前端這兩項標 `playerOnly`，全隊的防守分頁、跨季比較、疊圖一律不顯示
 - 歷史快照補齊：`backfill_history.py --season X --type Y --only-hustle`（每份 2 requests，只把 Hustle 併入既有 `defense`，其他類別不動；只更新 doc 裡已有的球員）。2023-24～2025-26 例行賽／季後賽與 2022-23 例行賽共 7 份已補；**2022-23 季後賽未補**（使用者決定放棄，該季新欄位顯示「—」）。注意：腳本寫入完成後 Python 程序可能卡住不退出（推測是 Firestore 連線收尾），看到 ✅ 就代表已寫入。**逐場資料（單場頁／Splits／疊圖）的新欄位只從 2026-10-24 之後的比賽開始有**，過去場次未回補（約 800 requests，需另外分批）
 
 - **起因**：開季 NBA 未釋出 Synergy → 舊守門整次不寫入 → 線上舊前端名單取 `stats` 為空，點球員全被當「本季無數據」自動探測到 2025-26。修法見「每日快照」的寫入守門，以及下列 UI 規則

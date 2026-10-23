@@ -41,7 +41,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         return () => { cancelled = true; };
     }, [selected]);
 
-    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: window.metricLabel(m), e: m.englishLabel, pct: m.unit === '%' }))), []);
+    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: window.metricLabel(m), e: m.englishLabel, pct: m.unit === '%', playerOnly: m.playerOnly }))), []);
     const CATS = {
         base: { label: '基本', metrics: [
             { k: 'PTS', l: '得分', e: 'PTS' }, { k: 'REB', l: '籃板', e: 'REB' }, { k: 'AST', l: '助攻', e: 'AST' },
@@ -70,6 +70,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         if (!sd) return null;
         const isTeam = who === TEAM || (!who && viewMode === 'TEAM');
         const pname = who && who !== TEAM ? who : selectedPlayer;
+        if (isTeam && m.playerOnly) return null;   // 球隊沒有此欄（舊資料存成 0，不可顯示）
         if (m.playtype) {
             const arr = isTeam ? (sd.team && sd.team.stats) : (sd.player && sd.player.stats && sd.player.stats[pname]);
             const it = (arr || []).find(s => s.playType === m.k && (s.side || 'offensive') === 'offensive');
