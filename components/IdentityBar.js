@@ -2,7 +2,8 @@
 // 數字與總覽「季平均」同源：逐場 bundle 以 GameAgg 算截至 untilDate；bundle 缺時退回快照 base
 // 要換顯示的指標 → 改下方 FIELDS（格式同 OverviewTab 的 SUMMARY）
 // salary：球員檢視時的薪資膠囊 { season, text, title, badge }（App 依 playerId 對薪資資料組好），onSalary 點擊開薪資頁
-const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary }) => {
+// asOf：時光機（僅當季）{ value, min, max, onChange }——所有章節的快照數據與季平均都只算到這天，所以放在每章都看得到的身分列；歷史賽季傳 null
+const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf }) => {
     const GA = window.GameAgg;
     const FIELDS = viewMode === 'TEAM'
         ? [{ key: 'PTS', en: 'PTS', label: '得分' }, { key: 'REB', en: 'REB', label: '籃板' },
@@ -37,9 +38,23 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                         <h1 className="font-display text-[28px] font-bold uppercase leading-none tracking-wide text-slate-50 truncate">
                             {name}{tag && <span className="ml-2 align-middle font-mono text-[12px] font-normal normal-case text-amber-400/80">{tag}</span>}
                         </h1>
-                        <p className="mt-1 text-[12px] text-slate-400 truncate">
-                            {[seasonLabel, record].filter(Boolean).join(' · ')}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <p className="text-[12px] text-slate-400 truncate">
+                                {[seasonLabel, record].filter(Boolean).join(' · ')}
+                            </p>
+                            {asOf && (<span className="inline-flex items-center gap-1.5">
+                                <label htmlFor="asof-date" className="font-mono text-[10px] text-slate-500">數據截至</label>
+                                {/* 只有一天快照時（min＝max）停用，避免看起來能選卻只有一個選項 */}
+                                <input id="asof-date" type="date" value={asOf.value || ''} min={asOf.min} max={asOf.max}
+                                    onChange={e => asOf.onChange(e.target.value)} disabled={!!asOf.min && asOf.min === asOf.max}
+                                    title={asOf.min && asOf.min === asOf.max ? '本季目前只有一天的快照' : '選一天：季平均、Splits、防守、Playtype 等都只算到那天'}
+                                    className="min-h-[24px] rounded-full border border-white/15 bg-[#0A1626] px-2.5 py-0.5 font-mono text-[11px] text-slate-200 focus:outline-none focus:border-[#12A150] disabled:cursor-not-allowed disabled:border-white/10 disabled:text-slate-500" />
+                                {asOf.value && asOf.max && asOf.value !== asOf.max && (
+                                    <button type="button" onClick={() => asOf.onChange('')}
+                                        className="min-h-[24px] px-1 text-[11px] text-slate-400 hover:text-slate-100">回最新</button>
+                                )}
+                            </span>)}
+                        </div>
                         {viewMode === 'PLAYER' && salary && (
                             <button type="button" onClick={onSalary} title={salary.title}
                                 className="mt-1 inline-flex min-h-[24px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-white/15 px-2.5 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-100">

@@ -983,8 +983,6 @@ const App = () => {
                 isHistoryMode={isHistoryMode} historyLoading={historyLoading} displayDate={displayDate}
                 viewType={viewType} onTypeChange={changeType}
                 effectiveDate={effectiveDate}
-                minDate={(snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined}
-                maxDate={latestDate || undefined} onDateChange={(d) => { leaveGame(); setSelectedDate(d); }}
                 issueSeason={isHistoryMode ? curOpt?.season : window.CURRENT_SEASON}
                 issueType={isHistoryMode ? (curOpt?.type === 'playoffs' ? '季後賽' : '例行賽') : stTypeLabel}
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
@@ -1037,7 +1035,11 @@ const App = () => {
             {!noCurrentSnapshots && (
                 <window.IdentityBar viewMode={viewMode} playerName={selectedPlayer} playerId={currentPlayerId} tag={selTag}
                     games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay}
-                    salary={identitySalary} onSalary={openSalary} />
+                    salary={identitySalary} onSalary={openSalary}
+                    asOf={isHistoryMode ? null : {
+                        value: effectiveDate, max: latestDate || undefined, onChange: setSelectedDate,
+                        min: (snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined,
+                    }} />
             )}
 
             <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide} />
