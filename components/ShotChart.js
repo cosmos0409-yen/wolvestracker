@@ -59,7 +59,7 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, peri
 
     return (
         <UI.Section title="投籃分布" en="Shot Chart" accent="green"
-            sub={`${periodLabel ? periodLabel + ' · ' : ''}實心綠點＝命中，空心紅環＝未中 · 逐球座標每週更新`}
+            sub={`${periodLabel ? periodLabel + ' · ' : ''}實心綠點＝命中，空心紅環＝未中 · 逐球座標賽後隔天更新`}
             right={<>
                 {total > 0 && <span className="font-mono text-[12px] tabular-nums text-slate-400">{made}/{total}（{fgPct}%）</span>}
                 {total > 0 && <UI.ExportMenu title={`投籃分布（${periodLabel || '全季'}，${filter === 'made' ? '只看命中' : filter === 'missed' ? '只看未中' : `${made}/${total}，${fgPct}%`}）`} getNode={() => chartRef.current} />}
@@ -70,7 +70,7 @@ const ShotChart = ({ playerId, playerName, teamMode = false, externalShots, peri
                 <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入投籃資料中…</div>
             )}
             {shots !== null && total === 0 && (
-                <UI.Note>{playerName} 尚無投籃座標資料（每週更新一次）</UI.Note>
+                <UI.Note>{playerName} 尚無投籃座標資料（賽後隔天更新）</UI.Note>
             )}
             {shots !== null && total > 0 && (
                 <div ref={chartRef} className="flex flex-col items-center">

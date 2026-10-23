@@ -41,17 +41,19 @@ def _norm_gdate(raw):
     return s
 
 
-def fetch_player_shotchart(player_id, player_name, season, season_type_api, team_id=None):
+def fetch_player_shotchart(player_id, player_name, season, season_type_api, team_id=None, game_id=""):
     """
     抓取出手座標。player_id=0 時搭配 TeamID 抓「全隊」出手（球隊熱圖用）。
     team_id 省略＝灰狼（維持既有語意）；新援在舊東家的出手需傳 0 才拿得到。
+    game_id 指定時只抓該場（每日增量用：一個 request 拿到該場全隊出手）。
     回傳 list of dict：x/y 為場地座標（0.1 呎），made 為是否命中，
     dist 為出手距離（呎），zone 為 NBA 官方分區名，
-    action 為出手方式（ACTION_TYPE），gdate 為比賽日期（YYYY-MM-DD）。
+    action 為出手方式（ACTION_TYPE），gdate 為比賽日期（YYYY-MM-DD），
+    pid/pname 為出手球員（增量拆球員用；encode_shots 不寫入文件）。
     """
     url = (f"https://stats.nba.com/stats/shotchartdetail"
            f"?AheadBehind=&ClutchTime=&ContextFilter=&ContextMeasure=FGA"
-           f"&DateFrom=&DateTo=&EndPeriod=&EndRange=&GameID=&GameSegment="
+           f"&DateFrom=&DateTo=&EndPeriod=&EndRange=&GameID={game_id}&GameSegment="
            f"&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0"
            f"&Outcome=&Period=0&PlayerID={player_id}&PlayerPosition=&PointDiff="
            f"&Position=&RangeType=&RookieYear=&Season={season}&SeasonSegment="
@@ -63,7 +65,7 @@ def fetch_player_shotchart(player_id, player_name, season, season_type_api, team
     headers_list = data['resultSets'][0]['headers']
     idx = {name: headers_list.index(name) for name in
            ["LOC_X", "LOC_Y", "SHOT_MADE_FLAG", "SHOT_DISTANCE", "SHOT_ZONE_BASIC",
-            "ACTION_TYPE", "GAME_DATE"]}
+            "ACTION_TYPE", "GAME_DATE", "PLAYER_ID", "PLAYER_NAME"]}
     return [
         {
             "x": row[idx["LOC_X"]],
@@ -73,6 +75,8 @@ def fetch_player_shotchart(player_id, player_name, season, season_type_api, team
             "zone": row[idx["SHOT_ZONE_BASIC"]],
             "action": row[idx["ACTION_TYPE"]],
             "gdate": _norm_gdate(row[idx["GAME_DATE"]]),
+            "pid": row[idx["PLAYER_ID"]],
+            "pname": row[idx["PLAYER_NAME"]],
         }
         for row in data['resultSets'][0]['rowSet']
     ]
@@ -110,6 +114,39 @@ def _shot_doc(base, shots, assisted):
         "gameDates": game_dates,
         "assisted": assisted,
     }
+
+
+def _decode_shots(d):
+    """encode_shots 的反向：把文件裡的索引還原成 action/gdate 字串（增量合併用）。"""
+    at, gd = d.get("actionTypes") or [], d.get("gameDates") or []
+    return [{"x": s["x"], "y": s["y"], "made": s["made"], "dist": s["dist"], "zone": s["zone"],
+             "action": at[s["a"]], "gdate": gd[s["g"]]} for s in d.get("shots") or []]
+
+
+def capture_game_shots(db, season, season_type_api, season_type_label, gdate, game_id):
+    """每日增量：抓單場全隊出手（1 個 request），依 PLAYER_ID 拆開，併入各球員與全隊的整季文件。
+    同日期的舊出手先移除再加入（重抓不會重複）。受助攻比例沿用文件既有值，由每週整季重抓更新。
+    全隊文件最後寫：其 gameDates 是「這場已併入」的記號，中途失敗下次會整場重來。回傳是否成功。"""
+    shots = fetch_player_shotchart(0, f"灰狼全隊 {gdate}", season, season_type_api, game_id=game_id)
+    if not shots:
+        print(f"[FAILED] {gdate} 單場出手{'抓取失敗' if shots is None else '為空（NBA 尚未釋出？）'}，下次再試")
+        return False
+    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    by_pid = {}
+    for s in shots:
+        by_pid.setdefault(s["pid"], []).append(s)
+    targets = [(str(pid), {"playerId": pid, "playerName": ss[0]["pname"]}, ss) for pid, ss in by_pid.items()]
+    targets.append(("TEAM", {"playerId": 0, "playerName": "Minnesota Timberwolves"}, shots))
+    for who, base, new in targets:
+        ref = db.collection("wolves_shotcharts").document(f"{who}_{season}_{type_key}")
+        snap = ref.get()
+        prev = snap.to_dict() if snap.exists else {}
+        merged = sorted([s for s in _decode_shots(prev) if s["gdate"] != gdate] + new, key=lambda s: s["gdate"])
+        ref.set(_shot_doc({**base, "playerName": prev.get("playerName") or base["playerName"],
+                           "season": season, "seasonType": season_type_label},
+                          merged, prev.get("assisted") or {}))
+    print(f"✅ {gdate} 出手已併入 wolves_shotcharts（全隊 {len(shots)} 球、{len(by_pid)} 位球員）")
+    return True
 
 
 def main():

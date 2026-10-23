@@ -1,6 +1,6 @@
 // 單場比賽頁（Game Center）：網址 #game=YYYY-MM-DD[&p=球員]
 // 資料：wolves_team_games/{date}（box/stats/opp）＋ wolves_player_games/{date}（players/oppPlayers）
-//   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每週更新）
+//   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每日增量、每週整季對帳）
 // 灰狼球員一律用 box score 的 personId 對應 players 文件的 playerId（名字寫法兩邊可能不同，且早期文件含非當時隊員）
 // 舊場次沒有 box（2026-10 以前、未回補者）→ 比分看板／Box Score／焦點／Four Factors 降級隱藏
 // props：date、gamePlayer（展開的球員名，網址 p=）、onExpand(name|'')
@@ -556,7 +556,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
     const ShotChart = window.ShotChart;
     const shotSection = (
         <UI.Section title="本場投籃" en="Shot Chart" accent="green"
-            sub="投籃點來自每週抓取的 shotchart，本週的比賽可能要等下次週更才有點位；右表分區命中來自單場文件（每天更新）">
+            sub="投籃點來自 shotchart（賽後隔天併入）；右表分區命中來自單場文件（每天更新）">
             <div className="mb-3 flex flex-wrap gap-1.5">
                 <UI.Chip active={shotWho === 'TEAM'} onClick={() => setShotWho('TEAM')}>全隊</UI.Chip>
                 {shotPlayers.map(p => <UI.Chip key={p.pid} active={String(shotWho) === String(p.pid)} onClick={() => setShotWho(String(p.pid))}>{p.boxName}</UI.Chip>)}
@@ -564,7 +564,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
                 <div>
                     {shots === undefined ? <div className="py-10 text-center text-sm text-slate-500 animate-pulse">載入投籃點…</div>
-                        : !shots || shots.length === 0 ? <UI.Note>這場還沒有投籃點位（shotchart 每週更新一次）</UI.Note>
+                        : !shots || shots.length === 0 ? <UI.Note>這場還沒有投籃點位（賽後隔天才會併入）</UI.Note>
                         : ShotChart && <ShotChart playerId={shotWho === 'TEAM' ? 0 : Number(shotWho)} teamMode={shotWho === 'TEAM'}
                             playerName={shotWho === 'TEAM' ? '灰狼全隊' : (shotPlayers.find(p => String(p.pid) === String(shotWho)) || {}).boxName}
                             externalShots={shots} periodLabel={`${date} ${meta.matchup || ''}`} />}

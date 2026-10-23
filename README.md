@@ -55,7 +55,7 @@ wolvestracker/
 │   ├── backfill_games.py    # 單場逐場回補（--dates 補失敗場；--box-only 只補 box score）
 │   ├── backfill_history.py  # 歷史賽季完整終點快照回補
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
-│   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週；含出手方式/日期/受助攻）
+│   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週整季對帳；每日由 fetch_data 增量併入新場次）
 │   ├── sync_salary.py       # 薪資同步（Google Sheet 發佈的 CSV → Firestore，每日排程順跑）
 │   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
 ├── run_fetch.bat            # Windows 排程入口（每日）
@@ -140,7 +140,7 @@ NBA `stats.nba.com` API 有嚴格的反爬蟲機制，本專案採用：
 - 隨機 User-Agent 旋轉（5 組瀏覽器指紋）
 - `Sec-Fetch-*`、`x-nba-stats-origin` 等必要 headers
 - 每次請求間隔 2 秒 + 失敗後遞增等待 retry（最多 3 次），重試耗盡印出 `[FAILED]` 標記
-- 全聯盟單次請求優先，唯一逐球員的 shotchart 降為每週執行
+- 全聯盟單次請求優先，唯一逐球員的 shotchart 降為每週執行（每日只用單場全隊查詢增量）
 - `safe_col()` 防禦性欄位取值，避免 API 回傳結構變更時 crash
 
 ## License

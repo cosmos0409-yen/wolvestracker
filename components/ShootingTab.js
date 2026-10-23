@@ -68,7 +68,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 
     const UI = window.UI;
     if (doc === undefined) return <div className="py-10 text-center text-sm text-slate-500 animate-pulse">載入投籃資料中…</div>;
-    if (doc === null || !doc.shots.length) return <UI.Note>此賽季尚無逐球投籃資料（每週更新，且僅近幾季有）</UI.Note>;
+    if (doc === null || !doc.shots.length) return <UI.Note>此賽季尚無逐球投籃資料（賽後隔天更新，且僅近幾季有）</UI.Note>;
 
     const allShots = doc.shots;
     const dates = [...new Set(allShots.map(s => s.gdate))].sort();
@@ -272,7 +272,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                     <UI.Ledger cols="grid-cols-3">
                         {[['整體受助攻', 'All FGM', 'PCT_AST_FGM'], ['兩分受助攻', '2PM', 'PCT_AST_2PM'], ['三分受助攻', '3PM', 'PCT_AST_3PM']].map(([l, en, k]) => (
                             <UI.StatCell key={k} label={l} en={en} value={typeof assisted[k] === 'number' ? assisted[k] : null} unit="%"
-                                gkey={k} citeAsOf="none" citeNote="全季（每週更新）" />
+                                gkey={k} citeAsOf="none" citeNote="全季（賽後隔天更新）" />
                         ))}
                     </UI.Ledger>
                 </UI.Section>

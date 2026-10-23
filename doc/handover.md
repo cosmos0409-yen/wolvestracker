@@ -26,7 +26,7 @@
 | 18 | **爬蟲重構：共用模組 + 設定表** | ✅ | `scripts/nba_common.py`；欄位對應改 `TRACKING_FIELDS` 等設定表，fetch/backfill 共用 |
 | 19 | **籃板完整欄位 + REB_COL_PCT 修復** | ✅ | 擴至 9 欄；API 欄名已改為 `REB_CHANCE_PCT`（舊 `REB_COLLECT_PCT` 不存在導致一直是 0） |
 | 20 | **投籃 / Clutch / 陣容每日抓取** | ✅ | shotlocations + ptshot + clutch + lineups，每日 +7 個 request |
-| 21 | **投籃熱圖（每週）** | ✅ | `fetch_shotchart.py` 逐球員出手座標 → `wolves_shotcharts`；前端 SVG 半場圖 |
+| 21 | **投籃熱圖（每日增量＋每週對帳）** | ✅ | `fetch_shotchart.py` 逐球員出手座標 → `wolves_shotcharts`；每日 `fetch_data.py` 以單場全隊查詢增量併入（2026-10-23）；前端 SVG 半場圖 |
 | 22 | **移除 GitHub Actions 遺留** | ✅ | 刪除 `nba_update.yml`（datacenter IP 被擋，實際早已改用本機排程） |
 | 23 | **配色改版（灰狼新品牌）** | ✅ | 翠綠 `#12A150`（官方 Aurora Green 提亮版）+ 午夜藍底 `#0A1626` + 月光銀 `#C4CED2`；取代舊萊姆綠 |
 | 24 | **防守數據（每日）** | ✅ | 對位防守 `leaguedashptdefend` + Hustle + 防守 box + 對手分區；`nba_common.py` 4 支 `fetch_*` + 設定表 |
@@ -126,7 +126,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 點指標**一律跳 Splits**（逐場走勢只在 Splits；防守章節的走勢是每日快照累積值，意思不同、無法標出單場）
 - 標色規則：次數類（觸球、前場觸球、切入次數、防守出手數、籃板機會）**中性不標色**；比率類出手 < 5 標「樣本少」
 - 對手 Tracking／Hustle 只有 2026-10 起的比賽有；**2025-26 不回補對手數據**（使用者：「缺對手的沒差」）
-- 投籃點維持每週更新（本週比賽可能還沒有點位，頁面有說明）
+- 投籃點賽後隔天併入（每日增量，2026-10-23 起；之前為每週更新）
 
 ### 2026-10-20 薪資頁（Cap Sheet）
 
@@ -403,7 +403,9 @@ wolves_player_stats/{YYYY-MM-DD}
 - **灰狼球員以名冊 PlayerID 過濾，不比名字**（`pid_to_name_keyed(..., keep_ids=roster_ids)`；Synergy 比 `playerId`）。名冊 API（commonteamroster）與數據 API（leaguedash*／synergyplaytypes）的寫法可能不同——2025-26 名冊 `Terrence Shannon Jr.`、數據 `Terrence Shannon Jr`，舊版比名字時他整個從快照消失（2026-10-19 修）。key 一律取**數據 API 的寫法**；`onoff` 的名字（endpoint 本身是 `Last, First`）也取 base 的寫法、沒有才退回名冊，確保 `current.onoff[球員名]` 對得上。前端跨季比對另有 `nameKey`（去句點/重音）兜底。
 - `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）。
 
-### 投籃熱圖（`fetch_shotchart.py` 寫入，每週）
+### 投籃熱圖（`fetch_shotchart.py` 每週整季覆寫＋`fetch_data.py` 每日增量）
+- **每日增量**（`fetch_data.capture_recent_shots` → `fetch_shotchart.capture_game_shots`）：最近 5 場中「已定稿（`is_final_capture`）且全隊文件 `gameDates` 還沒有」的場次，打一次 `shotchartdetail?GameID=…&PlayerID=0&TeamID=MIN`（拿到該場全隊出手，每球帶 `PLAYER_ID`），依球員拆開併入各文件；同日期舊出手先移除（重抓不重複）；受助攻比例沿用舊值；**全隊文件最後寫**，它的 `gameDates` 就是「已併入」記號，中途失敗下次自動重來
+- **每週整季**：逐球員重抓覆寫，負責對帳（NBA 事後修正）與更新 `assisted`
 ```
 wolves_shotcharts/{playerId}_{season}_{regular|playoffs}   例：1630162_2025-26_regular
 wolves_shotcharts/TEAM_{season}_{regular|playoffs}         全隊出手（PlayerID=0，前端球隊熱圖用）
@@ -518,7 +520,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 球員模式才顯示
 
 ### 單場數據面板（`SingleGamePanel.js`）
-- 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_{seasonTypeView}`（隨例行/季後切換；`gamesIndex` state，一份 doc + localStorage 快取 `wt_games_index_v2_*`，TTL 6 小時——賽季中每日索引會重建）
+- 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_{seasonTypeView}`（隨例行/季後切換；`gamesIndex` state，一份 doc；只有已結束賽季走 localStorage 快取 `wt_games_index_v3_*`（不設期限），當季每次讀最新、空清單一律不快取——2026-10-23 前是 6 小時 TTL，開季曾把空清單快取住導致單場入口消失）
 - 切換賽別後原選日期不在新清單 → 自動跳到新清單最後一場；缺值卡片顯示「—」（不印孤立單位）
 - 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
 - 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
@@ -533,7 +535,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
 - 季平均＝該員 bundle 取「此場之前」的比賽（`GameAgg.aggregate`），各區塊共用 `avgCache`，換場次清空；比率類分母對照 `RATIO`（由 `GameAgg.RATIO_DEFS`／`EFG_DEFS` 推出＋ PCT_PLUSMINUS→D_FGA）
 - 標色 `judge()`：`neutral` 指標不判、分母 < 5 標樣本少、其餘依 `betterIsLarger`。**新增次數類指標要在 `constants.js` 加 `neutral: true`**
-- 降級：沒有 `box` → 只顯示灰狼進階清單；沒有 `opp` → 球隊對比右側「—」並說明；沒有每節比分 → 看板不畫 linescore、不顯示比賽資訊；投籃點沒有 → 說明每週更新
+- 降級：沒有 `box` → 只顯示灰狼進階清單；沒有 `opp` → 球隊對比右側「—」並說明；沒有每節比分 → 看板不畫 linescore、不顯示比賽資訊；投籃點沒有 → 說明賽後隔天才會併入
 - 手機：球員選擇鈕放區塊內容第一行（`UI.Section` 的 `right` 不換行，十幾個 chip 會撐寬版面）
 
 ### 跨季疊圖（2026-10-19）
@@ -664,6 +666,10 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 3. 前端可把還原出的單場 PlayType 併進 `SingleGamePanel`（目前面板只有 Tracking/防守/分區投籃，缺 PlayType）。
 4. 只對**未來賽季**有效：2025-26 當時存的是舊結構（無整數總量），無法回溯還原；2026-27 起每天都有材料。
 
+### B2. 待辦：對戰對手分析（使用者提出，2026-10-23，尚未規劃）
+
+彙整灰狼對同一對手的歷次交手（跨季），做對戰分析。材料已有：`wolves_team_games/{date}` 的 `opp`（對手球隊數據）、`box`（2025-26 起）、`wolves_player_games/{date}` 的 `oppPlayers`（2026-10 起），以及各季 `wolves_games_index`（`matchup` 含對手縮寫）。動手前先跟使用者逐項討論要看哪些指標。
+
 ### C. 常見雷區（都踩過，務必記得）
 
 - **新 Firestore 集合 = 必加 `*` 索引豁免**：否則該集合的每個欄位都會自動建索引，儲存量約是資料的 5～16 倍（見「Firestore 索引豁免」）。和下一條 read 規則一起做。
@@ -684,7 +690,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場約 24（含對手與 box score）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場約 24（含對手與 box score）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。

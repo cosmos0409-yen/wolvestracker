@@ -27,19 +27,25 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
 };
 
 // 比賽索引 wolves_games_index/{season}_{type}（一份 doc：[{date,matchup,wl,gameId}]，由舊到新）。
-// App 的單場面板日期選單、單場頁賽程條共用。localStorage 快取帶 TTL：賽季中每天會重建索引
-window.GAMES_INDEX_TTL = 6 * 3600 * 1000;
+// App 的單場面板日期選單、單場頁賽程條共用。
+// 只有已結束的賽季走 localStorage 快取（索引不會再變）；當季每次都讀最新，
+// 否則新比賽寫入後要等快取過期才看得到（開季曾把空清單快取 6 小時，入口整個消失）。空清單一律不快取
 window.loadGamesIndex = async function (season, type) {
     if (!window.db || !window.firebaseModules) return [];
     const indexId = `${season}_${type}`;
-    const cacheKey = `wt_games_index_v2_${indexId}`;
-    try {
-        const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (c && Date.now() - c.t < window.GAMES_INDEX_TTL) return c.games;
-    } catch (e) { /* fall through */ }
+    const cacheKey = `wt_games_index_v3_${indexId}`;
+    const cacheable = season !== window.CURRENT_SEASON;
+    if (cacheable) {
+        try {
+            const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+            if (c && c.games && c.games.length) return c.games;
+        } catch (e) { /* fall through */ }
+    }
     const { doc, getDoc } = window.firebaseModules;
     const snap = await getDoc(doc(window.db, 'wolves_games_index', indexId));   // 失敗往上拋，呼叫端決定怎麼顯示
     const games = snap.exists() ? (snap.data().games || []) : [];
-    try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
+    if (cacheable && games.length) {
+        try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
+    }
     return games;
 };

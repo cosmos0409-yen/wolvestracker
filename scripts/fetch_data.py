@@ -40,6 +40,7 @@ from nba_common import (
     get_current_season,
 )
 from build_bundles import upsert_game
+from fetch_shotchart import capture_game_shots
 
 SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
 
@@ -151,7 +152,6 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
             todo.append((d, api_date, m, w, gid, tries, f"上次不完整，第 {tries + 1} 次"))
     if not todo:
         print(f"（最近 {min(len(game_log), CAPTURE_LOOKBACK_GAMES)} 場皆已擷取，比賽索引已更新）")
-        return
 
     for d, api_date, m, w, gid, tries, why in todo:
         print(f"--- 擷取單場 {d} {m} {w} [{gid}]（{why}）---")
@@ -170,6 +170,23 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         flag = ("未定稿（距比賽未滿 12 小時），下次重抓" if not final else "完整" if not partial else
                 "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
         print(f"✅ 單場已寫入 wolves_*_games/{d}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人，{flag}）")
+
+    capture_recent_shots(db, season, season_type_api, season_type_label, game_log[-CAPTURE_LOOKBACK_GAMES:])
+
+
+def capture_recent_shots(db, season, season_type_api, season_type_label, recent_games):
+    """投籃點每日增量：最近幾場中「已定稿、但全隊投籃文件 gameDates 還沒有」的場次，每場 1 個 request 併入。
+    每週 fetch_shotchart.py 仍整季重抓（對帳、更新受助攻比例），這裡只負責讓賽後隔天就有點位。"""
+    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    snap = db.collection("wolves_shotcharts").document(f"TEAM_{season}_{type_key}").get(field_paths=["gameDates"])
+    have = set((snap.to_dict() or {}).get("gameDates") or []) if snap.exists else set()
+    todo = [(d, gid) for d, _api, _m, _w, gid in recent_games if d not in have and is_final_capture(d)]
+    if not todo:
+        print("（最近場次的投籃點皆已併入）")
+        return
+    for d, gid in todo:
+        print(f"--- 併入投籃點 {d} [{gid}] ---")
+        capture_game_shots(db, season, season_type_api, season_type_label, d, gid)
 
 
 # ==========================================
