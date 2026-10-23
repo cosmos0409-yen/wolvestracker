@@ -6,7 +6,7 @@
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
 //   Seg       膠囊分段切換（aria-pressed）
 //   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
-//   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js）、toast、ExportMenu/exportCSV/exportPNG（匯出）
+//   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js；帶 cite 時小卡內含複製引用）、toast、ExportMenu/exportCSV/exportPNG（匯出）
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
     // 「切入次數 (Drives)」→ ['切入次數', 'Drives']；沒有括號就整串當中文
@@ -106,7 +106,9 @@ window.UI = (function () {
     );
 
     // 指標定義「?」：點開小卡（定義／計算／來源），點外面或 Esc 關閉
-    const Info = ({ k, align = 'left' }) => {
+    // cite：給了就在小卡底部放「複製引用」（每格只留一個圖示，取代獨立的 CopyBtn）；
+    //       該指標沒有 glossary 定義時退回單獨的 CopyBtn，引用功能不會消失
+    const Info = ({ k, align = 'left', cite }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
         const ref = React.useRef(null);
@@ -117,22 +119,28 @@ window.UI = (function () {
             document.addEventListener('mousedown', off); document.addEventListener('keydown', esc, true);
             return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc, true); };
         }, [open]);
-        if (!g) return null;
+        if (!g) return cite ? <CopyBtn text={cite} /> : null;
         return (
             <span ref={ref} className="relative inline-flex align-middle">
                 {/* 按鈕本身 24px（觸控目標下限，檢測工具量的是按鈕框），上下負邊距抵銷多出的高度；圓圈仍是 16px。
                     左右不可用負邊距：會吃進相鄰的複製鈕／排序鈕，造成點擊範圍重疊 */}
-                <button type="button" aria-label="指標定義" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                <button type="button" aria-label="指標定義" title={cite ? '指標定義／複製引用' : undefined} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
                     className="group/info -my-1 inline-flex h-6 w-6 items-center justify-center">
                     <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 group-hover/info:border-white/40 group-hover/info:text-slate-200'}`}>?</span>
                 </button>
                 {open && (
-                    <span role="tooltip" onClick={(e) => e.stopPropagation()}
+                    <span role={cite ? 'dialog' : 'tooltip'} aria-label={cite ? '指標定義' : undefined} onClick={(e) => e.stopPropagation()}
                         className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
                         <span className="block">{g.def}</span>
                         {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
                         <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
                         {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
+                        {cite && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite() : cite); }}
+                                className="mt-2.5 inline-flex min-h-[24px] items-center gap-1.5 border border-white/15 px-2.5 text-[11px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">
+                                <CopyIcon />複製引用
+                            </button>
+                        )}
                     </span>
                 )}
             </span>
@@ -278,14 +286,15 @@ window.UI = (function () {
         const missing = isBlank(value);
         return (
             <div className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                {!missing && (
+                {/* 有 gkey：複製引用收進「?」小卡；沒有 gkey 才放右上角獨立複製鈕 */}
+                {!gkey && !missing && (
                     <CopyBtn className="absolute right-1 top-1"
                         text={() => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />
                 )}
-                {/* pr-8：右上角複製鈕佔 4–28px，標題（含「?」鈕）要留到 32px 外，兩個點擊範圍才不重疊 */}
-                <div className="flex items-center pr-8 text-[11px] leading-tight text-slate-300 min-w-0">
+                {/* pr-8：右上角複製鈕佔 4–28px，標題要留到 32px 外，兩個點擊範圍才不重疊 */}
+                <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
                     <span className="truncate" title={label}>{label}</span>
-                    {gkey && <Info k={gkey} />}
+                    {gkey && <Info k={gkey} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />}
                 </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate" title={en}>{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">

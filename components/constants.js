@@ -158,27 +158,29 @@ window.snapshotWindowStart = () => {
 };
 
 // Tracking 卡片定義（每個 metric 含中英對照）
+// longLabel（選填）：label 離開卡片標題就看不懂時補上（例：兩個「有效命中率」）。
+// 平鋪清單（跨季疊圖下拉、跨季比較表）一律用 window.metricLabel(m)；卡片內維持短 label
 window.trackingDefs = [
     {
         id: 'Drives', title: '切入次數 (Drives)', metrics: [
             { key: 'DRIVES', label: '切入次數', englishLabel: 'Drives', neutral: true },
             { key: 'DRIVE_FGM', label: '切入進球', englishLabel: 'Drive FGM' },
             { key: 'DRIVE_FG_PCT', label: '切入命中率', englishLabel: 'Drive FG%', unit: '%' },
-            { key: 'DRIVE_TOV_PCT', label: '失誤率', englishLabel: 'Drive TOV%', unit: '%', betterIsLarger: false },
+            { key: 'DRIVE_TOV_PCT', label: '失誤率', longLabel: '切入失誤率', englishLabel: 'Drive TOV%', unit: '%', betterIsLarger: false },
         ]
     },
     {
         id: 'CatchShoot', title: '接球跳投 (C&S)', metrics: [
-            { key: 'CATCH_SHOOT_FGA', label: '出手次數', englishLabel: 'C&S FGA' },
-            { key: 'CATCH_SHOOT_FG3_PCT', label: '三分命中率', englishLabel: 'C&S 3P%', unit: '%' },
-            { key: 'CATCH_SHOOT_EFG_PCT', label: '有效命中率', englishLabel: 'C&S eFG%', unit: '%' },
+            { key: 'CATCH_SHOOT_FGA', label: '出手次數', longLabel: '接球跳投出手', englishLabel: 'C&S FGA' },
+            { key: 'CATCH_SHOOT_FG3_PCT', label: '三分命中率', longLabel: '接球跳投三分命中率', englishLabel: 'C&S 3P%', unit: '%' },
+            { key: 'CATCH_SHOOT_EFG_PCT', label: '有效命中率', longLabel: '接球跳投有效命中率', englishLabel: 'C&S eFG%', unit: '%' },
         ]
     },
     {
         id: 'PullUpShot', title: '急停跳投 (Pull Up)', metrics: [
             { key: 'PULL_UP_FGA', label: '急停出手數', englishLabel: 'Pull Up FGA' },
             { key: 'PULL_UP_FG3_PCT', label: '急停三分命中率', englishLabel: 'Pull Up 3P%', unit: '%' },
-            { key: 'PULL_UP_EFG_PCT', label: '有效命中率', englishLabel: 'Pull Up eFG%', unit: '%' },
+            { key: 'PULL_UP_EFG_PCT', label: '有效命中率', longLabel: '急停跳投有效命中率', englishLabel: 'Pull Up eFG%', unit: '%' },
         ]
     },
     {
@@ -312,3 +314,5 @@ window.oppZonesDefs = [
     },
 ];
 
+// 平鋪清單用的指標名稱：有 longLabel 用 longLabel（見 trackingDefs 註解）
+window.metricLabel = (m) => (m && (m.longLabel || m.label)) || '';

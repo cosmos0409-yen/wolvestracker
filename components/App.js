@@ -754,11 +754,12 @@ const App = () => {
 
     // 章節定義（ChapterNav、快捷鍵 1–6、搜尋面板共用）
     const TABS = [
-        { key: 'overview', label: '總覽' },
+        // sided：該章節內容會隨攻／守切換（章節列只在這些章節顯示攻守切換；新章節用到 viewSide 就加上）
+        { key: 'overview', label: '總覽', sided: true },
         { key: 'splits', label: 'Splits' },
         { key: 'shooting', label: '投籃' },
         { key: 'defense', label: '防守' },
-        { key: 'playtype', label: 'Playtype' },
+        { key: 'playtype', label: 'Playtype', sided: true },
         { key: 'comparison', label: '跨季' },
     ];
 
@@ -934,7 +935,7 @@ const App = () => {
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
-                latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate}
+                latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate} gameDate={gameDate}
                 playoffsAvailable={!teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)}
                 inCap={capView} onCap={openCap} />

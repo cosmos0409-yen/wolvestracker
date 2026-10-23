@@ -72,7 +72,8 @@ const Highlights = ({ games, untilDate }) => {
             ) : (
                 <ul className="grid gap-x-10 md:grid-cols-2">
                     {top.map(r => {
-                        const text = UI.citeLine({ label: r.label, en: r.en, value: fmt(r.rec, r), gkey: r.key, asOf: 'agg',
+                        // 點擊當下才組字串：引用句尾附的網址要是「現在」的畫面（render 時算好會停在舊章節）
+                        const text = () => UI.citeLine({ label: r.label, en: r.en, value: fmt(r.rec, r), gkey: r.key, asOf: 'agg',
                             note: `近 ${n} 場（全季 ${fmt(r.season, r)}，差 ${r.diff > 0 ? '+' : ''}${r.diff.toFixed(1)}${r.pct ? ' 個百分點' : ''}）` });
                         return (
                             <li key={r.key} className="group/cell grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-b border-white/[0.08] py-2.5">

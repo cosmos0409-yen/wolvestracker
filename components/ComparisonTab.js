@@ -41,7 +41,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         return () => { cancelled = true; };
     }, [selected]);
 
-    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: m.label, e: m.englishLabel, pct: m.unit === '%' }))), []);
+    const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: window.metricLabel(m), e: m.englishLabel, pct: m.unit === '%' }))), []);
     const CATS = {
         base: { label: '基本', metrics: [
             { k: 'PTS', l: '得分', e: 'PTS' }, { k: 'REB', l: '籃板', e: 'REB' }, { k: 'AST', l: '助攻', e: 'AST' },

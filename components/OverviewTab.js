@@ -146,10 +146,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
                             return (
                                 <div key={m.label} className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                                    {diff != null && <UI.CopyBtn className="absolute right-1 top-1"
-                                        text={() => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
-                                            gkey: m.gk, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合）` })} />}
-                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}<UI.Info k={m.gk} /></div>
+                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}<UI.Info k={m.gk}
+                                        cite={diff == null ? undefined : () => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
+                                            gkey: m.gk, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合）` })} /></div>
                                     <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>
                                     <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${diff == null ? 'text-slate-600' : good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
                                         {diff == null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1)}

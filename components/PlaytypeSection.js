@@ -26,9 +26,8 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                     <span data-export-hide className="font-mono text-[10px] text-slate-600 group-hover:text-[#12A150]">↗</span>
                 </button>),
             after: (r) => (<>
-                <UI.Info k={`PT_${r.playType}`} />
-                <UI.CopyBtn className="!opacity-50 hover:!opacity-100"
-                    text={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
+                <UI.Info k={`PT_${r.playType}`}
+                    cite={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
                         value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
             </>) },
         { key: '_freq', label: '使用率', en: 'Freq%', gkey: 'FREQ', render: (r) => r._freq == null ? <span className="text-slate-600" title={freqMissing ? 'NBA 未提供此快照的使用率' : undefined}>—</span> : r._freq.toFixed(1) + '%' },

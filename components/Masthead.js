@@ -1,11 +1,12 @@
 // 刊頭：Logo + 「Wolves Ledger」字標 + 期別行（賽季·賽別·截至日期·連線狀態）＋ 右側控制項
-// 控制項：賽季下拉、例行/季後（僅當季）、截至日期（僅當季）、比賽、薪資、搜尋（/）
+// 控制項：賽季下拉、例行/季後（僅當季）、截至日期（僅當季）、最新一場、薪資、搜尋（/）
+// 單場頁／薪資頁是獨立整頁：期別行改顯示頁名，並隱藏賽季／賽別／日期（避免刊頭寫的賽季和內容對不上）
 // 手機：控制項換到第二列並可橫向捲動，不擠壓字標
 const Masthead = ({
     seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
     seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    latestGame, onGames, inGame, inCap, onCap, playoffsAvailable = true,
+    latestGame, onGames, inGame, gameDate, inCap, onCap, playoffsAvailable = true,
 }) => {
     const UI = window.UI;
     const statusEl = status === 'offline'
@@ -24,9 +25,9 @@ const Masthead = ({
                         </div>
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
                             className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
-                            {inCap ? '薪資 · Cap Sheet' : [issueSeason, issueType].filter(Boolean).join(' · ')}
+                            {inCap ? '薪資 · Cap Sheet' : inGame ? `單場 · ${gameDate || ''}` : [issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：下一列的日期控制項已顯示，避免期別行被截斷 */}
-                            {!inCap && <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>}
+                            {!inCap && !inGame && <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>}
                             <span className="mx-1.5 text-slate-600">·</span>{statusEl}
                         </button>
                     </div>
@@ -37,8 +38,8 @@ const Masthead = ({
                 </div>
 
                 <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0 [scrollbar-width:none]">
-                    {/* 主畫面的賽季／賽別／日期：薪資頁有自己的賽季選單，這裡隱藏避免兩組賽季控制項 */}
-                    {!inCap && (<>
+                    {/* 主畫面的賽季／賽別／日期：薪資頁有自己的賽季選單、單場頁只屬於那一場，都隱藏 */}
+                    {!inCap && !inGame && (<>
                     <label className="sr-only" htmlFor="season-select">賽季</label>
                     <select id="season-select" value={selectedSeasonKey} onChange={e => onSeasonChange(e.target.value)}
                         className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 text-[13px] text-slate-200 focus:outline-none focus:border-[#12A150]">
@@ -60,11 +61,12 @@ const Masthead = ({
                             className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 font-mono text-[12px] text-slate-200 focus:outline-none focus:border-[#12A150] disabled:cursor-not-allowed disabled:border-white/10 disabled:text-slate-500" />
                     </>)}
                     </>)}
-                    {/* 比賽：開最新一場的單場頁（Game Center） */}
+                    {/* 最新一場：開最新一場的單場頁（Game Center）；按鈕上直接標日期／對手，不必滑過才知道去哪 */}
                     <button type="button" onClick={onGames} disabled={!latestGame}
                         title={latestGame ? `最新一場：${latestGame.date} ${latestGame.matchup} ${latestGame.wl}` : '目前賽別沒有比賽資料'}
                         className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inGame ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : latestGame ? 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
-                        比賽
+                        最新一場
+                        {latestGame && <span className="ml-1.5 font-mono text-[11px] text-slate-500">{latestGame.date.slice(5).replace('-', '/')} {latestGame.matchup.replace(/^MIN\s*/, '')}</span>}
                     </button>
                     {/* 薪資：開薪資頁（#cap） */}
                     <button type="button" onClick={onCap} title="薪資結構、奢侈稅與門檻（Cap Sheet）"

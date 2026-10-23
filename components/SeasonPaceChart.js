@@ -129,8 +129,13 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
         ['投籃分區', (window.shootingDefs || []).filter(d => d.id === 'ShotZones')],
         ['防守', (window.defenseDefs || []).filter(d => d.id === 'MatchupDefense' || d.id === 'Hustle')],
     ];
-    const allMetrics = GROUPS.flatMap(([, defs]) => defs.filter(Boolean).flatMap(d => d.metrics));
+    // 同一 key 只列一次（追蹤數據的 REB 與基本 REB 同一個值，重複會出現「籃板」「籃板數」兩項）
+    const seenKeys = new Set();
+    const GROUP_METRICS = GROUPS.map(([g, defs]) => [g, defs.filter(Boolean).flatMap(d => d.metrics)
+        .filter(x => !seenKeys.has(x.key) && seenKeys.add(x.key))]);
+    const allMetrics = GROUP_METRICS.flatMap(([, ms]) => ms);
     const m = allMetrics.find(x => x.key === metric) || allMetrics[0];
+    const ml = window.metricLabel(m);   // 平鋪清單／匯出用名稱（longLabel 優先）
     const pct = m.unit === '%';
 
     const withData = seasons.filter(s => (data[s] || []).length);
@@ -165,11 +170,11 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
     const subject = isTeam ? '灰狼全隊' : playerName;
 
     const fbText = () => [
-        `【${subject}｜${typeLabel}前 ${N} 場${m.label}・跨季同期比較】`,
+        `【${subject}｜${typeLabel}前 ${N} 場${ml}・跨季同期比較】`,
         '',
         ...rows.map(r => `${r.s}｜前 ${r.n} 場 ${fv(r.v)}${r.s === ref ? '（最新）' : ''}｜${r.s === ref ? '' : `全季 ${fv(r.final)}｜`}戰績 ${r.rec}`),
         '',
-        `${m.label}${m.englishLabel ? `（${m.englishLabel}）` : ''}以 Σ 加權重算；${isTeam ? '球隊場次' : '球員出賽場次'}對齊`,
+        `${ml}${m.englishLabel ? `（${m.englishLabel}）` : ''}以 Σ 加權重算；${isTeam ? '球隊場次' : '球員出賽場次'}對齊`,
         '資料：NBA.com Stats 逐場',
         `${location.origin}${location.pathname}${location.hash}`,
     ].join('\n');
@@ -178,13 +183,13 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
     return (
         <UI.Section title="賽季軌跡疊圖" en="Season Pace" accent="green"
             sub={`各季以「${isTeam ? '球隊第 N 場' : '出賽第 N 場'}」對齊，看今年打到這裡和往年同期比 · 百分比以 Σ命中 ÷ Σ出手 重算 · 只列有逐場資料的賽季`}
-            right={<UI.ExportMenu title={`賽季軌跡：${subject} ${m.label}（${typeLabel}・${modeLabel}）`} getNode={() => chartRef.current} csv={csv} text={fbText} />}>
+            right={<UI.ExportMenu title={`賽季軌跡：${subject} ${ml}（${typeLabel}・${modeLabel}）`} getNode={() => chartRef.current} csv={csv} text={fbText} />}>
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <label className="sr-only" htmlFor="pace-metric">指標</label>
                 <select id="pace-metric" value={metric} onChange={e => setMetric(e.target.value)} className={UI.selectClass(true)}>
-                    {GROUPS.map(([g, defs]) => (
+                    {GROUP_METRICS.map(([g, ms]) => (
                         <optgroup key={g} label={g}>
-                            {defs.filter(Boolean).flatMap(d => d.metrics).map(x => <option key={x.key} value={x.key}>{x.label}{x.englishLabel ? ` · ${x.englishLabel}` : ''}</option>)}
+                            {ms.map(x => <option key={x.key} value={x.key}>{window.metricLabel(x)}{x.englishLabel ? ` · ${x.englishLabel}` : ''}</option>)}
                         </optgroup>
                     ))}
                 </select>
@@ -213,13 +218,13 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
                 : !shown.length ? <UI.Note>{isTeam ? '' : `${playerName} `}這個賽別沒有任何一季的逐場資料</UI.Note>
                 : (
                     <div ref={chartRef}>
-                        <LineOverlay xs={xs} series={series} unit={pct ? '%' : ''} ariaLabel={`${m.label} 賽季軌跡疊圖`}
+                        <LineOverlay xs={xs} series={series} unit={pct ? '%' : ''} ariaLabel={`${ml} 賽季軌跡疊圖`}
                             marker={inProgress && N < maxN ? { index: N - 1, label: `今年第 ${N} 場` } : null} />
                         <div className="mt-4 overflow-x-auto border-t border-white/[0.08]">
                             <table className="w-full border-collapse text-[13px]">
                                 <caption className="sr-only">同期比較</caption>
                                 <thead><tr className="border-b border-white/15">
-                                    {['賽季', `前 ${N} 場${m.label}`, `與 ${ref ? ref.slice(2) : ''} 差`, '全季終值', `前 ${N} 場戰績`].map((h, i) => (
+                                    {['賽季', `前 ${N} 場${ml}`, `與 ${ref ? ref.slice(2) : ''} 差`, '全季終值', `前 ${N} 場戰績`].map((h, i) => (
                                         <th key={i} scope="col" className={`px-3 py-2 font-mono text-[10px] font-normal text-slate-500 whitespace-nowrap ${i ? 'text-right' : 'text-left'}`}>{h}</th>
                                     ))}
                                 </tr></thead>
