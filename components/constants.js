@@ -341,3 +341,24 @@ window.GAME_DEFENSE_IDS = ['MatchupDefense', 'Hustle', 'Screens'];
 
 // 平鋪清單用的指標名稱：有 longLabel 用 longLabel（見 trackingDefs 註解）
 window.metricLabel = (m) => (m && (m.longLabel || m.label)) || '';
+
+// 對戰分析門檻（matchupData.js 讀）：調整標籤或近三季規則只改這裡
+//   halfSeasonGames  當季例行賽未滿這個場數 → 「近三季」再多含一季（開季樣本不足）
+//   minGames         順手／棘手、排行榜的最少交手場數；未達的對手淡化顯示
+//   rivalTopN        勁敵：「交手總場數＋季後賽場數」分數最高的前幾隊（季後賽交手等於算兩次）
+//   topN / tagMinZ   順手／棘手各取場均分差 z 最高／最低的 topN 隊，且 |z| ≥ tagMinZ（勁敵不重複標）
+//   factorTopN       勝負關鍵因子取前幾名
+window.MATCHUP_RULES = {
+    halfSeasonGames: 41, minGames: 4, rivalTopN: 3, topN: 3, tagMinZ: 1, factorTopN: 8,
+};
+// 標籤用中性字眼（描述灰狼打起來的感受，不評價對手）
+window.MATCHUP_TAGS = { rival: '勁敵', favorable: '順手', tough: '棘手' };
+
+// NBA 30 隊三碼 → 中文隊名（台灣譯名）。對戰分析顯示用；box score 只有 2025-26 起才有隊名
+window.NBA_TEAM_NAMES = {
+    ATL: '老鷹', BOS: '塞爾提克', BKN: '籃網', CHA: '黃蜂', CHI: '公牛', CLE: '騎士', DAL: '獨行俠', DEN: '金塊',
+    DET: '活塞', GSW: '勇士', HOU: '火箭', IND: '溜馬', LAC: '快艇', LAL: '湖人', MEM: '灰熊', MIA: '熱火',
+    MIL: '公鹿', MIN: '灰狼', NOP: '鵜鶘', NYK: '尼克', OKC: '雷霆', ORL: '魔術', PHI: '七六人', PHX: '太陽',
+    POR: '拓荒者', SAC: '國王', SAS: '馬刺', TOR: '暴龍', UTA: '爵士', WAS: '巫師',
+};
+window.teamName = (abbr) => window.NBA_TEAM_NAMES[abbr] || abbr || '';

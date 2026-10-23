@@ -49,6 +49,7 @@ ORDER = [
     "DefenseHeatmap.js",
     "gameAggregates.js",
     "gamesData.js",
+    "matchupData.js",
     "SingleGamePanel.js",
     "GamePage.js",
     "CapPage.js",
