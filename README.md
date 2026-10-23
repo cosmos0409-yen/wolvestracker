@@ -4,7 +4,9 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 
 ## 功能總覽
 
-版面由上而下：刊頭（賽季年份／例行·季後／截至日期／最新一場／薪資／搜尋）→ 頭像列（全隊＋球員）→ 身分列（4 個主數字；球員另顯示該季薪資）→ 章節列（六章節；總覽與 Playtype 另有攻守切換）。
+開站首頁是最新一場比賽的單場頁（比分看板＋Box Score），點章節進主畫面。主畫面由上而下：刊頭（賽季年份／例行·季後／賽程月曆／薪資／搜尋）→ 頭像列（全隊＋球員）→ 身分列（4 個主數字、「數據截至」日期；球員另顯示該季薪資）→ 章節列（六章節；總覽與 Playtype 另有攻守切換）。
+
+- **賽程月曆**：刊頭「賽程」打開整季（例行＋季後）月曆，有比賽的日子標對手與勝負，點日期看該場 Box Score；過去賽季也能用（單場資料從 2022-23 起）
 
 - **網址記住畫面**：球員、章節、賽季、賽別、日期、攻守、打開的走勢指標、單場比賽都寫進網址，貼到筆記裡下次一點就回到同一畫面
 - **單場比賽頁（Game Center）**：比分看板與每節比分、本場焦點與 Four Factors、兩隊 Box Score（點灰狼球員展開本場進階並標出優於季平均的項目）、球隊對比、本場 vs 季平均、本場投籃；點指標直接看該指標逐場走勢並圈出這場
@@ -22,7 +24,7 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 
 | 分頁 | 說明 |
 |---|---|
-| **總覽 (Overview)** | 近期異動（近 5/10 場 vs 全季）+ 季平均（可切全季／近 5 場／近 10 場，可選截至日期）+ Playtype 強弱項 + 雷達 + 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
+| **總覽 (Overview)** | 近期異動（近 5/10 場 vs 全季）+ 季平均（可切全季／近 5 場／近 10 場；截至日期在身分列選）+ Playtype 強弱項 + 雷達 + 在場/不在場效率(On/Off) + 關鍵時刻(Clutch) + 五人陣容(Lineups) + 單場面板 |
 | **Splits** | 期間篩選（全季/每月/勝敗/主客/近N場/自訂區間/季後系列）→ 卡片牆（基本／進階／投籃分區／防守，該期間 vs 全季 綠紅漲跌）+ 點卡展開趨勢折線（逐場/每週/每月，逐場鋪勝負底色、點任一場看單場頁） |
 | **投籃 (Shooting)** | 距離區間(5ft)/分區/出手方式卡片（命中率 + 出手佔比）+ 分區「與上季比」差異半場圖 + 受助攻比例 + 可篩選的投籃熱圖 + 命中率趨勢 |
 | **防守 (Defense)** | 最近防守者（Defense Dashboard）、防守 box、對手分區命中、拼勁（干擾、地板球）、掩護與卡位（掩護助攻得分、卡位） + 防守熱圖 |
@@ -41,7 +43,8 @@ wolvestracker/
 ├── index.html               # 前端 SPA「Wolves Ledger」(React 18 + Recharts, 鎖版本 CDN)
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
 │   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
-│   ├── GamePage.js          # 單場比賽頁（#game=日期）
+│   ├── GamePage.js          # 單場比賽頁（#game=日期；也是開站首頁）
+│   ├── GameCalendar.js      # 刊頭賽程月曆（整季例行＋季後，點日期開單場頁）
 │   ├── CapPage.js           # 薪資頁（#cap）：計算、四分頁區塊
 │   ├── SeasonPaceChart.js   # 疊圖：賽季軌跡＋通用多序列折線 LineOverlay
 │   ├── gameAggregates.js    # GameAgg：逐場聚合（季平均/月/勝敗/趨勢，加權%）

@@ -178,7 +178,7 @@ wolvestracker/
 │   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
 │   ├── SeasonPaceChart.js           ← 疊圖：LineOverlay（通用多序列折線）＋ SeasonPaceChart（賽季軌跡）
 │   ├── urlState.js                  ← 網址 hash 讀寫
-│   ├── Masthead.js / RosterRail.js / IdentityBar.js / ChapterNav.js / CommandPalette.js ← 版面骨架與快速搜尋
+│   ├── Masthead.js / GameCalendar.js / RosterRail.js / IdentityBar.js / ChapterNav.js / CommandPalette.js ← 版面骨架、賽程月曆與快速搜尋
 │   └── App.js                       ← 主容器：資料訂閱、狀態、版面組裝
 ├── styles/app.css                   ← Tailwind 入口＋全站基礎樣式（背景、焦點框、減少動態）
 ├── tailwind.config.js               ← 字體、slate-500/600 對比調整
@@ -226,7 +226,8 @@ wolvestracker/
 - 合併後未編譯的 JSX 暫存在 `.build/`（不進版控）
 
 ### 版面骨架與網址狀態（2026-10 Phase 3）
-- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／截至日期（僅當季）／最新一場／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`）→ `ChapterNav`（sticky，01–06 章節＋攻守；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容
+- **開站首頁＝最新一場單場頁**（2026-10-23）：網址沒帶畫面時 App `homePending` → `loadSeasonSchedule(CURRENT_SEASON)` 取最後一場開單場頁；當季未開打就推算上一季（不讀手動維護的 `HISTORY_SEASONS`）；找的期間不寫網址、主區顯示「載入最新一場…」；連不上雲端 8 秒後退回總覽；`hashchange` 會取消 pending。分享連結（`v=`/`game=`/`cap`）不受影響
+- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／賽程月曆 `GameCalendar`／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（sticky，01–06 章節＋攻守；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
 - 網址 hash（`components/urlState.js`）：`#v=player&p=名字&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
@@ -502,7 +503,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ## 前端架構重點
 
 ### 賽季模式（`selectedSeasonKey`）
-- `'current'`：當季 onSnapshot 兩個集合（先近期、需要時整季，見「效能與無障礙」），date 為實際日期，刊頭日曆選日期
+- `'current'`：當季 onSnapshot 兩個集合（先近期、需要時整季，見「效能與無障礙」），date 為實際日期，身分列時光機選日期
 - 其他（如 `'2024-25_playoffs'`）：history mode，`getDoc` 一次拿賽季終點快照，date 顯示賽季 label，日期切換隱藏
 
 ### localStorage 快取
@@ -529,7 +530,8 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 面板右上「看完整比賽 →」連到該場單場頁（2026-10-19）
 
 ### 單場比賽頁（`GamePage.js`，2026-10-19）
-- App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar／ChapterNav（Masthead 保留但期別行改「單場 · 日期」、隱藏賽季／賽別／日期；「最新一場」按鈕標日期與對手）
+- App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar；ChapterNav 保留但不標選中，點章節＝回主畫面該章節（2026-10-23）。Masthead 期別行改「單場 · 日期」、隱藏賽季／賽別
+- **賽程月曆 `GameCalendar.js`**（2026-10-23，取代「最新一場」按鈕）：App `scheduleSeason`＝單場頁時 `seasonForDate(gameDate)`、否則刊頭所選賽季 → `gamesData.loadSeasonSchedule(season)`（例行＋季後索引合併、每場帶 `type`）。月曆格子標對手縮寫（`@`＝客場）＋勝綠敗紅，季後賽標「季後」，點日期 `openGame`；彈出層用 `ReactDOM.createPortal` 掛 body（刊頭控制列是 overflow-x-auto，放裡面會被裁），fixed 定位、視窗太矮時內部捲動。搜尋「最近比賽」也讀同一份。2021-22 以前沒有 `wolves_games_index` → 按鈕停用並說明
 - 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players）；記憶體快取＋ localStorage `wt_gc_{date}`（`final === false` 不寫，免得鎖住半成品）
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）

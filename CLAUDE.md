@@ -36,8 +36,9 @@
 ## 前端架構（六分頁，React 18 CDN＋預編譯 JSX/Tailwind）
 - `components/*.js` 掛 `window.*`，`bundle.py` 依 ORDER 串接 → esbuild（es2018、不改名識別字）→ `dist/components-bundle.js`；Tailwind CLI → `dist/app.css`。class 必須完整寫在原始碼（不可字串拼接，否則 CLI 掃不到）
 - 提交前端改動要連 `dist/` 與 `index.html`（`?v=` 內容雜湊）一起提交
-- 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/日期/比賽/薪資/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar` → 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
-- 單場比賽頁 `GamePage`（`#game=日期[&p=球員]`，獨立整頁，取代主區）：灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
+- **開站首頁＝最新一場單場頁**（網址沒帶畫面時；當季未開打退上一季最後一場，`homePending` 期間不寫網址）
+- 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/賽程月曆 `GameCalendar`/薪資/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar`（含時光機「數據截至」，僅當季）→ 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
+- 單場比賽頁 `GamePage`（`#game=日期[&p=球員]`，獨立整頁，取代主區，上方仍有章節列可回主畫面）：賽程月曆讀 `loadSeasonSchedule`（例行＋季後合併），單場頁跟著該場賽季、其餘跟刊頭所選賽季；灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
 - 薪資頁 `CapPage`（`#cap[&s=賽季][&tab=contracts|picks|rules]`，獨立整頁）：四分頁＋分頁列上唯一的賽季選單（刊頭在薪資頁隱藏賽季／賽別／日期）；狀態資訊用狀態列＋色點，膠囊只給可點控制項；縮寫金額要能懸停看完整金額；球員對應一律用 `playerId`；薪資×表現可用 Sheet `settings.show_value` 關閉、公式常駐
 - 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；Splits 走勢 `m=指標&hl=日期`；單場頁 `game=`、薪資頁 `cap` 都沒有 `v=`）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
 - **資料層分工**：季平均/Splits/趨勢 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score → `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
@@ -46,7 +47,7 @@
 - 次數類指標（觸球、切入次數等）在 defs 加 `neutral: true`：單場頁／疊圖不標好壞色
 - 讀 Firestore 的 effect 必等匿名登入（`isCloud`），否則被安全規則拒絕且錯誤不會自動清掉
 - 複製引用格式含當下畫面網址（`UI.citeLine`）；PageSpeed 效能分數是推算、會跳動，以實測與無障礙/傳輸量為準（見 doc/handover.md「效能與無障礙」）
-- 刊頭賽季選單只列年份（`SEASON_YEAR_OPTIONS`），例行/季後切換常駐（預設依時節，歷史賽季也能切；App `changeYear`/`changeType` 對回 `selectedSeasonKey`＋`seasonTypeView`，網址格式不變）＋日曆日期（僅當季，截至該日季平均）；雷達軸自選在 `RadarPanel`
+- 刊頭賽季選單只列年份（`SEASON_YEAR_OPTIONS`），例行/季後切換常駐（預設依時節，歷史賽季也能切；App `changeYear`/`changeType` 對回 `selectedSeasonKey`＋`seasonTypeView`，網址格式不變）；時光機（截至某日，影響所有章節）在身分列，不在刊頭；雷達軸自選在 `RadarPanel`
 
 ## 規格文件
 - `doc/handover.md`：交接手冊（架構/排程/資料結構/FAQ）
