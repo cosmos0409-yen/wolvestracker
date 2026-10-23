@@ -21,6 +21,7 @@ const loadShotDoc = async (docId) => {
     cache[docId] = v;
     return v;
 };
+window.loadShotDoc = loadShotDoc;   // 對戰頁共用（同一份快取）
 // '2025-26' → '2024-25'
 const prevSeasonOf = (season) => { const y = parseInt(String(season).slice(0, 4), 10) - 1; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
 

@@ -988,6 +988,8 @@ const App = () => {
         ...scheduleGames.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: `${scheduleSeason} 最近比賽`, label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
         { id: 'cap', group: '薪資', label: '薪資與奢侈稅', hint: 'Cap Sheet', run: openCap },
         { id: 'vs', group: '對戰', label: '對戰分析', hint: '對各隊表現、勁敵／順手／棘手', run: () => openVs() },
+        ...Object.keys(window.NBA_TEAM_NAMES || {}).filter(a => a !== window.TEAM_ABBR)
+            .map(a => ({ id: 'vs_' + a, group: '對戰', label: `對戰 ${a} ${window.teamName(a)}`, run: () => openVs(a) })),
     ];
 
     // 雷達 + 疊加比較（原左側欄）→ 移入總覽章節

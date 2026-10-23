@@ -22,29 +22,15 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
     const dateRef = React.useRef(date);
     dateRef.current = date;
 
-    // ── 載入單場兩份文件（記憶體＋localStorage；未定稿 final=false 不寫 localStorage，免得鎖住半成品）──
+    // ── 載入單場兩份文件（gamesData.loadGameDocs：記憶體＋localStorage，與對戰頁共用快取）──
     useEffect(() => {
         if (!window.db || !window.firebaseModules) return;
         let cancelled = false;
         setDocs(undefined); setLoadErr(null); setBoxSide('MIN'); setShots(undefined);
         setAvgCache({}); avgInflight.current = {};   // 季平均是「這場之前」，換場次要重算
-        const mem = (window.__gameDocCache = window.__gameDocCache || {});
         (async () => {
-            if (mem[date]) { setDocs(mem[date]); return; }
-            const lsKey = `wt_gc_${date}`;
-            try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = c; if (!cancelled) setDocs(c); return; } } catch (e) { /* ignore */ }
-            const { doc, getDoc } = window.firebaseModules;
             try {
-                const [t, p] = await Promise.all([
-                    getDoc(doc(window.db, 'wolves_team_games', date)),
-                    getDoc(doc(window.db, 'wolves_player_games', date)),
-                ]);
-                const v = (t.exists() || p.exists()) ? { team: t.exists() ? t.data() : null, player: p.exists() ? p.data() : null } : null;
-                if (v) {
-                    mem[date] = v;
-                    const final = (v.team || v.player || {}).final !== false;
-                    if (final) { try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch (e) { /* quota */ } }
-                }
+                const v = await window.loadGameDocs(date);
                 if (!cancelled) setDocs(v);
             } catch (e) {
                 console.error('game page fetch fail', date, e);
@@ -207,6 +193,10 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
         );
     };
     const periodLabel = (p, i) => p.type === 'OVERTIME' || i >= 4 ? `OT${i - 3 > 1 ? i - 3 : ''}` : `Q${i + 1}`;
+    // 對戰分析：這個對手的歷次交手（#vs=三碼）
+    const vsLink = /^[A-Z]{3}$/.test(oppAbbr) ? (
+        <a href={window.UrlState.vsHref(oppAbbr)} className={`mt-1.5 inline-block text-[12px] text-slate-300 ${linkCls}`}>與 {oppAbbr} 歷次交手 →</a>
+    ) : null;
     const margin = box ? minTeam.score - oppTeam.score : null;
     const board = box ? (
         <div className="grid grid-cols-2 gap-4 border-b border-white/10 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-6">
@@ -217,6 +207,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
                 <div className="mt-2 text-[13px] text-slate-200">{date}</div>
                 {box.arena && <div className="text-[11px] text-slate-400">{box.arena}{box.attendance ? ` · ${box.attendance.toLocaleString()} 人` : ''}</div>}
                 <div className={`mt-1.5 font-mono text-[11px] ${margin > 0 ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>灰狼{margin > 0 ? '勝' : '敗'} {margin > 0 ? '+' : ''}{margin}</div>
+                {vsLink}
                 {away.periods.length > 0 && (
                     <table className="mx-auto mt-3 border-collapse font-mono text-[12px]" aria-label="每節比分">
                         <thead><tr>
@@ -243,6 +234,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
         <div className="border-b border-white/10 py-6">
             <div className="font-display text-[34px] font-bold">{meta.matchup} <span className={wl === 'W' ? 'text-[#12A150]' : 'text-[#EF4444]'}>{wl}</span></div>
             <div className="text-[13px] text-slate-400">{date}{docs.team && docs.team.stats && typeof docs.team.stats.PTS === 'number' ? ` · 灰狼 ${docs.team.stats.PTS} 分` : ''}</div>
+            {vsLink}
             <div className="mt-3"><UI.Note>這場沒有 box score（2026-10 起才每場抓取；更早只回補了 2025-26），所以沒有比分看板、Box Score 與 Four Factors。下方灰狼的單場進階數據照常顯示。</UI.Note></div>
         </div>
     );

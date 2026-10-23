@@ -26,6 +26,32 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
     }
 };
 
+// 單場兩份文件 → { team: wolves_team_games/{date}, player: wolves_player_games/{date} }；兩份都沒有回 null，讀取失敗往上拋。
+// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v2_{date}）。
+//   未定稿（final=false）不寫 localStorage，免得鎖住半成品；persist=false 只讀不寫（對戰頁一次讀十幾場，避免塞爆儲存空間）
+//   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；舊鍵 wt_gc_{date} 載入時刪掉
+try {
+    Object.keys(localStorage).filter(k => /^wt_gc_\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
+} catch (e) { /* 私密模式等無法存取 localStorage */ }
+window.loadGameDocs = async function (date, persist = true) {
+    const mem = (window.__gameDocCache = window.__gameDocCache || {});
+    if (mem[date]) return mem[date];
+    const lsKey = `wt_gc_v2_${date}`;
+    try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = c; return c; } } catch (e) { /* ignore */ }
+    const { doc, getDoc } = window.firebaseModules;
+    const [t, p] = await Promise.all([
+        getDoc(doc(window.db, 'wolves_team_games', date)),
+        getDoc(doc(window.db, 'wolves_player_games', date)),
+    ]);
+    const v = (t.exists() || p.exists()) ? { team: t.exists() ? t.data() : null, player: p.exists() ? p.data() : null } : null;
+    if (v) {
+        mem[date] = v;
+        const final = (v.team || v.player || {}).final !== false;
+        if (final && persist) { try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch (e) { /* quota */ } }
+    }
+    return v;
+};
+
 // 比賽索引 wolves_games_index/{season}_{type}（一份 doc：[{date,matchup,wl,gameId}]，由舊到新）。
 // App 的單場面板日期選單、單場頁賽程條共用。
 // 只有已結束的賽季走 localStorage 快取（索引不會再變）；當季每次都讀最新，

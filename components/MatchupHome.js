@@ -329,6 +329,29 @@
         );
     };
 
+    // 範圍列（首頁與單隊頁共用）：範圍選單＋賽別切換＋實際範圍說明（note）
+    const RangeBar = ({ range, type, onRange, onType, note }) => {
+        const UI = window.UI;
+        const seasons = window.Matchup.seasonList();
+        const options = [
+            { value: 'recent', label: '近三季' },
+            { value: 'cur', label: `只看本季（${seasons[0]}）` },
+            ...seasons.slice(1).map(s => ({ value: s, label: `${s} 賽季` })),
+        ];
+        return (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="mu-range">範圍</label>
+                <select id="mu-range" value={range} onChange={e => onRange(e.target.value)} className={UI.selectClass(true)}>
+                    {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <UI.Seg ariaLabel="賽別" size="sm" value={type} onChange={onType} options={TYPE_OPTIONS} />
+                {note && <span className="text-[12px] text-slate-400">{note} <UI.Info k="MU_RANGE" /></span>}
+            </div>
+        );
+    };
+    window.MatchupRangeBar = RangeBar;
+    window.MatchupTag = Tag;
+
     const MatchupHome = ({ range, type, onRange, onType, onOpenTeam, players = [] }) => {
         const UI = window.UI;
         const M = window.Matchup;
@@ -363,12 +386,6 @@
             return { groups, bases, rows: M.tagOpponents(M.byOpponent(games), games) };
         }, [data]);
 
-        const seasons = M.seasonList();
-        const rangeOptions = [
-            { value: 'recent', label: '近三季' },
-            { value: 'cur', label: `只看本季（${seasons[0]}）` },
-            ...seasons.slice(1).map(s => ({ value: s, label: `${s} 賽季` })),
-        ];
         window.CiteCtx = { subject: 'Minnesota Timberwolves', season: data ? data.win.label : '', asOfSnap: null, asOfAgg: null, isHistory: false };
         const fewGames = derived && derived.rows.filter(r => r.n >= R.minGames).length < derived.rows.length / 2;
 
@@ -376,14 +393,8 @@
             <div className="space-y-8">
                 <div>
                     <h1 className="font-display text-[30px] font-bold leading-tight text-slate-50">對戰分析 <span className="font-mono text-[12px] font-normal text-slate-500">Matchups</span></h1>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <label className="sr-only" htmlFor="mu-range">範圍</label>
-                        <select id="mu-range" value={range} onChange={e => onRange(e.target.value)} className={UI.selectClass(true)}>
-                            {rangeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <UI.Seg ariaLabel="賽別" size="sm" value={type} onChange={onType} options={TYPE_OPTIONS} />
-                        {data && <span className="text-[12px] text-slate-400">{data.win.label} · {data.games.length} 場 <UI.Info k="MU_RANGE" /></span>}
-                    </div>
+                    <RangeBar range={range} type={type} onRange={onRange} onType={onType}
+                        note={data ? `${data.win.label} · ${data.games.length} 場` : null} />
                 </div>
 
                 {err ? <UI.Note tone="warn">讀取失敗：{err}</UI.Note>
