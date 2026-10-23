@@ -54,6 +54,8 @@ const App = () => {
     // 單場比賽頁（網址 #game=）：有值時主區改顯示 GamePage；gamePlayer＝展開進階的球員（網址 p=）
     const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
     const [gamePlayer, setGamePlayer] = useState(() => urlInit.gamePlayer || '');
+    // 首頁＝最新一場：網址完全沒帶畫面時，先找最新一場再開單場頁；找的期間不寫網址、主區顯示載入中（避免先閃總覽）
+    const [homePending, setHomePending] = useState(() => !window.location.hash.replace(/^#/, ''));
     // 薪資頁（網址 #cap）：有值時主區改顯示 CapPage；capSeason＝薪資賽季（網址 s=，空＝薪資當季）
     const [capView, setCapView] = useState(() => !!urlInit.capView);
     const [capSeason, setCapSeason] = useState(() => urlInit.capSeason || '');
@@ -146,6 +148,29 @@ const App = () => {
         return () => { cancelled = true; };
     }, [isCloud, scheduleSeason]);
     const scheduleGames = schedule.season === scheduleSeason ? schedule.games : [];
+
+    // 首頁：當季最新一場；當季還沒比賽（開季後到首戰前）就退到上一季最後一場（休賽期 CURRENT_SEASON 仍是剛打完那季，本來就有）
+    useEffect(() => {
+        if (!homePending || !isCloud || !window.loadSeasonSchedule) return;
+        let cancelled = false;
+        (async () => {
+            // 上一季用推算的，不讀手動維護的 HISTORY_SEASONS（開季時那份清單可能還沒加上剛打完的賽季）
+            const y = parseInt(window.CURRENT_SEASON.slice(0, 4), 10);
+            const seasons = [window.CURRENT_SEASON, `${y - 1}-${String(y % 100).padStart(2, '0')}`];
+            for (const s of seasons) {
+                const gs = await window.loadSeasonSchedule(s);
+                if (gs.length) { if (!cancelled) setGameDate(gs[gs.length - 1].date); return; }
+            }
+        })().catch(e => console.error('home latest game fail', e))
+            .finally(() => { if (!cancelled) setHomePending(false); });
+        return () => { cancelled = true; };
+    }, [homePending, isCloud]);
+    // 連不上雲端（離線、登入失敗）時別卡在「載入最新一場」：8 秒後放棄，照舊顯示總覽
+    useEffect(() => {
+        if (!homePending || isCloud) return;
+        const t = setTimeout(() => setHomePending(false), 8000);
+        return () => clearTimeout(t);
+    }, [homePending, isCloud]);
 
     // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
 
@@ -800,7 +825,7 @@ const App = () => {
 
     // 網址狀態同步：狀態一變就 replaceState（不新增瀏覽紀錄，返回鍵不會一格格倒退）
     useEffect(() => {
-        if (!window.UrlState) return;
+        if (!window.UrlState || homePending) return;
         const h = '#' + (gameDate
             ? window.UrlState.serialize({ gameDate, gamePlayer })
             : capView
@@ -808,7 +833,7 @@ const App = () => {
             : window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, capView, capSeason, capTab]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, capView, capSeason, capTab, homePending]);
     // 進出單場頁／薪資頁一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
@@ -825,6 +850,7 @@ const App = () => {
         if (!window.UrlState) return;
         const onHash = () => {
             const st = window.UrlState.parse(window.location.hash);
+            setHomePending(false);   // 首頁還在找最新一場時使用者已經切走，以使用者的選擇為準
             // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
             if (st.gameDate) { setCapView(false); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); window.scrollTo(0, 0); return; }
             setGameDate(null); setGamePlayer('');
@@ -964,7 +990,7 @@ const App = () => {
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
-                schedule={scheduleGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate} gameDate={gameDate}
+                schedule={scheduleGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate || homePending} gameDate={gameDate}
                 playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 inCap={capView} onCap={openCap} />
 
@@ -977,9 +1003,15 @@ const App = () => {
                 </div>
             )}
 
-            {gameDate ? (
+            {homePending ? (
                 <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
-                    {/* 回主畫面：主畫面狀態（球員、章節、走勢）在單場頁期間保持不動，直接切回即可。
+                    <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入最新一場…</div>
+                </main>
+            ) : gameDate ? (<>
+                {/* 單場頁（也是首頁）上方放章節列：點任一章節回主畫面該章節；單場頁本身不屬於任何章節，不標選中 */}
+                <window.ChapterNav tabs={TABS} activeTab={null} onTab={(k) => { leaveGame(); setActiveTab(k); }} viewSide={viewSide} onSide={setViewSide} />
+                <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
+                    {/* 回總覽：主畫面狀態（球員、章節、走勢）在單場頁期間保持不動，直接切回即可。
                         不用 history.back()：從外部連結直接打開單場頁時，上一頁會離開本站 */}
                     <button type="button" onClick={leaveGame}
                         className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">← 回主畫面</button>
@@ -987,7 +1019,7 @@ const App = () => {
                         ? <window.GamePage date={gameDate} gamePlayer={gamePlayer} onExpand={setGamePlayer} />
                         : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
                 </main>
-            ) : capView ? (
+            </>) : capView ? (
                 <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
                     <button type="button" onClick={leaveGame}
                         className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">← 回主畫面</button>
