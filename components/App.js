@@ -861,6 +861,21 @@ const App = () => {
     const pickPlayer = (name) => { setViewMode('PLAYER'); setSelectedPlayer(name); };
 
     const curOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
+    // 刊頭／搜尋面板的「年份＋賽別」→ 既有狀態（selectedSeasonKey＋seasonTypeView），網址 s=/t= 格式不變。
+    // 換到歷史年份沿用目前賽別；回到當季改用時節預設（10 月切去「當季季後賽」只會是空畫面）
+    const viewYear = isHistoryMode ? (curOpt?.season || '') : 'current';
+    const viewType = isHistoryMode ? (curOpt?.type || 'regular') : seasonTypeView;
+    const changeYear = (y) => {
+        leaveGame();
+        if (y !== 'current') { setSelectedSeasonKey(`${y}_${viewType}`); return; }
+        const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
+        setSelectedSeasonKey('current'); setSeasonTypeView(phase.type === 'regular' ? 'regular' : 'playoffs'); setSelectedDate('');
+    };
+    const changeType = (t) => {
+        leaveGame();
+        if (isHistoryMode) setSelectedSeasonKey(`${viewYear}_${t}`);
+        else { setSeasonTypeView(t); setSelectedDate(''); }
+    };
     // 球員身分列的薪資膠囊：顯示「目前檢視賽季」的 cap hit，用 playerId 對 contracts（不比對名字），點擊開薪資頁
     const salarySeason = isHistoryMode ? curOpt?.season : window.CURRENT_SEASON;
     const salaryRow = (viewMode === 'PLAYER' && capDoc && currentPlayerId)
@@ -899,13 +914,12 @@ const App = () => {
         ...availablePlayers.map(n => ({ id: 'p_' + n, group: '球隊／球員', label: n, run: () => pickPlayer(n) })),
         ...missingRosterNames.map(n => ({ id: 'm_' + n, group: '本季無數據', label: n, run: () => onMissingPlayer(n) })),
         ...TABS.map((t, i) => ({ id: 't_' + t.key, group: '章節', label: t.label, hint: String(i + 1), run: () => setActiveTab(t.key) })),
-        ...SEASON_OPTIONS.map(o => ({ id: 's_' + o.key, group: '賽季', label: o.label, run: () => setSelectedSeasonKey(o.key) })),
+        ...(window.SEASON_YEAR_OPTIONS || []).map(o => ({ id: 's_' + o.value, group: '賽季', label: o.label, run: () => changeYear(o.value) })),
         { id: 'side_off', group: '檢視', label: '進攻', run: () => setViewSide('offensive') },
         { id: 'side_def', group: '檢視', label: '防守', run: () => setViewSide('defensive') },
-        ...(isHistoryMode ? [] : [
-            { id: 'ty_r', group: '檢視', label: '例行賽', run: () => { setSeasonTypeView('regular'); setSelectedDate(''); } },
-            { id: 'ty_p', group: '檢視', label: '季後賽', run: () => { setSeasonTypeView('playoffs'); setSelectedDate(''); } },
-        ]),
+        // 賽別在歷史賽季也能切（改 selectedSeasonKey 的 _regular/_playoffs）
+        { id: 'ty_r', group: '檢視', label: '例行賽', run: () => changeType('regular') },
+        { id: 'ty_p', group: '檢視', label: '季後賽', run: () => changeType('playoffs') },
     ];
     const paletteItems = [
         ...paletteBase.map(it => ({ ...it, run: () => { leaveGame(); it.run(); } })),
@@ -924,9 +938,9 @@ const App = () => {
     return (
         <div className="min-h-screen text-slate-200 font-sans pb-20">
             <window.Masthead
-                seasonOptions={SEASON_OPTIONS} selectedSeasonKey={selectedSeasonKey} onSeasonChange={(k) => { leaveGame(); setSelectedSeasonKey(k); }}
+                yearOptions={window.SEASON_YEAR_OPTIONS || []} viewYear={viewYear} onYearChange={changeYear}
                 isHistoryMode={isHistoryMode} historyLoading={historyLoading} displayDate={displayDate}
-                seasonTypeView={seasonTypeView} onSeasonTypeChange={(t) => { leaveGame(); setSeasonTypeView(t); setSelectedDate(''); }}
+                viewType={viewType} onTypeChange={changeType}
                 effectiveDate={effectiveDate}
                 minDate={(snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined}
                 maxDate={latestDate || undefined} onDateChange={(d) => { leaveGame(); setSelectedDate(d); }}
@@ -936,7 +950,7 @@ const App = () => {
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
                 latestGame={gamesIndex.length ? gamesIndex[gamesIndex.length - 1] : null} inGame={!!gameDate} gameDate={gameDate}
-                playoffsAvailable={!teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
+                playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 onGames={() => gamesIndex.length && openGame(gamesIndex[gamesIndex.length - 1].date)}
                 inCap={capView} onCap={openCap} />
 

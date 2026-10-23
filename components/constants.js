@@ -48,9 +48,10 @@ window.capSeasonForDate = function (date) {
 // 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照。
 // 單一來源：App.js 的跨季比較清單也讀 HISTORY_SEASON_OPTIONS，勿另建第二份。
 // 不變式：option.key === Firestore 的 history docId（`${season}_${type}`）
+// short 用「例行／季後」兩字：單字「季」會被讀成「賽季」。刊頭選單只列年份（SEASON_YEAR_OPTIONS），賽別由例行/季後切換決定
 window.HISTORY_SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23'];
 window.HISTORY_SEASON_OPTIONS = window.HISTORY_SEASONS.flatMap(s =>
-    [['playoffs', '季後賽', '季'], ['regular', '例行賽', '例']].map(([t, l, sh]) => ({
+    [['playoffs', '季後賽', '季後'], ['regular', '例行賽', '例行']].map(([t, l, sh]) => ({
         key: `${s}_${t}`, season: s, type: t,
         label: `${s} ${l}`, short: `${s.slice(2)}${sh}`,
         order: parseInt(s.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),  // ComparisonTab 折線 X 軸排序用
@@ -63,6 +64,11 @@ window.SEASON_OPTIONS = [
         label: `${window.CURRENT_SEASON} ${window.getSeasonPhase().inSeason ? '進行中' : '最終'}`,
     },
     ...window.HISTORY_SEASON_OPTIONS,
+];
+// 刊頭賽季選單：只列年份（賽別交給旁邊的例行/季後切換）。value 'current'＝當季每日快照，其餘＝HISTORY_SEASONS
+window.SEASON_YEAR_OPTIONS = [
+    { value: 'current', label: window.SEASON_OPTIONS[0].label },
+    ...window.HISTORY_SEASONS.map(s => ({ value: s, label: s })),
 ];
 
 // 新援探測順序：找該球員最近一個「真的有資料」的賽季。

@@ -1,10 +1,10 @@
 // 刊頭：Logo + 「Wolves Ledger」字標 + 期別行（賽季·賽別·截至日期·連線狀態）＋ 右側控制項
-// 控制項：賽季下拉、例行/季後（僅當季）、截至日期（僅當季）、最新一場、薪資、搜尋（/）
+// 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、截至日期（僅當季）、最新一場、薪資、搜尋（/）
 // 單場頁／薪資頁是獨立整頁：期別行改顯示頁名，並隱藏賽季／賽別／日期（避免刊頭寫的賽季和內容對不上）
 // 手機：控制項換到第二列並可橫向捲動，不擠壓字標
 const Masthead = ({
-    seasonOptions, selectedSeasonKey, onSeasonChange, isHistoryMode, historyLoading, displayDate,
-    seasonTypeView, onSeasonTypeChange, effectiveDate, minDate, maxDate, onDateChange,
+    yearOptions, viewYear, onYearChange, isHistoryMode, historyLoading, displayDate,
+    viewType, onTypeChange, effectiveDate, minDate, maxDate, onDateChange,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
     latestGame, onGames, inGame, gameDate, inCap, onCap, playoffsAvailable = true,
 }) => {
@@ -41,18 +41,18 @@ const Masthead = ({
                     {/* 主畫面的賽季／賽別／日期：薪資頁有自己的賽季選單、單場頁只屬於那一場，都隱藏 */}
                     {!inCap && !inGame && (<>
                     <label className="sr-only" htmlFor="season-select">賽季</label>
-                    <select id="season-select" value={selectedSeasonKey} onChange={e => onSeasonChange(e.target.value)}
+                    <select id="season-select" value={viewYear} onChange={e => onYearChange(e.target.value)}
                         className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3.5 py-1.5 text-[13px] text-slate-200 focus:outline-none focus:border-[#12A150]">
-                        {seasonOptions.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+                        {yearOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
-                    {/* 歷史賽季不放膠囊（膠囊只給可點控制項）；「期末快照」已在期別行，這裡只在載入中給純文字 */}
+                    <UI.Seg ariaLabel="賽別" value={viewType} onChange={onTypeChange}
+                        options={[{ value: 'regular', label: '例行賽' },
+                            { value: 'playoffs', label: '季後賽', disabled: !playoffsAvailable && viewType !== 'playoffs',
+                              title: playoffsAvailable ? undefined : `${issueSeason || '本季'} 尚無季後賽資料` }]} />
+                    {/* 歷史賽季沒有日期（期末快照，已寫在期別行）；不放假膠囊，只在載入中給純文字 */}
                     {isHistoryMode ? (
                         historyLoading && <span className="shrink-0 px-1 font-mono text-[12px] text-slate-400">載入中…</span>
                     ) : (<>
-                        <UI.Seg ariaLabel="賽別" value={seasonTypeView} onChange={onSeasonTypeChange}
-                            options={[{ value: 'regular', label: '例行賽' },
-                                { value: 'playoffs', label: '季後賽', disabled: !playoffsAvailable && seasonTypeView !== 'playoffs',
-                                  title: playoffsAvailable ? undefined : `${issueSeason || '本季'} 尚無季後賽資料` }]} />
                         <label className="sr-only" htmlFor="asof-date">截至日期</label>
                         {/* 只有一天快照時（min＝max）停用，避免看起來能選卻只有一個選項 */}
                         <input id="asof-date" type="date" value={effectiveDate} min={minDate} max={maxDate}

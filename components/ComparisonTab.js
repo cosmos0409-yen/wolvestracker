@@ -103,7 +103,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
 
     // 臉書用純文字：臉書不吃表格、字是比例字寬對不齊，改成「指標｜各季值」一行一項，第一行是賽季表頭。
-    // 數字格式與畫面上的表格相同（fmt）；全部同賽別時表頭只寫年份、賽別放第一格，混選才用「24-25例」並附圖例
+    // 數字格式與畫面上的表格相同（fmt）；全部同賽別時表頭只寫年份、賽別放第一格，混選才用「24-25例行」
     const fbText = () => {
         if (cols.some(c => !data[c.key])) { UI.toast('資料還在載入，請稍候再複製'); return null; }
         const TYPE_LABEL = { regular: '例行賽', playoffs: '季後賽' };
@@ -119,7 +119,6 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
             return { line: `${name}｜${vals.join('｜')}`, hasNull: vals.includes('—') };
         });
         const notes = [
-            !sameType && '例＝例行賽、季＝季後賽',
             tags.some(Boolean) && '@隊名＝該季效力他隊',
             rows.some(r => r.hasNull) && '—＝該季無此項資料',
         ].filter(Boolean);
@@ -200,7 +199,6 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         }
         const hasNull = rows.some(r => r.split('｜').slice(1).includes('—'));
         const notes = [
-            !sameType && '例＝例行賽、季＝季後賽',
             (tags.some(Boolean) || extraTag) && '@隊名＝該季效力他隊',
             isIndex && '數值為指數：每項以第一個有值的賽季＝100',
             hasNull && '—＝該季無此項資料',
@@ -334,8 +332,14 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
                                             const tag = window.tagOfMeta(metaOf(c.key));
                                             return (
                                                 <th key={c.key} scope="col" className="px-3 py-2 text-right text-[11px] font-normal whitespace-nowrap text-slate-400">
-                                                    {c.short || c.label}
-                                                    {tag && <span className="ml-1 font-mono text-[10px] text-amber-400/80">{tag}</span>}
+                                                    {/* 兩行：上年份、下賽別（不用「例／季」縮寫，避免把「季」讀成賽季） */}
+                                                    {c.season ? (<>
+                                                        <span className="block">{c.season.slice(2)}{tag && <span className="ml-1 font-mono text-[10px] text-amber-400/80">{tag}</span>}</span>
+                                                        <span className="block text-[10px] text-slate-500">{c.type === 'playoffs' ? '季後賽' : '例行賽'}</span>
+                                                    </>) : (<>
+                                                        {c.short || c.label}
+                                                        {tag && <span className="ml-1 font-mono text-[10px] text-amber-400/80">{tag}</span>}
+                                                    </>)}
                                                 </th>
                                             );
                                         })}
