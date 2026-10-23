@@ -14,6 +14,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     const [period, setPeriod] = useState('all');
     const [monthKey, setMonthKey] = useState('');
     const [seriesIdx, setSeriesIdx] = useState(0);
+    const [oppKey, setOppKey] = useState('');   // 期間＝對手（三碼）；季後賽用系列賽選單，不另顯示
     const [rangeStart, setRangeStart] = useState('');
     const [rangeEnd, setRangeEnd] = useState('');
     const [group, setGroup] = useState('base');
@@ -56,6 +57,9 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     if (!games.length) return <window.UI.Note>此賽季尚無單場資料（Splits 需要逐場資料）</window.UI.Note>;
 
     const months = GA.splitByMonth(games).map(g => g.label);
+    // 對手清單（三碼排序＋場數）；對手三碼規則與對戰分析相同
+    const oppOf = g => g.oppAbbr || window.Matchup.oppOf(g.matchup);
+    const opps = Object.entries(games.reduce((m, g) => { const a = oppOf(g); if (a) m[a] = (m[a] || 0) + 1; return m; }, {})).sort();
     const series = isPlayoffs ? GA.splitBySeries(games) : [];
 
     // 期間子集
@@ -69,6 +73,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     else if (period === 'month') { periodGames = games.filter(g => (g.date || '').slice(0, 7) === monthKey); periodLabel = monthKey; }
     else if (period === 'range') { periodGames = GA.byDateRange(games, rangeStart, rangeEnd); periodLabel = `${rangeStart || '起'}~${rangeEnd || '訖'}`; }
     else if (period === 'series') { periodGames = (series[seriesIdx] || {}).games || []; periodLabel = (series[seriesIdx] || {}).label || '系列'; }
+    else if (period === 'opp') { periodGames = games.filter(g => oppOf(g) === oppKey); periodLabel = `對 ${oppKey} ${window.teamName(oppKey)}`; }
 
     const seasonAgg = GA.aggregate(games, null, 'TEAM');
     const periodAgg = GA.aggregate(periodGames, null, 'TEAM');
@@ -120,8 +125,22 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                             {series.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
                         </select>
                     </>)}
+                    {!isPlayoffs && opps.length > 0 && (<>
+                        <label className="sr-only" htmlFor="splits-opp">選擇對手</label>
+                        <select id="splits-opp" value={period === 'opp' ? oppKey : ''} onChange={e => { if (!e.target.value) return; setPeriod('opp'); setOppKey(e.target.value); }}
+                            className={UI.selectClass(period === 'opp')}>
+                            <option value="">對手</option>
+                            {opps.map(([a, n]) => <option key={a} value={a}>{a} {window.teamName(a)}（{n}）</option>)}
+                        </select>
+                    </>)}
                     <UI.Chip active={period === 'range'} onClick={() => setPeriod('range')}>自訂區間</UI.Chip>
                 </div>
+                {period === 'opp' && (
+                    <p className="text-[12px] text-slate-400">
+                        單季交手只有 2–4 場，數字容易被單場手感左右。
+                        <a href={window.UrlState.vsHref(oppKey)} className="ml-1 text-slate-200 underline underline-offset-2 hover:text-[#12A150]">看 {oppKey} 近三季對戰分析 →</a>
+                    </p>
+                )}
                 {period === 'range' && (
                     <div className="flex items-center gap-2 text-xs text-slate-400">
                         <input type="date" aria-label="起始日" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className={UI.selectClass(!!rangeStart)} />
