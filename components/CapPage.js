@@ -137,7 +137,7 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
         const name = (playerNameOf && playerNameOf(pl.id)) || pl.name;
         const key = season === window.CURRENT_SEASON ? 'current' : `${season}_regular`;
         const ok = key === 'current' || (window.SEASON_OPTIONS || []).some(o => o.key === key);
-        window.location.hash = window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, activeTab: 'overview', selectedSeasonKey: ok ? key : 'current' });
+        window.location.hash = window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pl.id, activeTab: 'overview', selectedSeasonKey: ok ? key : 'current' });
         window.scrollTo(0, 0);
     };
 

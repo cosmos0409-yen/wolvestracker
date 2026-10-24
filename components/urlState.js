@@ -3,7 +3,8 @@
 // 格式（只寫非預設值，網址保持短）：
 //   #v=player&p=Jaden%20McDaniels&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def
 //   v    球隊 team / 球員 player
-//   p    球員名（每日快照以 playerName 為 key，所以用名字而非 ID）
+//   p    球員「ID-名字」，如 1630162-anthony-edwards：只用前面的 NBA 球員 ID 對人，後面的名字只給人看（寫錯、改名都不影響）；
+//        App 等名單載入後用 ID 對回快照的 playerName。舊連結的完整名字（Anthony%20Edwards）仍可讀
 //   tab  overview / splits / shooting / defense / playtype / comparison
 //   s    賽季 key（current 省略；其餘同 SEASON_OPTIONS.key = 歷史 docId）
 //   t    當季賽別 regular / playoffs（僅當季）
@@ -14,7 +15,7 @@
 // 單場比賽頁（另一種畫面，沒有 v=）：
 //   #game=2026-04-10&tab=box&p=Rudy%20Gobert
 //   game 比賽日期；tab 單場分頁 box/compare/shots（省略＝概要）；
-//   p 展開進階的灰狼球員（只在 Box Score；舊連結只帶 p 沒帶 tab 時視為 tab=box）
+//   p 展開進階的灰狼球員，同上「ID-名字」（只在 Box Score；舊連結只帶 p 沒帶 tab 時視為 tab=box）
 // 薪資頁（另一種畫面，沒有 v=）：
 //   #cap&s=2025-26&tab=contracts
 //   cap 薪資頁；s 薪資賽季（省略＝薪資當季，見 constants.js capSeasonForDate）；tab 分頁 contracts/picks/rules（省略＝總覽）
@@ -30,6 +31,9 @@ window.UrlState = (function () {
     const SEASON_RE = /^\d{4}-\d{2}$/;
     const CAP_TABS = ['contracts', 'picks', 'rules'];
     const GAME_TABS = ['box', 'compare', 'shots'];
+    // 球員在網址裡的寫法：ID-名字（沒有 ID 才退回完整名字）；解析只看開頭的 ID，解不出＝舊連結的名字
+    const playerToken = (id, name) => (Number(id) > 0 ? [Number(id), window.nameSlug(name || '')].filter(Boolean).join('-') : (name || ''));
+    const tokenPlayerId = (p) => { const m = /^(\d+)(-[a-z0-9-]*)?$/.exec(p || ''); return m ? Number(m[1]) : null; };
 
     const parse = (hash) => {
         const out = {};
@@ -61,7 +65,10 @@ window.UrlState = (function () {
         const v = q.get('v');
         if (v === 'team') out.viewMode = 'TEAM';
         if (v === 'player') out.viewMode = 'PLAYER';
-        if (q.get('p')) out.selectedPlayer = q.get('p');
+        if (q.get('p')) {
+            const pid = tokenPlayerId(q.get('p'));
+            if (pid) out.playerId = pid; else out.selectedPlayer = q.get('p');
+        }
         if (TABS.includes(q.get('tab'))) out.activeTab = q.get('tab');
         const s = q.get('s');
         if (s && (s === 'current' || (window.SEASON_OPTIONS || []).some(o => o.key === s))) out.selectedSeasonKey = s;
@@ -99,7 +106,7 @@ window.UrlState = (function () {
         if (st.vsView) return [st.vsTeam ? `vs=${st.vsTeam}` : 'vs', st.vsRange && `r=${st.vsRange}`, st.vsType && `t=${st.vsType}`,
             st.vsTeam && st.vsMetric && `m=${st.vsMetric}`].filter(Boolean).join('&');
         q.set('v', st.viewMode === 'PLAYER' ? 'player' : 'team');
-        if (st.viewMode === 'PLAYER' && st.selectedPlayer) q.set('p', st.selectedPlayer);
+        if (st.viewMode === 'PLAYER' && (st.playerId || st.selectedPlayer)) q.set('p', playerToken(st.playerId, st.selectedPlayer));
         if (st.activeTab && st.activeTab !== 'overview') q.set('tab', st.activeTab);
         const isCurrent = !st.selectedSeasonKey || st.selectedSeasonKey === 'current';
         if (!isCurrent) q.set('s', st.selectedSeasonKey);
@@ -118,5 +125,5 @@ window.UrlState = (function () {
     const capHref = (season, tab) => '#' + serialize({ capView: true, capSeason: season || '', capTab: tab || '' });
     const vsHref = (team, range, type, metric) => '#' + serialize({ vsView: true, vsTeam: team || '', vsRange: range || '', vsType: type || '', vsMetric: metric || '' });
 
-    return { parse, serialize, gameHref, capHref, vsHref, TABS };
+    return { parse, serialize, gameHref, capHref, vsHref, playerToken, tokenPlayerId, TABS };
 })();

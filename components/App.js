@@ -31,7 +31,12 @@ const App = () => {
     const [playerHistory, setPlayerHistory] = useState([]);
     const [viewMode, setViewMode] = useState(() => pick('viewMode', loadPref('viewMode', 'TEAM')));
     const [viewSide, setViewSide] = useState(() => pick('viewSide', loadPref('viewSide', 'offensive')));
-    const [selectedPlayer, setSelectedPlayer] = useState(() => pick('selectedPlayer', loadPref('selectedPlayer', '')));
+    // 網址帶球員 ID（p=ID-名字）時先留空，等名單載入後由 wantPlayer 對回名字，免得先閃出 localStorage 記住的另一位
+    const [selectedPlayer, setSelectedPlayer] = useState(() => pick('selectedPlayer', urlInit.playerId ? '' : loadPref('selectedPlayer', '')));
+    // 網址要的球員（pid＝新連結的 ID；name＝舊連結的完整名字）與所屬賽季：
+    // 「自動修正 selectedPlayer」effect 等該季名單到了才比對，切季那一拍不會被舊名單誤判成「沒有這個人」
+    const wantOf = (st) => (st.playerId || st.selectedPlayer) ? { pid: st.playerId || null, name: st.playerId ? '' : st.selectedPlayer, seasonKey: st.selectedSeasonKey || 'current' } : null;
+    const [wantPlayer, setWantPlayer] = useState(() => urlInit.viewMode ? wantOf(urlInit) : null);
     // 賽別檢視（當季）：預設休賽/季後賽期→季後賽，例行賽期→例行賽
     const [seasonTypeView, setSeasonTypeView] = useState(() => {
         const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
@@ -630,9 +635,25 @@ const App = () => {
         return names.sort((a, b) => (weightOf(b) - weightOf(a)) || a.localeCompare(b));
     }, [playerHistory, playerIdx, seasonTypeView, isHistoryMode]);
 
+    // 目前名單屬於哪一季：當季快照的 date 是日期字串，歷史快照的 date 是賽季標籤（見載入 effect 的 apply）
+    const loadedSeasonKey = () => {
+        const d = (playerHistory[0] || {}).date || '';
+        return /^\d{4}-\d{2}-\d{2}$/.test(d) ? 'current' : (SEASON_OPTIONS.find(o => o.label === d) || {}).key;
+    };
+
     // 自動修正 selectedPlayer
     useEffect(() => {
         if (viewMode === 'PLAYER' && availablePlayers.length > 0) {
+            // 網址帶球員：名單換成目標賽季後才比對（切季時會有一拍「季別已是新的、名單還是舊的」）；
+            // ID 用 playerIdOf 對、舊連結的名字用 nameKey 對；該季沒有這個人 → 放棄，照下面的規則退回第一人
+            if (wantPlayer) {
+                if (loadedSeasonKey() !== wantPlayer.seasonKey) return;
+                setWantPlayer(null);
+                const hit = wantPlayer.pid
+                    ? availablePlayers.find(n => Number(playerIdOf(n)) === wantPlayer.pid)
+                    : availablePlayers.find(n => window.nameKey(n) === window.nameKey(wantPlayer.name));
+                if (hit) { if (selectedPlayer !== hit) setSelectedPlayer(hit); return; }
+            }
             const pending = pendingPlayerRef.current;
             if (pending) {
                 const hit = availablePlayers.find(n => window.nameKey(n) === window.nameKey(pending.name));
@@ -657,7 +678,7 @@ const App = () => {
                 setSelectedPlayer(soft || availablePlayers[0]);
             }
         }
-    }, [viewMode, availablePlayers, selectedSeasonKey]);
+    }, [viewMode, availablePlayers, selectedSeasonKey, wantPlayer]);
 
     // 在 2026-27 名冊上、但所選賽季的快照裡沒有數據的球員（新援 / 尚未出賽者）。
     // availablePlayers 本體刻意不動——回補跑完後新援會自然出現在歷史快照裡，
@@ -838,10 +859,10 @@ const App = () => {
             ? window.UrlState.serialize({ capView, capSeason, capTab })
             : vs
             ? window.UrlState.serialize({ vsView: true, vsTeam: vs.team, vsRange: vs.range, vsType: vs.type, vsMetric: vs.metric })
-            : window.UrlState.serialize({ viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
+            : window.UrlState.serialize({ viewMode, selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, capView, capSeason, capTab, vs, homePending]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId]);
     // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
@@ -888,6 +909,7 @@ const App = () => {
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
+            setWantPlayer(wantOf(st));
             setActiveTab(st.activeTab || 'overview');
             if (st.viewSide) setViewSide(st.viewSide);
             if (st.seasonTypeView) setSeasonTypeView(st.seasonTypeView);
@@ -1122,7 +1144,7 @@ const App = () => {
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
-                                radarSlot={radarSlot} stats={currentStats}
+                                radarSlot={radarSlot} stats={currentStats} playerId={currentPlayerId}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                             />
                         )}

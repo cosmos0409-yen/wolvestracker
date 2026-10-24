@@ -1,7 +1,7 @@
 // 總覽章節：季平均（扣掉身分列已顯示的 4 項）＋ Playtype 強弱項 ＋ 雷達 ＋ On/Off（球員）＋ Clutch ＋ Lineups（球隊）＋ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [] }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -197,7 +197,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
             {/* 單場面板（當季，有比賽索引才顯示） */}
             {SingleGamePanel && gamesIndex && gamesIndex.length > 0 && (
-                <SingleGamePanel viewMode={viewMode} playerName={selectedPlayer} viewSide={viewSide} gamesIndex={gamesIndex} />
+                <SingleGamePanel viewMode={viewMode} playerName={selectedPlayer} playerId={playerId} viewSide={viewSide} gamesIndex={gamesIndex} />
             )}
         </div>
     );

@@ -6,7 +6,7 @@ try {
     Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_') || k.startsWith('wt_game_v2_')).forEach(k => localStorage.removeItem(k));
 } catch (e) { /* 私密模式等無法存取 localStorage */ }
 
-const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
+const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
     const shootingDefs = window.shootingDefs || [];
@@ -74,7 +74,7 @@ const SingleGamePanel = ({ viewMode, playerName, viewSide, gamesIndex }) => {
                     ))}
                 </select>
                 {selectedDate && window.UrlState && (
-                    <a href={window.UrlState.gameHref(selectedDate, viewMode === 'PLAYER' ? playerName : '')}
+                    <a href={window.UrlState.gameHref(selectedDate, viewMode === 'PLAYER' ? window.UrlState.playerToken(playerId, playerName) : '')}
                         className="inline-flex min-h-[24px] items-center rounded-full border border-[#12A150]/50 px-3 py-1 text-xs text-[#12A150] hover:bg-[#12A150]/10">
                         看完整比賽 →
                     </a>

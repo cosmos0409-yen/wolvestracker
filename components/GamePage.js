@@ -4,7 +4,7 @@
 //   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每日增量、每週整季對帳）
 // 灰狼球員一律用 box score 的 personId 對應 players 文件的 playerId（名字寫法兩邊可能不同，且早期文件含非當時隊員）
 // 舊場次沒有 box（2026-10 以前、未回補者）→ 比分看板／Box Score／焦點／Four Factors 降級隱藏
-// props：date、gamePlayer（展開的球員名，網址 p=）、onExpand(name|'')、gameTab（網址 tab=，''＝概要）、onGameTab(tab|'')
+// props：date、gamePlayer（展開的球員，網址 p=ID-名字；舊連結可能是名字）、onExpand(token|'')、gameTab（網址 tab=，''＝概要）、onGameTab(tab|'')
 const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const { useState, useEffect, useMemo } = React;
     const UI = window.UI;
@@ -91,7 +91,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
             setAvgCache(c => ({ ...c, [pid]: prior.length ? GA.aggregate(prior, null, 'TEAM') : null }));
         });
     };
-    const expanded = minPlayers.find(p => p.name === gamePlayer || p.boxName === gamePlayer) || null;
+    // 展開的球員：網址 p 開頭是 ID 就用 ID 對（名字寫錯、改名都不影響），舊連結才比名字
+    const tokenOf = (p) => window.UrlState.playerToken(p.pid, p.name);
+    const wantPid = window.UrlState.tokenPlayerId(gamePlayer);
+    const expanded = minPlayers.find(p => wantPid ? Number(p.pid) === wantPid : (p.name === gamePlayer || p.boxName === gamePlayer)) || null;
+    // 舊連結（名字）或名字部分過時 → 網址改寫成目前的「ID-名字」
+    useEffect(() => { if (expanded && gamePlayer !== tokenOf(expanded)) onExpand(tokenOf(expanded)); }, [expanded && expanded.pid, gamePlayer]);
     const vsPlayer = minPlayers.find(p => p.name === vsWho) || expanded
         || minPlayers.slice().sort((a, b) => ((b.box && b.box.stats.PTS) || (b.adv && b.adv.PTS) || 0) - ((a.box && a.box.stats.PTS) || (a.adv && a.adv.PTS) || 0))[0] || null;
     useEffect(() => { if (expanded) ensureAvg(expanded.pid); }, [expanded && expanded.pid, season, typeKey]);
@@ -148,8 +153,9 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
 
     // 連結：球員頁／Splits 指標走勢（帶 hl 圈出這場）
     const seasonState = season === window.CURRENT_SEASON ? { selectedSeasonKey: 'current', seasonTypeView: typeKey } : { selectedSeasonKey: `${season}_${typeKey}` };
-    const playerHref = (name) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, activeTab: 'overview', ...seasonState });
-    const metricHref = (name, k) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
+    const pidOf = (name) => (minPlayers.find(p => p.name === name) || {}).pid;
+    const playerHref = (name) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pidOf(name), activeTab: 'overview', ...seasonState });
+    const metricHref = (name, k) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pidOf(name), activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
 
     // 複製引用情境（StatCell／citeLine 讀）
     window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), asOfSnap: null, asOfAgg: null, isHistory: false };
@@ -381,7 +387,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
         const mp = mine ? minPlayers.find(x => x.pid === p.personId) : null;
         const open = mine && mp && expanded && expanded.pid === p.personId;
         const dnp = !p.stats || !Object.keys(p.stats).length;
-        const toggle = () => { if (mine && mp) onExpand(open ? '' : mp.name); };
+        const toggle = () => { if (mine && mp) onExpand(open ? '' : tokenOf(mp)); };
         const nameEl = mine && mp
             ? <a href={playerHref(mp.name)} onClick={e => e.stopPropagation()} className={linkCls}>{p.name}</a>
             : <span title={mine ? undefined : '對手球員沒有個人頁（只抓灰狼的季資料）'}>{p.name}</span>;
@@ -451,7 +457,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                     const open = expanded && expanded.pid === p.pid;
                     return (
                         <div key={p.pid || p.name} className={`border-b border-white/[0.06] ${open ? 'bg-[#12A150]/[0.05]' : ''}`}>
-                            <button type="button" onClick={() => onExpand(open ? '' : p.name)} className="flex w-full items-center justify-between px-2 py-2 text-left text-[13px] hover:bg-white/[0.03]">
+                            <button type="button" onClick={() => onExpand(open ? '' : tokenOf(p))} className="flex w-full items-center justify-between px-2 py-2 text-left text-[13px] hover:bg-white/[0.03]">
                                 <a href={playerHref(p.name)} onClick={e => e.stopPropagation()} className={linkCls}>{p.name}</a>
                                 <span className="font-mono text-[11px] text-slate-500">{p.adv && typeof p.adv.PTS === 'number' ? `${p.adv.PTS} 分 · ` : ''}{open ? '▴ 收合' : '▾ 進階'}</span>
                             </button>

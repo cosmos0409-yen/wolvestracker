@@ -9,6 +9,9 @@ window.nameKey = (n) => String(n || '')
     .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')   // 去重音: Jokic
     .replace(/[.\u2019']/g, '')                            // 去句點與彎/直撇號
     .replace(/\s+/g, ' ').trim().toLowerCase();
+// 網址用的名字寫法：nameKey 後非英數字一律換 -（Monté Morris → monte-morris、T.J. Warren → tj-warren）。
+// 只給人看（網址 p=ID-名字），對人一律用前面的 ID，見 urlState.js
+window.nameSlug = (n) => window.nameKey(n).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
 // 賽季階段判斷（前端版本，對應 fetch_data.py 的 get_season_type()）
 // 使用美東時間 UTC-5（不處理 DST，誤差可忍）
