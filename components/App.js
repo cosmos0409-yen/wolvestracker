@@ -985,8 +985,8 @@ const App = () => {
         ...missingRosterNames.map(n => ({ id: 'm_' + n, group: '本季無數據', label: n, run: () => onMissingPlayer(n) })),
         ...TABS.map((t, i) => ({ id: 't_' + t.key, group: '章節', label: t.label, hint: String(i + 1), run: () => setActiveTab(t.key) })),
         ...(window.SEASON_YEAR_OPTIONS || []).map(o => ({ id: 's_' + o.value, group: '賽季', label: o.label, run: () => changeYear(o.value) })),
-        { id: 'side_off', group: '檢視', label: '進攻', run: () => setViewSide('offensive') },
-        { id: 'side_def', group: '檢視', label: '防守', run: () => setViewSide('defensive') },
+        { id: 'side_off', group: '檢視', label: '進攻端', run: () => setViewSide('offensive') },
+        { id: 'side_def', group: '檢視', label: '防守端', run: () => setViewSide('defensive') },
         // 賽別在歷史賽季也能切（改 selectedSeasonKey 的 _regular/_playoffs）
         { id: 'ty_r', group: '檢視', label: '例行賽', run: () => changeType('regular') },
         { id: 'ty_p', group: '檢視', label: '季後賽', run: () => changeType('playoffs') },
@@ -1195,7 +1195,7 @@ const App = () => {
                                 ? <window.UI.Note>請先從頭像列選一位球員</window.UI.Note>
                                 : <window.ComparisonTab
                                     viewMode={viewMode} selectedPlayer={selectedPlayer} playerId={currentPlayerId}
-                                    seasons={comparisonSeasons} loadSeason={loadHistoryByDocId}
+                                    seasons={comparisonSeasons} loadSeason={loadHistoryByDocId} seasonType={viewType}
                                 />
                         )}
                     </div>

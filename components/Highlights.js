@@ -3,11 +3,10 @@
 //   用意：平常就波動很大的指標（如正負值）要變很多才算明顯；這是「描述性」的尺度，不是統計檢定
 // 命中率類以 Σ命中 ÷ Σ出手 計算，且近 N 場出手數需達門檻（MIN_ATT），否則不列入
 // 要調整指標或門檻 → 改下方 METRICS
-const Highlights = ({ games, untilDate }) => {
-    const { useState } = React;
+// n：近幾場，跟著總覽季平均的期間（OverviewTab 傳入：近 5／近 10；全季時用 5），本區不另放切換
+const Highlights = ({ games, untilDate, n = 5 }) => {
     const UI = window.UI;
     const GA = window.GameAgg;
-    const [n, setN] = useState(5);
 
     const METRICS = [
         { key: 'PTS', label: '得分', en: 'PTS' },
@@ -64,9 +63,7 @@ const Highlights = ({ games, untilDate }) => {
 
     return (
         <UI.Section title="近期異動" en="Recent Trends" accent="silver"
-            sub={`近 ${n} 場 vs 全季${untilDate ? `（皆截至 ${untilDate}）` : ''} · 依「變化量相對於逐場波動」排序，描述性比較、非統計檢定 · 命中率需達最低出手數`}
-            right={<UI.Seg ariaLabel="近幾場" size="sm" value={n} onChange={setN}
-                options={[{ value: 5, label: '近 5 場' }, { value: 10, label: '近 10 場' }]} />}>
+            sub={`近 ${n} 場 vs 全季${untilDate ? `（皆截至 ${untilDate}）` : ''}（場數跟著下方季平均的期間切換）· 依「變化量相對於逐場波動」排序，描述性比較、非統計檢定 · 命中率需達最低出手數`}>
             {top.length === 0 ? (
                 <UI.Note>近 {n} 場沒有明顯偏離全季水準的指標</UI.Note>
             ) : (

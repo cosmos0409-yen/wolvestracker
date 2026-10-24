@@ -1,6 +1,7 @@
 // 疊圖元件（跨季章節用）
 //   LineOverlay：通用多序列 SVG 折線（十字線提示、末端標籤、他隊季別空心點＋虛線）
 //   SeasonPaceChart：賽季軌跡疊圖——各季逐場 bundle 以「出賽第 N 場」對齊，看今年同期 vs 往年
+//     賽別跟著刊頭的例行／季後切換（seasonType），不另放賽別控制項
 //
 // LineOverlay props：
 //   xs        X 軸標籤（陣列）
@@ -97,11 +98,11 @@ const LineOverlay = ({ xs, series, unit = '', fmt, marker, mini = false, height,
 // ── 賽季軌跡疊圖 ──
 // 各季逐場 bundle 依日期排序後，第 i 場＝該員（或球隊）該季第 i+1 場出賽；球員是「出賽場次」不是球隊場次
 const PACE_COLORS = ['#12A150', '#C4CED2', '#5B9BD5', '#F59E0B', '#A78BFA'];
-const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
+const SeasonPaceChart = ({ viewMode, playerId, playerName, seasonType }) => {
     const { useState, useEffect, useMemo, useRef } = React;
     const UI = window.UI, GA = window.GameAgg;
     const phase = window.getSeasonPhase ? window.getSeasonPhase() : { inSeason: false, type: 'regular' };
-    const [type, setType] = useState(phase.inSeason && phase.type === 'playoffs' ? 'playoffs' : 'regular');
+    const type = seasonType === 'playoffs' ? 'playoffs' : 'regular';
     const [metric, setMetric] = useState('PTS');
     const [mode, setMode] = useState('cum');
     const [off, setOff] = useState([]);          // 使用者關掉的賽季
@@ -196,8 +197,6 @@ const SeasonPaceChart = ({ viewMode, playerId, playerName }) => {
                 </select>
                 <UI.Seg ariaLabel="算法" size="sm" value={mode} onChange={setMode}
                     options={[{ value: 'cum', label: '累積季平均' }, { value: 'roll', label: '近 10 場' }, { value: 'game', label: '逐場' }]} />
-                <UI.Seg ariaLabel="賽別" size="sm" value={type} onChange={setType}
-                    options={[{ value: 'regular', label: '例行賽' }, { value: 'playoffs', label: '季後賽' }]} />
             </div>
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 <span className="mr-1 text-[11px] text-slate-500">賽季</span>

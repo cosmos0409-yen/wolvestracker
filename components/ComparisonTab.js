@@ -1,7 +1,7 @@
 // 跨季比較分頁：賽季軌跡疊圖（逐場對齊）＋ 多選賽季 × 數據類別 → 並列各季終點值表格 + 點指標畫逐季折線
 // seasons：可選賽季清單 [{key,label,short,order}]；loadSeason(key)→{team,player}（normalized）
 // 逐季折線：單一指標可疊加其他球員／全隊（他隊季別空心點＋@隊名）；多選指標改小圖並排或指數化疊圖
-const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason }) => {
+const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason, seasonType }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
     const shootingDefs = window.shootingDefs || [];
@@ -230,7 +230,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
 
     return (
         <div className="space-y-8">
-            {window.SeasonPaceChart && <window.SeasonPaceChart viewMode={viewMode} playerId={playerId} playerName={selectedPlayer} />}
+            {window.SeasonPaceChart && <window.SeasonPaceChart viewMode={viewMode} playerId={playerId} playerName={selectedPlayer} seasonType={seasonType} />}
 
             {/* 賽季多選 + 類別 */}
             <div className="space-y-2.5">

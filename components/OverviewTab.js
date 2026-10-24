@@ -80,7 +80,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
     return (
         <div className="space-y-10">
-            {window.Highlights && <window.Highlights games={games} untilDate={untilDate} />}
+            {window.Highlights && <window.Highlights games={games} untilDate={untilDate} n={range === 'all' ? 5 : Number(range)} />}
 
             <UI.Section title={isRecent ? `近 ${range} 場` : '季平均'} en={isRecent ? `Last ${range} Games` : 'Season Averages'} accent="green"
                 right={canRange && <UI.Seg size="sm" ariaLabel="平均期間" value={range} onChange={setRange}

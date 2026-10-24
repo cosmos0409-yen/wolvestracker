@@ -481,7 +481,8 @@ window.UI = (function () {
                     </h2>
                     {sub && <p className="mt-1 text-[12px] leading-relaxed text-slate-400">{sub}</p>}
                 </div>
-                {right && <div className="flex shrink-0 flex-wrap items-center gap-2">{right}</div>}
+                {/* max-w-full：右側操作比手機版寬還長時在自己框內換行，不把整頁撐出橫向捲動 */}
+                {right && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{right}</div>}
             </header>
             {children}
         </section>
