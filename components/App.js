@@ -859,7 +859,8 @@ const App = () => {
             ? window.UrlState.serialize({ capView, capSeason, capTab })
             : vs
             ? window.UrlState.serialize({ vsView: true, vsTeam: vs.team, vsRange: vs.range, vsType: vs.type, vsMetric: vs.metric })
-            : window.UrlState.serialize({ viewMode, selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
+            // 網址帶來的球員還在等名單比對時，原樣寫回（只寫 ID 或舊名字），不可配上前一位球員的名字
+            : window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
     }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId]);

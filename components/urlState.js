@@ -1,13 +1,13 @@
 // 網址狀態：把目前畫面寫進網址 hash，貼到筆記裡下次一點就回到同一個畫面。
 // 用 hash 而非 query：GitHub Pages 是靜態站，hash 不會送到伺服器、也不需要路由設定。
 // 格式（只寫非預設值，網址保持短）：
-//   #v=player&p=Jaden%20McDaniels&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def
+//   #v=player&p=1630183-jaden-mcdaniels&tab=shooting&s=2024-25&t=playoffs&d=2026-06-15&side=def
 //   v    球隊 team / 球員 player
 //   p    球員「ID-名字」，如 1630162-anthony-edwards：只用前面的 NBA 球員 ID 對人，後面的名字只給人看（寫錯、改名都不影響）；
 //        App 等名單載入後用 ID 對回快照的 playerName。舊連結的完整名字（Anthony%20Edwards）仍可讀
 //   tab  overview / splits / shooting / defense / playtype / comparison
-//   s    賽季 key（current 省略；其餘同 SEASON_OPTIONS.key = 歷史 docId）
-//   t    當季賽別 regular / playoffs（僅當季）
+//   s    賽季年份 YYYY-YY（當季省略）；舊連結的 SEASON_OPTIONS.key 寫法（2024-25_playoffs）仍可讀
+//   t    賽別 regular / playoffs（當季與歷史賽季都寫；歷史賽季時和 s 合成 key＝歷史 docId）
 //   d    當季「截至日期」YYYY-MM-DD（僅當季，空=最新）
 //   side off / def
 //   m    Splits 打開逐場走勢的指標 key（如 D_FG_PCT；僅 tab=splits）
@@ -70,9 +70,16 @@ window.UrlState = (function () {
             if (pid) out.playerId = pid; else out.selectedPlayer = q.get('p');
         }
         if (TABS.includes(q.get('tab'))) out.activeTab = q.get('tab');
-        const s = q.get('s');
-        if (s && (s === 'current' || (window.SEASON_OPTIONS || []).some(o => o.key === s))) out.selectedSeasonKey = s;
-        if (q.get('t') === 'regular' || q.get('t') === 'playoffs') out.seasonTypeView = q.get('t');
+        const s = q.get('s') || '', t = q.get('t') === 'regular' || q.get('t') === 'playoffs' ? q.get('t') : '';
+        const opts = window.SEASON_OPTIONS || [];
+        if (s === 'current' || opts.some(o => o.key === s)) out.selectedSeasonKey = s;   // 舊格式 s=2024-25_playoffs
+        else if (SEASON_RE.test(s)) {
+            const key = `${s}_${t || 'regular'}`;
+            if (s === window.CURRENT_SEASON) out.selectedSeasonKey = 'current';
+            else if (opts.some(o => o.key === key)) out.selectedSeasonKey = key;
+        }
+        // t 只決定當季的賽別；歷史賽季的賽別已在 key 裡，不可改到當季的賽別
+        if (t && (!out.selectedSeasonKey || out.selectedSeasonKey === 'current')) out.seasonTypeView = t;
         if (DATE_RE.test(q.get('d') || '')) out.selectedDate = q.get('d');
         if (q.get('side') === 'off') out.viewSide = 'offensive';
         if (q.get('side') === 'def') out.viewSide = 'defensive';
@@ -109,7 +116,9 @@ window.UrlState = (function () {
         if (st.viewMode === 'PLAYER' && (st.playerId || st.selectedPlayer)) q.set('p', playerToken(st.playerId, st.selectedPlayer));
         if (st.activeTab && st.activeTab !== 'overview') q.set('tab', st.activeTab);
         const isCurrent = !st.selectedSeasonKey || st.selectedSeasonKey === 'current';
-        if (!isCurrent) q.set('s', st.selectedSeasonKey);
+        const hist = isCurrent ? null : /^(\d{4}-\d{2})_(regular|playoffs)$/.exec(st.selectedSeasonKey);
+        if (hist) { q.set('s', hist[1]); q.set('t', hist[2]); }
+        else if (!isCurrent) q.set('s', st.selectedSeasonKey);   // 保險：不認得的 key 原樣寫
         if (isCurrent && st.seasonTypeView) q.set('t', st.seasonTypeView);
         if (isCurrent && st.selectedDate) q.set('d', st.selectedDate);
         if (st.viewSide === 'defensive') q.set('side', 'def');
