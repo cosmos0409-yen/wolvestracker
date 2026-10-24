@@ -43,7 +43,7 @@ const App = () => {
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [selectedCard, setSelectedCard] = useState(null);
     const [isCloud, setIsCloud] = useState(window.isCloudEnabled);
-    const [selectedSeasonKey, setSelectedSeasonKey] = useState(() => pick('selectedSeasonKey', loadPref('selectedSeasonKey', 'current')));
+    const [selectedSeasonKey, setSelectedSeasonKey] = useState(() => pick('selectedSeasonKey', 'current'));
     const [historyLoading, setHistoryLoading] = useState(false);
     const [compareKeys, setCompareKeys] = useState(() => loadPref('compareKeys', [])); // 疊加的歷史賽季 keys
     const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
@@ -87,7 +87,8 @@ const App = () => {
     useEffect(() => savePref('viewMode', viewMode), [viewMode]);
     useEffect(() => savePref('viewSide', viewSide), [viewSide]);
     useEffect(() => savePref('selectedPlayer', selectedPlayer), [selectedPlayer]);
-    useEffect(() => savePref('selectedSeasonKey', selectedSeasonKey), [selectedSeasonKey]);
+    // 賽季不記憶：開站一律看當季（舊賽季只靠網址 s= 打開）。清掉舊版存下的值，免得以後誤讀
+    useEffect(() => { try { localStorage.removeItem('wt_pref_selectedSeasonKey'); } catch (e) { /* ignore */ } }, []);
     useEffect(() => savePref('compareKeys', compareKeys), [compareKeys]);
     useEffect(() => savePref('comparePlayers', comparePlayers), [comparePlayers]);
 
