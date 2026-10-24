@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-24（**單場分頁＋介面統一**：單場頁改「概要／Box Score／對比／投籃」分頁、共用 `UI.TabBar`、數字鍵統一、主畫面賽季不再記憶，見「2026-10-24 單場分頁＋介面統一」）
+> 最後更新：2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**，見「2026-10-24 網址改用球員「ID-名字」＋賽季參數統一」；同日稍早**單場分頁＋介面統一**：單場頁改「概要／Box Score／對比／投籃」分頁、共用 `UI.TabBar`、數字鍵統一、主畫面賽季不再記憶，見「2026-10-24 單場分頁＋介面統一」）
 > 前次：2026-10-23（**對戰分析**：對戰首頁 `#vs`、單隊對戰頁 `#vs=DEN`、Splits 對手篩選，並清理 2022-23～2024-25 單場球員文件混入的非當時隊員，見「2026-10-23 對戰分析」；之前的開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
@@ -44,6 +44,7 @@
 | 35 | **舊賽季單場球員清理** | ✅ | `backfill_games.py --clean-players`（多欄位對帳、0 request）：2022-23～2024-25 例行賽剔除 76 場、105 人次非當時隊員，重建 bundle |
 | 36 | **對戰分析** | ✅ | `matchupData.js`（`window.Matchup`）＋對戰首頁 `MatchupHome.js`（`#vs`）＋單隊對戰頁 `MatchupPage.js`（`#vs=DEN`）＋Splits 對手篩選；只用既有逐場資料 |
 | 37 | **單場分頁＋介面統一** | ✅ | 單場頁單場分頁、共用 `UI.TabBar`／`UI.useTabKeys`、數字鍵切目前畫面分頁列、主畫面賽季不記憶、重複控制項只留一處、手機橫向溢出修正 |
+| 38 | **網址球員「ID-名字」＋賽季參數統一** | ✅ | `p=1630162-anthony-edwards`（只用 ID 對人）、`s=2025-26&t=playoffs`；舊連結仍可開；順帶修正舊連結跨賽季被舊名單誤判 |
 
 ---
 
@@ -205,6 +206,22 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **同一個控制只放一處**：跨季疊圖的賽別跟刊頭例行／季後（`ComparisonTab` 收 `seasonType`＝App 的 `viewType`）；近期異動場數跟總覽「平均期間」（近 5／近 10，全季時用 5）
 - 攻守切換標「進攻端／防守端」（含搜尋面板），避免和「防守」章節同一列出現兩個「防守」
 
+### 2026-10-24 網址改用球員「ID-名字」＋賽季參數統一
+
+需求：使用者覺得網址像亂碼。盤點後確認參數本來就全是英文，亂的是球員名字裡空白與重音的編碼（`Anthony%20Edwards`、`Mont%C3%A9%20Morris`）；另外主畫面舊賽季寫 `s=2025-26_playoffs`、當季卻是 `t=`，和薪資頁／對戰頁不一致。計畫檔：`~/.claude/plans/glittery-giggling-kazoo.md`。
+
+| Phase | 內容 | 狀態 | 提交 |
+|-------|------|------|------|
+| 1 | 球員 `p=ID-名字`（`nameSlug`、`UrlState.playerToken`／`tokenPlayerId`）；App `wantPlayer` 等目標賽季名單再比對；單場頁、薪資頁、單場面板連結改新格式 | ✅ | `7f1b9ec` |
+| 2 | 賽季 `s=年份&t=賽別`，舊格式相容；比對中只寫 ID | ✅ | `d532938` |
+| 3 | 更新規格文件 | ✅ | — |
+
+使用者確認過的決定（之後改動前先問）：
+- **球員寫成「ID-名字」**：只用開頭的 NBA 球員 ID 對人，後面名字只給人看（寫錯、改名都不影響，載入後自動改回正確名字）。曾考慮純名字（怕球員改登錄名，如 Nah'Shon → Bones Hyland，舊連結對不到）與純 ID（看不出是誰），最後選兩者合併
+- **賽季統一成 `s=年份&t=賽別`**：和刊頭（年份選單＋例行／季後）、薪資頁 `s=`、對戰頁 `r=&t=` 同一套；當季照舊不寫 `s`、一律寫 `t`（連結在不同時節打開才會是同一個賽別）
+- **舊連結永遠要能開**：`p=Anthony%20Edwards`（完整名字）、`s=2025-26_playoffs`（舊 key）都照樣解析
+- 指標 key（`m=D_FG_PCT`）維持大寫原樣
+
 ---
 
 ## 專案檔案結構
@@ -216,7 +233,7 @@ wolvestracker/
 │   ├── Icons.js                     ← SVG icon set，掛 window.Icons
 │   ├── ui.js                        ← 設計系統 window.UI（StatCell/Ledger/DataTable/Seg/TabBar/Section/PctBar、複製引用、匯出）
 │   ├── glossary.js                  ← 指標定義 window.GLOSSARY（「?」小卡內容）
-│   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）
+│   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）/ nameKey、nameSlug
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
 │   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
 │   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
@@ -279,10 +296,12 @@ wolvestracker/
 - **開站首頁＝最新一場單場頁**（2026-10-23）：網址沒帶畫面時 App `homePending` → `loadSeasonSchedule(CURRENT_SEASON)` 取最後一場開單場頁；當季未開打就推算上一季（不讀手動維護的 `HISTORY_SEASONS`）；找的期間不寫網址、主區顯示「載入最新一場…」；連不上雲端 8 秒後退回總覽；`hashchange` 會取消 pending。分享連結（`v=`/`game=`/`cap`）不受影響
 - 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／賽程月曆 `GameCalendar`／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（`UI.TabBar`，sticky，01–06 章節＋攻守視角「進攻端／防守端」；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容。單場／薪資／對戰是獨立整頁，**不掛章節列**，左上「← 回主畫面」（App `backBtn`）
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
-- 網址 hash（`components/urlState.js`）：`#v=player&p=名字&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
+- 網址 hash（`components/urlState.js`）：`#v=player&p=1630183-jaden-mcdaniels&tab=shooting&s=2024-25&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
   - `m`＝Splits 打開逐場走勢的指標 key、`hl`＝走勢上圈出的那一場日期（僅 `tab=splits`）。App 以 `focus = {m, hl, key}` 保存，`key`＝「實體＋章節」：Splits 內換球員保留 `m`、拿掉 `hl`；離開 Splits 清掉。Splits 開關走勢／換指標會回報（`onFocusChange`），網址跟著記住
-  - 單場頁 `#game=日期&tab=box&p=展開的球員`（**沒有 `v=`**）。`tab`＝單場分頁 box／compare／shots（省略＝概要，2026-10-24）；`p` 是展開進階的灰狼球員、只在 `tab=box` 寫入，不改主畫面的 `selectedPlayer`；**舊連結只帶 `p=` 時 parse 成 `tab=box`**。App 以 `gameTab` 保存，切分頁用 `replaceState`，離開 Box Score 清掉 `p`
+  - **球員 `p=ID-名字`**（2026-10-24）：`UrlState.playerToken(id, name)` 組（名字部分 `window.nameSlug`＝`nameKey` 後非英數字換 `-`），`tokenPlayerId(p)` 解（符合 `^\d+(-[a-z0-9-]*)?$` 取開頭數字，否則 `null`＝舊連結的完整名字）。App 不直接把網址的 p 塞進 `selectedPlayer`：`wantPlayer = {pid|name, seasonKey}` 交給「自動修正 selectedPlayer」effect，**等 `loadedSeasonKey()`（由 `playerHistory[0].date` 推回：日期字串＝當季、賽季標籤＝歷史）等於目標賽季才比對**（ID 用 `playerIdOf`、名字用 `nameKey`），避開切季那一拍舊名單誤判成「沒有這個人」而退回第一人；比對期間網址只寫 ID（或舊名字），不配上前一位球員的名字。網址帶 ID 時 `selectedPlayer` 初值留空，不先閃出 localStorage 記住的球員
+  - **賽季 `s=年份&t=賽別`**（2026-10-24）：歷史賽季寫 `s=2025-26&t=playoffs`（例行賽也寫 `t=regular`）；parse 時 `s=當季年份` 視為當季、舊 key `s=2025-26_playoffs`／`s=current` 照收；`t` 只在當季寫進 `seasonTypeView`（歷史賽季的賽別在 key 裡，不可改到當季賽別）
+  - 單場頁 `#game=日期&tab=box&p=展開的球員`（**沒有 `v=`**）。`tab`＝單場分頁 box／compare／shots（省略＝概要，2026-10-24）；`p` 是展開進階的灰狼球員、只在 `tab=box` 寫入，不改主畫面的 `selectedPlayer`；**舊連結只帶 `p=` 時 parse 成 `tab=box`**；`p` 同主畫面寫「ID-名字」，GamePage 先用 ID 對、舊名字才比名字，對到後把網址改寫成目前的 token。App 以 `gameTab` 保存，切分頁用 `replaceState`，離開 Box Score 清掉 `p`
   - 薪資頁 `#cap&s=2025-26&tab=contracts`（2026-10-20，**沒有 `v=`**）：`s`＝薪資賽季（省略＝薪資當季，7/1 切換）、`tab`＝contracts／picks／rules（省略＝總覽）。進出同單場頁（改 `location.hash`、「← 回主畫面」直接切回）；切分頁、換賽季用 `replaceState`
   - 進出單場頁一律改 `location.hash`（產生瀏覽紀錄，返回鍵可回上一頁）；單場頁期間主畫面狀態不動，「← 回主畫面」直接切回（不用 `history.back()`：從外部連結直接打開時會離開本站）
   - 改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁；數字鍵在單場頁切單場分頁（2026-10-24 起，不再離開）
