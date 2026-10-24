@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-23（**對戰分析**：對戰首頁 `#vs`、單隊對戰頁 `#vs=DEN`、Splits 對手篩選，並清理 2022-23～2024-25 單場球員文件混入的非當時隊員，見「2026-10-23 對戰分析」；之前的開季修正、薪資頁、單場比賽頁見同名章節）
+> 最後更新：2026-10-24（**單場分頁＋介面統一**：單場頁改「概要／Box Score／對比／投籃」分頁、共用 `UI.TabBar`、數字鍵統一、主畫面賽季不再記憶，見「2026-10-24 單場分頁＋介面統一」）
+> 前次：2026-10-23（**對戰分析**：對戰首頁 `#vs`、單隊對戰頁 `#vs=DEN`、Splits 對手篩選，並清理 2022-23～2024-25 單場球員文件混入的非當時隊員，見「2026-10-23 對戰分析」；之前的開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
 
@@ -33,7 +34,7 @@
 | 25 | **防守側前端** | ✅ | 修進攻/防守不對稱；`defenseDefs`/`oppZonesDefs`；`doc.defense` 欄位 |
 | 26 | **球隊投籃熱圖** | ✅ | `fetch_shotchart.py` `PlayerID=0` 全隊 → `wolves_shotcharts/TEAM_*`；`ShotChart teamMode` |
 | 27 | **防守熱圖** | ✅ | `DefenseHeatmap.js` 半場 5 區依「對手命中率 − 該區聯盟均值」著色 |
-| 28 | **單場比賽頁（Game Center）** | ✅ | `GamePage.js`，網址 `#game=日期`：比分看板、Box Score＋展開進階、球隊對比、本場 vs 季平均、投籃 |
+| 28 | **單場比賽頁（Game Center）** | ✅ | `GamePage.js`，網址 `#game=日期[&tab=]`：比分看板常駐，單場分頁 概要（焦點／本場 vs 季平均／比賽資訊）／Box Score＋展開進階／球隊對比／投籃（2026-10-24 分頁化） |
 | 29 | **2025-26 box score 回補** | ✅ | `backfill_games.py --box-only`，例行 82＋季後 12 場（2025-11-19 NBA summary 為空，缺每節比分） |
 | 30 | **網址聚焦指標走勢** | ✅ | `m=`／`hl=` 直接開 Splits 逐場走勢並圈出單場；Splits 新增「防守」欄位組 |
 | 31 | **走勢勝負底色** | ✅ | Splits／投籃的逐場走勢鋪綠勝紅敗色帶 |
@@ -42,6 +43,7 @@
 | 34 | **薪資頁（Cap Sheet）** | ✅ | `CapPage.js`，網址 `#cap`：門檻與奢侈稅、累犯自動判定、門檻限制、逐年薪資總表、薪資結構、選秀權、薪資×表現；資料由 Google Sheet 經 `sync_salary.py` 同步 |
 | 35 | **舊賽季單場球員清理** | ✅ | `backfill_games.py --clean-players`（多欄位對帳、0 request）：2022-23～2024-25 例行賽剔除 76 場、105 人次非當時隊員，重建 bundle |
 | 36 | **對戰分析** | ✅ | `matchupData.js`（`window.Matchup`）＋對戰首頁 `MatchupHome.js`（`#vs`）＋單隊對戰頁 `MatchupPage.js`（`#vs=DEN`）＋Splits 對手篩選；只用既有逐場資料 |
+| 37 | **單場分頁＋介面統一** | ✅ | 單場頁單場分頁、共用 `UI.TabBar`／`UI.useTabKeys`、數字鍵切目前畫面分頁列、主畫面賽季不記憶、重複控制項只留一處、手機橫向溢出修正 |
 
 ---
 
@@ -184,6 +186,25 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 對手本季整體表現（聯盟排名）**這次不做**，列為第二期（見 B2）
 - 舊賽季單場球員清理用「多欄位對帳」，不補 box score（使用者選的，0 request）
 
+### 2026-10-24 單場分頁＋介面統一
+
+需求：單場頁不該掛主畫面的章節列、單頁太長（桌機約 3,900px／手機約 5,200px）；正式站另查出「開站跳回舊賽季」bug 與幾處重複控制項。計畫檔：`~/.claude/plans/glittery-giggling-kazoo.md`。
+
+| Phase | 內容 | 狀態 | 提交 |
+|-------|------|------|------|
+| 1 | 主畫面賽季不存 localStorage（`selectedSeasonKey` 只認網址 `s=`，開站清掉舊值 `wt_pref_selectedSeasonKey`） | ✅ | `ee65637` |
+| 2 | 單場頁改單場分頁（概要／Box Score／對比／投籃，網址 `tab=`）；新增 `UI.TabBar`／`UI.useTabKeys`，章節列、薪資頁、單場頁共用；數字鍵統一；App 返回鈕收成 `backBtn` | ✅ | `81c8559` |
+| 3 | 攻守切換改「進攻端／防守端」；跨季疊圖賽別跟刊頭；近期異動場數跟總覽期間；`UI.Section` 右側手機自行換行（修 375px 橫向溢出） | ✅ | `7450ac3` |
+| 4 | 更新規格文件 | ✅ | — |
+
+使用者確認過的決定（之後改動前先問）：
+- **賽季不記憶**：開站一律看當季，舊賽季只靠網址 `s=`；同一次瀏覽期間切過的賽季仍留在記憶體狀態（離開再回主畫面不重設）
+- **單場分頁分組**：概要＝本場焦點＋本場 vs 季平均＋比賽資訊；Box Score＝兩隊 box＋展開進階（舊場次無 box 時改叫「球員進階」、放灰狼球員進階清單）；對比＝球隊對比；投籃＝本場投籃。沒內容的分頁不顯示，網址指定的分頁不存在就退回概要
+- **換場次保留分頁**（賽程條 `‹ ›` 與各場連結帶目前 `tab`、不帶 `p`）；從月曆、刊頭、對戰頁進來一律從概要開始
+- **數字鍵切目前畫面的分頁列**：主畫面 `1–6` 章節、單場頁 `1–N` 單場分頁、薪資頁 `1–4`；對戰頁沒有分頁列＝不作用。不再「按數字鍵離開獨立整頁」
+- **同一個控制只放一處**：跨季疊圖的賽別跟刊頭例行／季後（`ComparisonTab` 收 `seasonType`＝App 的 `viewType`）；近期異動場數跟總覽「平均期間」（近 5／近 10，全季時用 5）
+- 攻守切換標「進攻端／防守端」（含搜尋面板），避免和「防守」章節同一列出現兩個「防守」
+
 ---
 
 ## 專案檔案結構
@@ -193,7 +214,7 @@ wolvestracker/
 ├── index.html                       ← HTML 骨架 + Firebase 初始化，引用 dist/components-bundle.js
 ├── components/                      ← React 元件原始碼（編輯這裡）
 │   ├── Icons.js                     ← SVG icon set，掛 window.Icons
-│   ├── ui.js                        ← 設計系統 window.UI（StatCell/Ledger/DataTable/Seg/Section/PctBar、複製引用、匯出）
+│   ├── ui.js                        ← 設計系統 window.UI（StatCell/Ledger/DataTable/Seg/TabBar/Section/PctBar、複製引用、匯出）
 │   ├── glossary.js                  ← 指標定義 window.GLOSSARY（「?」小卡內容）
 │   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
@@ -201,7 +222,7 @@ wolvestracker/
 │   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
 │   ├── matchupData.js               ← 對戰分析資料層 window.Matchup（範圍、對手彙整、偏離程度 z、標籤、勝負關鍵因子）
 │   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
-│   ├── GamePage.js                  ← 單場比賽頁（#game=日期）
+│   ├── GamePage.js                  ← 單場比賽頁（#game=日期[&tab=]，單場分頁）
 │   ├── CapPage.js                   ← 薪資頁（#cap）：CapCalc 計算、loadCapDoc／loadCapContrib 載入、各分頁區塊
 │   ├── MatchupHome.js / MatchupPage.js ← 對戰首頁（#vs）、單隊對戰頁（#vs=三碼）
 │   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
@@ -256,19 +277,20 @@ wolvestracker/
 
 ### 版面骨架與網址狀態（2026-10 Phase 3）
 - **開站首頁＝最新一場單場頁**（2026-10-23）：網址沒帶畫面時 App `homePending` → `loadSeasonSchedule(CURRENT_SEASON)` 取最後一場開單場頁；當季未開打就推算上一季（不讀手動維護的 `HISTORY_SEASONS`）；找的期間不寫網址、主區顯示「載入最新一場…」；連不上雲端 8 秒後退回總覽；`hashchange` 會取消 pending。分享連結（`v=`/`game=`/`cap`）不受影響
-- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／賽程月曆 `GameCalendar`／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（sticky，01–06 章節＋攻守；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容
+- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／賽程月曆 `GameCalendar`／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（`UI.TabBar`，sticky，01–06 章節＋攻守視角「進攻端／防守端」；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容。單場／薪資／對戰是獨立整頁，**不掛章節列**，左上「← 回主畫面」（App `backBtn`）
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
 - 網址 hash（`components/urlState.js`）：`#v=player&p=名字&tab=shooting&s=2024-25_playoffs&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
   - `m`＝Splits 打開逐場走勢的指標 key、`hl`＝走勢上圈出的那一場日期（僅 `tab=splits`）。App 以 `focus = {m, hl, key}` 保存，`key`＝「實體＋章節」：Splits 內換球員保留 `m`、拿掉 `hl`；離開 Splits 清掉。Splits 開關走勢／換指標會回報（`onFocusChange`），網址跟著記住
-  - 單場頁 `#game=日期&p=展開的球員`（**沒有 `v=`**）。`p` 在這裡是展開進階的灰狼球員，不改主畫面的 `selectedPlayer`
+  - 單場頁 `#game=日期&tab=box&p=展開的球員`（**沒有 `v=`**）。`tab`＝單場分頁 box／compare／shots（省略＝概要，2026-10-24）；`p` 是展開進階的灰狼球員、只在 `tab=box` 寫入，不改主畫面的 `selectedPlayer`；**舊連結只帶 `p=` 時 parse 成 `tab=box`**。App 以 `gameTab` 保存，切分頁用 `replaceState`，離開 Box Score 清掉 `p`
   - 薪資頁 `#cap&s=2025-26&tab=contracts`（2026-10-20，**沒有 `v=`**）：`s`＝薪資賽季（省略＝薪資當季，7/1 切換）、`tab`＝contracts／picks／rules（省略＝總覽）。進出同單場頁（改 `location.hash`、「← 回主畫面」直接切回）；切分頁、換賽季用 `replaceState`
   - 進出單場頁一律改 `location.hash`（產生瀏覽紀錄，返回鍵可回上一頁）；單場頁期間主畫面狀態不動，「← 回主畫面」直接切回（不用 `history.back()`：從外部連結直接打開時會離開本站）
-  - 單場頁按 `1–6`、改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁
-  - 對戰分析（2026-10-23，**沒有 `v=`**）：首頁 `#vs[&r=cur|YYYY-YY][&t=regular|playoffs]`、單隊頁 `#vs=DEN[&r=][&t=][&m=指標]`。`r`／`t` 是對戰自己的範圍（省略＝近三季、例行＋季後），**不改主畫面的賽季／賽別**；`m` 只在單隊頁有效（從首頁熱圖點格子帶入，標亮並捲到該指標）。App 以單一 `vs` 物件 `{team, range, type, metric}` 保存；首頁↔單隊頁用 `openVs()` 改 `location.hash`（沿用目前範圍），切範圍／賽別用 `replaceState`；`leaveGame` 一併關掉對戰（`1–6` 快捷鍵也會離開）
+  - 改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁；數字鍵在單場頁切單場分頁（2026-10-24 起，不再離開）
+  - 對戰分析（2026-10-23，**沒有 `v=`**）：首頁 `#vs[&r=cur|YYYY-YY][&t=regular|playoffs]`、單隊頁 `#vs=DEN[&r=][&t=][&m=指標]`。`r`／`t` 是對戰自己的範圍（省略＝近三季、例行＋季後），**不改主畫面的賽季／賽別**；`m` 只在單隊頁有效（從首頁熱圖點格子帶入，標亮並捲到該指標）。App 以單一 `vs` 物件 `{team, range, type, metric}` 保存；首頁↔單隊頁用 `openVs()` 改 `location.hash`（沿用目前範圍），切範圍／賽別用 `replaceState`；`leaveGame` 一併關掉對戰（對戰頁沒有分頁列，數字鍵不作用）
 - 網址帶日期時用 `pendingDateRef` 延後套用：資料載入 effect 一開始會清空 `selectedDate`
 - 狀態變動用 `history.replaceState`（不產生瀏覽紀錄）；同分頁貼上新連結靠 `hashchange` 套用
-- 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別/最近 10 場比賽，比對走 `nameKey`）、`1–6` 切章節；輸入框聚焦或 Modal 開著時不攔截
+- 快捷鍵：`/` 開 `CommandPalette`（球員/章節/賽季/攻守/賽別/最近 10 場比賽，比對走 `nameKey`）；數字鍵切**目前畫面的分頁列**——主畫面 `1–6` 章節（App 全域 keydown，`ownPageRef` 為真時不處理）、獨立整頁用 `UI.useTabKeys(keys|() => keys, onChange)`（單場、薪資；hook 要在提早 return 之前呼叫，分頁清單晚點才知道時傳函式）；輸入框聚焦或 Modal 開著時不攔截
+- **主畫面賽季不存 localStorage**（2026-10-24）：`selectedSeasonKey` 初值＝網址 `s=` 或 `current`，App 掛載時刪除舊版的 `wt_pref_selectedSeasonKey`。原本存了會讓開站首頁（單場）回主畫面跳到上次看的舊賽季，`#vs`／`#cap` 刊頭賽程膠囊也顯示上季最後一場
 
 ### 2026-10-23 Hustle 欄位補齊與防守分頁重排
 - `HUSTLE_FIELDS` 由 7 欄增為 15 欄：新增干擾兩分、掩護助攻得分、進攻／防守端地板球、進攻／防守卡位、卡位後自己搶下籃板與比例（干擾三分原本就有抓，這次才上畫面）。endpoint 另有 6 欄**刻意不抓**（已與使用者確認）：`BOX_OUT_PLAYER_TEAM_REBS`、`PCT_BOX_OUTS_TEAM_REB`（恆等於卡位／100%）、`PCT_BOX_OUTS_OFF/DEF`、`PCT_LOOSE_BALLS_RECOVERED_OFF/DEF`（可由次數推得）
@@ -291,7 +313,7 @@ wolvestracker/
 ### 寫作工具（2026-10 Phase 5）
 - **複製引用**：`UI.citeLine` 組字串；入口是「?」小卡底部的「複製引用」（`UI.Info` 帶 `cite`，2026-10-23 起每格只留一個圖示），沒有 glossary 定義或沒有「?」的地方才用獨立 `UI.CopyBtn`。`cite`／`text` 一律傳**函式**（點擊當下才組字串，句尾網址才是當下畫面），格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
-- **近期異動**：`components/Highlights.js`，近 5/10 場 vs 全季（截至 untilDate），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
+- **近期異動**：`components/Highlights.js`，近 N 場 vs 全季（截至 untilDate；N 由 `OverviewTab` 依「平均期間」傳入，近 5／近 10，全季時用 5，本區不另放切換），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
 - 刊頭「複製連結」＝複製含 hash 的目前網址
 - **匯出**（`UI.ExportMenu`／`exportCSV`／`exportPNG`）：表格（Playtype、陣容、跨季比較、Splits、投籃分區）可匯出 CSV（第一列為出處、UTF-8 BOM 供 Excel）；投籃分布、雷達、趨勢圖與表格可匯出 PNG 配圖（16:9＝1600×900、1:1＝1080×1080，含字標／標題／主體·賽季·日期／來源）
   - `html-to-image@1.11.13`（jsDelivr）只在第一次匯出時載入
@@ -308,7 +330,8 @@ wolvestracker/
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入
 - 背景：底色 `#0A1626`＋刊頭淡光暈＋極淡顆粒，寫在 `styles/app.css` 的 `@layer base`
 - 元件：`UI.StatCell`（指標格，數值三態：0 照常顯示／無資料「—」／不適用「—」+ tooltip）、`UI.Ledger`＋`UI.ledgerCols(n)`（細線數據表，依指標數選能整除的欄數）、`UI.PctBar`（百分位色階條，紅→月光銀→綠；**只給真的有 percentile 的資料**）、`UI.Delta`（漲跌）、`UI.DataTable`（可排序表格，手機首欄固定且限寬換行）
-- Phase 4 補：`UI.Section`（區塊標題＋小字原文＋說明＋右側操作，accent 色標保留舊色條語意：攻綠/守紅/Clutch 琥珀/結構藍）、`UI.Note`（空狀態）、`UI.Chip`／`UI.selectClass`（篩選膠囊）
+- 2026-10-24 補：`UI.TabBar`（sticky 分頁列，章節列／薪資頁／單場頁共用；`numbered` 標 01 02… 快捷鍵提示、`right` 放右側控制項、`bleed` 在 `<main>` 內用負邊距撐滿）、`UI.useTabKeys`（數字鍵切分頁）。新的分頁列一律用它，不要再複製一份 JSX
+- Phase 4 補：`UI.Section`（區塊標題＋小字原文＋說明＋右側操作，accent 色標保留舊色條語意：攻綠/守紅/Clutch 琥珀/結構藍；右側容器 `max-w-full`，手機上自行換行不撐寬頁面）、`UI.Note`（空狀態）、`UI.Chip`／`UI.selectClass`（篩選膠囊）
 - 新區塊一律用這些元件組，標籤寫「中文＋小字原文」，風格自動一致
 
 ### 各章節（2026-10 Phase 4）

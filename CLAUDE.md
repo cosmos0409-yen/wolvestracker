@@ -17,8 +17,9 @@
 - 底色：`#0A1626`  · 月光銀（logo 環/標題底線 `/30`）：`#C4CED2`  · 防守/未命中/負值：`#EF4444`
 
 - 無障礙（WCAG AA）：`tailwind.config.js` 已把 slate-500/600 調亮（只當文字色）；品牌色當底時字用 `#0A1626`；`#236192` 不可當小字色；按鈕框 ≥ 24×24 且不重疊（「?」鈕不可用左右負邊距）
-- 字體：`font-sans` Noto Sans TC／`font-display` Barlow Condensed（數字/標題）／`font-mono` JetBrains Mono（標籤/原文）；共用介面元件在 `components/ui.js`（`window.UI`：Section/StatCell/Ledger/PctBar/DataTable/Seg/Chip/Note），新區塊一律用它組；只給真的有 percentile 的資料畫百分位條
-- 介面規則：複製引用收進「?」小卡（`UI.Info` 帶 `cite` 函式），不另放複製圖示；攻守切換只在 `TABS` 標 `sided` 的章節出現；平鋪指標清單用 `window.metricLabel(m)`（有 `longLabel` 優先）；有逐場資料的防守群組列在 `window.GAME_DEFENSE_IDS`；預設一律看進行中賽季，不自動切到舊賽季
+- 字體：`font-sans` Noto Sans TC／`font-display` Barlow Condensed（數字/標題）／`font-mono` JetBrains Mono（標籤/原文）；共用介面元件在 `components/ui.js`（`window.UI`：Section/StatCell/Ledger/PctBar/DataTable/Seg/TabBar/Chip/Note），新區塊一律用它組；只給真的有 percentile 的資料畫百分位條
+- 介面規則：複製引用收進「?」小卡（`UI.Info` 帶 `cite` 函式），不另放複製圖示；攻守切換只在 `TABS` 標 `sided` 的章節出現；平鋪指標清單用 `window.metricLabel(m)`（有 `longLabel` 優先）；有逐場資料的防守群組列在 `window.GAME_DEFENSE_IDS`；預設一律看進行中賽季，不自動切到舊賽季（`selectedSeasonKey` 不存 localStorage，舊賽季只靠網址 `s=`）
+- 統一規則：分頁列一律用 `UI.TabBar`（章節列／薪資頁／單場頁共用）；數字鍵切「目前畫面的分頁列」（主畫面章節由 App 處理、獨立整頁用 `UI.useTabKeys`，沒有分頁列的對戰頁不作用）；同一個控制只放一處（跨季疊圖賽別跟刊頭、近期異動場數跟總覽「平均期間」）；攻守切換標「進攻端／防守端」，不和「防守」章節同字；`UI.Section` 右側操作手機上會自行換行，不可再加會撐寬頁面的固定寬度
 
 ## 硬性約束
 - 抓取邏輯與欄位對應集中在 `scripts/nba_common.py`——**新增數據改設定表（`*_FIELDS`），不要在 fetch_data.py / backfill_history.py / backfill_games.py 寫重複邏輯**
@@ -41,10 +42,10 @@
 - 提交前端改動要連 `dist/` 與 `index.html`（`?v=` 內容雜湊）一起提交
 - **開站首頁＝最新一場單場頁**（網址沒帶畫面時；當季未開打退上一季最後一場，`homePending` 期間不寫網址）
 - 版面（無側欄）：刊頭 `Masthead`（賽季/賽別/賽程月曆 `GameCalendar`/薪資/搜尋）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar`（含時光機「數據截至」，僅當季）→ 章節列 `ChapterNav`（sticky，含攻守）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
-- 單場比賽頁 `GamePage`（`#game=日期[&p=球員]`，獨立整頁，取代主區，上方仍有章節列可回主畫面）：賽程月曆讀 `loadSeasonSchedule`（例行＋季後合併），單場頁跟著該場賽季、其餘跟刊頭所選賽季；灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
+- 單場比賽頁 `GamePage`（`#game=日期[&tab=box|compare|shots][&p=球員]`，獨立整頁，取代主區，**不掛章節列**、用「← 回主畫面」返回）：賽程條＋比分看板常駐，下方單場分頁 概要／Box Score／對比／投籃（沒內容的分頁不顯示、舊場次無 box 時第二頁叫「球員進階」；`p=` 只在 Box Score，舊連結只帶 `p=` 視為 `tab=box`；賽程條換場次保留分頁）；賽程月曆讀 `loadSeasonSchedule`（例行＋季後合併），單場頁跟著該場賽季、其餘跟刊頭所選賽季；灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
 - 薪資頁 `CapPage`（`#cap[&s=賽季][&tab=contracts|picks|rules]`，獨立整頁）：四分頁＋分頁列上唯一的賽季選單（刊頭在薪資頁隱藏賽季／賽別／日期）；狀態資訊用狀態列＋色點，膠囊只給可點控制項；縮寫金額要能懸停看完整金額；球員對應一律用 `playerId`；薪資×表現可用 Sheet `settings.show_value` 關閉、公式常駐
 - 對戰分析（`#vs` 首頁 `MatchupHome`／`#vs=三碼` 單隊頁 `MatchupPage`，獨立整頁）：計算全在 `matchupData.js` 的 `window.Matchup`（只讀既有逐場 bundle＋交手場次單場文件）；範圍預設近三季（當季例行賽未滿 41 場多含一季）、`r=`／`t=` 不影響主畫面賽季；排序上色看偏離程度 z（差距 ÷ 逐場標準差/√n）；門檻全在 `constants.js` 的 `MATCHUP_RULES`；每節分差／對手 box 只有 2025-26 起的場次
-- 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；Splits 走勢 `m=指標&hl=日期`；單場頁 `game=`、薪資頁 `cap`、對戰 `vs` 都沒有 `v=`）；快捷鍵 `/` 搜尋（`CommandPalette`）、`1–6` 切章節
+- 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；Splits 走勢 `m=指標&hl=日期`；單場頁 `game=`（＋`tab=`）、薪資頁 `cap`、對戰 `vs` 都沒有 `v=`）；快捷鍵 `/` 搜尋（`CommandPalette`）、數字鍵切目前畫面的分頁列（主畫面 `1–6` 章節、單場／薪資頁各自分頁）
 - **資料層分工**：季平均/Splits/趨勢/對戰 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score → `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（單場頁與對戰頁一律經 `gamesData.loadGameDocs` 讀）（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比
 - 當季快照先只讀近期（`snapshotWindowStart`），選日期／開走勢／賽別不足時才補讀整季（`snapFull`）；Firestore 只用 doc id **升冪範圍**查詢（`orderBy desc`／`limitToLast` 需索引會被拒），`onSnapshot` 必帶 error callback
