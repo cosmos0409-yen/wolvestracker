@@ -24,6 +24,7 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 - **複製引用**：點數字旁的「?」看定義，小卡內可一鍵複製「球員｜賽季｜截至日期｜指標 數值｜資料來源｜畫面網址」
 - **指標定義**：指標旁的「?」說明定義、計算方式與資料來源
 - **匯出**：表格可匯出 CSV（Excel 可直接開），圖表與表格可匯出 16:9／1:1 PNG 專欄配圖
+- **加到手機主畫面**：iPhone 用 Safari「分享 → 加入主畫面」、Android 用 Chrome「安裝應用程式」，以「灰狼帳本」圖示開啟、沒有網址列
 - **無障礙**：文字對比符合 WCAG AA、按鈕點擊範圍至少 24px、鍵盤操作有焦點框（PageSpeed 無障礙 100）
 
 | 分頁 | 說明 |
@@ -57,7 +58,9 @@ wolvestracker/
 │   └── gamesData.js         # 讀逐場 bundle（單一 getDoc）、比賽索引、單場文件
 ├── dist/                    # bundle.py 產物：components-bundle.js（預編譯 JS）、app.css（Tailwind）（勿手改）
 ├── styles/app.css           # Tailwind 入口
-├── package.json             # 前端建置工具（esbuild、tailwindcss，鎖定版本）
+├── package.json             # 前端建置工具（esbuild、tailwindcss、resvg，鎖定版本）
+├── manifest.webmanifest     # PWA 設定（加到主畫面的名稱與圖示）
+├── icons/                   # 網站圖示：SVG 原稿＋各尺寸 PNG
 ├── scripts/
 │   ├── nba_common.py        # 共用模組：連線/欄位設定表/抓取函式
 │   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase)
@@ -66,6 +69,7 @@ wolvestracker/
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
 │   ├── fetch_shotchart.py   # 投籃熱圖爬蟲（每週整季對帳；每日由 fetch_data 增量併入新場次）
 │   ├── sync_salary.py       # 薪資同步（Google Sheet 發佈的 CSV → Firestore，每日排程順跑）
+│   ├── build_icons.py       # 網站圖示：icons/*.svg → 各尺寸 PNG（改圖示才需要跑）
 │   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
 ├── run_fetch.bat            # Windows 排程入口（每日）
 ├── run_shotchart.bat        # Windows 排程入口（每週）

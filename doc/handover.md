@@ -222,6 +222,21 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **舊連結永遠要能開**：`p=Anthony%20Edwards`（完整名字）、`s=2025-26_playoffs`（舊 key）都照樣解析
 - 指標 key（`m=D_FG_PCT`）維持大寫原樣
 
+### 2026-10-24 網站圖示（PWA／加入主畫面）
+
+需求：iPhone「加入主畫面」要有像樣的圖示。提案經多輪比較（字標／狼首／折線 → 帳本三款 → 帳本封面加籃球／月亮／狼首 → 官方 Logo 版 → 森林排版），定稿為「帳本立在林間空地、星空背景」。
+
+- 原稿：`icons/icon.svg`（一般）、`icons/icon-maskable.svg`（Android 圓形裁切用，帳本縮到 0.76 落在半徑 40% 安全區內，樹林與星空維持滿版）；比稿過程的 SVG 在 `_mockup/pwa-icons/`（不進版控）
+- 產物：`python scripts/build_icons.py` 用 `@resvg/resvg-js`（devDependency，`npm ci` 安裝）產 `apple-touch-icon.png`（180）、`icon-192.png`、`icon-512.png`、`icon-maskable-512.png`，PNG 要一起提交
+- `manifest.webmanifest`：`short_name` 灰狼帳本、`display: standalone`、`start_url`／`scope` 用相對路徑 `./`（Pages 掛在子路徑）；`index.html` 另加 `apple-touch-icon` 與 `apple-mobile-web-app-*`（狀態列 `black`，不用 `black-translucent` 以免內容被瀏海蓋住）
+- 刊頭站徽（`Masthead`）改用 `icons/icon.svg`；身分列、頭像列的「全隊」仍是 NBA 官方 Logo（那裡代表球隊本身）
+
+使用者確認過的決定（之後改動前先問）：
+- **圖示元素**：帳本在正中央、書脊無字（四道凸條）、封面是原創幾何狼首、兩側松樹由外往內遞減（中間淨空讓帳本突出）、帳本立在小丘上、不放月亮、星空補星光。比過官方 Logo 版後仍選原創
+- **配色只用品牌色系**：深藍底、月光銀、品牌綠（書脊），森林用低對比的藍灰／極深綠，不另加橘色籃球等色票外顏色
+- **分頁小圖示（favicon）維持內嵌的 W**：新圖在 16px 會糊成一塊
+- **不加 service worker**：加到主畫面不需要，加了要多處理快取換版
+
 ---
 
 ## 專案檔案結構
@@ -249,7 +264,9 @@ wolvestracker/
 │   └── App.js                       ← 主容器：資料訂閱、狀態、版面組裝
 ├── styles/app.css                   ← Tailwind 入口＋全站基礎樣式（背景、焦點框、減少動態）
 ├── tailwind.config.js               ← 字體、slate-500/600 對比調整
-├── package.json / package-lock.json ← 鎖定 esbuild、tailwindcss 版本（npm ci）
+├── package.json / package-lock.json ← 鎖定 esbuild、tailwindcss、@resvg/resvg-js 版本（npm ci）
+├── manifest.webmanifest             ← PWA 設定（名稱、standalone、圖示清單）
+├── icons/                           ← 網站圖示：icon.svg／icon-maskable.svg 原稿＋build_icons.py 產的 PNG
 ├── dist/
 │   ├── components-bundle.js(.map)   ← 自動產生，勿手改
 │   └── app.css                      ← 自動產生，勿手改
@@ -262,6 +279,7 @@ wolvestracker/
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
+│   ├── build_icons.py               ← 網站圖示：icons/*.svg → apple-touch-icon／manifest 用 PNG
 │   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
 ├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步（*.bat 被 .gitignore 排除，不進版控）
 ├── _salary_seed/                    ← 薪資 Sheet 的本地參考副本（未進版控；Sheet 才是資料來源）
@@ -277,7 +295,8 @@ wolvestracker/
 ## 開發工作流程
 
 ### 編輯前端
-0. 新電腦第一次：專案根目錄跑 `npm ci`（依 `package-lock.json` 安裝鎖定版本的 esbuild / tailwindcss 到 `node_modules/`，不進版控）
+0. 新電腦第一次：專案根目錄跑 `npm ci`（依 `package-lock.json` 安裝鎖定版本的 esbuild / tailwindcss / resvg 到 `node_modules/`，不進版控）
+   - 只有改網站圖示（`icons/*.svg`）時才需要另跑 `python scripts/build_icons.py`，並提交產出的 PNG
 1. 改 `components/*.js`
 2. `python scripts/bundle.py` 重新打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS → 蓋版本號）
 3. `python -m http.server 8000` 啟動本地伺服器

@@ -11,6 +11,13 @@
     <meta property="og:title" content="Wolves Ledger｜灰狼數據帳本">
     <meta property="og:description" content="灰狼 Playtype、Tracking、投籃與防守數據，每日更新。">
     <meta name="twitter:card" content="summary">
+    <!-- PWA／加入主畫面：圖示原稿在 icons/*.svg，PNG 由 scripts/build_icons.py 產生；iOS 只認 apple-touch-icon（PNG） -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="灰狼帳本">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <!-- 網站圖示：深藍底 + 綠色 W（內嵌 SVG，免額外檔案） -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230A1626'/%3E%3Cpath d='M12 18h8l5 22 7-22h4l7 22 5-22h8l-9 30h-7l-6-19-6 19h-7z' fill='%2312A150'/%3E%3C/svg%3E">
 
@@ -160,7 +167,7 @@
         }
     </style>
     <!-- Tailwind 預編譯產物（python scripts/bundle.py 產生；?v= 為內容雜湊，勿手改） -->
-    <link rel="stylesheet" href="dist/app.css?v=d7bb4a7a">
+    <link rel="stylesheet" href="dist/app.css?v=1ca2b2c0">
 </head>
 
 <body>
@@ -188,7 +195,7 @@
         defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
         保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script defer src="dist/components-bundle.js?v=960c3930"></script>
+    <script defer src="dist/components-bundle.js?v=28ed270f"></script>
 </body>
 
 </html>

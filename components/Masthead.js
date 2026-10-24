@@ -21,7 +21,8 @@ const Masthead = ({
         <header className="border-b border-white/10">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-6">
                 <div className="flex items-center gap-3 min-w-0">
-                    <img src="https://cdn.nba.com/logos/nba/1610612750/primary/L/logo.svg" alt="" className="w-10 h-10 shrink-0" />
+                    {/* 站徽與 PWA 圖示同一張（icons/icon.svg）；身分列／頭像列的球隊 Logo 仍用 NBA 官方 */}
+                    <img src="icons/icon.svg" alt="" width="40" height="40" className="w-10 h-10 shrink-0 rounded-lg" />
                     <div className="min-w-0">
                         <div className="font-display text-[26px] font-bold uppercase leading-none tracking-wide text-slate-50">
                             Wolves <span className="text-[#12A150]">Ledger</span>

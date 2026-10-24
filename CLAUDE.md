@@ -10,6 +10,7 @@
 - **逐場打包**：回補 games 後跑 `python scripts/build_bundles.py --all`（前端 Splits/總覽讀 bundle）
 - 薪資同步：`python scripts/sync_salary.py`（Google Sheet 發佈 CSV → `wolves_salary/main`；先 `--dry-run`；每日排程已順跑；Sheet 欄位見 doc/handover.md「薪資資料」）
 - 前端打包：改 `components/*.js` 後必跑 `python scripts/bundle.py`（esbuild 編 JSX＋Tailwind 產 CSS＋index.html 蓋版本號；勿手改 dist/；新電腦先 `npm ci`）
+- 網站圖示：改 `icons/icon.svg`／`icon-maskable.svg` 後跑 `python scripts/build_icons.py`（resvg 產 apple-touch-icon 與 manifest PNG，一起提交）；刊頭站徽同一張，favicon 仍是 index.html 內嵌的 W
 - 本地預覽：`python -m http.server 8000`（Firestore 用 autoDetectLongPolling，localhost 可讀）
 
 ## 色票（灰狼新品牌，hex 直接寫在元件；改色用 sed 全域替換）

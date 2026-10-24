@@ -1,0 +1,16 @@
+{
+  "name": "Wolves Ledger｜灰狼數據帳本",
+  "short_name": "灰狼帳本",
+  "description": "明尼蘇達灰狼的 Playtype、Tracking、投籃與防守數據，每日更新。",
+  "lang": "zh-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0A1626",
+  "theme_color": "#0A1626",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

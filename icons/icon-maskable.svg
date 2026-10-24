@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Android maskable 版：同 icon.svg，帳本縮到 0.76 以落在圓形安全區內 -->
+<rect width="512" height="512" fill="#0A1626"/>
+<path d="M112 74Q112 92 130 92Q112 92 112 110Q112 92 94 92Q112 92 112 74Z" fill="#C4CED2"/>
+<path d="M300 35Q300 44 309 44Q300 44 300 53Q300 44 291 44Q300 44 300 35Z" fill="#8FA0AA"/>
+<g fill="#C4CED2">
+<circle cx="66" cy="56" r="5"/>
+<circle cx="214" cy="30" r="4"/>
+<circle cx="352" cy="62" r="4"/>
+</g>
+<g fill="#8FA0AA">
+<circle cx="168" cy="58" r="3"/>
+<circle cx="46" cy="156" r="3"/>
+<circle cx="470" cy="168" r="3"/>
+</g>
+<path d="M420 70Q420 86 436 86Q420 86 420 102Q420 86 404 86Q420 86 420 70Z" fill="#C4CED2"/>
+<path d="M476 120Q476 128 484 128Q476 128 476 136Q476 128 468 128Q476 128 476 120Z" fill="#8FA0AA"/>
+<path d="M250 71Q250 78 257 78Q250 78 250 85Q250 78 243 78Q250 78 250 71Z" fill="#8FA0AA"/>
+<g fill="#C4CED2">
+<circle cx="388" cy="34" r="4"/>
+<circle cx="458" cy="44" r="3"/>
+</g>
+<g fill="#8FA0AA">
+<circle cx="486" cy="78" r="3"/>
+<circle cx="410" cy="150" r="2.5"/>
+<circle cx="100" cy="190" r="2.5"/>
+</g>
+<polygon points="36,212 72,326 58,326 86,422 70,422 96,512 -24,512 2,422 -14,422 14,326 0,326" fill="#12243C"/>
+<polygon points="100,292 129,376 117,376 140,446 127,446 148,512 52,512 73,446 60,446 83,376 71,376" fill="#12243C"/>
+<polygon points="476,212 512,326 498,326 526,422 510,422 536,512 416,512 442,422 426,422 454,326 440,326" fill="#12243C"/>
+<polygon points="412,292 441,376 429,376 452,446 439,446 460,512 364,512 385,446 372,446 395,376 383,376" fill="#12243C"/>
+<polygon points="-4,290 29,377 16,377 42,451 27,451 51,520 -59,520 -35,451 -50,451 -24,377 -37,377" fill="#0C2A22"/>
+<polygon points="58,350 84,415 73,415 94,469 82,469 101,520 15,520 34,469 22,469 43,415 32,415" fill="#0C2A22"/>
+<polygon points="110,408 129,451 122,451 137,486 128,486 142,520 78,520 92,486 83,486 98,451 91,451" fill="#0C2A22"/>
+<polygon points="516,290 549,377 536,377 562,451 547,451 571,520 461,520 485,451 470,451 496,377 483,377" fill="#0C2A22"/>
+<polygon points="454,350 480,415 469,415 490,469 478,469 497,520 411,520 430,469 418,469 439,415 428,415" fill="#0C2A22"/>
+<polygon points="402,408 421,451 414,451 429,486 420,486 434,520 370,520 384,486 375,486 390,451 383,451" fill="#0C2A22"/>
+<ellipse cx="256" cy="548" rx="290" ry="118" fill="#0C1E30"/>
+<g transform="translate(256,256) scale(0.76) translate(-256,-250)">
+<rect x="134" y="98" width="284" height="344" rx="16" fill="#050C16"/>
+<rect x="120" y="84" width="284" height="344" rx="14" fill="#E4E9EB"/>
+<line x1="398" y1="100" x2="398" y2="420" stroke="#8FA0AA" stroke-width="2"/>
+<line x1="132" y1="422" x2="396" y2="422" stroke="#8FA0AA" stroke-width="2"/>
+<rect x="108" y="72" width="284" height="344" rx="14" fill="#13294A"/>
+<rect x="182" y="92" width="194" height="304" rx="6" fill="none" stroke="#1E3A60" stroke-width="4"/>
+<rect x="108" y="72" width="60" height="344" rx="14" fill="#12A150"/>
+<rect x="150" y="72" width="18" height="344" fill="#0E7F40"/>
+<polygon points="336,72 380,72 392,84 392,128" fill="#C4CED2"/>
+<polygon points="336,72 348,72 392,116 392,128" fill="#8FA0AA"/>
+<polygon points="392,360 392,404 380,416 336,416" fill="#C4CED2"/>
+<polygon points="392,360 392,372 348,416 336,416" fill="#8FA0AA"/>
+<rect x="108" y="118" width="42" height="10" fill="#0E7F40"/>
+<rect x="108" y="200" width="42" height="10" fill="#0E7F40"/>
+<rect x="108" y="282" width="42" height="10" fill="#0E7F40"/>
+<rect x="108" y="364" width="42" height="10" fill="#0E7F40"/>
+<rect x="192" y="132" width="168" height="180" rx="10" fill="#0A1626" stroke="#C4CED2" stroke-width="6"/>
+<g transform="translate(205,141.4) scale(0.48)">
+<polygon points="40,6 112,100 184,100 256,6 276,160 232,240 148,330 64,240 20,160" fill="#C4CED2"/>
+<polygon points="52,38 98,100 42,130" fill="#236192"/>
+<polygon points="244,38 198,100 254,130" fill="#236192"/>
+<polygon points="20,160 112,100 64,240" fill="#8FA0AA"/>
+<polygon points="276,160 184,100 232,240" fill="#8FA0AA"/>
+<polygon points="112,100 184,100 148,210" fill="#E4E9EB"/>
+<polygon points="64,240 148,210 232,240 148,330" fill="#E4E9EB"/>
+<polygon points="78,162 128,172 106,192" fill="#12A150"/>
+<polygon points="218,162 168,172 190,192" fill="#12A150"/>
+<polygon points="126,282 170,282 148,306" fill="#0A1626"/>
+</g>
+<rect x="216" y="334" width="120" height="10" rx="5" fill="#C4CED2"/>
+<rect x="236" y="356" width="80" height="8" rx="4" fill="#8FA0AA"/>
+</g>
+</svg>
