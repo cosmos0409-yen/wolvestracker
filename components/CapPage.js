@@ -103,6 +103,8 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
     const capNow = window.capSeasonForDate();
     const defaultSeason = seasons.includes(capNow) ? capNow : seasons[seasons.length - 1];
     const s = seasons.includes(season) ? season : defaultSeason;
+    const pickTab = (k) => onTab(k === 'overview' ? '' : k);
+    UI.useTabKeys(CAP_TABS.map(x => x.key), pickTab);   // 數字鍵 1–4 切分頁（hook 要在提早 return 之前）
 
     if (doc === undefined) return <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入薪資資料…</div>;
     if (err) return (
@@ -160,26 +162,14 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
             </header>
 
             {/* 分頁列（捲動時固定在頂端）：分頁＋唯一的賽季選單。刊頭的賽季／賽別／日期在薪資頁隱藏，避免兩組賽季控制項 */}
-            <nav aria-label="薪資頁分頁" className="sticky top-0 z-20 -mx-4 mb-6 border-b border-white/10 bg-[#0A1626]/85 px-4 backdrop-blur-md md:-mx-6 md:px-6">
-                <div className="flex items-center gap-3">
-                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_85%,transparent)] sm:[mask-image:none]">
-                        {CAP_TABS.map(x => {
-                            const on = tab === x.key;
-                            return (
-                                <button key={x.key} type="button" onClick={() => onTab(x.key === 'overview' ? '' : x.key)} aria-current={on ? 'page' : undefined}
-                                    className={`shrink-0 border-b-2 px-2.5 py-3 text-[14px] transition-colors sm:px-3 ${on ? 'border-[#12A150] font-medium text-slate-50' : 'border-transparent text-slate-400 hover:text-slate-100'}`}>
-                                    {x.label}
-                                </button>
-                            );
-                        })}
-                    </div>
+            <UI.TabBar ariaLabel="薪資頁分頁" tabs={CAP_TABS} value={tab} onChange={pickTab} numbered bleed className="mb-6"
+                right={<>
                     <label className="sr-only" htmlFor="cap-season">薪資賽季</label>
                     <select id="cap-season" value={s} onChange={e => onSeason(e.target.value === defaultSeason ? '' : e.target.value)}
                         className="shrink-0 rounded-full border border-white/15 bg-[#0A1626] px-3 py-1.5 font-mono text-[12px] text-slate-200 focus:border-[#12A150] focus:outline-none">
                         {seasons.map(x => <option key={x} value={x}>{x}</option>)}
                     </select>
-                </div>
-            </nav>
+                </>} />
 
             {tab === 'overview' && (
                 <div className="space-y-10">

@@ -5,6 +5,7 @@
 //   Ledger    StatCell 的容器（外框上/左線 + 每格右/下線，空位不畫線）
 //   PctBar    百分位色階條（紅 → 月光銀 → 綠，中線 = 聯盟中位）；只給「真的有 percentile」的資料用
 //   Seg       膠囊分段切換（aria-pressed）
+//   TabBar    sticky 分頁列（章節列／薪資頁／單場頁共用）＋ useTabKeys 數字鍵切分頁
 //   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
 //   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js；帶 cite 時小卡內含複製引用）、toast、ExportMenu/exportCSV/exportPNG（匯出）
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
@@ -417,6 +418,56 @@ window.UI = (function () {
         </div>
     );
 
+    // 分頁列（捲動時固定在頂端）：主畫面章節列、薪資頁、單場頁共用。tabs: [{ key, label }]
+    // numbered：分頁前標 01 02…（＝數字快捷鍵，手機無鍵盤隱藏）；right：右側附加控制項（攻守切換、賽季選單）
+    // bleed：放在 <main> 內時用負邊距撐滿版寬；不帶時自己置中（章節列在 main 外）
+    const TabBar = ({ tabs, value, onChange, ariaLabel, right, numbered, bleed, className = '' }) => {
+        const row = (
+            <div className="flex items-center gap-3">
+                {/* 右緣漸層遮罩：提示手機上分頁還能往右滑 */}
+                <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_85%,transparent)] sm:[mask-image:none]">
+                    {tabs.map((t, i) => {
+                        const on = value === t.key;
+                        return (
+                            <button key={t.key} type="button" onClick={() => onChange(t.key)} aria-current={on ? 'page' : undefined}
+                                title={numbered ? `快捷鍵 ${i + 1}` : undefined}
+                                className={`flex shrink-0 items-baseline gap-1.5 border-b-2 px-2.5 sm:px-3 py-3 text-[14px] transition-colors ${on ? 'border-[#12A150] text-slate-50 font-medium' : 'border-transparent text-slate-400 hover:text-slate-100'}`}>
+                                {numbered && <span className={`hidden sm:inline font-mono text-[10px] ${on ? 'text-[#12A150]' : 'text-slate-600'}`}>{String(i + 1).padStart(2, '0')}</span>}
+                                {t.label}
+                            </button>
+                        );
+                    })}
+                </div>
+                {right}
+            </div>
+        );
+        return bleed ? (
+            <nav aria-label={ariaLabel} className={`sticky top-0 z-20 -mx-4 border-b border-white/10 bg-[#0A1626]/85 px-4 backdrop-blur-md md:-mx-6 md:px-6 ${className}`}>{row}</nav>
+        ) : (
+            <nav aria-label={ariaLabel} className={`sticky top-0 z-20 border-b border-white/10 bg-[#0A1626]/85 backdrop-blur-md ${className}`}>
+                <div className="max-w-7xl mx-auto px-4 md:px-6">{row}</div>
+            </nav>
+        );
+    };
+    // 數字鍵 1…N 切 TabBar 分頁（獨立整頁用；主畫面章節由 App 的全域 keydown 處理）。輸入框聚焦、按修飾鍵時不攔截
+    // keys：分頁 key 陣列，或按鍵當下才取值的函式（分頁清單要等資料載入才知道、hook 又得在提早 return 之前呼叫時用）
+    const useTabKeys = (keys, onChange) => {
+        const ref = React.useRef();
+        ref.current = { keys, onChange };
+        React.useEffect(() => {
+            const onKey = (e) => {
+                const el = e.target || {};
+                if (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '') || el.isContentEditable) return;
+                if (e.metaKey || e.ctrlKey || e.altKey) return;
+                const { keys: k, onChange: fn } = ref.current;
+                const n = parseInt(e.key, 10), ks = typeof k === 'function' ? k() : k;
+                if (n >= 1 && n <= ks.length) fn(ks[n - 1]);
+            };
+            window.addEventListener('keydown', onKey);
+            return () => window.removeEventListener('keydown', onKey);
+        }, []);
+    };
+
     // 區塊：取代舊的「左色條大框」。accent 保留原本色條語意（攻綠/守紅/Clutch 琥珀/結構藍），縮成標題前的小色標
     const ACCENT = { green: 'bg-[#12A150]', red: 'bg-[#EF4444]', blue: 'bg-[#236192]', amber: 'bg-amber-400', silver: 'bg-[#C4CED2]' };
     const Section = ({ title, en, sub, right, accent, children, className = '' }) => (
@@ -449,5 +500,5 @@ window.UI = (function () {
     );
     const selectClass = (active) => `shrink-0 rounded-full border bg-[#0A1626] px-3 py-1 text-xs focus:outline-none focus:border-[#12A150] ${active ? 'border-[#12A150] text-slate-50' : 'border-white/15 text-slate-400'}`;
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
 })();

@@ -12,8 +12,9 @@
 //   m    Splits 打開逐場走勢的指標 key（如 D_FG_PCT；僅 tab=splits）
 //   hl   Splits 走勢上圈出的那一場 YYYY-MM-DD（從單場頁點指標過來時帶；僅 tab=splits）
 // 單場比賽頁（另一種畫面，沒有 v=）：
-//   #game=2026-04-10&p=Rudy%20Gobert
-//   game 比賽日期；p 展開進階的灰狼球員（可省略）
+//   #game=2026-04-10&tab=box&p=Rudy%20Gobert
+//   game 比賽日期；tab 單場分頁 box/compare/shots（省略＝概要）；
+//   p 展開進階的灰狼球員（只在 Box Score；舊連結只帶 p 沒帶 tab 時視為 tab=box）
 // 薪資頁（另一種畫面，沒有 v=）：
 //   #cap&s=2025-26&tab=contracts
 //   cap 薪資頁；s 薪資賽季（省略＝薪資當季，見 constants.js capSeasonForDate）；tab 分頁 contracts/picks/rules（省略＝總覽）
@@ -28,6 +29,7 @@ window.UrlState = (function () {
     const METRIC_RE = /^[A-Z0-9_]+$/;
     const SEASON_RE = /^\d{4}-\d{2}$/;
     const CAP_TABS = ['contracts', 'picks', 'rules'];
+    const GAME_TABS = ['box', 'compare', 'shots'];
 
     const parse = (hash) => {
         const out = {};
@@ -36,6 +38,7 @@ window.UrlState = (function () {
         if (DATE_RE.test(q.get('game') || '') && !q.get('v')) {
             out.gameDate = q.get('game');
             out.gamePlayer = q.get('p') || '';
+            out.gameTab = GAME_TABS.includes(q.get('tab')) ? q.get('tab') : out.gamePlayer ? 'box' : '';
             return out;
         }
         // 薪資頁：有 cap 且沒有 v。s 在這裡是薪資賽季，不可改動主畫面的 selectedSeasonKey
@@ -87,7 +90,9 @@ window.UrlState = (function () {
         const q = new URLSearchParams();
         if (st.gameDate) {
             q.set('game', st.gameDate);
-            if (st.gamePlayer) q.set('p', st.gamePlayer);
+            const tab = GAME_TABS.includes(st.gameTab) ? st.gameTab : st.gamePlayer ? 'box' : '';
+            if (tab) q.set('tab', tab);
+            if (st.gamePlayer && tab === 'box') q.set('p', st.gamePlayer);
             return toStr(q);
         }
         if (st.capView) return ['cap', st.capSeason && `s=${st.capSeason}`, st.capTab && `tab=${st.capTab}`].filter(Boolean).join('&');
@@ -109,7 +114,7 @@ window.UrlState = (function () {
     };
 
     // 給連結用的 href（一般 <a href>：會產生瀏覽紀錄，返回鍵可回上一頁）
-    const gameHref = (date, player) => '#' + serialize({ gameDate: date, gamePlayer: player || '' });
+    const gameHref = (date, player, tab) => '#' + serialize({ gameDate: date, gamePlayer: player || '', gameTab: tab || '' });
     const capHref = (season, tab) => '#' + serialize({ capView: true, capSeason: season || '', capTab: tab || '' });
     const vsHref = (team, range, type, metric) => '#' + serialize({ vsView: true, vsTeam: team || '', vsRange: range || '', vsType: type || '', vsMetric: metric || '' });
 

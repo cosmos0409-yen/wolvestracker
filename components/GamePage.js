@@ -1,10 +1,11 @@
-// 單場比賽頁（Game Center）：網址 #game=YYYY-MM-DD[&p=球員]
+// 單場比賽頁（Game Center）：網址 #game=YYYY-MM-DD[&tab=box|compare|shots][&p=球員]
+// 版面：賽程條＋比分看板常駐，下方單場分頁（概要／Box Score／對比／投籃，UI.TabBar；數字鍵切分頁）
 // 資料：wolves_team_games/{date}（box/stats/opp）＋ wolves_player_games/{date}（players/oppPlayers）
 //   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每日增量、每週整季對帳）
 // 灰狼球員一律用 box score 的 personId 對應 players 文件的 playerId（名字寫法兩邊可能不同，且早期文件含非當時隊員）
 // 舊場次沒有 box（2026-10 以前、未回補者）→ 比分看板／Box Score／焦點／Four Factors 降級隱藏
-// props：date、gamePlayer（展開的球員名，網址 p=）、onExpand(name|'')
-const GamePage = ({ date, gamePlayer, onExpand }) => {
+// props：date、gamePlayer（展開的球員名，網址 p=）、onExpand(name|'')、gameTab（網址 tab=，''＝概要）、onGameTab(tab|'')
+const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const { useState, useEffect, useMemo } = React;
     const UI = window.UI;
     const GA = window.GameAgg;
@@ -21,6 +22,16 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
     const avgInflight = React.useRef({});
     const dateRef = React.useRef(date);
     dateRef.current = date;
+    // 單場分頁：可見分頁要等資料載入才知道（render 後段填 tabKeysRef），數字鍵 hook 得在提早 return 之前掛
+    const tabTopRef = React.useRef(null);
+    const tabKeysRef = React.useRef([]);
+    const goTab = (k) => {
+        // 已捲過分頁列才捲回分頁列位置（比分看板不再擠進畫面）；還沒捲到就不動
+        const el = tabTopRef.current;
+        if (el && el.getBoundingClientRect().top < 0) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY);
+        onGameTab(k === 'overview' ? '' : k);
+    };
+    UI.useTabKeys(() => tabKeysRef.current, goTab);
 
     // ── 載入單場兩份文件（gamesData.loadGameDocs：記憶體＋localStorage，與對戰頁共用快取）──
     useEffect(() => {
@@ -157,11 +168,12 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
     const prevG = idxPos > 0 ? index[idxPos - 1] : null, nextG = idxPos >= 0 && idxPos < index.length - 1 ? index[idxPos + 1] : null;
     const strip = (
         <nav aria-label="賽程" className="flex items-stretch gap-1.5 border-b border-white/10 pb-3">
-            <a href={prevG ? window.UrlState.gameHref(prevG.date) : undefined} aria-label="上一場" aria-disabled={!prevG}
+            <a href={prevG ? window.UrlState.gameHref(prevG.date, '', gameTab) : undefined} aria-label="上一場" aria-disabled={!prevG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${prevG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>‹</a>
             <div className="flex flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]" ref={el => { if (el) { const on = el.querySelector('[aria-current="page"]'); if (on) el.scrollLeft = on.offsetLeft - el.clientWidth / 2 + on.clientWidth / 2; } }}>
+                {/* 換場次保留目前分頁（連看好幾場的 Box Score）；不帶展開的球員 */}
                 {index.map(g => (
-                    <a key={g.date} href={window.UrlState.gameHref(g.date)} aria-current={g.date === date ? 'page' : undefined}
+                    <a key={g.date} href={window.UrlState.gameHref(g.date, '', gameTab)} aria-current={g.date === date ? 'page' : undefined}
                         className={`w-[104px] shrink-0 rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100'}`}>
                         <div className="font-mono text-[10px]">{g.date.slice(5)}</div>
                         <div className="font-medium text-slate-100">{String(g.matchup || '').replace(/^MIN\s*/, '')}</div>
@@ -169,7 +181,7 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
                     </a>
                 ))}
             </div>
-            <a href={nextG ? window.UrlState.gameHref(nextG.date) : undefined} aria-label="下一場" aria-disabled={!nextG}
+            <a href={nextG ? window.UrlState.gameHref(nextG.date, '', gameTab) : undefined} aria-label="下一場" aria-disabled={!nextG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${nextG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>›</a>
         </nav>
     );
@@ -600,20 +612,27 @@ const GamePage = ({ date, gamePlayer, onExpand }) => {
         </UI.Section>
     );
 
+    // ── 單場分頁：沒有內容的分頁不顯示；網址指定的分頁不在清單裡（如舊場次沒有對比）→ 退回概要 ──
+    const overviewBody = (leaders || vsSection || info) ? <>{leaders}{vsSection}{info}</> : <UI.Note>這場沒有可摘要的資料，請看其他分頁</UI.Note>;
+    const TABS = [
+        { key: 'overview', label: '概要', body: overviewBody },
+        (boxSection || noBoxPlayers) && { key: 'box', label: box ? 'Box Score' : '球員進階', body: boxSection || noBoxPlayers },
+        cmpSection && { key: 'compare', label: '對比', body: cmpSection },
+        { key: 'shots', label: '投籃', body: shotSection },
+    ].filter(Boolean);
+    tabKeysRef.current = TABS.map(t => t.key);
+    const cur = TABS.find(t => t.key === gameTab) || TABS[0];
+
     return (
-        <div className="space-y-10">
-            <div>
-                {strip}
-                {board}
+        <div>
+            {strip}
+            {board}
+            <div ref={tabTopRef} aria-hidden="true"></div>
+            <UI.TabBar ariaLabel="單場分頁" tabs={TABS} value={cur.key} onChange={goTab} numbered bleed className="mt-6" />
+            <div className="space-y-10 pt-6">
+                {cur.body}
             </div>
-            {leaders}
-            {boxSection}
-            {noBoxPlayers}
-            {cmpSection}
-            {vsSection}
-            {shotSection}
-            {info}
-            <p className="text-[11px] leading-relaxed text-slate-500">
+            <p className="mt-10 text-[11px] leading-relaxed text-slate-500">
                 資料：NBA.com Stats（boxscoretraditionalv3／boxscoresummaryv3、leaguedash 單日 Tracking／Hustle、shotchartdetail）。
                 {meta.partial ? ' 這場部分來源抓取不完整，之後的每日補抓會再補齊。' : ''}
             </p>
