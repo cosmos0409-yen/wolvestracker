@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -31,7 +31,8 @@ STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
 FETCH_LOG_PATH = os.path.join(ROOT, "fetch_log.txt")
 MAIN_TASK = "WolvesTracker"
-WAIT_MAIN_MINUTES = 60      # 開機補跑時主排程可能同時在跑，最多等這麼久
+WAIT_MAIN_START_MINUTES = 10  # 主排程錯過時，等它開機補跑啟動最多這麼久
+WAIT_MAIN_MINUTES = 60        # 主排程（或手動的 fetch_data.py）執行中，等它跑完最多這麼久
 FETCH_TIMEOUT_MINUTES = 45
 
 # Windows PowerShell 5.1 內建的 AppUserModelID，免註冊即可發 toast（pwsh 7 沒有 WinRT，不能用）
@@ -62,11 +63,59 @@ def log(msg):
         f.write(line + "\n")
 
 
-def main_task_running():
-    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-                        f"(Get-ScheduledTask -TaskName {MAIN_TASK} -ErrorAction SilentlyContinue).State"],
-                       capture_output=True, text=True)
-    return r.stdout.strip() == "Running"
+def powershell(cmd):
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return r.stdout.strip()
+
+
+def main_state(now=None):
+    """主排程現況：running（排程執行中或有 fetch_data.py 程序，含手動執行）、
+    missed（上次執行早於最近一次應觸發時間 → 錯過、開機後即將補跑）"""
+    out = powershell(
+        f"$t = Get-ScheduledTask -TaskName {MAIN_TASK} -ErrorAction SilentlyContinue; "
+        f"if ($t) {{ $i = Get-ScheduledTaskInfo -TaskName {MAIN_TASK}; "
+        f"'{{0}}|{{1:yyyy-MM-dd HH:mm:ss}}|{{2}}' -f $t.State, $i.LastRunTime, $t.Triggers[0].StartBoundary }}; "
+        "'|' + @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and "
+        "$_.CommandLine -like '*fetch_data.py*' }).Count")
+    lines = out.splitlines()
+    fetch_procs = int(lines[-1].lstrip("|") or 0) if lines else 0
+    state, missed = "", False
+    if len(lines) >= 2:
+        state, last_run, boundary = lines[0].split("|")
+        now = now or datetime.now()
+        # 觸發時間從排程讀（StartBoundary 'YYYY-MM-DDTHH:MM:SS'），不寫死 03:00
+        due = now.replace(hour=int(boundary[11:13]), minute=int(boundary[14:16]), second=0, microsecond=0)
+        if now < due:
+            due -= timedelta(days=1)
+        missed = datetime.strptime(last_run, "%Y-%m-%d %H:%M:%S") < due
+    return {"running": state == "Running" or fetch_procs > 0, "missed": missed}
+
+
+def wait_for_main(dry_run):
+    """開機補跑時主排程與看門狗會同時啟動，啟動順序不保證：主排程錯過時先等它啟動（最多 WAIT_MAIN_START_MINUTES），
+    再等它跑完（最多 WAIT_MAIN_MINUTES），避免兩邊同時完整抓取。回傳 dry-run 要附註的說明"""
+    s = main_state()
+    if dry_run:
+        return ("主排程錯過、尚未補跑，正式執行時會先等它；" if s["missed"] else
+                "主排程或 fetch_data.py 執行中，正式執行時會等它跑完；" if s["running"] else "")
+    if s["missed"] and not s["running"]:
+        print(f"主排程 {MAIN_TASK} 錯過、尚未補跑，等它啟動…")
+        for _ in range(WAIT_MAIN_START_MINUTES * 2):
+            time.sleep(30)
+            s = main_state()
+            if s["running"] or not s["missed"]:
+                break
+        else:
+            log(f"⚠️ 主排程錯過且 {WAIT_MAIN_START_MINUTES} 分鐘內沒補跑，改由看門狗自行判斷")
+    waited = 0
+    while s["running"] and waited < WAIT_MAIN_MINUTES:
+        if waited == 0:
+            print("主排程或 fetch_data.py 執行中，等它跑完…")
+        time.sleep(60)
+        waited += 1
+        s = main_state()
+    return ""
 
 
 def read_status(mode):
@@ -141,12 +190,7 @@ def main():
 
     start = datetime.now()
     since = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    waited = 0
-    while main_task_running() and waited < WAIT_MAIN_MINUTES:
-        if waited == 0:
-            print(f"主排程 {MAIN_TASK} 執行中，等它跑完…")
-        time.sleep(60)
-        waited += 1
+    wait_note = wait_for_main(args.dry_run)
 
     season = get_current_season()
     db = init_firebase()
@@ -174,7 +218,7 @@ def main():
         reason = f"最新一場 {label(game)} 還沒進資料庫"
 
     if args.dry_run:
-        log(f"[dry-run] {reason} → 會執行 fetch_data.py {' '.join(fetch_args) or '（完整抓取）'}")
+        log(f"[dry-run] {wait_note}{reason} → 會執行 fetch_data.py {' '.join(fetch_args) or '（完整抓取）'}")
         return
 
     print(f"{reason}，開始補抓…")

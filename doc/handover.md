@@ -246,7 +246,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - `scripts/watchdog.py`：台北 15:00（≈ 美東 02:00，最晚的西岸場剛打完）檢查兩件事——**今天主排程有沒有完成**（讀 `fetch_status.json`，不看快照文件在不在：沒比賽的日子數據相同會被 dedup 跳過寫入）、**賽程上最新一場在不在 `wolves_player_games`**。前者沒完成 → 完整抓取（約 95 requests）；後者缺 → `fetch_data.py --games-only`（約 26 requests：名冊 1＋賽程 1＋單場 24）。補完再檢查一次，成功／失敗都跳通知；正常只花 1 個 request（讀賽程）、不通知
 - 下午補抓的單場未過定稿門檻（`final=False`），隔天 03:00 主排程照「單場數據」的定稿規則自動重抓成最終版，**不必另外處理**
 - `fetch_data.py`：新增 `--games-only`；每次執行寫 `fetch_status.json`（`full`／`games` 分開記 `ok`、`finishedAt`、`etDate`、`note`）；「Synergy 與 base 皆空」改以**結束碼 2** 結束、Firebase 初始化失敗結束碼 1（舊版都是 0，排程看不出來）
-- 主排程與看門狗同時啟動（電腦整晚關機、下午開機兩個都補跑）：看門狗先等 `WolvesTracker` 跑完（最多 60 分鐘）再檢查，不會重複抓
+- 主排程與看門狗同時啟動（電腦 03:00、15:00 都沒開機，開機登入後兩個一起補跑，**啟動順序不保證**）：看門狗讀 `WolvesTracker` 的上次執行時間，早於最近一次應觸發時間（觸發時刻從排程讀，不寫死 03:00）＝錯過待補跑 → 先等它啟動（每 30 秒看一次，最多 10 分鐘，`WAIT_MAIN_START_MINUTES`），再等它跑完（最多 60 分鐘）；10 分鐘都沒啟動（如被停用）才由看門狗自行補抓並記 `⚠️`。另外也偵測系統中執行中的 `fetch_data.py`（含終端機手動執行）一樣等它跑完。主排程 03:00 有跑但失敗時上次執行時間是當天，不等、照常補抓。2026-10-26 修補（初版只看排程狀態，看門狗若先啟動會和主排程同時完整抓取）
 - 通知：PowerShell 5.1 內建 toast（借用 Windows PowerShell 的 AppUserModelID，免註冊、免套件；pwsh 7 沒有 WinRT 不能用）；勿擾／專注模式時不跳出但留在通知中心
 - `WolvesTracker` 一併改為**用電池可啟動、拔電不中斷**（原設定備份在 `~/.claude/ops/backup-20261026/WolvesTracker-task.xml`）
 
