@@ -1,7 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**，見「2026-10-24 網址改用球員「ID-名字」＋賽季參數統一」；同日稍早**單場分頁＋介面統一**：單場頁改「概要／Box Score／對比／投籃」分頁、共用 `UI.TabBar`、數字鍵統一、主畫面賽季不再記憶，見「2026-10-24 單場分頁＋介面統一」）
-> 前次：2026-10-23（**對戰分析**：對戰首頁 `#vs`、單隊對戰頁 `#vs=DEN`、Splits 對手篩選，並清理 2022-23～2024-25 單場球員文件混入的非當時隊員，見「2026-10-23 對戰分析」；之前的開季修正、薪資頁、單場比賽頁見同名章節）
+> 最後更新：2026-10-26（**每日抓取看門狗**：新排程 `WolvesWatchdog` 台北 15:00 檢查，主排程沒完成就完整補抓、昨晚那場還沒進資料庫就只抓單場，有補抓或失敗才跳桌面通知，見「2026-10-26 每日抓取看門狗」與「自動化排程」）
+> 前次：2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**、**單場分頁＋介面統一**、**網站圖示（PWA）**，見同名章節；之前的對戰分析、開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
 
@@ -45,6 +45,7 @@
 | 36 | **對戰分析** | ✅ | `matchupData.js`（`window.Matchup`）＋對戰首頁 `MatchupHome.js`（`#vs`）＋單隊對戰頁 `MatchupPage.js`（`#vs=DEN`）＋Splits 對手篩選；只用既有逐場資料 |
 | 37 | **單場分頁＋介面統一** | ✅ | 單場頁單場分頁、共用 `UI.TabBar`／`UI.useTabKeys`、數字鍵切目前畫面分頁列、主畫面賽季不記憶、重複控制項只留一處、手機橫向溢出修正 |
 | 38 | **網址球員「ID-名字」＋賽季參數統一** | ✅ | `p=1630162-anthony-edwards`（只用 ID 對人）、`s=2025-26&t=playoffs`；舊連結仍可開；順帶修正舊連結跨賽季被舊名單誤判 |
+| 39 | **每日抓取看門狗** | ✅ | `scripts/watchdog.py`＋排程 `WolvesWatchdog`（台北 15:00）：主排程沒完成 → 完整補抓；昨晚那場缺 → `fetch_data.py --games-only`；有補抓或失敗才跳 Windows 桌面通知 |
 
 ---
 
@@ -237,6 +238,23 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **分頁小圖示（favicon）維持內嵌的 W**：新圖在 16px 會糊成一塊
 - **不加 service worker**：加到主畫面不需要，加了要多處理快取換版
 
+### 2026-10-26 每日抓取看門狗
+
+起因：使用者常在白天發現「昨晚那場沒抓到」。查證後 10/26 那次其實不是失敗——03:00 主排程（≈ 美東前一天 14:00）在比賽開打前就跑完，美東晚上的比賽要等隔天 03:00 才上站，**每場比賽約賽後 17～20 小時才看得到**；再加上開季以來另有被擋誤判、程式崩潰（10/24 `NameError`）、筆電用電池時排程直接跳過等失敗型態，沒人發現。
+
+做法（方案 C：03:00 主排程照舊＋15:00 看門狗分級補抓，每次最多補抓一次）：
+- `scripts/watchdog.py`：台北 15:00（≈ 美東 02:00，最晚的西岸場剛打完）檢查兩件事——**今天主排程有沒有完成**（讀 `fetch_status.json`，不看快照文件在不在：沒比賽的日子數據相同會被 dedup 跳過寫入）、**賽程上最新一場在不在 `wolves_player_games`**。前者沒完成 → 完整抓取（約 95 requests）；後者缺 → `fetch_data.py --games-only`（約 26 requests：名冊 1＋賽程 1＋單場 24）。補完再檢查一次，成功／失敗都跳通知；正常只花 1 個 request（讀賽程）、不通知
+- 下午補抓的單場未過定稿門檻（`final=False`），隔天 03:00 主排程照「單場數據」的定稿規則自動重抓成最終版，**不必另外處理**
+- `fetch_data.py`：新增 `--games-only`；每次執行寫 `fetch_status.json`（`full`／`games` 分開記 `ok`、`finishedAt`、`etDate`、`note`）；「Synergy 與 base 皆空」改以**結束碼 2** 結束、Firebase 初始化失敗結束碼 1（舊版都是 0，排程看不出來）
+- 主排程與看門狗同時啟動（電腦整晚關機、下午開機兩個都補跑）：看門狗先等 `WolvesTracker` 跑完（最多 60 分鐘）再檢查，不會重複抓
+- 通知：PowerShell 5.1 內建 toast（借用 Windows PowerShell 的 AppUserModelID，免註冊、免套件；pwsh 7 沒有 WinRT 不能用）；勿擾／專注模式時不跳出但留在通知中心
+- `WolvesTracker` 一併改為**用電池可啟動、拔電不中斷**（原設定備份在 `~/.claude/ops/backup-20261026/WolvesTracker-task.xml`）
+
+使用者確認過的決定（之後改動前先問）：
+- **檢查只在 15:00 一次**（不另設 04:00 檢查主排程）；主排程 03:00 不動
+- **只在有補抓或失敗時通知**，正常的日子不吵；回報用桌面通知＋log，不用 Email／Claude 排程任務
+- **分兩級補抓**：只缺單場時不重抓整份快照（省約 70 requests、降低被擋風險）
+
 ---
 
 ## 專案檔案結構
@@ -272,7 +290,8 @@ wolvestracker/
 │   └── app.css                      ← 自動產生，勿手改
 ├── scripts/
 │   ├── nba_common.py                ← 共用模組：SESSION/重試/欄位設定表/所有抓取函式
-│   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重）
+│   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重；--games-only 只抓單場；執行結果寫 fetch_status.json）
+│   ├── watchdog.py                  ← 每日抓取看門狗（15:00 檢查、分級補抓、桌面通知；--dry-run／--test-notify）
 │   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common）
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
 │   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--clean-players 對帳剔除非當時隊員）
@@ -282,6 +301,9 @@ wolvestracker/
 │   ├── build_icons.py               ← 網站圖示：icons/*.svg → apple-touch-icon／manifest 用 PNG
 │   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
 ├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步（*.bat 被 .gitignore 排除，不進版控）
+├── run_watchdog.bat                 ← Windows 排程：看門狗（參數原樣傳給 watchdog.py，可手動 `run_watchdog.bat --dry-run`）
+├── fetch_status.json                ← fetch_data.py 執行結果（看門狗讀；本機產物，不進版控）
+├── watchdog_log.txt                 ← 看門狗每日一行結論（watchdog_err.log 收未捕捉例外；皆不進版控）
 ├── _salary_seed/                    ← 薪資 Sheet 的本地參考副本（未進版控；Sheet 才是資料來源）
 ├── run_shotchart.bat                ← Windows 排程：每週投籃熱圖
 ├── run_backfill_next.bat            ← Windows 排程：回補 queue 第一行（已可刪）
@@ -417,21 +439,42 @@ wolvestracker/
 
 | 排程名稱 | 時間 | 腳本 | 用途 | Log |
 |---|---|---|---|---|
-| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
+| `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑，上限 2 小時） | `run_watchdog.bat` | 看門狗：主排程沒完成 → 完整補抓；昨晚那場缺 → 只抓單場；有補抓或失敗才跳桌面通知 | `watchdog_log.txt`（補抓過程併入 `fetch_log.txt`，標頭 `=== [watchdog] ...`） |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
 
 （`WolvesBackfill` 已刪除；backfill queue 完成後不再需要）
 
-**排程「上次執行結果」的意思（2026-10-24 起）**：`run_fetch.bat` 會記住 `fetch_data.py` 的結束碼，薪資同步照跑，最後抓取失敗就以抓取的碼結束（`fetch_log.txt` 另留一行 `[run_fetch] fetch_data.py failed, exit code N`）；抓取成功才回報薪資同步的碼。所以排程顯示非 0 ＝ 抓取當掉（未捕捉例外）或薪資同步失敗，翻 log 末段即可。注意「Synergy 與 base 皆無資料而終止寫入」與「休賽期跳過」都是正常 `return`，結束碼仍是 0。舊版只回報最後一行（薪資）的碼，2026-10-24 抓取 `NameError` 當掉時排程仍顯示 0、沒人發現。
+**排程「上次執行結果」的意思（2026-10-24 起）**：`run_fetch.bat` 會記住 `fetch_data.py` 的結束碼，薪資同步照跑，最後抓取失敗就以抓取的碼結束（`fetch_log.txt` 另留一行 `[run_fetch] fetch_data.py failed, exit code N`）；抓取成功才回報薪資同步的碼。所以排程顯示非 0 ＝ 抓取當掉（未捕捉例外，碼 1）、疑似被擋（「Synergy 與 base 皆無資料而終止寫入」，碼 2，2026-10-26 起；之前是 0）、Firebase 初始化失敗（碼 1）或薪資同步失敗，翻 log 末段即可。「休賽期跳過」仍是 0。舊版只回報最後一行（薪資）的碼，2026-10-24 抓取 `NameError` 當掉時排程仍顯示 0、沒人發現。`WolvesWatchdog` 顯示非 0 ＝ 補抓失敗或看門狗本身出錯（同時已跳通知）。
 
-**為什麼是台北 03:00（2026-10 由 14:00 改）**：NBA 賽後最多約 12 小時才把數據補齊。台北 03:00 ≈ 美東 14:00～15:00，距最晚的西岸場結束也超過 12 小時，累積快照各類別（含 Synergy）與單場都是最終數字；快照 doc id 仍是比賽隔天（美東日期），語意不變。排程設 `WakeToRun`＋`StartWhenAvailable`：睡眠中會喚醒（電源計畫「允許喚醒計時器」目前只在接電源時啟用），關機錯過則開機後補跑。單場另有定稿保險（`FINAL_AFTER_HOURS`，見「單場數據」），手動提早執行也不會鎖住半成品。
+**看門狗（2026-10-26 起，設計緣由見「2026-10-26 每日抓取看門狗」）**：
+- 判斷「主排程有沒有完成」＝ `fetch_status.json` 的 `full.ok` 為 true 且 `finishedAt` 在今天 00:00 之後；判斷「昨晚那場」＝ `teamgamelog` 最新一場的日期在 `wolves_player_games` 有文件。兩項都正常就只記一行「正常」
+- 手動檢查：`python scripts/watchdog.py --dry-run`（只印判斷，不補抓、不通知）；測通知：`python scripts/watchdog.py --test-notify`
+- 改檢查時間：直接改排程觸發時間即可，程式不用動；**不要早於台北 14:00**（西岸場可能還沒打完，`teamgamelog` 只列已完賽場次）
+- 暫停：工作排程器停用 `WolvesWatchdog`，主排程不受影響
+- 手動補記狀態：`fetch_status.json` 是 `fetch_data.py` 自動寫的；只有在「主排程確實成功、但狀態檔沒記到」時（例如狀態檔上線前的那次，2026-10-26 補記過一次）才手動補 `full`，`note` 寫明是補記
+
+**為什麼是台北 03:00（2026-10 由 14:00 改）**：NBA 賽後最多約 12 小時才把數據補齊。台北 03:00 ≈ 美東 14:00～15:00，距最晚的西岸場結束也超過 12 小時，累積快照各類別（含 Synergy）與單場都是最終數字；快照 doc id 仍是比賽隔天（美東日期），語意不變。排程設 `WakeToRun`＋`StartWhenAvailable`：睡眠中會喚醒（電源計畫「允許喚醒計時器」目前只在接電源時啟用，所以用電池睡眠時仍不會被喚醒），關機錯過則開機後補跑；2026-10-26 起兩個每日排程都取消「使用電池時不啟動」（`DisallowStartIfOnBatteries`／`StopIfGoingOnBatteries` 皆 false），醒著用電池也照跑。單場另有定稿保險（`FINAL_AFTER_HOURS`，見「單場數據」），手動提早執行也不會鎖住半成品。
 
 **建立 / 手動執行**：
 ```powershell
 schtasks /create /tn "WolvesShotchart" /tr "C:\wolvestracker\run_shotchart.bat" /sc WEEKLY /d MON /st 14:30
 schtasks /run /tn "WolvesTracker"
 schtasks /run /tn "WolvesShotchart"
+schtasks /run /tn "WolvesWatchdog"
+
+# 看門狗（schtasks 設不了電池選項，用 Register-ScheduledTask）
+$a = New-ScheduledTaskAction -Execute 'C:\wolvestracker\run_watchdog.bat'
+$t = New-ScheduledTaskTrigger -Daily -At 15:00
+$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName WolvesWatchdog -Action $a -Trigger $t -Settings $s
+
+# 主排程改成用電池可跑
+$m = Get-ScheduledTask -TaskName WolvesTracker
+$m.Settings.DisallowStartIfOnBatteries = $false; $m.Settings.StopIfGoingOnBatteries = $false
+Set-ScheduledTask -InputObject $m
 ```
+`run_watchdog.bat` 內容（換電腦時重建；CRLF、無中文註解）：`chcp 65001`、`PYTHONIOENCODING=utf-8`、`PYTHONWARNINGS=ignore::DeprecationWarning`、`cd /d C:\wolvestracker`，再以 Python312 絕對路徑跑 `scripts\watchdog.py %* >nul 2>> C:\wolvestracker\watchdog_err.log`，最後 `exit /b %ERRORLEVEL%`。**stderr 不可導到 `watchdog_log.txt`**：bat 開著它時 Python 再寫會 `PermissionError`（Windows 檔案鎖，2026-10-26 踩過）。
 
 **失敗排查**：log 內搜尋 `[FAILED]`——重試 3 次耗盡的項目會印此標記並帶著部分資料繼續，缺哪一項一目了然。
 
@@ -717,6 +760,9 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: NBA API 跑失敗
 看對應 log：`fetch_log.txt`（每日）/ `shotchart_log.txt`（熱圖）/ `backfill_games_log*.txt`（單場回補）。搜 `[FAILED]` 看缺哪項；腳本有 3 次 retry，通常等隔天即可。
 
+### Q: 網站少了昨晚那場比賽
+正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 26 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt` 的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
+
 ### Q: Backfill 進度怎麼看
 看 `scripts/backfill_queue.txt` 還剩幾行。Phase 1 已完成、queue 已清空。
 
@@ -817,7 +863,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場約 24（含對手與 box score）。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場約 24（含對手與 box score）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 26（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
@@ -831,6 +877,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算
 - 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期
 - 2026-10-20 — 薪資頁（Cap Sheet，Phase 1–6）：Google Sheet＋`sync_salary.py`＋`wolves_salary/main`（安全規則、索引豁免已設）；`CapPage.js` 四分頁（總覽／合約／選秀權／規則）、累犯依 `tax_history` 自動判定、懸停完整金額、球員薪資膠囊與雙向連結、薪資×表現（逐場 bundle 計算）；`ui.js` 匯出加 `source`；新增「2026-10-20 薪資頁」「薪資資料」「薪資頁」章節與相關 FAQ、雷區
 - 2026-10-19 — 單場比賽頁＋跨季疊圖（Phase 1–6）：`--box-only` 補 2025-26 box score、網址 m/hl/game、Splits 防守組、走勢勝負底色、`GamePage.js`、`SeasonPaceChart.js`／`LineOverlay`、ComparisonTab 多序列、投籃與上季比；修登入時序 bug；更正 22-23／23-24 逐場已有資料；新增「2026-10-19 單場比賽頁＋跨季疊圖」「單場比賽頁」「跨季疊圖」章節

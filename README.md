@@ -63,7 +63,8 @@ wolvestracker/
 ├── icons/                   # 網站圖示：SVG 原稿＋各尺寸 PNG
 ├── scripts/
 │   ├── nba_common.py        # 共用模組：連線/欄位設定表/抓取函式
-│   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase)
+│   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase；--games-only 只抓單場)
+│   ├── watchdog.py          # 每日抓取看門狗（主排程沒完成或昨晚那場缺就補抓，桌面通知）
 │   ├── backfill_games.py    # 單場逐場回補（--dates 補失敗場；--box-only 只補 box score；--clean-players 對帳剔除非當時隊員）
 │   ├── backfill_history.py  # 歷史賽季完整終點快照回補
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
@@ -72,6 +73,7 @@ wolvestracker/
 │   ├── build_icons.py       # 網站圖示：icons/*.svg → 各尺寸 PNG（改圖示才需要跑）
 │   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
 ├── run_fetch.bat            # Windows 排程入口（每日）
+├── run_watchdog.bat         # Windows 排程入口（每日看門狗）
 ├── run_shotchart.bat        # Windows 排程入口（每週）
 ├── requirements.txt         # Python 依賴
 └── doc/
@@ -83,7 +85,7 @@ wolvestracker/
 
 ```
 NBA Stats API ──(Python, 本機排程)──▶ Firebase Firestore ◀──(JS)── index.html (GitHub Pages)
-                每日 03:00 / 每週一 14:30                      即時讀取 (onSnapshot，開站先讀近期快照)
+                每日 03:00（15:00 看門狗補抓）/ 每週一 14:30   即時讀取 (onSnapshot，開站先讀近期快照)
 
 Google Sheet（人工維護薪資）──(sync_salary.py，每日順跑)──▶ Firestore wolves_salary/main
 ```
@@ -116,14 +118,17 @@ python -m http.server 8000
 
 | 工作名稱 | 頻率 | 執行內容 |
 |---|---|---|
-| `WolvesTracker` | 每日 03:00（賽後 12 小時數據才齊；喚醒＋錯過補跑） | `run_fetch.bat`（當季數據＋薪資同步）→ `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（賽後 12 小時數據才齊；喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat`（當季數據＋薪資同步）→ `fetch_log.txt` |
+| `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑） | `run_watchdog.bat`：主排程沒完成 → 完整補抓；昨晚那場還沒進資料庫 → 只抓單場（暫定版，隔天 03:00 定稿）；有補抓或失敗才跳 Windows 桌面通知 → `watchdog_log.txt` |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` → `shotchart_log.txt` |
 
-建立每週排程的指令：
+建立每週排程的指令（看門狗要設電池選項，改用 PowerShell `Register-ScheduledTask`，指令見 `doc/handover.md`「自動化排程」）：
 
 ```
 schtasks /create /tn "WolvesShotchart" /tr "C:\wolvestracker\run_shotchart.bat" /sc WEEKLY /d MON /st 14:30
 ```
+
+看門狗手動檢查：`python scripts/watchdog.py --dry-run`（只印判斷）、`--test-notify`（測試通知）。
 
 ## 部署設定
 
