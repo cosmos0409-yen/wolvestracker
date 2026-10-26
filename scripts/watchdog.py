@@ -31,6 +31,7 @@ STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
 FETCH_LOG_PATH = os.path.join(ROOT, "fetch_log.txt")
 MAIN_TASK = "WolvesTracker"
+FETCH_PROC_PATTERN = "*fetch_data.py*"  # 偵測執行中的抓取（含手動執行）
 WAIT_MAIN_START_MINUTES = 10  # 主排程錯過時，等它開機補跑啟動最多這麼久
 WAIT_MAIN_MINUTES = 60        # 主排程（或手動的 fetch_data.py）執行中，等它跑完最多這麼久
 FETCH_TIMEOUT_MINUTES = 45
@@ -76,8 +77,10 @@ def main_state(now=None):
         f"$t = Get-ScheduledTask -TaskName {MAIN_TASK} -ErrorAction SilentlyContinue; "
         f"if ($t) {{ $i = Get-ScheduledTaskInfo -TaskName {MAIN_TASK}; "
         f"'{{0}}|{{1:yyyy-MM-dd HH:mm:ss}}|{{2}}' -f $t.State, $i.LastRunTime, $t.Triggers[0].StartBoundary }}; "
+        # Win32_Process 也會列出已結束、但還有人握著 handle 的殘影程序（HasExited=True），要用 Get-Process 確認還活著
         "'|' + @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and "
-        "$_.CommandLine -like '*fetch_data.py*' }).Count")
+        f"$_.CommandLine -like '{FETCH_PROC_PATTERN}' -and "
+        "(Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited }) }).Count")
     lines = out.splitlines()
     fetch_procs = int(lines[-1].lstrip("|") or 0) if lines else 0
     state, missed = "", False
