@@ -52,3 +52,7 @@ node_modules/
 
 ### Claude Code 個人設定（launch.json 進版控，個人權限設定不進）###
 .claude/settings.local.json
+
+### 看門狗本機產物 ###
+fetch_status.json
+watchdog_log.txt

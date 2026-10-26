@@ -47,6 +47,23 @@ SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.
 # 每日快照文件中參與去重比對的資料欄位
 DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
 
+# 執行結果狀態檔（本機產物、不進版控）：watchdog.py 讀它判斷 03:00 主排程有沒有完成。
+# 不能改看快照文件在不在——沒比賽的日子數據相同會被 dedup 跳過寫入
+STATUS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fetch_status.json")
+
+
+def write_status(mode, ok, note=""):
+    """mode 'full'（完整抓取）／'games'（--games-only）分開記，互不覆蓋"""
+    try:
+        with open(STATUS_PATH, encoding="utf-8") as f:
+            status = json.load(f)
+    except (OSError, ValueError):
+        status = {}
+    status[mode] = {"ok": ok, "finishedAt": datetime.now().isoformat(timespec="seconds"),
+                    "etDate": get_today_str(), "note": note}
+    with open(STATUS_PATH, "w", encoding="utf-8") as f:
+        json.dump(status, f, ensure_ascii=False, indent=2)
+
 
 # ==========================================
 # Dedup 比對工具：避免連續兩天寫入完全相同的資料
@@ -119,15 +136,16 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
     """以賽程（teamgamelog，只列已完賽場次）找出缺漏、未定稿或不完整的單場，逐場擷取。
     場次日期取自賽程本身，不用執行當天日期——排程在台北 14:00（美東凌晨）執行，
     當天日期永遠是比賽隔天，用它查單場會落空。
-    同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用），並增量更新 bundle（前端 Splits/總覽用）。"""
+    同時以最新賽程重建比賽索引 wolves_games_index（前端日期選單用），並增量更新 bundle（前端 Splits/總覽用）。
+    回傳 False 表示本次沒擷取成功（名單／賽程抓不到或有場次無資料），--games-only 據此回報失敗。"""
     if not normalized_active:
         # 名單抓失敗時 pid_to_name_keyed 不過濾 → 會把全聯盟球員寫進單場與 bundle
         print("（現役名單為空，本次不擷取單場）")
-        return
+        return False
     game_log = fetch_team_game_log(season, season_type_api)
     if not game_log:
         print("（賽程為空或抓取失敗，本次不擷取單場）")
-        return
+        return False
     type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
     index_id = f"{season}_{type_key}"
     db.collection("wolves_games_index").document(index_id).set({
@@ -153,12 +171,14 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
     if not todo:
         print(f"（最近 {min(len(game_log), CAPTURE_LOOKBACK_GAMES)} 場皆已擷取，比賽索引已更新）")
 
+    ok = True
     for d, api_date, m, w, gid, tries, why in todo:
         print(f"--- 擷取單場 {d} {m} {w} [{gid}]（{why}）---")
         g = fetch_single_game(season, season_type_api, api_date, gid, normalized_active, casefold=True)
         player, team, partial = g["player"], g["team"], g["partial"]
         if not player and not team:
             print(f"[FAILED] {d} 單場無資料，下次再試")
+            ok = False
             continue
         final = is_final_capture(d)
         player_doc, team_doc = game_docs(d, season_type_label, m, w, g, extra={
@@ -172,6 +192,7 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         print(f"✅ 單場已寫入 wolves_*_games/{d}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人，{flag}）")
 
     capture_recent_shots(db, season, season_type_api, season_type_label, game_log[-CAPTURE_LOOKBACK_GAMES:])
+    return ok
 
 
 def capture_recent_shots(db, season, season_type_api, season_type_label, recent_games):
@@ -197,7 +218,11 @@ def main():
     parser.add_argument("--force-type", choices=["regular", "playoffs"],
                         help="繞過休賽期，強制指定賽別（一次性補期末完整快照用）")
     parser.add_argument("--date", help="強制快照 doc id 日期 YYYY-MM-DD（配合 --force-type）")
+    parser.add_argument("--games-only", action="store_true",
+                        help="只擷取缺漏單場（約 24 requests），不抓累積快照；watchdog.py 下午補抓昨晚那場用")
     args = parser.parse_args()
+    if args.games_only and args.force_type:
+        parser.error("--games-only 不能和 --force-type 併用")
 
     force = bool(args.force_type)
     if force:
@@ -211,6 +236,20 @@ def main():
             print("目前為休賽期，不需要抓取數據，結束執行。")
             return
         today = get_today_str()
+
+    if args.games_only:
+        # 下午先抓暫定版（未過定稿門檻 final=False），隔天 03:00 主排程照定稿規則重抓
+        print(f"=== 只擷取單場（{season_type_label}）===")
+        roster_full = fetch_roster_with_ids(SEASON)
+        normalized_active = [p["name"].strip().lower() for p in roster_full]
+        db = init_firebase()
+        ok = bool(db) and capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+        write_status("games", ok)
+        if not ok:
+            sys.exit(1)
+        return
+
+    if not force:
         print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
 
     # 1. 抓取球隊資料
@@ -307,7 +346,10 @@ def main():
     if not team_synergy and not player_synergy:
         if not team_base and not player_base:
             print("❌ 警告：Synergy 與 base 皆無資料，可能遭到 NBA API 阻擋，本次終止寫入。")
-            return
+            # 非 0 結束碼讓排程「上次執行結果」與 watchdog 看得出被擋（舊版 return 結束碼為 0）
+            if not force:
+                write_status("full", False, "Synergy 與 base 皆無資料，疑似被 NBA 擋")
+            sys.exit(2)
         print("⚠️ Synergy 無資料（開季初 NBA 尚未釋出？），其他類別與單場照常寫入。")
 
     db = init_firebase()
@@ -331,7 +373,8 @@ def main():
         # G2：每次都對賽程補抓缺漏單場（無缺漏時只花 1 個 request 讀賽程）
         # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）
         if not force:
-            capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+            games_ok = capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+            write_status("full", True, "" if games_ok else "快照已寫入，但單場擷取未成功")
 
     # 本地測試模式：寫出為 json (一律寫出以供驗證)
     with open("local_test_data.json", "w", encoding="utf-8") as f:
@@ -340,6 +383,10 @@ def main():
             "player": final_player_data
         }, f, ensure_ascii=False, indent=2)
     print("📁 已更新 local_test_data.json")
+    if not db:
+        if not force:
+            write_status("full", False, "Firebase 初始化失敗，未寫入")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
