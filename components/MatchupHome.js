@@ -5,8 +5,8 @@
 //        onOpenTeam(abbr, metric?) 開單隊對戰頁、players [{name, id}]（球員區塊的選單）
 (function () {
     const isNum = v => typeof v === 'number' && isFinite(v);
-    const fmt = v => (isNum(v) ? v.toFixed(1) : '—');
-    const signed = v => (isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—');
+    const fmt = v => (isNum(v) ? window.fix1(v) : '—');
+    const signed = v => (isNum(v) ? (window.fix1(v) !== '0.0' && v > 0 ? '+' : '') + window.fix1(v) : '—');
     const TYPE_OPTIONS = [{ value: 'all', label: '例行＋季後' }, { value: 'regular', label: '例行賽' }, { value: 'playoffs', label: '季後賽' }];
     const TAG_CLASS = {
         rival: 'border-[#C4CED2]/50 text-[#C4CED2]',

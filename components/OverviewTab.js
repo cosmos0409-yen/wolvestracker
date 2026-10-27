@@ -71,7 +71,10 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     const PtRow = ({ x }) => (
         <li className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-white/[0.08] py-2.5 last:border-b-0">
             <div className="min-w-0">
-                <div className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-100 truncate">{x.playType}</div>
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="text-[14px] font-medium text-slate-100 whitespace-nowrap">{window.ptName(x.playType)}</span>
+                    <span className="font-mono text-[10px] text-slate-500 truncate">{x.playType}</span>
+                </div>
                 <div className="font-mono text-[10px] text-slate-500">{typeof x.ppp === 'number' ? x.ppp.toFixed(2) : '—'} PPP · {x.poss.toFixed(1)} poss/G</div>
             </div>
             <div className="w-28 sm:w-36"><UI.PctBar value={x.percentile} label="PR" /></div>

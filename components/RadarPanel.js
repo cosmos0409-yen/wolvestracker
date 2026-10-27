@@ -11,7 +11,7 @@ const RadarPanel = ({ series, viewSide }) => {
 
     // 指標目錄（依攻守）
     const CATALOG = viewSide === 'offensive' ? [
-        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: pt, scale: 'PR', pt, side: 'offensive' })),
+        ...PLAY.map(pt => ({ key: 'pt_' + pt, label: window.ptName(pt), scale: 'PR', pt, side: 'offensive' })),
         { key: 'DRIVE_PTS_PCT', label: '每百次切入得分', scale: '', tk: 'DRIVE_PTS_PCT' },  // 切入得分 ÷ 切入次數 × 100，不是百分比
         { key: 'DRIVE_FG_PCT', label: '切入命中率', scale: '%', tk: 'DRIVE_FG_PCT' },
         { key: 'CATCH_SHOOT_EFG_PCT', label: '接球跳投 eFG', scale: '%', tk: 'CATCH_SHOOT_EFG_PCT' },
@@ -19,7 +19,7 @@ const RadarPanel = ({ series, viewSide }) => {
         { key: 'PULL_UP_EFG_PCT', label: '急停跳投 eFG', scale: '%', tk: 'PULL_UP_EFG_PCT' },
         { key: 'REB_COL_PCT', label: '籃板機會轉換率', scale: '%', tk: 'REB_COL_PCT' },
     ] : [
-        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: pt + ' 防守', scale: 'PR', pt, side: 'defensive' })),
+        ...PLAY.filter(pt => pt !== 'Cut' && pt !== 'Misc').map(pt => ({ key: 'pt_' + pt, label: window.ptName(pt) + ' 防守', scale: 'PR', pt, side: 'defensive' })),
         { key: 'REB_CONTEST_PCT', label: '競爭籃板率', scale: '%', tk: 'REB_CONTEST_PCT' },
     ];
     const catMap = Object.fromEntries(CATALOG.map(c => [c.key, c]));

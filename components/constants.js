@@ -1,5 +1,11 @@
 // 全域常數
 window.PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan", "Postup", "Spotup", "Handoff", "Cut", "OffScreen", "OffRebound", "Misc"];
+// Playtype 中文名（與 glossary.js 的 PT_* 定義同名）；畫面一律「中文 + 小字原文」，查不到退回原文
+const PT_ZH = { Transition: '轉換進攻', Isolation: '單打', PRBallHandler: '擋拆持球者', PRRollMan: '擋拆掩護者', Postup: '背框單打',
+    Spotup: '定點投籃', Handoff: '手遞手', Cut: '空切', OffScreen: '繞掩護', OffRebound: '進攻籃板補進', Misc: '其他' };
+window.ptName = (t) => PT_ZH[t] || t;
+// 一位小數，-0.04 這類捨入後為 0 的負數不顯示成「-0.0」
+window.fix1 = (v) => { const s = Number(v).toFixed(1); return s === '-0.0' ? '0.0' : s; };
 
 // 名稱比對用 key：去句點/重音/多餘空白後小寫。
 // 必要性：同一人的名字在不同季的 API 回傳不一致

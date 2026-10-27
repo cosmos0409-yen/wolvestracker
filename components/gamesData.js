@@ -5,6 +5,38 @@
 // 前端一律以 game.stats 為實體交給 GameAgg 算任意期間。記憶體快取一份。
 window.__gamesBundle = window.__gamesBundle || {};
 
+// 單場數值清理（bundle／單場文件讀進來時統一套用）：
+//   1. NBA 單場 Tracking 還沒釋出時，CatchShoot／PullUpShot 會回「整組 0」而不是空的（同時 Touches 整個缺），
+//      那不是真的 0 → 清成 null，畫面顯示「—」、季平均也不會被拉低（例：2023-04-08、2026-10-26 首抓）。
+//      判定：缺 TOUCHES 且該前綴欄位全是 0；有上場的實體只要 Tracking 有資料就一定有 TOUCHES
+//   2. 比率欄的分母是 0（0 出手的命中率）→ null，不顯示成 0%
+const ZERO_FILL_PREFIXES = ['CATCH_SHOOT_', 'PULL_UP_'];
+window.cleanGameStats = function (s) {
+    if (!s || typeof s !== 'object') return s;
+    let out = s;
+    const blank = (k) => { if (out === s) out = { ...s }; out[k] = null; };
+    if (s.TOUCHES == null) {
+        ZERO_FILL_PREFIXES.forEach(pre => {
+            const keys = Object.keys(s).filter(k => k.startsWith(pre));
+            if (keys.length && keys.every(k => s[k] === 0)) keys.forEach(blank);
+        });
+    }
+    const GA = window.GameAgg || {};
+    const dens = { ...Object.fromEntries(Object.entries(GA.RATIO_DEFS || {}).map(([k, v]) => [k, v[1]])),
+        ...Object.fromEntries(Object.entries(GA.EFG_DEFS || {}).map(([k, v]) => [k, v[2]])) };
+    Object.entries(dens).forEach(([k, den]) => { if (typeof out[k] === 'number' && out[den] === 0) blank(k); });
+    return out;
+};
+// 整份單場文件：球隊 stats／opp、球員 players／oppPlayers（名字 → 數值）
+window.cleanGameDoc = function (d) {
+    if (!d || typeof d !== 'object') return d;
+    const C = window.cleanGameStats;
+    const each = (m) => m && Object.fromEntries(Object.entries(m).map(([k, v]) => [k, C(v)]));
+    return { ...d,
+        ...(d.stats ? { stats: C(d.stats) } : {}), ...(d.opp ? { opp: C(d.opp) } : {}),
+        ...(d.players ? { players: each(d.players) } : {}), ...(d.oppPlayers ? { oppPlayers: each(d.oppPlayers) } : {}) };
+};
+
 // viewMode='TEAM' 免 playerId；'PLAYER' 需傳 playerId
 window.loadSeasonGames = async function (season, type, viewMode, playerId) {
     if (!window.db || !window.firebaseModules) return { games: [] };
@@ -17,7 +49,8 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
     if (window.__gamesBundle[cacheKey]) return { games: window.__gamesBundle[cacheKey] };
     try {
         const snap = await getDoc(doc(window.db, coll, bundleId));
-        const games = snap.exists() ? (snap.data().games || []) : [];
+        const games = (snap.exists() ? (snap.data().games || []) : [])
+            .map(g => ({ ...g, stats: window.cleanGameStats(g.stats), ...(g.opp && typeof g.opp === 'object' ? { opp: window.cleanGameStats(g.opp) } : {}) }));
         window.__gamesBundle[cacheKey] = games;
         return { games };
     } catch (e) {
@@ -37,7 +70,8 @@ window.loadGameDocs = async function (date, persist = true) {
     const mem = (window.__gameDocCache = window.__gameDocCache || {});
     if (mem[date]) return mem[date];
     const lsKey = `wt_gc_v2_${date}`;
-    try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = c; return c; } } catch (e) { /* ignore */ }
+    const clean = (c) => ({ team: window.cleanGameDoc(c.team), player: window.cleanGameDoc(c.player) });
+    try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = clean(c); return mem[date]; } } catch (e) { /* ignore */ }
     const { doc, getDoc } = window.firebaseModules;
     const [t, p] = await Promise.all([
         getDoc(doc(window.db, 'wolves_team_games', date)),
@@ -45,11 +79,11 @@ window.loadGameDocs = async function (date, persist = true) {
     ]);
     const v = (t.exists() || p.exists()) ? { team: t.exists() ? t.data() : null, player: p.exists() ? p.data() : null } : null;
     if (v) {
-        mem[date] = v;
+        mem[date] = clean(v);
         const final = (v.team || v.player || {}).final !== false;
         if (final && persist) { try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch (e) { /* quota */ } }
     }
-    return v;
+    return v ? mem[date] : v;
 };
 
 // 比賽索引 wolves_games_index/{season}_{type}（一份 doc：[{date,matchup,wl,gameId}]，由舊到新）。

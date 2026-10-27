@@ -35,7 +35,7 @@ window.UI = (function () {
         const good = (d > 0) === betterIsLarger;
         return (
             <span className={`font-mono text-[10px] tabular-nums whitespace-nowrap ${good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
-                {d > 0 ? '▲' : '▼'} {Math.abs(d)}{unit}
+                {d > 0 ? '▲' : '▼'} {Math.abs(d).toFixed(digits)}{unit}
             </span>
         );
     };

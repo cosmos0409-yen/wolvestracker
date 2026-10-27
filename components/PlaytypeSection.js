@@ -21,9 +21,9 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
         { key: 'playType', label: '類型', en: 'Play Type', align: 'left',
             render: (r) => (
                 <button type="button" onClick={() => onOpen({ type: 'playtype', id: r.playType })}
-                    className="group inline-flex items-baseline gap-1.5 py-[2px] text-left" title="看當季走勢">
-                    <span className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-100 group-hover:text-[#12A150]">{r.playType}</span>
-                    <span data-export-hide className="font-mono text-[10px] text-slate-600 group-hover:text-[#12A150]">↗</span>
+                    className="group inline-flex flex-col items-start py-[2px] text-left" title="看當季走勢">
+                    <span className="whitespace-nowrap text-[14px] font-medium text-slate-100 group-hover:text-[#12A150]">{window.ptName(r.playType)}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{r.playType}<span data-export-hide className="ml-1 text-slate-600 group-hover:text-[#12A150]">↗</span></span>
                 </button>),
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`}

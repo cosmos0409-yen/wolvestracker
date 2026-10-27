@@ -13,7 +13,10 @@ const PlayTypeCard = ({ type, current, prev, onClick, side }) => {
         <div onClick={() => onClick({ type: 'playtype', id: type })}
             className="group p-4 border border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04] transition-colors cursor-pointer min-w-0">
             <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-display text-[15px] font-semibold uppercase tracking-wide text-slate-200 truncate" title={type}>{type}</h3>
+                <h3 className="flex min-w-0 items-baseline gap-1.5" title={type}>
+                    <span className="text-[14px] font-medium text-slate-200 whitespace-nowrap">{window.ptName(type)}</span>
+                    <span className="font-mono text-[10px] text-slate-500 truncate">{type}</span>
+                </h3>
                 <span className="hidden sm:inline shrink-0 font-mono text-[10px] text-slate-500 group-hover:text-[#12A150] transition-colors">走勢 →</span>
             </div>
             <div className="mt-2 flex items-baseline gap-1.5">

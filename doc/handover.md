@@ -255,6 +255,19 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **只在有補抓或失敗時通知**，正常的日子不吵；回報用桌面通知＋log，不用 Email／Claude 排程任務
 - **分兩級補抓**：只缺單場時不重抓整份快照（省約 70 requests、降低被擋風險）
 
+### 2026-10-27 正式站掃描：資料顯示修正
+
+掃正式站時發現幾個會誤導讀者的顯示問題，一次修正（純前端，不動 Firestore 資料）：
+- **「整組 0」當缺資料**：NBA 單場 Tracking 還沒釋出時，`CatchShoot`／`PullUpShot` 會回整組 0（不是空的），同時 `Touches`／`Drives` 整個缺。原本畫面印出「出手 0、命中率 0%」，季平均也被拉低。全部賽季掃過只有兩場：2022-23 的 2023-04-08（已永久留在資料裡）與 2026-10-26 首抓（會被每日補抓蓋掉）。`gamesData.js` 新增 `window.cleanGameStats(s)`／`cleanGameDoc(d)`，在**資料載入層**統一清理（bundle、`loadGameDocs`、`SingleGamePanel`），規則：
+  1. 缺 `TOUCHES` 且 `CATCH_SHOOT_*`／`PULL_UP_*` 全是 0 → 該組清成 `null`（有上場的實體只要 Tracking 有資料就一定有 `TOUCHES`）
+  2. 比率欄（`GameAgg.RATIO_DEFS`／`EFG_DEFS`）分母為 0 → `null`（0 出手不顯示 0%）
+  清成 `null` 而不是刪掉：`SingleGamePanel` 照樣顯示該群組、每格「—」；`GameAgg` 與單場頁展開列本來就略過非數字
+- **Playtype 中文名**：`constants.js` 新增 `window.ptName(type)`（`Spotup` → 定點投籃，與 glossary `PT_*` 同名），總覽強弱項、Playtype 表格／卡片、雷達軸一律「中文＋小字原文」；手機表格首欄中文不換行、原文第二行
+- **比分看板**：依每節比分算延長節數，顯示 `FINAL/OT`、`FINAL/2OT`（沒有每節比分的舊場次只顯示 `FINAL`）
+- **格式**：`window.fix1(v)`（一位小數，捨入後的 `-0.0` 顯示 `0.0`），對戰頁 `fmt`／`signed` 改用它；`UI.Delta` 改固定位數（`▲ 1` → `▲ 1.00`）
+
+已知未處理：抓取端若只有 CatchShoot／PullUp 整組 0、其他來源都正常，`partial` 不會被標記、不會自動重抓（前端已擋，資料本身不會補）。
+
 ---
 
 ## 專案檔案結構
@@ -577,6 +590,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - `captureTries`：定稿後的擷取次數（未定稿時為 0）。舊回補文件沒有這些欄位，視為已定稿完整。
   漏跑幾天也會自動補（5 場內）。
 - 單場抓取邏輯集中在 `nba_common.fetch_single_game()`（回傳 dict）＋ `game_docs()`（組文件），`backfill_games.py` 與每日共用。
+- **前端讀單場數值一律經 `cleanGameStats`／`cleanGameDoc`**（`gamesData.js`）：NBA 未釋出時回的「整組 0」與 0 分母的命中率清成 `null`，見「2026-10-27 正式站掃描」。新增直接讀單場文件或 bundle 的地方要記得套用
 - 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
 
 ### 歷史賽季快照（`backfill_history.py` 寫入）
@@ -741,6 +755,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 | Clutch（名稱保留） | Clutch | `*clutch`，PerGame | 第四節或延長賽最後 5 分鐘、分差 5 分內，場均 |
 | 五人陣容「總分鐘」 | MIN | `leaguedashlineups` Advanced | 此 endpoint 忽略 PerMode，MIN 一律總分鐘（2026-10 實測） |
 | 雷達軸 `PR` / `%` | — | Synergy `PERCENTILE` / tracking 原始值 | 兩種尺度共用 0–100 軸，軸名必帶尺度標示 |
+| Playtype 類型（定點投籃、擋拆持球者…） | Spotup / PRBallHandler… | Synergy `PLAY_TYPE` | 中文一律取 `window.ptName(type)`（`constants.js`），與 glossary `PT_*` 同名；改名兩處一起改 |
 
 新增指標時：先查 NBA.com 對應頁的欄位定義，再決定中文；不確定時中文寫直譯並保留原文。
 

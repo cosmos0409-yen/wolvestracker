@@ -32,7 +32,7 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
         const cacheKey = `wt_game_v3_${coll}_${selectedDate}`;   // v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
-            try { setDoc(JSON.parse(cached)); return; } catch (e) { /* fall through */ }
+            try { setDoc(window.cleanGameDoc(JSON.parse(cached))); return; } catch (e) { /* fall through */ }
         }
         (async () => {
             const { doc: docFn, getDoc } = window.firebaseModules;
@@ -40,7 +40,7 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
                 const snap = await getDoc(docFn(window.db, coll, selectedDate));
                 const data = snap.exists() ? snap.data() : null;
                 if (data) localStorage.setItem(cacheKey, JSON.stringify(data));
-                if (!cancelled) setDoc(data);
+                if (!cancelled) setDoc(window.cleanGameDoc(data));
             } catch (e) {
                 console.error('single game fetch fail', coll, selectedDate, e);
                 if (!cancelled) setDoc(null);

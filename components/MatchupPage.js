@@ -6,8 +6,8 @@
 // props：team（三碼）、range、type、metric（網址 m=：標亮並捲過去）、onRange、onType、onOpenGame(date)
 (function () {
     const isNum = v => typeof v === 'number' && isFinite(v);
-    const fmt = v => (isNum(v) ? v.toFixed(1) : '—');
-    const signed = v => (isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—');
+    const fmt = v => (isNum(v) ? window.fix1(v) : '—');
+    const signed = v => (isNum(v) ? (window.fix1(v) !== '0.0' && v > 0 ? '+' : '') + window.fix1(v) : '—');
     const toneText = t => (t === 'good' ? 'text-[#12A150]' : t === 'bad' ? 'text-[#EF4444]' : 'text-slate-300');
     // 已在頁首的比賽結果，不列入「最突出」
     const RESULT_KEYS = ['PLUS_MINUS', 'PTS', 'OPP_PTS'];

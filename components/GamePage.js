@@ -216,11 +216,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
         <a href={window.UrlState.vsHref(oppAbbr)} className={`mt-1.5 inline-block text-[12px] text-slate-300 ${linkCls}`}>與 {oppAbbr} 歷次交手 →</a>
     ) : null;
     const margin = box ? minTeam.score - oppTeam.score : null;
+    const nOT = box ? Math.max(0, away.periods.length - 4) : 0;   // 延長節數（舊場次沒有每節比分 → 0，只顯示 FINAL）
     const board = box ? (
         <div className="grid grid-cols-2 gap-4 border-b border-white/10 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-6">
             <div className="order-2 lg:order-1">{teamBlock(away, 'away')}</div>
             <div className="order-1 col-span-2 text-center lg:order-2 lg:col-span-1">
-                <span className="inline-block bg-[#C4CED2] px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#0A1626]">FINAL</span>
+                <span className="inline-block bg-[#C4CED2] px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#0A1626]">FINAL{nOT > 0 ? `/${nOT > 1 ? nOT : ''}OT` : ''}</span>
                 {!final && <span className="ml-2 inline-block border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">數據可能更新</span>}
                 <div className="mt-2 text-[13px] text-slate-200">{date}</div>
                 {box.arena && <div className="text-[11px] text-slate-400">{box.arena}{box.attendance ? ` · ${box.attendance.toLocaleString()} 人` : ''}</div>}
