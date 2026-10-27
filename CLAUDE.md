@@ -50,7 +50,7 @@
 - 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；球員 `p=ID-名字`（如 `1630162-anthony-edwards`，**只用 ID 對人**，`UrlState.playerToken`／`tokenPlayerId`、名字部分 `window.nameSlug`；舊連結的完整名字仍可讀）；賽季 `s=年份&t=賽別`（當季不寫 `s`；舊格式 `s=2025-26_playoffs` 仍可讀）；Splits 走勢 `m=指標&hl=日期`；單場頁 `game=`（＋`tab=`）、薪資頁 `cap`、對戰 `vs` 都沒有 `v=`）；快捷鍵 `/` 搜尋（`CommandPalette`）、數字鍵切目前畫面的分頁列（主畫面 `1–6` 章節、單場／薪資頁各自分頁）
 - **資料層分工**：季平均/Splits/趨勢/對戰 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score → `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（單場頁與對戰頁一律經 `gamesData.loadGameDocs` 讀）（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比
-- 單場數值讀進來一律經 `cleanGameStats`／`cleanGameDoc`（`gamesData.js`）：NBA 未釋出時回的 C&S／Pull Up「整組 0」（同時缺 `TOUCHES`）與 0 分母命中率清成 `null` 顯示「—」，不當真的 0；新增讀 bundle／單場文件的地方要套用
+- 單場數值讀進來一律經 `cleanGameStats`／`cleanGameDoc`（`gamesData.js`）：NBA 未釋出時回的 C&S／Pull Up「整組 0」（同時缺 `TOUCHES`）與 0 分母命中率清成 `null` 顯示「—」，不當真的 0；新增讀 bundle／單場文件的地方要套用。抓取端同規則 `nba_common.tracking_zero_filled` 標 `partial` 讓每日補抓重抓，改規則兩邊一起改
 - 當季快照先只讀近期（`snapshotWindowStart`），選日期／開走勢／賽別不足時才補讀整季（`snapFull`）；Firestore 只用 doc id **升冪範圍**查詢（`orderBy desc`／`limitToLast` 需索引會被拒），`onSnapshot` 必帶 error callback
 - 次數類指標（觸球、切入次數等）在 defs 加 `neutral: true`：單場頁／疊圖不標好壞色
 - 讀 Firestore 的 effect 必等匿名登入（`isCloud`），否則被安全規則拒絕且錯誤不會自動清掉

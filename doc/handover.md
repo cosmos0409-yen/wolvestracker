@@ -266,7 +266,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **比分看板**：依每節比分算延長節數，顯示 `FINAL/OT`、`FINAL/2OT`（沒有每節比分的舊場次只顯示 `FINAL`）
 - **格式**：`window.fix1(v)`（一位小數，捨入後的 `-0.0` 顯示 `0.0`），對戰頁 `fmt`／`signed` 改用它；`UI.Delta` 改固定位數（`▲ 1` → `▲ 1.00`）
 
-已知未處理：抓取端若只有 CatchShoot／PullUp 整組 0、其他來源都正常，`partial` 不會被標記、不會自動重抓（前端已擋，資料本身不會補）。
+抓取端同日補上：`nba_common.tracking_zero_filled(stats)`（與前端同一規則）併入 `fetch_single_game` 的 `partial` 判定，看灰狼與對手兩隊球隊數據，整組 0 就標 `partial=True`，每日補抓定稿後最多重抓 3 次。以 Firestore 現有 380 份 `wolves_team_games` 驗證只命中這兩場、無誤判。2023-04-08 是舊回補文件（沒有 `partial` 欄位、視為已定稿），不會自動重抓；要補得手動 `backfill_games.py --season 2022-23 --type regular --dates 2023-04-08`（約 20 requests，NBA 那天的 Tracking 可能本來就沒有）。
 
 ---
 
@@ -586,7 +586,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
 - 單場文件多三個欄位：
   - `final`：擷取時間是否已過「比賽隔天美東（UTC-5）13:00」（`FINAL_AFTER_HOURS`＝最晚場結束＋12 小時）。未定稿的下次一定重抓——各來源都有值但還沒更新完的半成品，`partial` 抓不到，只能靠時間判斷。
-  - `partial`：base 有資料但 tracking/hustle 等某來源整個空；定稿後最多重抓 3 次（`CAPTURE_MAX_TRIES`）。
+  - `partial`：base 有資料但 tracking/hustle 等某來源整個空，或 Tracking 回「整組 0」（`tracking_zero_filled`，2026-10-27 起）；定稿後最多重抓 3 次（`CAPTURE_MAX_TRIES`）。
   - `captureTries`：定稿後的擷取次數（未定稿時為 0）。舊回補文件沒有這些欄位，視為已定稿完整。
   漏跑幾天也會自動補（5 場內）。
 - 單場抓取邏輯集中在 `nba_common.fetch_single_game()`（回傳 dict）＋ `game_docs()`（組文件），`backfill_games.py` 與每日共用。

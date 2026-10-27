@@ -1034,6 +1034,22 @@ def fetch_boxscore(game_id):
 # ==========================================
 # 單場擷取（每日 fetch_data.py 與 backfill_games.py 共用）
 # ==========================================
+ZERO_FILL_PREFIXES = ("CATCH_SHOOT_", "PULL_UP_")
+
+
+def tracking_zero_filled(stats):
+    """NBA 單場 Tracking 還沒釋出時，CatchShoot／PullUpShot 會回「整組 0」而不是空的，
+    同時 Possessions（TOUCHES）整個缺——來源「有值」所以舊的 partial 判定抓不到。
+    缺 TOUCHES 且任一組前綴欄位全是 0 → True（球隊整場不可能 0 次接球跳投）。
+    前端 gamesData.cleanGameStats 用同一規則把這種 0 顯示成「—」。"""
+    if not stats or stats.get("TOUCHES") is not None:
+        return False
+    for pre in ZERO_FILL_PREFIXES:
+        vals = [v for k, v in stats.items() if k.startswith(pre)]
+        if vals and all(v == 0 for v in vals):
+            return True
+    return False
+
 def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, casefold=False, keep_is_fallback=True):
     """抓指定日期（MM/DD/YYYY）、GameID 的單場數據（灰狼＋對手），回傳 dict：
       player / team          灰狼球員（球員名 key）/ 灰狼球隊
@@ -1044,7 +1060,8 @@ def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, cas
       opp_players / opp_team 對手球員（以 box score 上場名單篩，球員名 key）/ 對手球隊
       opp_id / opp_abbr      對手 TEAM_ID / 三碼縮寫（取自 box score）
       box                    完整 box score（見 fetch_boxscore）
-      partial                某來源缺漏（NBA 單場資料偶爾晚更新），寫入時標記、每日腳本下次重抓
+      partial                某來源缺漏（NBA 單場資料偶爾晚更新；Tracking 回整組 0 也算，見 tracking_zero_filled），
+                             寫入時標記、每日腳本下次重抓
     request 數約 24：box 2 + 球員 11（全聯盟）+ 對手對位防守 2 + 球隊 9（TeamID=0 一次拿兩隊）。"""
     box, box_complete = fetch_boxscore(game_id)
     opp = next((t for t in (box or {}).get("teams", []) if t.get("teamId") != TEAM_ID), None)
@@ -1082,10 +1099,12 @@ def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, cas
         {pid: v for pid, v in league.items() if pid in opp_pids},
         {pid: v for pid, v in opp_def.items() if pid in opp_pids}))
     # 球隊來源看兩隊那列（全聯盟有別場時 dict 不會空）；球員來源全聯盟，看非空即可
+    # Tracking 回「整組 0」也算缺漏（看兩隊球隊數據即可，球員跟著球隊一起缺）
     partial = bool(player or team) and (
         any(not s for s in p_sources) or any(not s.get("MIN") for s in t_sources)
         or not box_complete or not opp_id or not opp_def
-        or any(not s.get(str(opp_id)) for s in t_sources))
+        or any(not s.get(str(opp_id)) for s in t_sources)
+        or tracking_zero_filled(team) or (bool(opp_team) and tracking_zero_filled(opp_team)))
     return {"player": player, "team": team, "opp_players": opp_players, "opp_team": opp_team,
             "opp_id": opp_id, "opp_abbr": opp_tri or "", "box": box, "partial": partial}
 
