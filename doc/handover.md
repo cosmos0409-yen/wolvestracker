@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-10-26（**每日抓取看門狗**：新排程 `WolvesWatchdog` 台北 15:00 檢查，主排程沒完成就完整補抓、昨晚那場還沒進資料庫就只抓單場，有補抓或失敗才跳桌面通知，見「2026-10-26 每日抓取看門狗」與「自動化排程」）
+> 最後更新：2026-10-28（**聯盟名次與引用籃**：全隊數據帶 30 隊名次、新增全隊進階效率，球隊 Playtype 百分位換算名次；跨頁「引用籃」把數值排成粉專貼文用純文字，見「2026-10-28 聯盟名次與引用籃」）
 > 前次：2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**、**單場分頁＋介面統一**、**網站圖示（PWA）**，見同名章節；之前的對戰分析、開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
@@ -280,6 +280,37 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **HANDOFF 0.00 PPP 查證**：快照原始資料是 3 場 8 次球權、8 投 0 中、0 分，是真實數據；使用率「—」是 NBA 對低球權類型回 `POSS_PCT=0` 的已知狀況，不需處理
 - **03:00 主排程沒執行（10/27、10/28）**：筆電是 Modern Standby（S0），電源計畫的「允許喚醒計時器」電池模式為停用（插電才啟用），電池待命 3 小時後會休眠，因此 03:00 不會被喚醒；10/28 08:05 喚醒後 3 分鐘又回到待命，錯過的排程也沒補跑。使用者選擇加早上看門狗（`WolvesWatchdogMorning`，見「自動化排程」）；未改電源設定、主排程時間不變
 
+### 2026-10-28 聯盟名次與引用籃
+
+起因：使用者的粉專貼文開頭固定列一段數據（`※三分出手數／命中率：41.7（聯盟第4）／39.3%（聯盟第5）`），網站原本沒有聯盟名次、也沒有全隊進攻效率，複製引用一次一格且帶來源網址，不適合直接貼文。寫作格式的歸納見記憶檔 `user-fb-citation-format`（掃個人首頁 220 篇貼文）。
+
+**聯盟名次（後端，`nba_common.py`／`fetch_data.py`）**
+- 每日抓取的全隊類別（base／tracking／shooting／clutch／defense）改以 `TeamID=0` 一次拿 30 隊，**請求數不變**；`split_league()` 拆出灰狼那份（存回原欄位，與改前逐欄相同）與名次
+- `fetch_pt_shots`／`fetch_clutch`／`fetch_defense_box`／`fetch_opp_shot_locations` 原本寫死 `TEAM_ID` 與 key `"MIN"`，已補 `team_id` 參數、key 改用列上的 `TEAM_ID`（`_team_key`）；預設值不變，回補與單場擷取不受影響
+- 新增全隊進階 `fetch_team_advanced()`（`ADVANCED_FIELDS`：OffRtg/DefRtg/NetRtg/Pace/TS%/eFG%/AST%/TOV%/OREB%/DREB%，API 比例欄為 0～1，×100），每日 **+1 請求**（71 → 72）
+- 名次方向設定表：`RANK_LOWER_BETTER`（越低越好）、`RANK_SKIP`（不排名）；`*` 開頭為欄名結尾比對（`*_OPP_FG_PCT`）。沒列到的一律「數值大＝第 1」（次數類照數量排）
+- `league_ranks()`：同分取最小名次（1、2、2、4），用存進文件的值（已四捨五入）排；另寫 `_n`＝參與排名隊數（開季初 Clutch 只有 28 隊有資料）
+- 驗證（2026-10-28）：灰狼 5 類 127 欄與既有文件逐欄相同；名次對 NBA 回應自帶的 `*_RANK` 欄（base／advanced／defense box）38 項中 37 項一致，唯一不一致 OREB 是兩隊顯示值同為 16.3、NBA 以內部精度分先後（API 只給一位小數，無法重現）
+- **只做當季**：歷史期末快照沒有 `ranks`／`advanced`，未回補（使用者決定）
+
+**聯盟名次（前端）**
+- `App.js` 每次 render 設 `window.RankCtx`：只在全隊視角、當季每日快照有 `ranks` 時有值（時光機跟著那天的快照；上線前的快照沒有名次就不顯示）
+- `window.leagueRank(類別或陣列, 欄位)` → `{ rank, n, date }`；`UI.StatCell` 的 `rank` 在數值下方顯示「聯盟第N」、「?」小卡加一行名次依據、複製引用帶「（聯盟第N）」
+- 掛名次的位置：身分列 4 項、總覽季平均（僅「全季」）、Clutch、防守各卡（`TrackingCardRow rankCats="defense"`）、Splits 期間「全季」（`rankable`，欄位組 → 類別見 `SplitsTab` 的 `RANK_CATS`）、總覽新增「全隊效率」（`advanced`）
+- **投籃分頁不掛名次**：那裡的命中率格是逐球 shotchart 自算，不是快照數字
+- **球隊 Playtype**：`window.ptRank(PR)` = `1 + round((1 − PR/100) × 29)`（NBA 以 30 隊名次換算球隊百分位，2025-26 Isolation／Transition 實測驗證）；表格百分位旁小字「第N」、強弱項清單也有；歷史賽季同樣成立。**球員百分位不能換算**（是跟達門檻的球員比，人數不固定），維持 PR
+- 名次是 NBA 官方全季數值的排序，季平均格是逐場重算，偶爾差一點小數，以官方為準（「?」小卡有說明）
+
+**引用籃（`quoteFormat.js`／`QuoteBasket.js`）**
+- 入口：`UI.Info` 帶 `quote`（回傳項目的函式）時小卡多「＋加入引用籃」；`StatCell` 依 `window.CiteCtx` 自動組項目（`window.Quote.make`），`quote` prop 可覆寫欄位、傳 `null` 不提供。沒有 glossary 定義也保留入口
+- 比較項目的入口：Splits 選期間時 `TrackingCardRow compareTags=['全季', 期間]`（→）、球員 On/Off（在場 vs. 離場）、跨季比較每列名稱旁的「?」（2 季 →、3 季以上每季一行）；Playtype 列存 PPP＋名次或 PR；單場頁 Box Score 展開的球員進階（`CiteCtx.context` 帶「10/26 @ 騎士 125:127 敗」）
+- 儲存：`localStorage` 的 `wt_quote_v1`（項目）、`wt_quote_opts_v1`（格式選項），保留到手動清空；讀寫失敗（私密模式等）退回記憶體；變動發 `wt-quote-change` 事件，另聽 `storage` 讓多分頁同步
+- 項目格式：`{ id, kind: 'single'|'compare', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.', rank, pr, better, asOf, url }`；合併後 `{ id, kind, subject, context, sep, parts: [A, B] }`。能合併的條件見 `Quote.canMerge`（同類、同主體同情境，比較項目還要比較對象相同）
+- 排版 `Quote.render(items, opts)`（純函式）：符號一義（`：` 名稱／`／` 成對／`→` 時間先後／`vs.` 並列）；相鄰同主體同情境合成一組。單值 1A「●主體｜情境（括號為聯盟排名）＋※指標：值（第8）」、前後 2A／2B 差值／2C 📈📉（依 `better`，次數類不標）、並列 3A、三個以上值 3C。成對指標名稱表 `PAIRS` 在 `quoteFormat.js`（沒列到就寫「A／B」）。文末「※本文數據統計至 M/D」不寫「臺灣時間」（快照日期是美東日期）
+- 抽屜：右下角浮動鈕（有項目才出現，避開安全區域）、桌面右側 460px／手機全螢幕、Esc／點背景關閉、焦點進出歸還；清空要按兩次（不用瀏覽器對話框）
+- 測試：`Quote.render` 可在 Node 跑（`global.window = {addEventListener(){}, removeEventListener(){}}` 後 `require('components/quoteFormat.js')`），2026-10-28 以 15 組固定輸入驗證（測試腳本未提交）
+- 未做：單場頁概要、Box Score 傳統數據表、「對比」分頁沒有入口（「對比」格子本身是連結，不能再塞按鈕）；Playtype 卡片檢視沒有名次小字
+
 ---
 
 ## 專案檔案結構
@@ -290,8 +321,10 @@ wolvestracker/
 ├── components/                      ← React 元件原始碼（編輯這裡）
 │   ├── Icons.js                     ← SVG icon set，掛 window.Icons
 │   ├── ui.js                        ← 設計系統 window.UI（StatCell/Ledger/DataTable/Seg/TabBar/Section/PctBar、複製引用、匯出）
+│   ├── quoteFormat.js               ← 引用籃資料層＋貼文排版 window.Quote（不含 JSX，可用 Node 測 render）
+│   ├── QuoteBasket.js               ← 引用籃右下角浮動鈕＋抽屜（排序／合併／格式選項／複製）
 │   ├── glossary.js                  ← 指標定義 window.GLOSSARY（「?」小卡內容）
-│   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）/ nameKey、nameSlug
+│   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）/ nameKey、nameSlug / 聯盟名次 RankCtx、leagueRank、ptRank
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
 │   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
 │   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
@@ -397,6 +430,7 @@ wolvestracker/
 
 ### 寫作工具（2026-10 Phase 5）
 - **複製引用**：`UI.citeLine` 組字串；入口是「?」小卡底部的「複製引用」（`UI.Info` 帶 `cite`，2026-10-23 起每格只留一個圖示），沒有 glossary 定義或沒有「?」的地方才用獨立 `UI.CopyBtn`。`cite`／`text` 一律傳**函式**（點擊當下才組字串，句尾網址才是當下畫面），格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
+- **引用籃**（2026-10-28）：跨頁收集數值、排成貼文用純文字（不附來源網址為預設），見「2026-10-28 聯盟名次與引用籃」
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
 - **近期異動**：`components/Highlights.js`，近 N 場 vs 全季（截至 untilDate；N 由 `OverviewTab` 依「平均期間」傳入，近 5／近 10，全季時用 5，本區不另放切換），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
 - 刊頭「複製連結」＝複製含 hash 的目前網址
@@ -572,7 +606,9 @@ service cloud.firestore {
 wolves_team_stats/{YYYY-MM-DD}
 wolves_player_stats/{YYYY-MM-DD}
 ```
-欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `tracking`, `shooting`, `clutch`, `defense`, `lineups`（lineups 僅球隊文件）
+欄位：`date`, `seasonType`, `type`, `timestamp`, `stats`, `base`, `tracking`, `shooting`, `clutch`, `defense`, `lineups`（lineups 僅球隊文件）；球員文件另有 `onoff`、`meta`
+
+- **全隊文件另有（2026-10-28 起）**：`advanced`（全隊進階 10 欄）、`ranks`（`{base|tracking|shooting|clutch|defense|advanced: {欄位: 名次, _n: 參與隊數}}`），見「2026-10-28 聯盟名次與引用籃」。之前的快照與歷史期末快照沒有這兩欄
 
 - **寫入守門（2026-10-23 改）**：Synergy **與** base 都空才視為被 NBA 擋、終止寫入。開季初 NBA 尚未釋出 Synergy（`synergyplaytypes` 回 0 筆、不是錯誤），此時印 `⚠️ Synergy 無資料` 並照常寫入其他類別、擷取單場；`stats` 為空陣列／空物件，等 NBA 釋出後隔天自動補上。前端球員名單取 `stats ∪ base`、球員存在判定與 `playerId` 都退回 `base`，Playtype 分頁顯示「尚無資料」
 
@@ -816,6 +852,8 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 
 不確定 API 欄名時，先抓一次 response 印 `resultSets[0]['headers']` 對照（欄名錯誤會被 `safe_col` 靜默吞成 0）。
 
+**全隊欄位的聯盟名次**（2026-10-28 起）：全隊新欄位會自動算名次（預設數值大＝第 1）。越低越好的（失誤、對手命中率等）加進 `nba_common.RANK_LOWER_BETTER`、排名沒有意義的加進 `RANK_SKIP`；前端那一格傳 `rank={window.leagueRank('類別', '欄位')}`（或 `TrackingCardRow rankCats`）才會顯示。新類別若要排名，抓取時傳 `team_id=0` 並經 `split_league()`，名次寫進 `ranks.{類別}`。
+
 ### Q: 薪資資料怎麼更新
 改 Google Sheet（或把 Spotrac／Fanspo 截圖、網頁文字給 Claude 轉成新列）。每日排程會自動同步；想立刻生效就手動跑 `python scripts/sync_salary.py`（先 `--dry-run` 看摘要）。發佈的 CSV 有幾分鐘快取，剛改完可能讀到舊版，稍等再跑。何時要更新：休賽期簽約、選項執行、交易截止日、裁員、10 天合約、牽涉選秀權的交易、觸發鎖死；每年 7 月新門檻；每季季末 `tax_history` 加一列。
 
@@ -904,7 +942,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 71/天（快照 70＋賽程 1，2026-10 實測），比賽隔天另加單場每場約 24（含對手與 box score）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 26（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 72/天（快照 71＋賽程 1；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 24（含對手與 box score）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 26（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
@@ -918,6 +956,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算
 - 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期
 - 2026-10-20 — 薪資頁（Cap Sheet，Phase 1–6）：Google Sheet＋`sync_salary.py`＋`wolves_salary/main`（安全規則、索引豁免已設）；`CapPage.js` 四分頁（總覽／合約／選秀權／規則）、累犯依 `tax_history` 自動判定、懸停完整金額、球員薪資膠囊與雙向連結、薪資×表現（逐場 bundle 計算）；`ui.js` 匯出加 `source`；新增「2026-10-20 薪資頁」「薪資資料」「薪資頁」章節與相關 FAQ、雷區

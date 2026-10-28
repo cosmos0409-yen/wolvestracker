@@ -20,14 +20,15 @@
 
 - 無障礙（WCAG AA）：`tailwind.config.js` 已把 slate-500/600 調亮（只當文字色）；品牌色當底時字用 `#0A1626`；`#236192` 不可當小字色；按鈕框 ≥ 24×24 且不重疊（「?」鈕不可用左右負邊距）
 - 字體：`font-sans` Noto Sans TC／`font-display` Barlow Condensed（數字/標題）／`font-mono` JetBrains Mono（標籤/原文）；共用介面元件在 `components/ui.js`（`window.UI`：Section/StatCell/Ledger/PctBar/DataTable/Seg/TabBar/Chip/Note），新區塊一律用它組；只給真的有 percentile 的資料畫百分位條
-- 介面規則：複製引用收進「?」小卡（`UI.Info` 帶 `cite` 函式），不另放複製圖示；攻守切換只在 `TABS` 標 `sided` 的章節出現；平鋪指標清單用 `window.metricLabel(m)`（有 `longLabel` 優先）；Playtype 類型名用 `window.ptName(type)`（中文＋小字原文）；一位小數帶正負號用 `window.fix1`（不出現 `-0.0`）；有逐場資料的防守群組列在 `window.GAME_DEFENSE_IDS`；預設一律看進行中賽季，不自動切到舊賽季（`selectedSeasonKey` 不存 localStorage，舊賽季只靠網址 `s=`）
+- 介面規則：複製引用收進「?」小卡（`UI.Info` 帶 `cite` 函式），不另放複製圖示；加入引用籃也在同一張小卡（`UI.Info` 帶 `quote`，`StatCell` 自動組，資料與排版在 `quoteFormat.js` 的 `window.Quote`，格式規則見 doc/handover.md）；聯盟名次只給全隊當季快照格（`StatCell rank={window.leagueRank(類別, 欄位)}`，`window.RankCtx` 由 App 設定），逐球自算或期間平均的格子不掛；攻守切換只在 `TABS` 標 `sided` 的章節出現；平鋪指標清單用 `window.metricLabel(m)`（有 `longLabel` 優先）；Playtype 類型名用 `window.ptName(type)`（中文＋小字原文）；一位小數帶正負號用 `window.fix1`（不出現 `-0.0`）；有逐場資料的防守群組列在 `window.GAME_DEFENSE_IDS`；預設一律看進行中賽季，不自動切到舊賽季（`selectedSeasonKey` 不存 localStorage，舊賽季只靠網址 `s=`）
 - 統一規則：分頁列一律用 `UI.TabBar`（章節列／薪資頁／單場頁共用）；數字鍵切「目前畫面的分頁列」（主畫面章節由 App 處理、獨立整頁用 `UI.useTabKeys`，沒有分頁列的對戰頁不作用）；同一個控制只放一處（跨季疊圖賽別跟刊頭、近期異動場數跟總覽「平均期間」）；攻守切換標「進攻端／防守端」，不和「防守」章節同字；`UI.Section` 右側操作手機上會自行換行，不可再加會撐寬頁面的固定寬度
 
 ## 硬性約束
 - 抓取邏輯與欄位對應集中在 `scripts/nba_common.py`——**新增數據改設定表（`*_FIELDS`），不要在 fetch_data.py / backfill_history.py / backfill_games.py 寫重複邏輯**
 - **賽季不寫死**：資料賽季 `nba_common.get_current_season()` ＝ 前端 `constants.js` 的 `seasonForDate()`（美東 10/20 切換，兩邊同規則，改界線要一起改）；名冊／薪資賽季 `get_roster_season()` ＝ 前端 `capSeasonForDate()`（7/1 切換，新援判定與薪資當季用）
 - 每日快照球員以 playerName 為 key；歷史快照以 PlayerID 為 key（前端 `normalizeHistoryPlayer` 對齊，已展開 base/tracking/shooting/clutch/defense/onoff 各類別），勿更動
-- 每日文件欄位：`stats`(Synergy)/`base`/`tracking`/`shooting`/`clutch`/`defense`/`lineups`/`onoff`，新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）
+- 每日文件欄位：`stats`(Synergy)/`base`/`tracking`/`shooting`/`clutch`/`defense`/`lineups`/`onoff`，全隊另有 `advanced`（全隊進階）/`ranks`（30 隊名次 `{類別: {欄位: 名次, _n}}`，2026-10-28 起、只有當季），新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）
+- **聯盟名次**：全隊類別抓取一律 `team_id=0` 拿 30 隊再經 `split_league()` 拆灰狼＋名次（請求數不變）；新增全隊欄位要判斷方向，越低越好加進 `nba_common.RANK_LOWER_BETTER`、不該排名加進 `RANK_SKIP`。球隊 Playtype 名次由百分位換算（`window.ptRank`），球員百分位不可換算
 - **新 Firestore 集合必加安全規則 read 白名單**（Firebase Console，見 doc/handover.md）——已踩過多次，症狀是前端 `Missing or insufficient permissions`
 - **新 Firestore 集合必加 `*` 索引豁免**（Console → 索引 → 自動 → 豁免項目）；所有集合都已豁免，**只能用文件 ID 範圍／getDoc／整集合讀取**，依欄位查詢會回 `requires an index`。專案是 Blaze 方案（超過免費額度會計費，不會停擺）
 - .bat 檔必須 CRLF、`chcp 65001`、無中文註解；排程用 Python 絕對路徑（`Python312`，裸 `python` 會解析到沒套件的版本）
