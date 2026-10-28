@@ -351,6 +351,26 @@ window.oppZonesDefs = [
 // 有逐場資料的防守群組（單場頁展開列、Splits、跨季疊圖用）；新增 Hustle 類群組要加進來
 window.GAME_DEFENSE_IDS = ['MatchupDefense', 'Hustle', 'Screens'];
 
+// ── 聯盟名次（全隊每日快照的 ranks 欄位，fetch_data.py 以 30 隊算好）──
+// App 每次 render 設 window.RankCtx：只在全隊視角、當季每日快照、該快照有 ranks 時有值，其他情況為 null（不顯示名次）
+// RankCtx = { ranks: {類別: {欄位: 名次, _n: 隊數}}, date: 快照日, latest: 是否為最新一份 }
+window.LEAGUE_TEAMS = 30;
+window.RankCtx = null;
+// cats：類別字串或陣列（依序找第一個有名次的類別）→ { rank, n, date } 或 null
+window.leagueRank = (cats, key) => {
+    const ctx = window.RankCtx;
+    if (!ctx || !ctx.ranks || !cats) return null;
+    for (const c of [].concat(cats)) {
+        const m = ctx.ranks[c];
+        if (m && typeof m[key] === 'number') return { rank: m[key], n: m._n || window.LEAGUE_TEAMS, date: ctx.date };
+    }
+    return null;
+};
+// 球隊 Synergy 百分位 → 30 隊名次（NBA 以名次換算百分位：PR = (30 − 名次) / 29，2025-26 實測驗證）
+// 只適用球隊；球員百分位是跟達門檻的球員比，人數不固定，不可換算
+window.ptRank = (pr) => typeof pr === 'number'
+    ? { rank: 1 + Math.round((1 - pr / 100) * (window.LEAGUE_TEAMS - 1)), n: window.LEAGUE_TEAMS } : null;
+
 // 平鋪清單用的指標名稱：有 longLabel 用 longLabel（見 trackingDefs 註解）
 window.metricLabel = (m) => (m && (m.longLabel || m.label)) || '';
 

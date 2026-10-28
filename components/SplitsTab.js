@@ -3,7 +3,8 @@
 // focusMetric / highlightDate：網址 m= / hl=（從單場頁點指標過來）→ 自動切到該指標所屬欄位組、打開逐場走勢、圈出那一場
 // onFocusChange(metricKey|null)：走勢開關或換指標時回報，讓網址跟著記住（可分享）
 // onGameClick(date)：逐場走勢上點某一場（→ 單場頁）；未傳則點不可點
-const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate, onFocusChange, onGameClick }) => {
+// rankable：全隊、當季最新快照有名次時為 true → 期間選「全季」時各格加聯盟名次（其他期間沒有名次）
+const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate, onFocusChange, onGameClick, rankable = false }) => {
     const { useState, useEffect } = React;
     const GA = window.GameAgg;
     const TrackingCardRow = window.TrackingCardRow;
@@ -30,6 +31,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     // 單場有的防守資料：最近防守者（僅球員）＋ Hustle。DefenseBox（防守效率等）沒有單場值
     const DEF_DEFS = defenseDefs.filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id));
     const GROUP_DEFS = { base: [BASE_DEF], tracking: trackingDefs, zones: ZONES_DEF ? [ZONES_DEF] : [], defense: DEF_DEFS };
+    // 欄位組 → 快照名次類別（tracking 的籃板三項在 tracking 也有，找不到再退 base）
+    const RANK_CATS = { base: 'base', tracking: ['tracking', 'base'], zones: 'shooting', defense: 'defense' };
 
     // 網址帶指標 → 找所屬欄位組與群組（由 defs 反查，不另建對照表；新增指標自動適用）
     useEffect(() => {
@@ -168,7 +171,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                     <div key={def.id}>
                         <TrackingCardRow title={def.title} actionLabel="點看趨勢" category={def.id} metrics={def.metrics}
                             current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats"
-                            citeAsOf="none" citeNote={`Splits：${periodLabel}（${periodAgg.GP} 場）`} />
+                            citeAsOf="none" citeNote={`Splits：${periodLabel}（${periodAgg.GP} 場）`}
+                            rankCats={rankable && period === 'all' ? RANK_CATS[group] : null} />
                         {openGroup && openGroup.id === def.id && (
                             <div ref={trendRef} className="-mt-3 mb-6 border border-white/10 p-4">
                                 <div className="mb-3 flex flex-wrap items-center gap-3">

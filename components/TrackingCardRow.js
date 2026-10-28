@@ -4,7 +4,8 @@
 // actionLabel：右上角動作提示文字（Splits 用「點看趨勢」）
 // naReason：整組指標對此球員不適用（跨隊）→ 標題掛 badge，每格顯示灰色「—」
 // citeAsOf / citeNote：傳給 StatCell 組引用句（Splits 為期間、單場為場次）
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote }) => {
+// rankCats：給了就到 window.RankCtx 查聯盟名次（快照類別名或陣列，見 window.leagueRank）；只限全隊當季快照／全季格
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote, rankCats = null }) => {
     if (!current) return null;
     const UI = window.UI;
     const [zh, en] = UI.splitTitle(title);
@@ -29,7 +30,8 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                     <UI.StatCell key={i} label={m.label} en={m.englishLabel}
                         value={current[m.key]} prevValue={prev?.[m.key]}
                         unit={m.unit} betterIsLarger={m.betterIsLarger !== false}
-                        naReason={naReason} gkey={m.key} citeAsOf={citeAsOf} citeNote={citeNote} />
+                        naReason={naReason} gkey={m.key} citeAsOf={citeAsOf} citeNote={citeNote}
+                        rank={rankCats ? window.leagueRank(rankCats, m.key) : null} />
                 ))}
             </UI.Ledger>
         </section>

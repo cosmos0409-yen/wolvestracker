@@ -1,7 +1,8 @@
 // 總覽章節：季平均（扣掉身分列已顯示的 4 項）＋ Playtype 強弱項 ＋ 雷達 ＋ On/Off（球員）＋ Clutch ＋ Lineups（球隊）＋ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null }) => {
+// advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -42,6 +43,24 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         if (s.plus) return (v > 0 ? '+' : '') + v.toFixed(1);
         return v.toFixed(1);
     };
+    // 聯盟名次只給全隊（window.RankCtx 已限當季快照）；季平均只在「全季」時有名次
+    const isTeam = viewMode === 'TEAM';
+    const rankOf = (cat, key) => isTeam ? window.leagueRank(cat, key) : null;
+
+    // 全隊效率（Advanced 快照，每 100 回合／百分比）
+    const ADVANCED = [
+        { key: 'OFF_RATING', label: '進攻效率', en: 'OffRtg' },
+        { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg' },
+        { key: 'NET_RATING', label: '淨效率', en: 'NetRtg', plus: true },
+        { key: 'PACE', label: '節奏', en: 'Pace' },
+        { key: 'TS_PCT', label: '真實命中率', en: 'TS%', pct: true },
+        { key: 'EFG_PCT', label: '有效命中率', en: 'eFG%', pct: true },
+        { key: 'AST_PCT', label: '助攻率', en: 'AST%', pct: true },
+        { key: 'TM_TOV_PCT', label: '失誤率', en: 'TOV%', pct: true },
+        { key: 'OREB_PCT', label: '進攻籃板率', en: 'OREB%', pct: true },
+        { key: 'DREB_PCT', label: '防守籃板率', en: 'DREB%', pct: true },
+    ];
+    const hasAdvanced = isTeam && advanced && typeof advanced.OFF_RATING === 'number';
 
     // Playtype 強弱項（BBall Index 式）：只用 Synergy 百分位（真有聯盟排名的數字）。
     // 攻守兩面百分位皆「越高越好」（已用資料驗證：防守 PPP 越低 → 百分位越高）。
@@ -75,7 +94,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <span className="text-[14px] font-medium text-slate-100 whitespace-nowrap">{window.ptName(x.playType)}</span>
                     <span className="font-mono text-[10px] text-slate-500 truncate">{x.playType}</span>
                 </div>
-                <div className="font-mono text-[10px] text-slate-500">{typeof x.ppp === 'number' ? x.ppp.toFixed(2) : '—'} PPP · {x.poss.toFixed(1)} poss/G</div>
+                <div className="font-mono text-[10px] text-slate-500">{typeof x.ppp === 'number' ? x.ppp.toFixed(2) : '—'} PPP · {x.poss.toFixed(1)} poss/G{isTeam && window.ptRank(x.percentile) ? ` · 聯盟第${window.ptRank(x.percentile).rank}` : ''}</div>
             </div>
             <div className="w-28 sm:w-36"><UI.PctBar value={x.percentile} label="PR" /></div>
         </li>
@@ -97,11 +116,23 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <UI.Ledger cols={UI.ledgerCols(summary.length)}>
                         {summary.map(s => (
                             <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
-                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} />
+                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} rank={isRecent ? null : rankOf('base', s.key)} />
                         ))}
                     </UI.Ledger>
                 )}
             </UI.Section>
+
+            {hasAdvanced && (
+                <UI.Section title="全隊效率" en="Advanced" accent="green"
+                    sub={`每 100 回合效率與比率 · 整季快照${window.RankCtx ? ` · 小字為 ${(window.RankCtx.ranks.advanced || {})._n || window.LEAGUE_TEAMS} 隊聯盟名次` : ''}`}>
+                    <UI.Ledger cols={UI.ledgerCols(ADVANCED.length)}>
+                        {ADVANCED.map(s => (
+                            <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(advanced[s.key], s)} unit={s.pct ? '%' : ''}
+                                gkey={s.key} citeNote="整季快照" rank={rankOf('advanced', s.key)} />
+                        ))}
+                    </UI.Ledger>
+                </UI.Section>
+            )}
 
             {ranked.length > 0 && (
                 <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent={viewSide === 'offensive' ? 'green' : 'red'}
@@ -174,7 +205,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <UI.Ledger cols={UI.ledgerCols(clutchMetrics.length)}>
                         {clutchMetrics.map(m => (
                             <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} value={clutchEntity[m.key]} unit={m.unit}
-                                gkey={m.key} citeNote="Clutch（第四節或延長賽最後 5 分鐘、分差 5 分內，場均）" />
+                                gkey={m.key} citeNote="Clutch（第四節或延長賽最後 5 分鐘、分差 5 分內，場均）" rank={rankOf('clutch', m.key)} />
                         ))}
                     </UI.Ledger>
                 </UI.Section>

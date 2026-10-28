@@ -106,6 +106,10 @@ window.GLOSSARY = (function () {
         OFF_RATING: { def: '進攻效率：每 100 回合得分。', src: ADV },
         NET_RATING: { def: '淨效率：進攻效率 − 防守效率，正值代表每 100 回合淨贏。', src: ADV },
         TS_PCT: { def: '真實命中率：把三分與罰球都算進去的得分效率。', calc: '得分 ÷ (2 × (出手 + 0.44 × 罰球出手))', src: ADV },
+        PACE: { def: '節奏：每 48 分鐘的回合數，數字越大打得越快。', src: ADV },
+        AST_PCT: { def: '助攻率：球隊投進的球中，有助攻的比例。', calc: '助攻 ÷ 投籃命中', src: ADV },
+        TM_TOV_PCT: { def: '失誤率：每 100 回合發生的失誤次數，越低越好。', calc: '失誤 ÷ 回合數 × 100', src: ADV },
+        OREB_PCT: { def: '進攻籃板率：自己投失的球中，搶回進攻籃板的比例。', src: ADV },
         MIN: { def: '該五人陣容一起在場的總分鐘數（此 endpoint 一律回總計，不受 PerMode 影響）。', src: ADV },
         GP: { def: '出賽場次。', src: BASE },
 

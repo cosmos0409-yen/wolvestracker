@@ -994,6 +994,9 @@ const App = () => {
         asOfAgg: untilDateForAvg || displayDate,
         isHistory: isHistoryMode,
     };
+    // 聯盟名次情境（window.leagueRank 讀取）：只在全隊視角的當季每日快照；時光機選日期時跟著用那天的快照
+    const rankDoc = (viewMode === 'TEAM' && !isHistoryMode) ? teamSeq[teamIdx] : null;
+    window.RankCtx = rankDoc && rankDoc.ranks ? { ranks: rankDoc.ranks, date: rankDoc.date, latest: teamIdx === 0 } : null;
 
     // 搜尋面板項目（依群組排列，群組名也可被搜尋）
     const paletteBase = [
@@ -1141,6 +1144,7 @@ const App = () => {
                                 lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
                                 radarSlot={radarSlot} stats={currentStats} playerId={currentPlayerId}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam}
+                                advanced={viewMode === 'TEAM' ? (teamSeq[teamIdx] || {}).advanced : null}
                             />
                         )}
 
@@ -1152,6 +1156,7 @@ const App = () => {
                                 focusMetric={activeFocus ? activeFocus.m : null} highlightDate={activeFocus ? activeFocus.hl : null}
                                 onFocusChange={onSplitsFocus}
                                 onGameClick={(d) => openGame(d, viewMode === 'PLAYER' ? selectedPlayer : '')}
+                                rankable={viewMode === 'TEAM' && !!window.RankCtx && window.RankCtx.latest}
                             />
                         )}
 
@@ -1178,7 +1183,8 @@ const App = () => {
                                             .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
                                                 metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
-                                                naReason={def.id === 'MatchupDefense' ? naCrossTeam : null} />
+                                                naReason={def.id === 'MatchupDefense' ? naCrossTeam : null}
+                                                rankCats={viewMode === 'TEAM' ? 'defense' : null} />
                                         ))}
                                     </window.UI.Section>
                                 ) : (
@@ -1203,7 +1209,8 @@ const App = () => {
                         {/* Playtype（Synergy 式表格／卡片，受攻守切換控制） */}
                         {activeTab === 'playtype' && window.PlaytypeSection && (
                             <window.PlaytypeSection title={viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'}
-                                stats={currentStats} prevStats={prevStats} side={viewSide} onOpen={setSelectedCard} />
+                                stats={currentStats} prevStats={prevStats} side={viewSide} onOpen={setSelectedCard}
+                                teamRank={viewMode === 'TEAM'} />
                         )}
 
                         {/* 跨季比較 */}

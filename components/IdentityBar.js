@@ -70,15 +70,18 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                     {FIELDS.map(f => {
                         const v = agg ? agg[f.key] : null;
                         const color = f.plus && typeof v === 'number' ? (v > 0 ? 'text-[#12A150]' : v < 0 ? 'text-[#EF4444]' : 'text-slate-50') : 'text-slate-50';
+                        // 聯盟名次只給全隊（window.RankCtx 已限當季快照）
+                        const rank = viewMode === 'TEAM' && typeof v === 'number' ? window.leagueRank('base', f.key) : null;
                         return (
                             <div key={f.key} className="group/cell relative min-w-0">
                                 <dt className="flex items-center font-mono text-[10px] text-slate-500" title={f.label}>
-                                    {f.en}<window.UI.Info k={f.key} align="right"
-                                        cite={typeof v === 'number' ? () => window.UI.citeLine({ label: f.label, en: f.en, value: fmt(v, f), unit: f.pct ? '%' : '', gkey: f.key, asOf: 'agg', note: '季平均' }) : undefined} />
+                                    {f.en}<window.UI.Info k={f.key} align="right" rank={rank}
+                                        cite={typeof v === 'number' ? () => window.UI.citeLine({ label: f.label, en: f.en, value: fmt(v, f), unit: f.pct ? '%' : '', gkey: f.key, asOf: 'agg', note: '季平均', rank }) : undefined} />
                                 </dt>
                                 <dd className={`font-display text-[28px] font-semibold leading-none tabular-nums ${color}`}>
                                     {fmt(v, f)}{f.pct && typeof v === 'number' && <span className="ml-0.5 text-[14px] text-slate-400">%</span>}
                                 </dd>
+                                {rank && <dd className="mt-1 font-mono text-[10px] tabular-nums text-slate-400">聯盟第{rank.rank}</dd>}
                             </div>
                         );
                     })}

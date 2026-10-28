@@ -82,15 +82,16 @@ window.UI = (function () {
         el.textContent = msg; el.style.opacity = '1';
         clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2600);
     };
-    // 組引用句：主體｜賽季｜日期或期間｜指標（原文） 數值｜資料：來源
-    const citeLine = ({ label, en, value, unit = '', gkey, asOf = 'snap', note }) => {
+    // 組引用句：主體｜賽季｜日期或期間｜指標（原文） 數值（聯盟第N）｜資料：來源
+    // rank：window.leagueRank／ptRank 回傳的 { rank, n }，有給才在數值後加名次
+    const citeLine = ({ label, en, value, unit = '', gkey, asOf = 'snap', note, rank }) => {
         const c = window.CiteCtx || {};
         const g = (window.GLOSSARY || {})[gkey] || {};
         const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
         // 最後附上當下畫面的網址（hash 記住球員/章節/賽季/日期），日後可從引用直接回到原畫面查證
         const url = `${location.origin}${location.pathname}${location.hash}`;
         return [c.subject, c.season, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
-            `${label}${en ? `（${en}）` : ''} ${value}${unit}`, `資料：${g.src || 'NBA.com Stats'}`, url].filter(Boolean).join('｜');
+            `${label}${en ? `（${en}）` : ''} ${value}${unit}${rank ? `（聯盟第${rank.rank}）` : ''}`, `資料：${g.src || 'NBA.com Stats'}`, url].filter(Boolean).join('｜');
     };
     const doCopy = async (text) => { const ok = await copyText(text); toast(ok ? `已複製：${text}` : '複製失敗，請手動選取'); };
 
@@ -109,7 +110,8 @@ window.UI = (function () {
     // 指標定義「?」：點開小卡（定義／計算／來源），點外面或 Esc 關閉
     // cite：給了就在小卡底部放「複製引用」（每格只留一個圖示，取代獨立的 CopyBtn）；
     //       該指標沒有 glossary 定義時退回單獨的 CopyBtn，引用功能不會消失
-    const Info = ({ k, align = 'left', cite }) => {
+    // rank：{ rank, n, date }，有給就在小卡加一行名次說明
+    const Info = ({ k, align = 'left', cite, rank }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
         const ref = React.useRef(null);
@@ -136,6 +138,11 @@ window.UI = (function () {
                         {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
                         <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
                         {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
+                        {rank && (
+                            <span className="mt-1.5 block text-[11px] text-slate-400">
+                                聯盟第 {rank.rank}（{rank.n} 隊）：依 NBA 官方全季數值排序{rank.date ? `，快照 ${rank.date}` : ''}；與逐場重算的數字可能差一點小數，同值同名次
+                            </span>
+                        )}
                         {cite && (
                             <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite() : cite); }}
                                 className="mt-2.5 inline-flex min-h-[24px] items-center gap-1.5 border border-white/15 px-2.5 text-[11px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">
@@ -282,20 +289,22 @@ window.UI = (function () {
         );
     };
 
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle }) => {
+    // rank：window.leagueRank 回傳的 { rank, n, date }（只在全隊當季快照格），有給就在數值下方加「聯盟第N」
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null }) => {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
+        if (missing) rank = null;
         return (
             <div className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
                 {/* 有 gkey：複製引用收進「?」小卡；沒有 gkey 才放右上角獨立複製鈕 */}
                 {!gkey && !missing && (
                     <CopyBtn className="absolute right-1 top-1"
-                        text={() => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />
+                        text={() => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />
                 )}
                 {/* pr-8：右上角複製鈕佔 4–28px，標題要留到 32px 外，兩個點擊範圍才不重疊 */}
                 <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
                     <span className="truncate" title={label}>{label}</span>
-                    {gkey && <Info k={gkey} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote })} />}
+                    {gkey && <Info k={gkey} rank={rank} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
                 </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate" title={en}>{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
@@ -310,6 +319,7 @@ window.UI = (function () {
                     )}
                     {!isNA && !missing && <span className="ml-auto"><Delta value={value} prevValue={prevValue} unit={unit} betterIsLarger={betterIsLarger} /></span>}
                 </div>
+                {rank && <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-400">聯盟第{rank.rank}</div>}
                 {pct != null && <PctBar value={pct} label={pctLabel} />}
             </div>
         );

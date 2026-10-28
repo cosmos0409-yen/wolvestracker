@@ -2,7 +2,8 @@
 // 表格欄：類型｜使用率 Freq｜每場球權 Poss/G｜PPP（含 vs 前一份快照）｜聯盟百分位｜FG%
 // 點類型名稱開走勢 Modal（與卡片點擊相同：onOpen({ type:'playtype', id })）
 // 防守面：PPP、FG% 越低越好；百分位攻守皆越高越好（已以資料驗證）
-const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
+// teamRank：全隊視角時把百分位換成 30 隊名次（window.ptRank）顯示並帶進引用；球員維持 PR
+const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = false }) => {
     const { useState } = React;
     const UI = window.UI;
     const PlayTypeCard = window.PlayTypeCard;
@@ -14,7 +15,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
     const prevOf = (type) => ofSide(prevStats).find(s => s.playType === type);
     // NBA 部分快照的 POSS_PCT 全回 0（有球權卻 0% 不可能）→ 視為未提供（同 PlayTypeCard）
     const freqOf = (r) => (r.freq === 0 && (r.possTotal > 0 || r.poss > 0)) ? null : (typeof r.freq === 'number' ? r.freq : null);
-    const rows = ofSide(stats).map(r => ({ ...r, _freq: freqOf(r), _prev: prevOf(r.playType) }));
+    const rows = ofSide(stats).map(r => ({ ...r, _freq: freqOf(r), _prev: prevOf(r.playType), _rank: teamRank ? window.ptRank(r.percentile) : null }));
     const freqMissing = rows.some(r => r._freq == null && (r.possTotal > 0 || r.poss > 0));
 
     const columns = [
@@ -28,7 +29,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`}
                     cite={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
-                        value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
+                        value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}${r._rank ? `（聯盟第${r._rank.rank}）` : ''}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
             </>) },
         { key: '_freq', label: '使用率', en: 'Freq%', gkey: 'FREQ', render: (r) => r._freq == null ? <span className="text-slate-600" title={freqMissing ? 'NBA 未提供此快照的使用率' : undefined}>—</span> : r._freq.toFixed(1) + '%' },
         { key: 'poss', label: '每場球權', en: 'Poss/G', gkey: 'POSS', render: (r) => typeof r.poss === 'number' ? r.poss.toFixed(1) : '—' },
@@ -45,6 +46,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
                         <span className="absolute inset-y-0 left-0" style={{ width: Math.max(0, Math.min(100, r.percentile)) + '%', background: UI.pctColor(r.percentile) }}></span>
                     </span>
                     <span className="w-9 text-right" style={{ color: UI.pctColor(r.percentile) }}>{r.percentile.toFixed(1)}</span>
+                    {r._rank && <span className="w-8 text-right font-mono text-[11px] text-slate-400" title={`30 隊中第 ${r._rank.rank}（由球隊百分位換算）`}>第{r._rank.rank}</span>}
                 </span>) },
         { key: 'fgPct', label: '命中率', en: 'FG%', gkey: 'FG_PCT', render: (r) => typeof r.fgPct === 'number' ? r.fgPct.toFixed(1) + '%' : '—' },
     ];
