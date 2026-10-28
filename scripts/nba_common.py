@@ -246,6 +246,29 @@ DEFENSE_BOX_FIELDS = [
     ("OPP_PTS_FB", "OPP_PTS_FB", False),
     ("OPP_PTS_2ND", "OPP_PTS_2ND_CHANCE", False),
 ]
+# leaguedashteamstats?MeasureType=Advanced 全隊進階（僅球隊；API 的比例欄皆為 0～1，*100）
+ADVANCED_FIELDS = [
+    ("OFF_RATING", "OFF_RATING", False),
+    ("DEF_RATING", "DEF_RATING", False),
+    ("NET_RATING", "NET_RATING", False),
+    ("PACE", "PACE", False),
+    ("TS_PCT", "TS_PCT", True),
+    ("EFG_PCT", "EFG_PCT", True),
+    ("AST_PCT", "AST_PCT", True),
+    ("TM_TOV_PCT", "TM_TOV_PCT", True),
+    ("OREB_PCT", "OREB_PCT", True),
+    ("DREB_PCT", "DREB_PCT", True),
+]
+
+# ── 聯盟名次（每日快照 ranks 欄位，見 league_ranks）──
+# 預設「數值大＝第 1」（次數類也照數量排，對應「出手數聯盟第 4」的寫法）。
+# 新增全隊欄位時判斷方向：越低越好 → 加進 RANK_LOWER_BETTER；排名沒有意義 → 加進 RANK_SKIP。
+# 兩表的項目以 * 開頭代表「欄名結尾符合」（例 *_OPP_FG_PCT 涵蓋各分區）
+RANK_LOWER_BETTER = {
+    "L", "TOV", "PF", "DEF_RATING", "TM_TOV_PCT", "DRIVE_TOV", "DRIVE_TOV_PCT",
+    "OPP_PTS_PAINT", "OPP_PTS_FB", "OPP_PTS_2ND", "*_OPP_FG_PCT",
+}
+RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA"}
 
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -582,13 +605,14 @@ def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_
     return results
 
 
-def fetch_pt_shots(season, season_type_api, player_or_team="Player"):
+def fetch_pt_shots(season, season_type_api, player_or_team="Player", team_id=TEAM_ID):
     """
     抓取投籃拆分（leaguedash{player|team}ptshot, GeneralRange=Overall）：
     eFG%、2 分/3 分出手佔比與命中率。回傳結構同 fetch_shot_locations。
+    球隊模式 team_id=0 時回傳全聯盟（排名用）。
     """
     endpoint = "leaguedashplayerptshot" if player_or_team == "Player" else "leaguedashteamptshot"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&CloseDefDistRange=&DribbleRange=&GeneralRange=Overall&Period=0"
            f"&ShotClockRange=&ShotDistRange=&TouchTimeRange="
@@ -603,7 +627,7 @@ def fetch_pt_shots(season, season_type_api, player_or_team="Player"):
             ident = str(row[headers_list.index("PLAYER_ID")])
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
         else:
-            ident = "MIN"
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, PT_SHOT_FIELDS)
     return results
@@ -612,10 +636,10 @@ def fetch_pt_shots(season, season_type_api, player_or_team="Player"):
 # ==========================================
 # Clutch（最後 5 分鐘分差 5 分內）
 # ==========================================
-def fetch_clutch(season, season_type_api, player_or_team="Player"):
+def fetch_clutch(season, season_type_api, player_or_team="Player", team_id=TEAM_ID):
     """抓取關鍵時刻數據（leaguedash{player|team}clutch）。回傳結構同 fetch_pt_shots。"""
     endpoint = "leaguedashplayerclutch" if player_or_team == "Player" else "leaguedashteamclutch"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&AheadBehind=Ahead+or+Behind&ClutchTime=Last+5+Minutes&PointDiff=5"
            f"&MeasureType=Base&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
@@ -631,7 +655,7 @@ def fetch_clutch(season, season_type_api, player_or_team="Player"):
             ident = str(row[headers_list.index("PLAYER_ID")])
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
         else:
-            ident = "MIN"
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, CLUTCH_FIELDS)
     return results
@@ -725,10 +749,10 @@ def fetch_hustle(season, season_type_api, player_or_team="Player", game_date=Non
 # ==========================================
 # 防守：防守 box（leaguedash{player|team}stats?MeasureType=Defense）
 # ==========================================
-def fetch_defense_box(season, season_type_api, player_or_team="Player"):
+def fetch_defense_box(season, season_type_api, player_or_team="Player", team_id=TEAM_ID):
     """防守 box（防守效率、抄截、阻攻、對手各類得分）。回傳結構同 fetch_hustle。"""
     endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
-    team_id_param = TEAM_ID if player_or_team == "Team" else 0
+    team_id_param = team_id if player_or_team == "Team" else 0
     url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
            f"&MeasureType=Defense&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
            f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
@@ -743,9 +767,31 @@ def fetch_defense_box(season, season_type_api, player_or_team="Player"):
             ident = str(row[headers_list.index("PLAYER_ID")])
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
         else:
-            ident = "MIN"
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, DEFENSE_BOX_FIELDS)
+    return results
+
+
+# ==========================================
+# 全隊進階（leaguedashteamstats?MeasureType=Advanced，僅球隊）
+# ==========================================
+def fetch_team_advanced(season, season_type_api, team_id=TEAM_ID):
+    """全隊進階效率（OffRtg/DefRtg/NetRtg/Pace/TS%/eFG%/AST%/TOV%/OREB%/DREB%，欄位見 ADVANCED_FIELDS）。
+    回傳 {'MIN': {...}}；team_id=0 時含全聯盟（其他隊 key 為 TEAM_ID 字串，排名用）。"""
+    url = (f"https://stats.nba.com/stats/leaguedashteamstats?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&PlayerOrTeam=Team"
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id}")
+    results = {}
+    data = fetch_with_retry(url, "Advanced [Team]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        ident = _team_key(row[headers_list.index("TEAM_ID")])
+        results[ident] = {}
+        apply_fields(results[ident], row, headers_list, ADVANCED_FIELDS)
     return results
 
 
@@ -875,33 +921,35 @@ def fetch_onoff(season, season_type_api):
 # ==========================================
 # 防守：對手分區命中（leaguedashteamshotlocations?MeasureType=Opponent，僅球隊）
 # ==========================================
-def fetch_opp_shot_locations(season, season_type_api):
+def fetch_opp_shot_locations(season, season_type_api, team_id=TEAM_ID):
     """
     對手在各區的出手與命中率（球隊防守熱圖用）。雙層 header，比照 fetch_shot_locations。
-    輸出 {'MIN': {區域前綴_OPP_FGA / _OPP_FG_PCT}}。
+    輸出 {'MIN': {區域前綴_OPP_FGA / _OPP_FG_PCT}}；team_id=0 時含全聯盟（排名用）。
     """
     url = (f"https://stats.nba.com/stats/leaguedashteamshotlocations?{LEAGUE_DASH_COMMON}"
            f"&DistanceRange=By+Zone&MeasureType=Opponent&PaceAdjust=N&PlusMinus=N&Rank=N"
            f"&Period=0&ShotClockRange=&GameSegment="
-           f"&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+           f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id}")
     results = {}
     data = fetch_with_retry(url, "OppShotLocations [Team]")
     if data is None:
         return results
     rs = data['resultSets']
     zone_header = rs['headers'][0]
+    flat_columns = rs['headers'][1]['columnNames']
     skip = zone_header['columnsToSkip']
     span = zone_header['columnSpan']
     zone_names = zone_header['columnNames']
     for row in rs['rowSet']:
-        results["MIN"] = {}
+        ident = _team_key(row[flat_columns.index("TEAM_ID")])
+        results[ident] = {}
         for prefix, zone_name in SHOT_ZONES:
             if zone_name not in zone_names:
                 continue
             offset = skip + zone_names.index(zone_name) * span
             fga, fg_pct = row[offset + 1], row[offset + 2]  # OPP_FGM, OPP_FGA, OPP_FG_PCT
-            results["MIN"][f"{prefix}_OPP_FGA"] = fga if fga is not None else 0
-            results["MIN"][f"{prefix}_OPP_FG_PCT"] = round(fg_pct * 100, 1) if fg_pct is not None else 0
+            results[ident][f"{prefix}_OPP_FGA"] = fga if fga is not None else 0
+            results[ident][f"{prefix}_OPP_FG_PCT"] = round(fg_pct * 100, 1) if fg_pct is not None else 0
     return results
 
 
@@ -915,6 +963,37 @@ def merge_maps(*maps):
         for ident, data in m.items():
             merged.setdefault(ident, {}).update(data)
     return merged
+
+
+def _rank_rule_match(field, rules):
+    """欄名是否符合 RANK_LOWER_BETTER／RANK_SKIP（* 開頭為結尾比對）"""
+    return any(field.endswith(r[1:]) if r.startswith("*") else field == r for r in rules)
+
+
+def league_ranks(team_map):
+    """全聯盟球隊 dict（key 'MIN' 與其他隊 TEAM_ID 字串）→ 灰狼各欄位的聯盟名次 {欄位: 名次}。
+    方向依 RANK_LOWER_BETTER／RANK_SKIP；同分取最小名次（1、2、2、4）；
+    以存進文件的值（已四捨五入）排，畫面上同值就同名次。非數值欄位與灰狼缺值的欄位略過。
+    另寫 _n＝參與排名的隊數（開季初 Clutch 等類別可能不足 30 隊）；灰狼無資料時回空 dict。"""
+    mine = team_map.get("MIN") or {}
+    if not mine:
+        return {}
+    ranks = {"_n": len(team_map)}
+    for field, v in mine.items():
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or _rank_rule_match(field, RANK_SKIP):
+            continue
+        vals = [d.get(field) for d in team_map.values()]
+        vals = [x for x in vals if isinstance(x, (int, float)) and not isinstance(x, bool)]
+        if _rank_rule_match(field, RANK_LOWER_BETTER):
+            ranks[field] = 1 + sum(1 for x in vals if x < v)
+        else:
+            ranks[field] = 1 + sum(1 for x in vals if x > v)
+    return ranks
+
+
+def split_league(team_map):
+    """全聯盟球隊 dict → (灰狼那份 dict, 灰狼的聯盟名次 dict)"""
+    return team_map.get("MIN", {}), league_ranks(team_map)
 
 
 def pid_to_name_keyed(pid_map, keep=None, casefold=False, keep_ids=None):

@@ -33,6 +33,8 @@ from nba_common import (
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
+    fetch_team_advanced,
+    split_league,
     fetch_base_box,
     fetch_onoff,
     fetch_single_game,
@@ -45,7 +47,7 @@ from fetch_shotchart import capture_game_shots
 SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
 
 # 每日快照文件中參與去重比對的資料欄位
-DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff"]
+DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff", "advanced", "ranks"]
 
 # 執行結果狀態檔（本機產物、不進版控）：watchdog.py 讀它判斷 03:00 主排程有沒有完成。
 # 不能改看快照文件在不在——沒比賽的日子數據相同會被 dedup 跳過寫入
@@ -253,20 +255,22 @@ def main():
         print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
 
     # 1. 抓取球隊資料
+    # 各類別以 TeamID=0 一次拿全聯盟 30 隊（請求數不變），拆出灰狼那份與聯盟名次（split_league）
     team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
-    team_base = fetch_base_box(SEASON, season_type_api, "Team").get("MIN", {})
-    team_tracking = fetch_tracking_data(SEASON, season_type_api, "Team").get("MIN", {})
-    team_shooting = merge_maps(
-        fetch_shot_locations(SEASON, season_type_api, "Team"),
-        fetch_pt_shots(SEASON, season_type_api, "Team"),
-    ).get("MIN", {})
-    team_clutch = fetch_clutch(SEASON, season_type_api, "Team").get("MIN", {})
+    team_base, rank_base = split_league(fetch_base_box(SEASON, season_type_api, "Team", team_id=0))
+    team_tracking, rank_tracking = split_league(fetch_tracking_data(SEASON, season_type_api, "Team", team_id=0))
+    team_shooting, rank_shooting = split_league(merge_maps(
+        fetch_shot_locations(SEASON, season_type_api, "Team", team_id=0),
+        fetch_pt_shots(SEASON, season_type_api, "Team", team_id=0),
+    ))
+    team_clutch, rank_clutch = split_league(fetch_clutch(SEASON, season_type_api, "Team", team_id=0))
     team_lineups = fetch_lineups(SEASON, season_type_api)
-    team_defense = merge_maps(
-        fetch_hustle(SEASON, season_type_api, "Team"),
-        fetch_defense_box(SEASON, season_type_api, "Team"),
-        fetch_opp_shot_locations(SEASON, season_type_api),
-    ).get("MIN", {})
+    team_defense, rank_defense = split_league(merge_maps(
+        fetch_hustle(SEASON, season_type_api, "Team", team_id=0),
+        fetch_defense_box(SEASON, season_type_api, "Team", team_id=0),
+        fetch_opp_shot_locations(SEASON, season_type_api, team_id=0),
+    ))
+    team_advanced, rank_advanced = split_league(fetch_team_advanced(SEASON, season_type_api, team_id=0))
 
     final_team_data = {
         "date": today,
@@ -280,6 +284,11 @@ def main():
         "clutch": team_clutch,      # Dict
         "lineups": team_lineups,    # Array
         "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區）
+        "advanced": team_advanced,  # Dict（全隊進階：OffRtg/DefRtg/Pace/TS% 等）
+        # 聯盟名次 {類別: {欄位: 名次}}，方向見 nba_common.RANK_LOWER_BETTER／RANK_SKIP
+        # 每類另記參與排名的隊數 _n（開季初 Clutch 可能只有 28 隊有資料）
+        "ranks": {"base": rank_base, "tracking": rank_tracking, "shooting": rank_shooting,
+                  "clutch": rank_clutch, "defense": rank_defense, "advanced": rank_advanced},
     }
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
