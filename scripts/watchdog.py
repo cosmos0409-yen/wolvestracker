@@ -9,9 +9,15 @@ Wolves Tracker - 每日抓取看門狗（排程 WolvesWatchdog，台北 15:00 �
 補抓的單場未過定稿門檻（final=False），隔天 03:00 主排程照定稿規則重抓。
 一切正常只花 1 個 request（讀賽程）、不通知；有補抓或失敗才跳 Windows 桌面通知。結論逐日記在 watchdog_log.txt。
 
+早上模式 --morning（排程 WolvesWatchdogMorning：每日 09:00＋登入＋解鎖螢幕）：筆電用電池待命時 03:00 不會被喚醒，
+主排程常要拖到 15:00 才由上面的看門狗補上。早上模式只做第 1 級：主排程今天的觸發時間已過、卻沒完成 → 完整補抓
+（此時前一晚的比賽已定稿，補到的就是最終版）。今天已完成或還沒到觸發時間就直接結束：不發 request、不寫 log，
+所以一天被解鎖觸發很多次也沒關係。第 2 級（昨晚那場）仍留給 15:00。
+
 用法：
   python scripts/watchdog.py               # 正式執行
-  python scripts/watchdog.py --dry-run     # 只檢查並印出判斷，不補抓、不通知
+  python scripts/watchdog.py --morning     # 早上模式（只補主排程）
+  python scripts/watchdog.py --dry-run     # 只檢查並印出判斷，不補抓、不通知（可與 --morning 併用）
   python scripts/watchdog.py --test-notify # 只跳一則測試通知
 """
 
@@ -83,16 +89,17 @@ def main_state(now=None):
         "(Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited }) }).Count")
     lines = out.splitlines()
     fetch_procs = int(lines[-1].lstrip("|") or 0) if lines else 0
-    state, missed = "", False
+    state, missed, due_passed_today = "", False, True
     if len(lines) >= 2:
         state, last_run, boundary = lines[0].split("|")
         now = now or datetime.now()
         # 觸發時間從排程讀（StartBoundary 'YYYY-MM-DDTHH:MM:SS'），不寫死 03:00
         due = now.replace(hour=int(boundary[11:13]), minute=int(boundary[14:16]), second=0, microsecond=0)
+        due_passed_today = now >= due
         if now < due:
             due -= timedelta(days=1)
         missed = datetime.strptime(last_run, "%Y-%m-%d %H:%M:%S") < due
-    return {"running": state == "Running" or fetch_procs > 0, "missed": missed}
+    return {"running": state == "Running" or fetch_procs > 0, "missed": missed, "due_passed_today": due_passed_today}
 
 
 def wait_for_main(dry_run):
@@ -177,6 +184,7 @@ def label(game):
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 每日抓取看門狗")
     parser.add_argument("--dry-run", action="store_true", help="只檢查並印出判斷，不補抓、不通知")
+    parser.add_argument("--morning", action="store_true", help="早上模式：只在主排程今天該跑卻沒完成時完整補抓")
     parser.add_argument("--test-notify", action="store_true", help="只跳一則測試通知")
     args = parser.parse_args()
     os.chdir(ROOT)  # init_firebase 以相對路徑找 firebase-key.json
@@ -193,7 +201,19 @@ def main():
 
     start = datetime.now()
     since = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    if args.morning:
+        # 解鎖螢幕一天會觸發很多次：已完成／還沒到觸發時間就安靜結束（只讀狀態檔與排程，不發 request）
+        if ran_today("full", since):
+            if args.dry_run:
+                print("[dry-run][早上] 今天主排程已完成，不用補")
+            return
+        if not main_state()["due_passed_today"]:
+            if args.dry_run:
+                print("[dry-run][早上] 今天主排程還沒到觸發時間，不用補")
+            return
     wait_note = wait_for_main(args.dry_run)
+    if args.morning and ran_today("full", since):
+        return   # 等到主排程自己補跑完成
 
     season = get_current_season()
     db = init_firebase()
@@ -208,7 +228,7 @@ def main():
         s = read_status("full")
         why = f"上次完整抓取 {s.get('finishedAt', '無紀錄')[:16].replace('T', ' ')}{'（失敗：' + s['note'] + '）' if s.get('note') and not s.get('ok') else ''}"
         mode, fetch_args = "full", []
-        reason = f"今天主排程沒完成（{why}）"
+        reason = f"{'[早上] ' if args.morning else ''}今天主排程沒完成（{why}）"
     else:
         game = latest_game(season, season_type_api)
         if game is None:

@@ -251,7 +251,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - `WolvesTracker` 一併改為**用電池可啟動、拔電不中斷**（原設定備份在 `~/.claude/ops/backup-20261026/WolvesTracker-task.xml`）
 
 使用者確認過的決定（之後改動前先問）：
-- **檢查只在 15:00 一次**（不另設 04:00 檢查主排程）；主排程 03:00 不動
+- **檢查只在 15:00 一次**（不另設 04:00 檢查主排程）；主排程 03:00 不動——2026-10-28 使用者改為加開早上看門狗（只補主排程，見「自動化排程」）
 - **只在有補抓或失敗時通知**，正常的日子不吵；回報用桌面通知＋log，不用 Email／Claude 排程任務
 - **分兩級補抓**：只缺單場時不重抓整份快照（省約 70 requests、降低被擋風險）
 
@@ -275,7 +275,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **分頁列 `UI.TabBar`**：放不下時右緣漸層＋「›」按鈕（捲 120px，捲到底自動消失）；選中的分頁自動捲進可視範圍（網址或數字鍵直接切到 Playtype／跨季時）。章節列、單場頁、薪資頁共用
 - **身分列標題**手機 23px（「MINNESOTA TIMBERWOLVES」不再被截斷）
 - **HANDOFF 0.00 PPP 查證**：快照原始資料是 3 場 8 次球權、8 投 0 中、0 分，是真實數據；使用率「—」是 NBA 對低球權類型回 `POSS_PCT=0` 的已知狀況，不需處理
-- **03:00 主排程沒執行（10/27、10/28）**：筆電是 Modern Standby（S0），電源計畫的「允許喚醒計時器」電池模式為停用（插電才啟用），電池待命 3 小時後會休眠，因此 03:00 不會被喚醒；10/28 08:05 喚醒後 3 分鐘又回到待命，錯過的排程也沒補跑。目前靠 15:00 看門狗補抓。改善選項待使用者決定
+- **03:00 主排程沒執行（10/27、10/28）**：筆電是 Modern Standby（S0），電源計畫的「允許喚醒計時器」電池模式為停用（插電才啟用），電池待命 3 小時後會休眠，因此 03:00 不會被喚醒；10/28 08:05 喚醒後 3 分鐘又回到待命，錯過的排程也沒補跑。使用者選擇加早上看門狗（`WolvesWatchdogMorning`，見「自動化排程」）；未改電源設定、主排程時間不變
 
 ---
 
@@ -464,6 +464,7 @@ wolvestracker/
 |---|---|---|---|---|
 | `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
 | `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑，上限 2 小時） | `run_watchdog.bat` | 看門狗：主排程沒完成 → 完整補抓；昨晚那場缺 → 只抓單場；有補抓或失敗才跳桌面通知 | `watchdog_log.txt`（補抓過程併入 `fetch_log.txt`，標頭 `=== [watchdog] ...`） |
+| `WolvesWatchdogMorning` | 每日 09:00＋登入＋解鎖螢幕（2026-10-28 起） | `run_watchdog.bat --morning` | 早上看門狗：03:00 主排程今天該跑卻沒完成 → 完整補抓；已完成或未到觸發時間就安靜結束（不發 request、不寫 log） | `watchdog_log.txt`（標 `[早上]`） |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
 
 （`WolvesBackfill` 已刪除；backfill queue 完成後不再需要）
@@ -475,6 +476,7 @@ wolvestracker/
 - 手動檢查：`python scripts/watchdog.py --dry-run`（只印判斷，不補抓、不通知）；測通知：`python scripts/watchdog.py --test-notify`
 - 改檢查時間：直接改排程觸發時間即可，程式不用動；**不要早於台北 14:00**（西岸場可能還沒打完，`teamgamelog` 只列已完賽場次）
 - 暫停：工作排程器停用 `WolvesWatchdog`，主排程不受影響
+- **早上模式 `--morning`（2026-10-28 起，排程 `WolvesWatchdogMorning`）**：只做第 1 級（主排程今天沒完成 → 完整補抓），第 2 級（昨晚那場）仍留給 15:00。觸發用每日 09:00＋登入＋解鎖螢幕（`MSFT_TaskSessionStateChangeTrigger` StateChange=8），因為筆電用電池待命時 09:00 也不一定醒著、`StartWhenAvailable` 補跑也不可靠（10/28 08:05 喚醒後沒補跑）；解鎖一天觸發多次無妨——今天已完成或還沒到主排程觸發時間就直接 return（只讀 `fetch_status.json` 與排程資訊）。同一排程 `MultipleInstances=IgnoreNew`，不會重疊。台北 09:00 ≈ 美東前一天 20:00～21:00，前一晚的比賽早已過定稿門檻，補到的就是最終版；當晚比賽仍未打完，所以快照內容與 03:00 跑的相同。手動檢查：`python scripts/watchdog.py --morning --dry-run`
 - 手動補記狀態：`fetch_status.json` 是 `fetch_data.py` 自動寫的；只有在「主排程確實成功、但狀態檔沒記到」時（例如狀態檔上線前的那次，2026-10-26 補記過一次）才手動補 `full`，`note` 寫明是補記
 
 **為什麼是台北 03:00（2026-10 由 14:00 改）**：NBA 賽後最多約 12 小時才把數據補齊。台北 03:00 ≈ 美東 14:00～15:00，距最晚的西岸場結束也超過 12 小時，累積快照各類別（含 Synergy）與單場都是最終數字；快照 doc id 仍是比賽隔天（美東日期），語意不變。排程設 `WakeToRun`＋`StartWhenAvailable`：睡眠中會喚醒（電源計畫「允許喚醒計時器」目前只在接電源時啟用，所以用電池睡眠時仍不會被喚醒），關機錯過則開機後補跑；2026-10-26 起兩個每日排程都取消「使用電池時不啟動」（`DisallowStartIfOnBatteries`／`StopIfGoingOnBatteries` 皆 false），醒著用電池也照跑。單場另有定稿保險（`FINAL_AFTER_HOURS`，見「單場數據」），手動提早執行也不會鎖住半成品。
@@ -491,6 +493,16 @@ $a = New-ScheduledTaskAction -Execute 'C:\wolvestracker\run_watchdog.bat'
 $t = New-ScheduledTaskTrigger -Daily -At 15:00
 $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 Register-ScheduledTask -TaskName WolvesWatchdog -Action $a -Trigger $t -Settings $s
+
+# 早上看門狗（同一支 bat 帶 --morning；三個觸發：09:00／登入／解鎖螢幕）
+$a = New-ScheduledTaskAction -Execute 'C:\wolvestracker
+un_watchdog.bat' -Argument '--morning'
+$t1 = New-ScheduledTaskTrigger -Daily -At 09:00
+$t2 = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$cls = Get-CimClass -Namespace Root/Microsoft/Windows/TaskScheduler -ClassName MSFT_TaskSessionStateChangeTrigger
+$t3 = New-CimInstance -CimClass $cls -ClientOnly -Property @{ StateChange = 8; UserId = $env:USERNAME; Enabled = $true }
+$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName WolvesWatchdogMorning -Action $a -Trigger $t1,$t2,$t3 -Settings $s
 
 # 主排程改成用電池可跑
 $m = Get-ScheduledTask -TaskName WolvesTracker
@@ -686,7 +698,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ### 單場數據面板（`SingleGamePanel.js`）
 - 當季模式下、球員/球隊視圖底部顯示；日期選單讀 `wolves_games_index/{season}_{seasonTypeView}`（隨例行/季後切換；`gamesIndex` state，一份 doc；只有已結束賽季走 localStorage 快取 `wt_games_index_v3_*`（不設期限），當季每次讀最新、空清單一律不快取——2026-10-23 前是 6 小時 TTL，開季曾把空清單快取住導致單場入口消失）
 - 切換賽別後原選日期不在新清單 → 自動跳到新清單最後一場；缺值卡片顯示「—」（不印孤立單位）
-- 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
+- 選日期後讀 `wolves_{player|team}_games/{date}`（localStorage 快取；**未定稿 `final=false` 不快取**，讀到舊版存下的未定稿快取會丟掉重抓——2026-10-28 前會永久存半成品，與 `loadGameDocs` 規則不一致），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
 - 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
 - 攻守跟隨右側攻/守切換（`OverviewTab` 的 `viewSide` prop）：防守側顯示最近防守者／Hustle／抄截阻攻單場值
 

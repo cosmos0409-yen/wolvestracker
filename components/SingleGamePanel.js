@@ -30,16 +30,18 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
         let cancelled = false;
         setDoc(undefined);
         const cacheKey = `wt_game_v3_${coll}_${selectedDate}`;   // v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            try { setDoc(window.cleanGameDoc(JSON.parse(cached))); return; } catch (e) { /* fall through */ }
-        }
+        let cached = null;
+        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (e) { /* fall through */ }
+        // 舊版會連未定稿的文件一起快取：讀到 final=false 的就丟掉重抓
+        if (cached && cached.final !== false) { setDoc(window.cleanGameDoc(cached)); return; }
+        if (cached) { try { localStorage.removeItem(cacheKey); } catch (e) { /* ignore */ } }
         (async () => {
             const { doc: docFn, getDoc } = window.firebaseModules;
             try {
                 const snap = await getDoc(docFn(window.db, coll, selectedDate));
                 const data = snap.exists() ? snap.data() : null;
-                if (data) localStorage.setItem(cacheKey, JSON.stringify(data));
+                // 未定稿（final=false）不快取，否則會永久讀到半成品（同 gamesData.loadGameDocs）
+                if (data && data.final !== false) { try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (e) { /* quota */ } }
                 if (!cancelled) setDoc(window.cleanGameDoc(data));
             } catch (e) {
                 console.error('single game fetch fail', coll, selectedDate, e);
