@@ -103,6 +103,16 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     };
     const toggle = k => setSelected(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
 
+    // 引用籃：每個指標加入一筆跨季比較（2 季 A → B，3 季以上每季一行）；賽季標籤規則同 fbText
+    const TYPE_LABEL_Q = { regular: '例行賽', playoffs: '季後賽' };
+    const quoteOf = (m) => () => {
+        const sameType = cols.length && cols.every(c => c.type === cols[0].type) && TYPE_LABEL_Q[cols[0].type];
+        return window.Quote.make({
+            kind: 'compare', sep: '→', label: m.l, en: m.e, gkey: m.k, context: sameType || '', asOf: 'none',
+            values: cols.map(c => ({ tag: (sameType && c.season ? c.season.slice(2) : (c.short || c.label)) + window.tagOfMeta(metaOf(c.key)), value: fmt(getVal(c.key, m), m) })),
+        });
+    };
+
     // 臉書用純文字：臉書不吃表格、字是比例字寬對不齊，改成「指標｜各季值」一行一項，第一行是賽季表頭。
     // 數字格式與畫面上的表格相同（fmt）；全部同賽別時表頭只寫年份、賽別放第一格，混選才用「24-25例行」
     const fbText = () => {
@@ -355,6 +365,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
                                                 <th scope="row" className="px-3 py-2 text-left font-normal max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626]">
                                                     <span className="text-slate-200">{m.l}</span>
                                                     {m.e && <span className="ml-1.5 font-mono text-[10px] text-slate-500">{m.e}</span>}
+                                                    {cols.length >= 2 && <UI.Info k={m.playtype ? `PT_${m.k}` : m.k} quote={quoteOf(m)} />}
                                                 </th>
                                                 {cols.map(c => {
                                                     const v = getVal(c.key, m);

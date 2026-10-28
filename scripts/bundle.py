@@ -39,6 +39,8 @@ TAILWIND = ROOT / "node_modules" / "tailwindcss" / "lib" / "cli.js"
 ORDER = [
     "Icons.js",
     "ui.js",
+    "quoteFormat.js",
+    "QuoteBasket.js",
     "glossary.js",
     "constants.js",
     "MetricComponents.js",

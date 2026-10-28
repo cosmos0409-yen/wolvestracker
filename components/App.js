@@ -1234,6 +1234,7 @@ const App = () => {
                 history={viewMode === 'TEAM' ? teamHistory : playerHistory} />}
 
             {window.CommandPalette && <window.CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={paletteItems} />}
+            {window.QuoteBasket && <window.QuoteBasket />}
         </div>
     );
 };

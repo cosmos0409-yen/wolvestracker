@@ -28,6 +28,10 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = fal
                 </button>),
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`}
+                    quote={typeof r.ppp === 'number' ? () => window.Quote.make({
+                        label: isDef ? `防守${window.ptName(r.playType)}每回合失分` : `${window.ptName(r.playType)}每回合得分`,
+                        en: `${r.playType} PPP`, gkey: 'PPP', values: [{ value: r.ppp.toFixed(2) }],
+                        rank: r._rank, pr: typeof r.percentile === 'number' ? r.percentile : null, better: isDef ? 'low' : 'high', asOf: 'snap' }) : undefined}
                     cite={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
                         value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}${r._rank ? `（聯盟第${r._rank.rank}）` : ''}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
             </>) },

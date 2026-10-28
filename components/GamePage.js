@@ -158,7 +158,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const metricHref = (name, k) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pidOf(name), activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
 
     // 複製引用情境（StatCell／citeLine 讀）
-    window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), asOfSnap: null, asOfAgg: null, isHistory: false };
+    // context：引用籃的情境標頭，比照使用者賽後文寫法「10/25 vs. 熱火 118:110 勝」
+    const gameCtx = [`${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`,
+        `${String(meta.matchup || '').includes('@') ? '@' : 'vs.'} ${window.teamName(oppAbbr)}`,
+        box && minTeam && oppTeam ? `${minTeam.score}:${oppTeam.score}` : '',
+        meta.wl === 'W' ? '勝' : meta.wl === 'L' ? '敗' : ''].filter(Boolean).join(' ');
+    window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false };
 
     if (docs === undefined) return <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入比賽資料中…</div>;
     if (docs === null) return (
@@ -326,6 +331,8 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                 className={`-mx-1.5 flex items-baseline justify-between gap-2 border-b border-dotted border-white/10 px-1.5 py-1 text-[12px] ${j.good ? 'bg-[#12A150]/10 shadow-[inset_2px_0_0_#12A150]' : ''}`}>
                 <span className="min-w-0">
                     {link ? <a href={metricHref(name, k)} className={`text-slate-200 ${linkCls}`}>{m.label}</a> : <span className="text-slate-200">{m.label}</span>}
+                    {typeof v === 'number' && <UI.Info k={k} quote={() => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
+                        values: [{ value: fmtV(k, v) }], better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
                     {m.englishLabel && <span className="block font-mono text-[9px] text-slate-500">{m.englishLabel}</span>}
                 </span>
                 <span className="shrink-0 text-right">

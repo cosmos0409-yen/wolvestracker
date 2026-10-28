@@ -184,6 +184,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                             return (
                                 <div key={m.label} className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
                                     <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}<UI.Info k={m.gk}
+                                        quote={diff == null ? undefined : () => window.Quote.make({ kind: 'compare', sep: 'vs.', label: m.label, en: m.en, gkey: m.gk, better: m.better, asOf: 'snap',
+                                            values: [{ tag: '在場', value: m.on.toFixed(1) }, { tag: '離場', value: m.off.toFixed(1) }] })}
                                         cite={diff == null ? undefined : () => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
                                             gkey: m.gk, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合）` })} /></div>
                                     <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>

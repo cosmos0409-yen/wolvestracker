@@ -172,7 +172,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                         <TrackingCardRow title={def.title} actionLabel="點看趨勢" category={def.id} metrics={def.metrics}
                             current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats"
                             citeAsOf="none" citeNote={`Splits：${periodLabel}（${periodAgg.GP} 場）`}
-                            rankCats={rankable && period === 'all' ? RANK_CATS[group] : null} />
+                            rankCats={rankable && period === 'all' ? RANK_CATS[group] : null}
+                            compareTags={period === 'all' ? null : ['全季', periodLabel]} />
                         {openGroup && openGroup.id === def.id && (
                             <div ref={trendRef} className="-mt-3 mb-6 border border-white/10 p-4">
                                 <div className="mb-3 flex flex-wrap items-center gap-3">

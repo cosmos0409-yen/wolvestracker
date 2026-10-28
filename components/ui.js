@@ -111,7 +111,9 @@ window.UI = (function () {
     // cite：給了就在小卡底部放「複製引用」（每格只留一個圖示，取代獨立的 CopyBtn）；
     //       該指標沒有 glossary 定義時退回單獨的 CopyBtn，引用功能不會消失
     // rank：{ rank, n, date }，有給就在小卡加一行名次說明
-    const Info = ({ k, align = 'left', cite, rank }) => {
+    // quote：回傳引用籃項目的函式（window.Quote.make 組），有給就在「複製引用」旁放「加入引用籃」；
+    //        沒有 glossary 定義也照樣開小卡（只放按鈕），不讓加入引用籃的入口消失
+    const Info = ({ k, align = 'left', cite, rank, quote }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
         const ref = React.useRef(null);
@@ -122,32 +124,47 @@ window.UI = (function () {
             document.addEventListener('mousedown', off); document.addEventListener('keydown', esc, true);
             return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc, true); };
         }, [open]);
-        if (!g) return cite ? <CopyBtn text={cite} /> : null;
+        if (!g && !quote) return cite ? <CopyBtn text={cite} /> : null;
+        const addQuote = () => {
+            const r = window.Quote.add(typeof quote === 'function' ? quote() : quote);
+            toast(r.added ? `已加入引用籃（${r.total} 項）` : `引用籃裡已經有這一項（${r.total} 項）`);
+        };
+        const btnCls = 'inline-flex min-h-[24px] items-center gap-1.5 border border-white/15 px-2.5 text-[11px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]';
         return (
             <span ref={ref} className="relative inline-flex align-middle">
                 {/* 按鈕本身 24px（觸控目標下限，檢測工具量的是按鈕框），上下負邊距抵銷多出的高度；圓圈仍是 16px。
                     左右不可用負邊距：會吃進相鄰的複製鈕／排序鈕，造成點擊範圍重疊 */}
-                <button type="button" aria-label="指標定義" title={cite ? '指標定義／複製引用' : undefined} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+                <button type="button" aria-label="指標定義" title={cite || quote ? '指標定義／複製引用' : undefined} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
                     className="group/info -my-1 inline-flex h-6 w-6 items-center justify-center">
                     <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 group-hover/info:border-white/40 group-hover/info:text-slate-200'}`}>?</span>
                 </button>
                 {open && (
-                    <span role={cite ? 'dialog' : 'tooltip'} aria-label={cite ? '指標定義' : undefined} onClick={(e) => e.stopPropagation()}
+                    <span role={cite || quote ? 'dialog' : 'tooltip'} aria-label={cite || quote ? '指標定義' : undefined} onClick={(e) => e.stopPropagation()}
                         className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
-                        <span className="block">{g.def}</span>
-                        {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
-                        <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
-                        {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
+                        {g ? (<>
+                            <span className="block">{g.def}</span>
+                            {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
+                            <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
+                            {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
+                        </>) : <span className="block text-slate-400">這個指標還沒有定義說明。</span>}
                         {rank && (
                             <span className="mt-1.5 block text-[11px] text-slate-400">
                                 聯盟第 {rank.rank}（{rank.n} 隊）：依 NBA 官方全季數值排序{rank.date ? `，快照 ${rank.date}` : ''}；與逐場重算的數字可能差一點小數，同值同名次
                             </span>
                         )}
-                        {cite && (
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite() : cite); }}
-                                className="mt-2.5 inline-flex min-h-[24px] items-center gap-1.5 border border-white/15 px-2.5 text-[11px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">
-                                <CopyIcon />複製引用
-                            </button>
+                        {(cite || quote) && (
+                            <span className="mt-2.5 flex flex-wrap gap-2">
+                                {cite && (
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite() : cite); }} className={btnCls}>
+                                        <CopyIcon />複製引用
+                                    </button>
+                                )}
+                                {quote && (
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); addQuote(); }} className={btnCls}>
+                                        <span aria-hidden="true">＋</span>加入引用籃
+                                    </button>
+                                )}
+                            </span>
                         )}
                     </span>
                 )}
@@ -290,10 +307,16 @@ window.UI = (function () {
     };
 
     // rank：window.leagueRank 回傳的 { rank, n, date }（只在全隊當季快照格），有給就在數值下方加「聯盟第N」
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null }) => {
+    // neutral：次數類（觸球、切入次數等），引用籃的 📈📉 不判好壞
+    // quote：覆寫引用籃項目的欄位（例：Splits 期間比較改成 { kind: 'compare', values: [全季, 此期間] }）；null＝不提供加入引用籃
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote }) => {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
         if (missing) rank = null;
+        const quoteFn = missing || quote === null ? undefined : () => window.Quote.make(Object.assign({
+            label, en, gkey, values: [{ value, unit }], rank: rank ? { rank: rank.rank, n: rank.n } : null,
+            better: neutral ? null : (betterIsLarger ? 'high' : 'low'), asOf: citeAsOf,
+        }, quote || {}));
         return (
             <div className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
                 {/* 有 gkey：複製引用收進「?」小卡；沒有 gkey 才放右上角獨立複製鈕 */}
@@ -304,7 +327,7 @@ window.UI = (function () {
                 {/* pr-8：右上角複製鈕佔 4–28px，標題要留到 32px 外，兩個點擊範圍才不重疊 */}
                 <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
                     <span className="truncate" title={label}>{label}</span>
-                    {gkey && <Info k={gkey} rank={rank} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
+                    {gkey && <Info k={gkey} rank={rank} quote={quoteFn} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
                 </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate" title={en}>{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
