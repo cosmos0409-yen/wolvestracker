@@ -35,7 +35,7 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                             className="h-12 w-12 shrink-0 rounded-full bg-white/[0.06] object-cover object-top" />
                     )}
                     <div className="min-w-0">
-                        <h1 className="font-display text-[28px] font-bold uppercase leading-none tracking-wide text-slate-50 truncate">
+                        <h1 className="font-display text-[23px] sm:text-[28px] font-bold uppercase leading-none tracking-wide text-slate-50 truncate">
                             {name}{tag && <span className="ml-2 align-middle font-mono text-[12px] font-normal normal-case text-amber-400/80">{tag}</span>}
                         </h1>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">

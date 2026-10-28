@@ -1,6 +1,5 @@
 // 主應用元件
 const { useState, useEffect, useMemo, useRef } = React;
-const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = window.Recharts || {};
 
 const App = () => {
     const Icons = window.Icons;

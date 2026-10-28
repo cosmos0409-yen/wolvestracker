@@ -31,13 +31,10 @@
 
     <!-- 版本一律鎖定：未鎖版的 CDN 網址會在上游發新版時悄悄改變網站行為。
          defer：不擋首屏繪製（載入畫面先出來）；defer 與下方 type="module" 同屬「解析完依文件順序執行」，
-         所以執行順序仍是 React → Recharts → Firebase 初始化 → 元件 bundle -->
+         所以執行順序仍是 React → Firebase 初始化 → 元件 bundle。
+         圖表全部自繪 SVG（2026-10-28 移除 Recharts＋prop-types，省約 120 KB gzip） -->
     <script defer crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
     <script defer crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-
-    <!-- Recharts Dependencies & CDN -->
-    <script defer src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    <script defer crossorigin src="https://unpkg.com/recharts@2.15.3/umd/Recharts.js"></script>
 
     <script>
         window.isCloudEnabled = false;
@@ -167,7 +164,7 @@
         }
     </style>
     <!-- Tailwind 預編譯產物（python scripts/bundle.py 產生；?v= 為內容雜湊，勿手改） -->
-    <link rel="stylesheet" href="dist/app.css?v=1ca2b2c0">
+    <link rel="stylesheet" href="dist/app.css?v=225212b3">
 </head>
 
 <body>
@@ -195,7 +192,7 @@
         defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
         保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script defer src="dist/components-bundle.js?v=71bdec8a"></script>
+    <script defer src="dist/components-bundle.js?v=46565eb9"></script>
 </body>
 
 </html>

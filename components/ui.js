@@ -422,10 +422,25 @@ window.UI = (function () {
     // numbered：分頁前標 01 02…（＝數字快捷鍵，手機無鍵盤隱藏）；right：右側附加控制項（攻守切換、賽季選單）
     // bleed：放在 <main> 內時用負邊距撐滿版寬；不帶時自己置中（章節列在 main 外）
     const TabBar = ({ tabs, value, onChange, ariaLabel, right, numbered, bleed, className = '' }) => {
+        // 手機上分頁放不下時：右緣漸層＋「›」按鈕提示還有分頁（例：主畫面章節列只露出前四章，Playtype／跨季要往右滑）
+        const scroller = React.useRef(null);
+        const [more, setMore] = React.useState(false);
+        React.useEffect(() => {
+            const el = scroller.current; if (!el) return;
+            const check = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+            check();
+            el.addEventListener('scroll', check, { passive: true }); window.addEventListener('resize', check);
+            return () => { el.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+        }, [tabs.length]);
+        // 選中的分頁捲進可視範圍（數字鍵或網址直接切到後面的章節時）
+        React.useEffect(() => {
+            const el = scroller.current; const on = el && el.querySelector('[aria-current="page"]');
+            if (on && el.scrollWidth > el.clientWidth) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }, [value]);
         const row = (
             <div className="flex items-center gap-3">
-                {/* 右緣漸層遮罩：提示手機上分頁還能往右滑 */}
-                <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_85%,transparent)] sm:[mask-image:none]">
+                <div className="relative flex min-w-0 flex-1 items-center">
+                <div ref={scroller} className={`flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] ${more ? '[mask-image:linear-gradient(to_right,#000_75%,transparent)]' : ''}`}>
                     {tabs.map((t, i) => {
                         const on = value === t.key;
                         return (
@@ -437,6 +452,11 @@ window.UI = (function () {
                             </button>
                         );
                     })}
+                </div>
+                {more && (
+                    <button type="button" aria-label="看更多分頁" onClick={() => scroller.current && scroller.current.scrollBy({ left: 120, behavior: 'smooth' })}
+                        className="absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-[#0A1626] text-[15px] leading-none text-slate-300 hover:text-slate-50">›</button>
+                )}
                 </div>
                 {right}
             </div>

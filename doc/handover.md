@@ -268,6 +268,15 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 抓取端同日補上：`nba_common.tracking_zero_filled(stats)`（與前端同一規則）併入 `fetch_single_game` 的 `partial` 判定，看灰狼與對手兩隊球隊數據，整組 0 就標 `partial=True`，每日補抓定稿後最多重抓 3 次。以 Firestore 現有 380 份 `wolves_team_games` 驗證只命中這兩場、無誤判。2023-04-08 是舊回補文件（沒有 `partial` 欄位、視為已定稿），不會自動重抓；要補得手動 `backfill_games.py --season 2022-23 --type regular --dates 2023-04-08`（約 20 requests，NBA 那天的 Tracking 可能本來就沒有）。
 
+### 2026-10-28 效能與手機入口
+
+- **移除 Recharts**：雷達圖改自繪 SVG（軸從正上方順時針、0–100 四圈刻度、頂點 `<title>` 顯示數值、`aria-label` 列出全部數值），見「效能與無障礙」
+- **手機刊頭**：對戰／薪資／搜尋改放字標同一列（`lg:hidden`），第二列只留賽季／賽別／賽程／複製連結；桌面版不變。字標手機 22px
+- **分頁列 `UI.TabBar`**：放不下時右緣漸層＋「›」按鈕（捲 120px，捲到底自動消失）；選中的分頁自動捲進可視範圍（網址或數字鍵直接切到 Playtype／跨季時）。章節列、單場頁、薪資頁共用
+- **身分列標題**手機 23px（「MINNESOTA TIMBERWOLVES」不再被截斷）
+- **HANDOFF 0.00 PPP 查證**：快照原始資料是 3 場 8 次球權、8 投 0 中、0 分，是真實數據；使用率「—」是 NBA 對低球權類型回 `POSS_PCT=0` 的已知狀況，不需處理
+- **03:00 主排程沒執行（10/27、10/28）**：筆電是 Modern Standby（S0），電源計畫的「允許喚醒計時器」電池模式為停用（插電才啟用），電池待命 3 小時後會休眠，因此 03:00 不會被喚醒；10/28 08:05 喚醒後 3 分鐘又回到待命，錯過的排程也沒補跑。目前靠 15:00 看門狗補抓。改善選項待使用者決定
+
 ---
 
 ## 專案檔案結構
@@ -426,7 +435,8 @@ wolvestracker/
   - 補讀期間顯示載入骨架，**不可**顯示「沒有快照」，也不可把最新一天的數字標成所選日期（`showSkeleton` 的兩個條件）
   - 只用 doc id 範圍查詢：`orderBy(documentId,'desc')`／`limitToLast` 需要 `__name__` 降冪索引，已實測會被拒
   - 權限或網路錯誤**不**改讀整季（改讀也不會好），照常顯示錯誤
-- **不擋首屏**：React／Recharts／prop-types 用 `<script defer>`（與 module 型 Firebase 初始化、bundle 同屬依序執行佇列，順序不變）；Google Fonts 用 `rel="preload" onload` 非阻斷載入＋`<noscript>` 退路
+- **不載圖表套件**：2026-10-28 起雷達圖改自繪 SVG（`RadarPanel.js` 的 `RadarSvg`），移除 Recharts＋prop-types（約 120 KB gzip、500 KB 未壓縮，原本每頁都要下載解析）。全站圖表都是自繪 SVG，新圖表也照做，不要再引入圖表套件
+- **不擋首屏**：React 用 `<script defer>`（與 module 型 Firebase 初始化、bundle 同屬依序執行佇列，順序不變）；Google Fonts 用 `rel="preload" onload` 非阻斷載入＋`<noscript>` 退路
 - **對比（WCAG AA，小字 ≥ 4.5:1）**：`tailwind.config.js` 把 slate-500 改 `#8493A8`、slate-600 改 `#7C8CA2`（原生值在 `#0A1626` 上只有 3.8／2.4）。全站 slate-500/600 只當文字色用；若要拿來當底色或框線，先確認不受影響
   - 品牌色當底時字用深藍 `#0A1626`（白字在綠底 3.4、紅底 3.8 皆不足）；品牌色字配同色淡底用 `/[0.08]`
   - 結構藍 `#236192` 在深底只有 2.8，不可當小字色；連結改用月光銀
@@ -819,7 +829,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **欄位設定表驅動**：抓哪些欄位寫在 `nba_common.py` 的 `*_FIELDS` 設定表，不寫在程式邏輯裡；加新數據只改設定表
 - **全聯盟單次請求優先**：球員數據一律抓全聯盟再過濾（順帶解決轉隊歸屬問題）；唯一逐球員的 `shotchartdetail` 降為每週執行以控制被擋風險
 - **`REB_COL_PCT` 來源是 `REB_CHANCE_PCT`**：NBA API 已無 `REB_COLLECT_PCT` 欄位，輸出欄名保留 `REB_COL_PCT` 以相容前端與歷史資料
-- **輕量預編譯、不用打包框架**：React／Recharts 仍走鎖版本 CDN；JSX 與 Tailwind 由 `bundle.py` 呼叫 esbuild／tailwindcss 預先編譯，產物進版控，GitHub Pages 直接服務 main（無 CI 建置步驟）
+- **輕量預編譯、不用打包框架**：React 仍走鎖版本 CDN（Recharts 已於 2026-10-28 移除）；JSX 與 Tailwind 由 `bundle.py` 呼叫 esbuild／tailwindcss 預先編譯，產物進版控，GitHub Pages 直接服務 main（無 CI 建置步驟）
 - **PlayerID 為主鍵（歷史）**：跨賽季穩定，姓名僅供顯示。每日快照仍用 playerName-keyed（沿用舊結構），靠前端 normalizer 對齊
 - **歷史賽季只存終點快照**：每季 1 個文件，省 Firestore 讀寫額度；逐日 backfill 約需 5,600 次 API call，目前不做
 - **歷史賽季用 localStorage 永久快取**：免費版 Firestore 每日讀取上限 50,000，靜態歷史數據只讀 1 次

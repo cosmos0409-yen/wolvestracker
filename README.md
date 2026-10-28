@@ -45,7 +45,7 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 
 ```
 wolvestracker/
-├── index.html               # 前端 SPA「Wolves Ledger」(React 18 + Recharts, 鎖版本 CDN)
+├── index.html               # 前端 SPA「Wolves Ledger」(React 18 鎖版本 CDN，圖表自繪 SVG)
 ├── components/              # React 元件原始碼（修改後需重新 bundle）
 │   ├── OverviewTab / SplitsTab / ShootingTab / ComparisonTab / RadarPanel  # 六分頁 + 雷達
 │   ├── GamePage.js          # 單場比賽頁（#game=日期；也是開站首頁）

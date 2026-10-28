@@ -24,7 +24,7 @@ const Masthead = ({
                     {/* 站徽與 PWA 圖示同一張（icons/icon.svg）；身分列／頭像列的球隊 Logo 仍用 NBA 官方 */}
                     <img src="icons/icon.svg" alt="" width="40" height="40" className="w-10 h-10 shrink-0 rounded-lg" />
                     <div className="min-w-0">
-                        <div className="font-display text-[26px] font-bold uppercase leading-none tracking-wide text-slate-50">
+                        <div className="font-display text-[22px] sm:text-[26px] font-bold uppercase leading-none tracking-wide text-slate-50 whitespace-nowrap">
                             Wolves <span className="text-[#12A150]">Ledger</span>
                         </div>
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
@@ -35,10 +35,17 @@ const Masthead = ({
                             <span className="mx-1.5 text-slate-600">·</span>{statusEl}
                         </button>
                     </div>
-                    <button type="button" onClick={onSearch} aria-label="搜尋球員、章節或賽季"
-                        className="lg:hidden ml-auto shrink-0 rounded-full border border-white/15 px-3 py-1.5 text-xs text-slate-300">
-                        搜尋
-                    </button>
+                    {/* 手機：對戰／薪資／搜尋放字標同一列（第二列放不下，原本被擠到畫面外）；桌面版在右側控制列 */}
+                    <span className="lg:hidden ml-auto flex shrink-0 items-center gap-1.5">
+                        <button type="button" onClick={onVs} aria-pressed={!!inVs}
+                            className={`rounded-full border px-2.5 py-1.5 text-xs ${inVs ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-300'}`}>對戰</button>
+                        <button type="button" onClick={onCap} aria-pressed={!!inCap}
+                            className={`rounded-full border px-2.5 py-1.5 text-xs ${inCap ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-300'}`}>薪資</button>
+                        <button type="button" onClick={onSearch} aria-label="搜尋球員、章節或賽季"
+                            className="rounded-full border border-white/15 px-2.5 py-1.5 text-xs text-slate-300">
+                            搜尋
+                        </button>
+                    </span>
                 </div>
 
                 <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0 [scrollbar-width:none]">
@@ -61,12 +68,12 @@ const Masthead = ({
                         activeDate={inGame ? gameDate : null} inGame={inGame} onPick={onPickGame} />}
                     {/* 對戰：開對戰首頁（#vs） */}
                     <button type="button" onClick={onVs} aria-pressed={!!inVs} title="灰狼對各隊的表現：勁敵、順手、棘手，與交手前瞻"
-                        className={pill(inVs)}>
+                        className={`hidden lg:inline-flex ${pill(inVs)}`}>
                         對戰
                     </button>
                     {/* 薪資：開薪資頁（#cap） */}
                     <button type="button" onClick={onCap} aria-pressed={!!inCap} title="薪資結構、奢侈稅與門檻（Cap Sheet）"
-                        className={pill(inCap)}>
+                        className={`hidden lg:inline-flex ${pill(inCap)}`}>
                         薪資
                     </button>
                     <button type="button" onClick={onCopyLink} title="網址記住目前畫面（球員、章節、賽季、日期、攻守），貼到筆記裡可回到同一畫面"

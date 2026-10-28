@@ -1,10 +1,54 @@
 // 雷達圖面板：軸可自選（Playtype percentile + Tracking 百分比，皆 0-100）
 // 兩種尺度語意不同（PR=聯盟百分位、%=原始數值），軸名一律帶 scale 標示，避免讀者把形狀當同一把尺+ 疊加多序列 + 自選指標比較表
 // series：[{key,label,color,stats(synergy array),tracking(dict)}]；第一個為主序列
+// 自繪 SVG（2026-10-28 起不再載入 Recharts：全站只有這張圖用它，卻是最大的單一腳本）
+// 軸從正上方順時針排列，0–100 固定刻度；滑過頂點看數值（<title>）
+const RadarSvg = ({ axes, series, getVal, labelOf }) => {
+    const W = 400, H = 300, cx = W / 2, cy = H / 2, R = 92;
+    const n = axes.length;
+    const pt = (i, v) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        const r = R * Math.max(0, Math.min(100, v)) / 100;
+        return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    };
+    const poly = (vals) => vals.map((v, i) => pt(i, v).map(x => x.toFixed(1)).join(',')).join(' ');
+    const summary = series.map(s => `${s.label}：` + axes.map(a => `${labelOf(a)} ${getVal(a, s) == null ? '—' : getVal(a, s)}`).join('、')).join('；');
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" role="img" aria-label={summary}>
+            {[25, 50, 75, 100].map(lv => (
+                <polygon key={lv} points={poly(axes.map(() => lv))} fill="none" stroke="rgba(196, 206, 210, 0.16)" strokeWidth="1" />
+            ))}
+            {axes.map((a, i) => { const [x, y] = pt(i, 100); return <line key={a} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(196, 206, 210, 0.16)" strokeWidth="1" />; })}
+            {series.map((s, si) => (
+                <polygon key={s.key} points={poly(axes.map(a => getVal(a, s) || 0))}
+                    fill={s.color} fillOpacity={si === 0 ? 0.35 : 0.15} stroke={s.color} strokeWidth={si === 0 ? 2 : 1.5} strokeLinejoin="round" />
+            ))}
+            {series.map(s => axes.map((a, i) => {
+                const v = getVal(a, s); const [x, y] = pt(i, v || 0);
+                return (
+                    <g key={s.key + a}>
+                        <circle cx={x} cy={y} r="2.5" fill={s.color} />
+                        <circle cx={x} cy={y} r="9" fill="transparent">
+                            <title>{`${s.label}｜${labelOf(a)}：${v == null ? '—' : v}`}</title>
+                        </circle>
+                    </g>
+                );
+            }))}
+            {axes.map((a, i) => {
+                const ang = -Math.PI / 2 + (2 * Math.PI * i) / n, c = Math.cos(ang), sn = Math.sin(ang);
+                const x = cx + (R + 12) * c, y = cy + (R + 12) * sn;
+                return (
+                    <text key={a} x={x} y={y} fill="#C4CED2" fontSize="12"
+                        textAnchor={c > 0.2 ? 'start' : c < -0.2 ? 'end' : 'middle'}
+                        dominantBaseline={sn > 0.5 ? 'hanging' : sn < -0.5 ? 'auto' : 'middle'}>{labelOf(a)}</text>
+                );
+            })}
+        </svg>
+    );
+};
+
 const RadarPanel = ({ series, viewSide }) => {
     const { useState } = React;
-    const R = window.Recharts || {};
-    const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } = R;
     const PLAY = window.PlayTypesList || [];
     const loadPref = (k, f) => { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } };
     const savePref = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
@@ -54,13 +98,6 @@ const RadarPanel = ({ series, viewSide }) => {
     };
     const resetAxes = () => { setAxes(DEFAULTS.filter(k => catMap[k])); savePref(prefKey, DEFAULTS); };
 
-    const radarData = axes.map(k => {
-        const c = catMap[k];
-        const row = { subject: c ? axisName(c) : k, fullMark: 100 };
-        series.forEach(s => { row[s.label] = getVal(c, s) || 0; });
-        return row;
-    });
-
     return (
         <div className="flex flex-col items-center border border-white/10 p-3">
             <div className="w-full flex justify-between items-center px-2 mt-1">
@@ -89,22 +126,9 @@ const RadarPanel = ({ series, viewSide }) => {
             )}
 
             <div ref={chartRef} className="w-full">
-            {RadarChart && ResponsiveContainer ? (
-                <div className="w-full h-[240px] sm:h-[280px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="60%" data={radarData} margin={{ top: 18, right: 30, bottom: 18, left: 30 }}>
-                            <PolarGrid stroke="rgba(196, 206, 210, 0.16)" />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#C4CED2', fontSize: 11 }} />
-                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                            {series.map((s, i) => (
-                                <Radar key={s.key} name={s.label} dataKey={s.label} stroke={s.color} fill={s.color} isAnimationActive={false}
-                                    fillOpacity={i === 0 ? 0.35 : 0.15} strokeWidth={i === 0 ? 2 : 1.5} />
-                            ))}
-                            <Tooltip contentStyle={{ backgroundColor: '#0C1A2E', borderColor: 'rgba(255,255,255,0.15)', borderRadius: 0 }} itemStyle={{ color: '#F8FAFC' }} />
-                        </RadarChart>
-                    </ResponsiveContainer>
-                </div>
-            ) : <div className="w-full h-[240px] flex items-center justify-center text-slate-500 text-xs">雷達圖模組載入中...</div>}
+            <div className="w-full h-[240px] sm:h-[280px]">
+                <RadarSvg axes={axes} series={series} getVal={(k, s) => getVal(catMap[k], s)} labelOf={k => (catMap[k] ? axisName(catMap[k]) : k)} />
+            </div>
 
             <p className="w-full px-2 pb-1 text-[10px] leading-relaxed text-slate-500">
                 PR＝Synergy 聯盟百分位（0–100）；%＝原始百分比；未標示者為原始數值（如每百次切入得分）。不同尺度共用 0–100 軸，形狀只代表各軸相對位置，不同尺度的軸不能直接互比。
