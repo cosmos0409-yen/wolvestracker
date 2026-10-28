@@ -69,7 +69,7 @@ const HistoryModal = ({ cardInfo, onClose, viewMode, viewSide, selectedPlayer, i
 
     let title = "", cols = [];
     if (cardInfo.type === 'playtype') {
-        title = `${cardInfo.id}（${viewSide === 'offensive' ? '進攻' : '防守'}） (Synergy Playtype)`;
+        title = `${window.ptName(cardInfo.id)}（${viewSide === 'offensive' ? '進攻' : '防守'}） (${cardInfo.id} · Synergy Playtype)`;
         cols = [{ k: 'ppp', l: 'PPP', e: 'PPP' }, { k: 'fgPct', l: '命中率', e: 'FG%' }, { k: 'percentile', l: '聯盟百分位', e: 'Percentile' }, { k: 'poss', l: '每場球權', e: 'Poss/G' }];
     } else {
         const def = [...trackingDefs, ...shootingDefs, ...clutchDefs, ...defenseDefs, ...oppZonesDefs].find(t => t.id === cardInfo.id);

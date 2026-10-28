@@ -529,6 +529,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                     <UI.Chip key={p.pid || p.name} active={p.pid === vsPlayer.pid} onClick={() => setVsWho(p.name)}>{p.boxName}</UI.Chip>
                 ))}</div>
                 {avgAgg === null && <div className="mb-3"><UI.Note>本季沒有更早的逐場資料，無季平均可比（例如球季第一場）</UI.Note></div>}
+                {avgAgg && window.smallSampleNote(avgAgg.GP, '賽前季平均') && <div className="mb-3"><UI.Note tone="warn">{window.smallSampleNote(avgAgg.GP, '賽前季平均')}</UI.Note></div>}
                 <div className="grid grid-cols-2 border-l border-t border-white/[0.08] sm:grid-cols-3 lg:grid-cols-4">
                     {keys.map(k => {
                         // undefined＝載入中（顯示 …）；null＝本季無更早逐場（fmtV 顯示 —），與展開列同規則

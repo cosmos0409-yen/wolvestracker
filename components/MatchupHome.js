@@ -330,11 +330,13 @@
     };
 
     // 範圍列（首頁與單隊頁共用）：範圍選單＋賽別切換＋實際範圍說明（note）
-    const RangeBar = ({ range, type, onRange, onType, note }) => {
+    // regGP：本季例行賽已打場數；預設範圍的名稱跟著實際範圍（未過半時是「前三季＋本季」，見 Matchup.windowSeasons）
+    const RangeBar = ({ range, type, onRange, onType, note, regGP }) => {
         const UI = window.UI;
         const seasons = window.Matchup.seasonList();
+        const recentLabel = typeof regGP === 'number' && window.Matchup.windowSeasons('recent', regGP).extended ? '前三季＋本季' : '近三季';
         const options = [
-            { value: 'recent', label: '近三季' },
+            { value: 'recent', label: recentLabel },
             { value: 'cur', label: `只看本季（${seasons[0]}）` },
             ...seasons.slice(1).map(s => ({ value: s, label: `${s} 賽季` })),
         ];
@@ -368,7 +370,7 @@
                     const gp = await M.currentRegularGP();
                     const win = M.windowSeasons(range, gp);
                     const games = await M.loadWindowGames(win.seasons, type);
-                    if (!off) setData({ win, games });
+                    if (!off) setData({ win, games, gp });
                 } catch (e) {
                     console.error('matchup load', e);
                     if (!off) setErr(e.message || String(e));
@@ -393,7 +395,7 @@
             <div className="space-y-8">
                 <div>
                     <h1 className="font-display text-[30px] font-bold leading-tight text-slate-50">對戰分析 <span className="font-mono text-[12px] font-normal text-slate-500">Matchups</span></h1>
-                    <RangeBar range={range} type={type} onRange={onRange} onType={onType}
+                    <RangeBar range={range} type={type} onRange={onRange} onType={onType} regGP={data ? data.gp : undefined}
                         note={data ? `${data.win.label} · ${data.games.length} 場` : null} />
                 </div>
 

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+<!-- 社群分享預覽圖（og:image，1200×630）：左站徽、右字標與說明。改圖後跑 python scripts/build_icons.py 重產 og-image.png
+     站徽區的 ICON 註解由 build_icons.py 換成 icon.svg 的內容（站徽只有一份原稿）。
+     文字用本機系統字算圖（Windows：Segoe UI／微軟正黑體），產物 PNG 進版控，換電腦重產時字形可能略有不同 -->
+<rect width="1200" height="630" fill="#0A1626"/>
+<rect x="0" y="0" width="1200" height="8" fill="#12A150"/>
+<svg x="80" y="150" width="330" height="330" viewBox="0 0 512 512"><!--ICON--></svg>
+<rect x="80" y="150" width="330" height="330" fill="none" stroke="#C4CED2" stroke-opacity="0.3" stroke-width="2"/>
+<g font-family="Segoe UI, Microsoft JhengHei, sans-serif">
+<text x="460" y="262" font-size="76" font-weight="700" letter-spacing="2" fill="#F8FAFC">WOLVES <tspan fill="#12A150">LEDGER</tspan></text>
+<text x="463" y="336" font-family="Microsoft JhengHei, sans-serif" font-size="48" font-weight="700" fill="#F8FAFC">灰狼數據帳本</text>
+<rect x="463" y="364" width="110" height="4" fill="#C4CED2" fill-opacity="0.3"/>
+<text x="463" y="418" font-family="Microsoft JhengHei, sans-serif" font-size="28" fill="#C4CED2">Playtype · Tracking · 投籃 · 防守 · 對戰 · 薪資</text>
+<text x="463" y="462" font-family="Microsoft JhengHei, sans-serif" font-size="24" fill="#8A99A8">明尼蘇達灰狼 · 每日更新 · 供專欄研究查證</text>
+</g>
+</svg>

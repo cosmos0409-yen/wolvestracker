@@ -165,6 +165,11 @@ const App = () => {
         let cancelled = false;
         (async () => {
             // 上一季用推算的，不讀手動維護的 HISTORY_SEASONS（開季時那份清單可能還沒加上剛打完的賽季）
+            // 例行賽期間最新一場一定在例行賽索引：先只讀它，不等季後賽索引（那份文件還不存在，查不存在的文件也要近 1 秒）
+            if ((window.getSeasonPhase() || {}).type === 'regular') {
+                const reg = await window.loadGamesIndex(window.CURRENT_SEASON, 'regular');
+                if (reg.length) { if (!cancelled) setGameDate(reg[reg.length - 1].date); return; }
+            }
             const y = parseInt(window.CURRENT_SEASON.slice(0, 4), 10);
             const seasons = [window.CURRENT_SEASON, `${y - 1}-${String(y % 100).padStart(2, '0')}`];
             for (const s of seasons) {
@@ -197,11 +202,12 @@ const App = () => {
         return () => window.removeEventListener('firebase-ready', handleCloudReady);
     }, []);
 
-    // 資料載入：依 selectedSeasonKey 切換 onSnapshot（current）或 getDoc + localStorage 快取（history）
+    // 資料載入：依 selectedSeasonKey 切換 getDocs 範圍查詢（current）或 getDoc + localStorage 快取（history）
+    // （2026-10-28 前是 onSnapshot 即時訂閱；改用 Firestore lite 後沒有 onSnapshot，資料每天才更新一次，重新整理即可）
     useEffect(() => {
-        // 必須等匿名登入完成（isCloud）：安全規則要求已登入，先訂閱會被拒且錯誤狀態不會自己清掉
+        // 必須等匿名登入完成（isCloud）：安全規則要求已登入，先讀會被拒且錯誤狀態不會自己清掉
         if (!window.db || !window.firebaseModules || !isCloud) return;
-        const { collection, onSnapshot } = window.firebaseModules;
+        const { collection, getDocs } = window.firebaseModules;
         // snapFull 從「最新幾份」升級成「整季」時也會重跑本 effect：此時不可清日期、不可回到載入中，
         // 舊資料留在畫面上直到整季資料到達
         const seasonChanged = lastSnapSeasonRef.current !== selectedSeasonKey;
@@ -215,9 +221,8 @@ const App = () => {
 
         if (selectedSeasonKey === 'current') {
             setHistoryLoading(false);
-            // 只訂閱當季快照（doc id 即日期字串）。用範圍過濾而非 orderBy+limit：
-            // 後者需要 Firestore 複合索引，而 onSnapshot 無 error callback，
-            // 缺索引時會靜默失敗讓整個面板空掉。詳見 constants.js 的 SNAPSHOT_SINCE
+            // 只讀當季快照（doc id 即日期字串）。用範圍過濾而非 orderBy+limit：
+            // 後者需要 Firestore 複合索引，缺索引會被拒讓整個面板空掉。詳見 constants.js 的 SNAPSHOT_SINCE
             const { query, where, documentId } = window.firebaseModules;
             // 加上界：doc id 是日期字串，但非日期 id（如 'latest'、'meta'）字典序都大於數字，
             // 只有下界會把它們一併撈進來，之後 new Date(id) 變 NaN 污染排序。
@@ -227,8 +232,7 @@ const App = () => {
             const since = partial ? window.snapshotWindowStart() : window.SNAPSHOT_SINCE;
             const recent = (name) => query(collection(window.db, name),
                 where(documentId(), '>=', since), where(documentId(), '<=', window.SNAPSHOT_UNTIL));
-            // 必須帶 error callback：沒有的話，查詢被安全規則擋下或缺索引時
-            // callback 永遠不會被呼叫，畫面就永遠停在骨架，看不出哪裡錯了
+            // 錯誤一定要接住並顯示：查詢被安全規則擋下或缺索引時，不處理畫面就永遠停在骨架，看不出哪裡錯了
             const onErr = (which) => (err) => {
                 // 近期查詢若因「缺索引」被拒（failed-precondition），退回整季查詢，不讓畫面空掉。
                 // 其他錯誤（權限、網路）改讀整季也不會好，照常顯示錯誤，免得白白多抓整季資料
@@ -237,29 +241,21 @@ const App = () => {
                 setSnapError(`${which}：${err.code || err.message || err}`);
                 setCurSnapReceived(true);
             };
-            // 連不上伺服器時，Firestore 會先丟一個「本機快取的空結果」（fromCache=true）。
-            // 不可當真：否則斷網會被顯示成「當季尚無快照資料」，誤導成資料庫真的沒資料。
-            // 略過它、維持載入中，等伺服器真正回應（或 onErr）
-            const offlineEmpty = (snapshot) => snapshot.empty && snapshot.metadata && snapshot.metadata.fromCache;
-            const unsubA = onSnapshot(recent("wolves_team_stats"), (snapshot) => {
-                if (offlineEmpty(snapshot)) return;
+            // lite 版沒有離線快取：斷網時 getDocs 直接丟錯（走 onErr），不會有「快取的空結果」被誤當成沒資料
+            // cancelled：快速切換賽季／升級整季時，較晚回來的舊查詢不可覆寫新資料
+            let cancelled = false;
+            const load = (name, setter) => getDocs(recent(name)).then((snapshot) => {
+                if (cancelled) return;
                 if (partial && snapshot.size < 2) { setSnapFull(true); return; }
                 const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
                 data.sort((a, b) => new Date(b.date) - new Date(a.date));
-                setTeamHistory(data);
+                setter(data);
                 setCurSnapReceived(true);
-                if (!partial && !snapshot.metadata.fromCache) setSnapFullReady(true);
-            }, onErr('wolves_team_stats'));
-            const unsubB = onSnapshot(recent("wolves_player_stats"), (snapshot) => {
-                if (offlineEmpty(snapshot)) return;
-                if (partial && snapshot.size < 2) { setSnapFull(true); return; }
-                const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
-                data.sort((a, b) => new Date(b.date) - new Date(a.date));
-                setPlayerHistory(data);
-                setCurSnapReceived(true);
-                if (!partial && !snapshot.metadata.fromCache) setSnapFullReady(true);
-            }, onErr('wolves_player_stats'));
-            return () => { unsubA(); unsubB(); };
+                if (!partial) setSnapFullReady(true);
+            }).catch((err) => { if (!cancelled) onErr(name)(err); });
+            load('wolves_team_stats', setTeamHistory);
+            load('wolves_player_stats', setPlayerHistory);
+            return () => { cancelled = true; };
         }
 
         // History mode
@@ -278,8 +274,7 @@ const App = () => {
         if (cached) { apply(cached.team, cached.player); return; }
 
         // cancelled 旗標不可省：快速切換賽季時，先前那次較晚 resolve 會用舊賽季的
-        // 資料覆寫 teamHistory/playerHistory。切回當季時特別嚴重——onSnapshot 只在
-        // 資料「變動」時才推送，被覆寫後不會自動修復，得重整頁面才會好
+        // 資料覆寫 teamHistory/playerHistory（當季查詢同樣有 cancelled 旗標）
         let cancelled = false;
         setHistoryLoading(true);
         (async () => {

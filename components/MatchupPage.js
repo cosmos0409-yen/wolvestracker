@@ -153,7 +153,7 @@
                     const gp = await M.currentRegularGP();
                     const win = M.windowSeasons(range, gp);
                     const games = await M.loadWindowGames(win.seasons, type);
-                    if (!off) setData({ win, games });
+                    if (!off) setData({ win, games, gp });
                 } catch (e) {
                     console.error('matchup page load', e);
                     if (!off) setErr(e.message || String(e));
@@ -219,7 +219,7 @@
                     <span className="ml-2 font-sans text-[16px] font-normal text-slate-400">{name}</span>
                     {derived && derived.row && window.MatchupTag && <window.MatchupTag tag={derived.row.tag} />}
                 </h1>
-                <window.MatchupRangeBar range={range} type={type} onRange={onRange} onType={onType}
+                <window.MatchupRangeBar range={range} type={type} onRange={onRange} onType={onType} regGP={data ? data.gp : undefined}
                     note={data ? `${data.win.label} · 對 ${team} ${opp.length} 場` : null} />
             </div>
         );

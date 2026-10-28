@@ -38,7 +38,8 @@ window.Matchup = (function () {
         const seasons = all.slice(0, extended ? 4 : 3);
         return {
             mode: 'recent', seasons, extended,
-            label: `近三季：${seasons[seasons.length - 1]}～${seasons[0]}${extended ? '（本季例行賽未過半，多含一季）' : ''}`,
+            // 名稱跟著實際範圍：本季未過半時是「前三個完整賽季＋本季」，不能叫近三季（2026-10-28 前標籤與內容不一致）
+            label: `${extended ? '前三季＋本季' : '近三季'}：${seasons[seasons.length - 1]}～${seasons[0]}${extended ? '（本季例行賽未過半，多含一季）' : ''}`,
         };
     }
 

@@ -101,13 +101,21 @@ window.loadGamesIndex = async function (season, type) {
             if (c && c.games && c.games.length) return c.games;
         } catch (e) { /* fall through */ }
     }
+    // 當季索引：同一頁面 5 分鐘內共用同一次讀取（開站時刊頭賽程、首頁最新一場、單場面板、單場頁賽程條會同時要同一份）
+    const mem = (window.__gamesIndexMem = window.__gamesIndexMem || {});
+    const hit = mem[indexId];
+    if (hit && Date.now() - hit.t < 5 * 60 * 1000) return hit.p;
     const { doc, getDoc } = window.firebaseModules;
-    const snap = await getDoc(doc(window.db, 'wolves_games_index', indexId));   // 失敗往上拋，呼叫端決定怎麼顯示
-    const games = snap.exists() ? (snap.data().games || []) : [];
-    if (cacheable && games.length) {
-        try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
-    }
-    return games;
+    const p = getDoc(doc(window.db, 'wolves_games_index', indexId)).then(snap => {   // 失敗往上拋，呼叫端決定怎麼顯示
+        const games = snap.exists() ? (snap.data().games || []) : [];
+        if (cacheable && games.length) {
+            try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
+        }
+        return games;
+    });
+    mem[indexId] = { t: Date.now(), p };
+    p.catch(() => { if (mem[indexId] && mem[indexId].p === p) delete mem[indexId]; });   // 失敗不留，下次重讀
+    return p;
 };
 
 // 整季賽程（例行賽＋季後賽合併、由舊到新，每場帶 type）：刊頭賽程月曆、搜尋「最近比賽」用。

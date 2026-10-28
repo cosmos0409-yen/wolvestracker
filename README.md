@@ -85,7 +85,7 @@ wolvestracker/
 
 ```
 NBA Stats API ──(Python, 本機排程)──▶ Firebase Firestore ◀──(JS)── index.html (GitHub Pages)
-                每日 03:00（15:00 看門狗補抓）/ 每週一 14:30   即時讀取 (onSnapshot，開站先讀近期快照)
+                每日 03:00（15:00 看門狗補抓）/ 每週一 14:30   Firestore lite 讀取（開站先讀近期快照）
 
 Google Sheet（人工維護薪資）──(sync_salary.py，每日順跑)──▶ Firestore wolves_salary/main
 ```

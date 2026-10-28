@@ -6,6 +6,7 @@
     icons/icon-192.png           192×192  manifest（Android／桌面安裝）
     icons/icon-512.png           512×512  manifest
     icons/icon-maskable-512.png  512×512  manifest maskable（Android 自行裁形狀，原稿帳本縮在圓形安全區內）
+    icons/og-image.png           1200×630 社群分享預覽圖（index.html 的 og:image；原稿的 <!--ICON--> 換成 icon.svg 內容，有文字，用本機系統字）
 
 刊頭 Logo 直接用 icons/icon.svg（向量，免 PNG）。分頁小圖示（favicon）仍是 index.html 內嵌的 W：
 16px 時帳本細節會糊成一塊。
@@ -29,16 +30,27 @@ TARGETS = [
     ("icon.svg", "icon-192.png", 192),
     ("icon.svg", "icon-512.png", 512),
     ("icon-maskable.svg", "icon-maskable-512.png", 512),
+    ("og-image.svg", "og-image.png", 1200),
 ]
 
-# resvg 是 Rust 寫的 SVG 算圖器，輸出與瀏覽器一致；圖示沒有文字，不需要字體
+# resvg 是 Rust 寫的 SVG 算圖器，輸出與瀏覽器一致。圖示沒有文字；分享預覽圖有文字，載入本機系統字。
+# 站徽不用 <image href="icon.svg">：resvg 不載入外部 SVG，而且 @resvg/resvg-js 2.6.2 帶 resourcesDir 會忽略 fitTo
+# （圖示全被算成原稿尺寸，實測踩過）。改成把原稿裡的 <!--ICON--> 直接換成 icon.svg 的內容
 RENDER_JS = """
 const { Resvg } = require('@resvg/resvg-js');
 const fs = require('fs');
+const path = require('path');
 for (const [src, out, size] of JSON.parse(process.argv[1])) {
-    const png = new Resvg(fs.readFileSync(src), { fitTo: { mode: 'width', value: size } }).render().asPng();
+    let svg = fs.readFileSync(src, 'utf8');
+    if (svg.includes('<!--ICON-->')) {
+        const icon = fs.readFileSync(path.join(path.dirname(src), 'icon.svg'), 'utf8');
+        svg = svg.replace('<!--ICON-->', icon.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, ''));
+    }
+    const img = new Resvg(svg, { fitTo: { mode: 'width', value: size },
+        font: { loadSystemFonts: true, defaultFontFamily: 'Microsoft JhengHei' } }).render();
+    const png = img.asPng();
     fs.writeFileSync(out, png);
-    console.log(`${out}  ${size}x${size}  ${png.length} bytes`);
+    console.log(`${out}  ${img.width}x${img.height}  ${png.length} bytes`);
 }
 """
 

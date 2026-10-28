@@ -106,6 +106,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             {ranked.length > 0 && (
                 <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent={viewSide === 'offensive' ? 'green' : 'red'}
                     sub={`${viewSide === 'offensive' ? '進攻' : '防守'}面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
+                    {window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照') && (
+                        <div className="mb-4"><UI.Note tone="warn">{window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照')}</UI.Note></div>
+                    )}
                     <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
                         <div>
                             <h3 className="mb-1 text-[12px] font-medium text-[#12A150]">強項 · 高於聯盟中位數</h3>

@@ -4,6 +4,10 @@ window.PlayTypesList = ["Transition", "Isolation", "PRBallHandler", "PRRollMan",
 const PT_ZH = { Transition: '轉換進攻', Isolation: '單打', PRBallHandler: '擋拆持球者', PRRollMan: '擋拆掩護者', Postup: '背框單打',
     Spotup: '定點投籃', Handoff: '手遞手', Cut: '空切', OffScreen: '繞掩護', OffRebound: '進攻籃板補進', Misc: '其他' };
 window.ptName = (t) => PT_ZH[t] || t;
+// 小樣本提示：場數少於門檻（開季、季中轉入）時在 Playtype／季平均旁提醒數值波動大；沒有場數或夠多回 null
+window.SMALL_SAMPLE_GAMES = 10;
+window.smallSampleNote = (n, what = '數據') => (typeof n === 'number' && n > 0 && n < window.SMALL_SAMPLE_GAMES)
+    ? `${what}只有 ${n} 場，樣本小、數值波動大（尤其百分位與命中率），看趨勢請等累積到 ${window.SMALL_SAMPLE_GAMES} 場以上` : null;
 // 一位小數，-0.04 這類捨入後為 0 的負數不顯示成「-0.0」
 window.fix1 = (v) => { const s = Number(v).toFixed(1); return s === '-0.0' ? '0.0' : s; };
 
@@ -146,9 +150,8 @@ window.writeHistoryCache = (docId, d) => {
 };
 window.purgeHistoryCache(false);   // 載入時立即清掉舊版 key
 
-// 每日快照的訂閱起始日：doc id 就是日期字串，故以 doc id 範圍過濾出「當季」。
-// 為什麼不用 orderBy(documentId(),'desc') + limit：那需要建 Firestore 複合索引，
-// 而 onSnapshot 沒有 error callback，缺索引時會「靜默失敗」讓整個面板空掉。
+// 每日快照的讀取起始日：doc id 就是日期字串，故以 doc id 範圍過濾出「當季」。
+// 為什麼不用 orderBy(documentId(),'desc') + limit：那需要建 Firestore 複合索引，缺索引時查詢被拒、整個面板空掉。
 // __name__ 升冪是 Firestore 預設索引，範圍查詢免建索引（已實測）。
 // 以賽季起始年的 7/1 為界：完整涵蓋例行賽+季後賽（打到隔年 6 月），
 // 又能永久擋住 collection 隨賽季累積而無限成長。

@@ -54,6 +54,9 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen }) => {
             sub={`${isDef ? '防守面：PPP 為對手每球權得分，越低越好' : '進攻面：PPP 為每球權得分'} · 聯盟百分位越高越好 · 變化箭頭為 vs 前一份快照`}
             right={<UI.Seg ariaLabel="檢視方式" size="sm" value={view} onChange={changeView}
                 options={[{ value: 'table', label: '表格' }, { value: 'cards', label: '卡片' }]} />}>
+            {rows.length > 0 && window.smallSampleNote(Math.max(...rows.map(r => r.gp || 0)), 'Synergy 快照') && (
+                <div className="mb-3"><UI.Note tone="warn">{window.smallSampleNote(Math.max(...rows.map(r => r.gp || 0)), 'Synergy 快照')}</UI.Note></div>
+            )}
             {rows.length === 0 ? (
                 <UI.Note>此對象沒有{isDef ? '防守' : '進攻'}面的 Playtype 資料</UI.Note>
             ) : view === 'table' ? (

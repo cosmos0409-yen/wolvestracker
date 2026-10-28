@@ -7,7 +7,7 @@
 
 | # | 項目 | 狀態 | 說明 |
 |---|---|---|---|
-| 1 | Firebase 整合 | ✅ | 前端以 `onSnapshot`（當季）+ `getDoc`（歷史）讀取 Firestore |
+| 1 | Firebase 整合 | ✅ | 前端以 Firestore lite 的 `getDocs`（當季範圍查詢）+ `getDoc`（歷史）讀取（2026-10-28 前當季用 `onSnapshot`） |
 | 2 | Python 爬蟲腳本 | ✅ | `scripts/fetch_data.py`，含 11 PlayType + 6 Tracking |
 | 3 | 前端 UI 全面改寫 | ✅ | 雷達圖、Tracking 卡片、球員頭像、賽季標籤 |
 | 4 | 反爬蟲機制 | ✅ | curl_cffi 瀏覽器 TLS 模擬 + retry |
@@ -274,6 +274,9 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - **手機刊頭**：對戰／薪資／搜尋改放字標同一列（`lg:hidden`），第二列只留賽季／賽別／賽程／複製連結；桌面版不變。字標手機 22px
 - **分頁列 `UI.TabBar`**：放不下時右緣漸層＋「›」按鈕（捲 120px，捲到底自動消失）；選中的分頁自動捲進可視範圍（網址或數字鍵直接切到 Playtype／跨季時）。章節列、單場頁、薪資頁共用
 - **身分列標題**手機 23px（「MINNESOTA TIMBERWOLVES」不再被截斷）
+- **開季小樣本提示**：`window.smallSampleNote(n, 名稱)`（門檻 `SMALL_SAMPLE_GAMES = 10`，`constants.js`）——Playtype 表格、總覽 Playtype 強弱項看 Synergy `gp`，單場頁「本場 vs 季平均」看賽前季平均場數，不足就顯示黃色提示
+- **對戰預設範圍名稱**：本季例行賽未過半時選單與說明改叫「前三季＋本季」（原本一律叫「近三季」，實際卻含四個賽季）；`RangeBar` 收 `regGP` 自行判斷
+- **分享預覽圖**：`icons/og-image.svg` → `build_icons.py` 產 `og-image.png`（1200×630，站徽由腳本把 `<!--ICON-->` 換成 `icon.svg` 內容），`index.html` 加 `og:image`／`og:url`、`twitter:card=summary_large_image`。`@resvg/resvg-js` 2.6.2 帶 `resourcesDir` 會忽略 `fitTo`（圖示全變原稿尺寸），也不載外部 SVG，所以不用 `<image>`
 - **HANDOFF 0.00 PPP 查證**：快照原始資料是 3 場 8 次球權、8 投 0 中、0 分，是真實數據；使用率「—」是 NBA 對低球權類型回 `POSS_PCT=0` 的已知狀況，不需處理
 - **03:00 主排程沒執行（10/27、10/28）**：筆電是 Modern Standby（S0），電源計畫的「允許喚醒計時器」電池模式為停用（插電才啟用），電池待命 3 小時後會休眠，因此 03:00 不會被喚醒；10/28 08:05 喚醒後 3 分鐘又回到待命，錯過的排程也沒補跑。使用者選擇加早上看門狗（`WolvesWatchdogMorning`，見「自動化排程」）；未改電源設定、主排程時間不變
 
@@ -435,6 +438,7 @@ wolvestracker/
   - 補讀期間顯示載入骨架，**不可**顯示「沒有快照」，也不可把最新一天的數字標成所選日期（`showSkeleton` 的兩個條件）
   - 只用 doc id 範圍查詢：`orderBy(documentId,'desc')`／`limitToLast` 需要 `__name__` 降冪索引，已實測會被拒
   - 權限或網路錯誤**不**改讀整季（改讀也不會好），照常顯示錯誤
+- **Firestore lite（2026-10-28 起）**：`index.html` 改載 `firebase-firestore-lite.js`（30.6 KB gzip，完整版 111 KB）。完整版走 WebChannel 長連線，讀取一輪一輪排隊；lite 每次 `getDoc`／`getDocs` 是獨立 REST 請求、真正並行。沒有 `onSnapshot`／離線快取（資料每天才更新，重新整理即可；斷網時直接報錯，不會有「快取空結果」被誤當沒資料）。冷啟動到首頁比分看板，實測正式站舊版 2.98／3.38／3.39 秒 → 新版 2.68／1.89／1.77 秒（預覽窗格在背景、數字僅供相對比較）。Firestore 單次讀取本身延遲約 240～1130 毫秒浮動，查不存在的文件也要近 1 秒，所以首頁例行賽期間只讀例行賽索引、不等季後賽索引；當季比賽索引 5 分鐘內同頁共用一次讀取（`loadGamesIndex`）
 - **不載圖表套件**：2026-10-28 起雷達圖改自繪 SVG（`RadarPanel.js` 的 `RadarSvg`），移除 Recharts＋prop-types（約 120 KB gzip、500 KB 未壓縮，原本每頁都要下載解析）。全站圖表都是自繪 SVG，新圖表也照做，不要再引入圖表套件
 - **不擋首屏**：React 用 `<script defer>`（與 module 型 Firebase 初始化、bundle 同屬依序執行佇列，順序不變）；Google Fonts 用 `rel="preload" onload` 非阻斷載入＋`<noscript>` 退路
 - **對比（WCAG AA，小字 ≥ 4.5:1）**：`tailwind.config.js` 把 slate-500 改 `#8493A8`、slate-600 改 `#7C8CA2`（原生值在 `#0A1626` 上只有 3.8／2.4）。全站 slate-500/600 只當文字色用；若要拿來當底色或框線，先確認不受影響
@@ -678,7 +682,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ## 前端架構重點
 
 ### 賽季模式（`selectedSeasonKey`）
-- `'current'`：當季 onSnapshot 兩個集合（先近期、需要時整季，見「效能與無障礙」），date 為實際日期，身分列時光機選日期
+- `'current'`：當季 `getDocs` 讀兩個集合（先近期、需要時整季，見「效能與無障礙」；2026-10-28 前是 onSnapshot），date 為實際日期，身分列時光機選日期
 - 其他（如 `'2024-25_playoffs'`）：history mode，`getDoc` 一次拿賽季終點快照，date 顯示賽季 label，日期切換隱藏
 
 ### localStorage 快取
@@ -885,7 +889,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **新每日欄位要加進 `DATA_KEYS`**（`fetch_data.py`）：否則去重不會比對它，可能漏寫或誤判相同。
 - **改 `components/*.js` 後一定要 `python scripts/bundle.py`**：前端讀的是 `dist/components-bundle.js` 與 `dist/app.css`；新元件還要加進 `bundle.py` 的 `ORDER`（放在 `App.js` 之前）。
 - **GitHub Pages 偶發 `Deployment failed, try again later`**：GitHub 暫時性，`gh run rerun <id>` 重跑即可，不是程式問題。
-- **Firestore 查詢只用 doc id 升冪範圍**：`orderBy(documentId(),'desc')`、`limitToLast` 都需要另建索引，會回 `failed-precondition`；`onSnapshot` 必帶 error callback，否則失敗時畫面永遠停在骨架。
+- **Firestore 查詢只用 doc id 升冪範圍**：`orderBy(documentId(),'desc')`、`limitToLast` 都需要另建索引，會回 `failed-precondition`；讀取錯誤一定要接住並顯示（`getDocs(...).catch`），否則失敗時畫面永遠停在骨架。
 - **slate-500/600 已被改成較亮的自訂值**（對比 AA）：看到 `text-slate-500` 不等於 Tailwind 原生色。
 - **讀 Firestore 要等匿名登入完成（`isCloud`）**（2026-10-19 修）：安全規則要求已登入。原本當季快照訂閱只檢查 `window.db`，登入較慢時先被拒，錯誤狀態又只在換賽季時清除，畫面卡在「讀取失敗」。新增讀取的 effect 一律加 `isCloud` 條件
 - **`UI.Section` 的 `right` 區不換行**：放很多按鈕（球員 chips 等）會把手機版面撐寬，改放區塊內容第一行

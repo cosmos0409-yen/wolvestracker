@@ -10,7 +10,13 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Wolves Ledger｜灰狼數據帳本">
     <meta property="og:description" content="灰狼 Playtype、Tracking、投籃與防守數據，每日更新。">
-    <meta name="twitter:card" content="summary">
+    <!-- 分享預覽圖：icons/og-image.svg → build_icons.py 產 PNG；社群爬蟲只認絕對網址 -->
+    <meta property="og:url" content="https://cosmos0409-yen.github.io/wolvestracker/">
+    <meta property="og:image" content="https://cosmos0409-yen.github.io/wolvestracker/icons/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Wolves Ledger 灰狼數據帳本">
+    <meta name="twitter:card" content="summary_large_image">
     <!-- PWA／加入主畫面：圖示原稿在 icons/*.svg，PNG 由 scripts/build_icons.py 產生；iOS 只認 apple-touch-icon（PNG） -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -45,7 +51,9 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { initializeFirestore, collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, where, documentId } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // Firestore 用 lite 版（2026-10-28 起）：每次讀取是獨立的 REST 請求、可真正並行，SDK 約 30 KB gzip（完整版 111 KB）。
+        // 代價是沒有 onSnapshot／離線快取——資料每天更新一次，用 getDoc／getDocs 即可
+        import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, where, documentId } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-lite.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -60,9 +68,8 @@
         try {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
-            // autoDetectLongPolling：WebChannel 被擋的環境（部分 localhost/網路）自動退回長輪詢，避免讀取卡死
-            window.db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
-            window.firebaseModules = { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, where, documentId };
+            window.db = getFirestore(app);
+            window.firebaseModules = { collection, doc, getDoc, getDocs, query, orderBy, where, documentId };
 
             signInAnonymously(auth).then(() => {
                 console.log("✅ Firebase 連線成功 (匿名登入 - 純讀取)");
@@ -192,7 +199,7 @@
         defer：與上方 type="module" 的 Firebase 初始化同屬「解析完才依序執行」佇列，
         保證元件在 Firebase 初始化之後才執行（維持舊版 Babel 時代的執行順序）
     -->
-    <script defer src="dist/components-bundle.js?v=97036eca"></script>
+    <script defer src="dist/components-bundle.js?v=9bff5885"></script>
 </body>
 
 </html>
