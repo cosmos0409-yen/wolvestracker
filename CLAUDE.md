@@ -33,7 +33,7 @@
 - **新 Firestore 集合必加 `*` 索引豁免**（Console → 索引 → 自動 → 豁免項目）；所有集合都已豁免，**只能用文件 ID 範圍／getDoc／整集合讀取**，依欄位查詢會回 `requires an index`。專案是 Blaze 方案（超過免費額度會計費，不會停擺）
 - .bat 檔必須 CRLF、`chcp 65001`、無中文註解；排程用 Python 絕對路徑（`Python312`，裸 `python` 會解析到沒套件的版本）
 - 不用 GitHub Actions（機房 IP 被 NBA 擋）；正式排程為 Windows Task Scheduler
-- 逐球員 endpoint（shotchartdetail）整季逐球員只能低頻執行（每週）；每日只准用「單場全隊」查詢（`GameID`＋`PlayerID=0`，每場 1 request）；games 回補分批、每場約 20 requests，避免被 NBA 封鎖（症狀是 403/429；零星 500/503 是伺服器抖動非封鎖）
+- 逐球員 endpoint（shotchartdetail）整季逐球員只能低頻執行（每週）；每日只准用「單場全隊」查詢（`GameID`＋`PlayerID=0`，每場 1 request）；games 回補分批、每場約 20 requests，避免被 NBA 封鎖（症狀是 403/429；零星 500/503 是伺服器抖動非封鎖；**全部逾時多半是瀏覽器指紋被 Akamai 擋**，`nba_common.FINGERPRINTS` 會自動換、記在 `nba_fingerprint.json`，log 看 `🔁`，見 doc/handover.md FAQ「NBA API 跑失敗」）
 - Pages 部署偶發 `Deployment failed, try again later`（GitHub 暫時性）→ `gh run rerun <id>` 重跑即可
 - **薪資：Google Sheet 是唯一資料來源**（`_salary_seed/` 只是本地參考、不提交）；**計算只在前端 `CapCalc`**，`sync_salary.py` 只檢查與對帳；門檻、稅率、限制條文、選秀權、繳稅紀錄都放 Sheet，不寫死。apron 空間用 apron 薪資（含 unlikely incentives）
 - **快照的球員數據是整季合併**（含季中轉隊前在他隊的比賽）：要「只算灰狼」的累計值一律用逐場 bundle

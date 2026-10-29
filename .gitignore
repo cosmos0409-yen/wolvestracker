@@ -57,3 +57,4 @@ node_modules/
 fetch_status.json
 watchdog_log.txt
 fetch_log_watchdog.txt
+nba_fingerprint.json

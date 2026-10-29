@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from nba_common import get_season_type, get_current_season, fetch_team_game_log, init_firebase
+from nba_common import get_season_type, get_current_season, fetch_team_game_log, init_firebase, fingerprint_info
 
 STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
@@ -202,6 +202,21 @@ def run_fetch(extra_args):
     return rc, (errs[-1] if errs else ""), log_name
 
 
+def fp_text(s):
+    """一次抓取用的瀏覽器指紋（fetch_status.json 的一筆或 fingerprint_info()）：
+    換過 → '🔁 指紋 chrome110 沒回應，已自動換成 safari15_5'；全換過都不行 → 提示多半不是指紋；沒換 → '指紋 safari15_5'"""
+    if s.get("switchedFrom"):
+        return f"🔁 指紋 {s['switchedFrom']} 沒回應，已自動換成 {s['fingerprint']}"
+    if s.get("triedAll"):
+        return f"🔁 指紋 {s['fingerprint']} 沒回應，換過所有指紋也不行（多半是 IP 被擋或伺服器問題）"
+    return f"指紋 {s['fingerprint']}" if s.get("fingerprint") else ""
+
+
+def with_fp(text, s):
+    note = fp_text(s)
+    return f"{text}；{note}" if note else text
+
+
 def label(game):
     d, m, w = game
     return f"{d[5:].replace('-', '/')} {m.replace('MIN ', '').replace('.', '')}（{w}）"
@@ -269,13 +284,19 @@ def main():
             log("⚠️ 主排程已完成，但賽程抓不到，無法確認昨晚比賽（不補抓）")
             return
         if game_captured(db, game[0]):
-            log(f"正常（主排程已完成；最新一場 {label(game)} 已在）")
+            # 報主排程用的指紋；看門狗自己讀賽程時換過也要報
+            main_fp, own_fp = read_status("full"), fingerprint_info()
+            note = fp_text(main_fp) + (f"；看門狗讀賽程時 {fp_text(own_fp)}" if own_fp["switchedFrom"] else "")
+            log(f"正常（主排程已完成；最新一場 {label(game)} 已在{'；' + note if note else ''}）")
+            if main_fp.get("switchedFrom") or own_fp["switchedFrom"]:
+                notify("Wolves Tracker：已自動換指紋", f"{note}。資料正常，不用處理。")
             return
         mode, fetch_args = "games", ["--games-only"]
         reason = f"最新一場 {label(game)} 還沒進資料庫"
 
     if args.dry_run:
-        log(f"[dry-run] {wait_note}{reason} → 會執行 fetch_data.py {' '.join(fetch_args) or '（完整抓取）'}")
+        log(f"[dry-run] {wait_note}{reason} → 會執行 fetch_data.py {' '.join(fetch_args) or '（完整抓取）'}"
+            f"（目前指紋 {fingerprint_info()['fingerprint']}）")
         return
 
     print(f"{reason}，開始補抓…")
@@ -285,15 +306,17 @@ def main():
     game = latest_game(season, season_type_api)
     ok = rc == 0 and ran_today(mode, start) and game is not None and game_captured(db, game[0])
     kind = "完整抓取" if mode == "full" else "單場"
+    # 這次補抓的指紋：子程序寫進狀態檔才算數（被逾時中止的沒寫，就不報）
+    fp = read_status(mode) if ran_today(mode, start) or failed_today(mode, start) else {}
     if ok:
-        log(f"✅ 已補抓（{kind}）：{reason} → 已補上")
+        log(with_fp(f"✅ 已補抓（{kind}）：{reason} → 已補上", fp))
         body = (f"{label(game)} 已上站（暫定版，明天 03:00 定稿）。" if mode == "games" else
                 f"今天的累積快照已補上，最新一場 {label(game)} 已在。")
-        notify("Wolves Tracker：已補抓", f"{body}原因：{reason}")
+        notify("Wolves Tracker：已補抓", with_fp(f"{body}原因：{reason}", fp))
     else:
         detail = err or (f"結束碼 {rc}" if rc != 0 else "最新一場仍不在資料庫")
-        log(f"❌ 補抓失敗（{kind}）：{reason}；{detail}")
-        notify("Wolves Tracker：補抓失敗", f"{reason}。{detail.rstrip('。')}。詳見 {log_name}")
+        log(with_fp(f"❌ 補抓失敗（{kind}）：{reason}；{detail}", fp))
+        notify("Wolves Tracker：補抓失敗", with_fp(f"{reason}。{detail.rstrip('。')}。詳見 {log_name}", fp))
         sys.exit(1)
 
 

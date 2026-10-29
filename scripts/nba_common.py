@@ -14,7 +14,6 @@ fetch_data.py（每日）與 backfill_history.py（歷史回補）共用的
 from curl_cffi import requests
 import json
 import os
-import random
 import time
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -270,16 +269,48 @@ RANK_LOWER_BETTER = {
 }
 RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA"}
 
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-]
+# 瀏覽器指紋（curl_cffi impersonate）：stats.nba.com 前面的 Akamai 會擋特定 TLS 指紋，被擋時不回 403、
+# 直接讓請求逾時（2026-10-29 chrome110 全部逾時、safari15_5 正常）。這次執行第一項就失敗時依序換下一個各試 1 次，
+# 成功的記在 FINGERPRINT_PATH（本機產物、不進版控），下次從它開始；刪掉該檔就從清單第一個重來。
+# 可用名稱依 curl_cffi 版本而定（0.6.2：curl_cffi.requests.BrowserType）；挑跨瀏覽器家族，避免一次全被擋
+FINGERPRINTS = ["safari15_5", "safari17_0", "chrome120", "edge101", "chrome110"]
+FINGERPRINT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "nba_fingerprint.json")
 
-# 使用 curl_cffi 模擬真實瀏覽器 TLS 指紋，避免被 NBA API 阻擋
-SESSION = requests.Session(impersonate="chrome110")
+
+def _load_fingerprint():
+    try:
+        with open(FINGERPRINT_PATH, encoding="utf-8") as f:
+            fp = json.load(f).get("current")
+        if fp in FINGERPRINTS:
+            return fp
+    except (OSError, ValueError):
+        pass
+    return FINGERPRINTS[0]
+
+
+_fp = {"current": _load_fingerprint(), "tried_all": False}
+_fp["start"] = _fp["current"]
+
+
+def fingerprint_info():
+    """這次執行用的指紋、有沒有中途換過、是不是全部換過都沒回應：
+    {'fingerprint': 'safari15_5', 'switchedFrom': 'chrome110' 或 '', 'triedAll': bool}"""
+    switched = _fp["current"] != _fp["start"]
+    return {"fingerprint": _fp["current"], "switchedFrom": _fp["start"] if switched else "",
+            "triedAll": _fp["tried_all"] and not switched}
+
+
+def _save_fingerprint(prev):
+    try:
+        with open(FINGERPRINT_PATH, "w", encoding="utf-8") as f:
+            json.dump({"current": _fp["current"], "switchedFrom": prev,
+                       "updatedAt": datetime.now().isoformat(timespec="seconds")}, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"⚠️ 指紋紀錄寫入失敗：{e}")
+
+
+# User-Agent 不另外設：由 impersonate 帶出與 TLS 指紋相符的 UA（舊版每次隨機換 UA，常與指紋對不上，反而像機器人）
+SESSION = requests.Session()
 SESSION.headers.update({
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'en-US,en;q=0.9',
@@ -316,10 +347,34 @@ def _with_date(url, game_date):
     return url.replace("DateFrom=&DateTo=", f"DateFrom={game_date}&DateTo={game_date}")
 
 
-def nba_get(url, timeout=30):
-    """發送帶有隨機 User-Agent 的 GET 請求"""
-    SESSION.headers['User-Agent'] = random.choice(USER_AGENTS)
-    return SESSION.get(url, timeout=timeout)
+def nba_get(url, timeout=30, impersonate=None):
+    """以目前的瀏覽器指紋（或指定的 impersonate）發送 GET 請求"""
+    return SESSION.get(url, timeout=timeout, impersonate=impersonate or _fp["current"])
+
+
+def _try_other_fingerprints(url, label):
+    """這次執行還沒成功過、第一項重試耗盡 → 依序換其他指紋各試 1 次；成功就記住並回傳資料，全失敗回 None
+    （每次執行只試一輪；全失敗多半是 IP 被擋或伺服器問題，交給 block guard 收手）"""
+    _fp["tried_all"] = True
+    prev = _fp["current"]
+    for fp in FINGERPRINTS:
+        if fp == prev:
+            continue
+        print(f"🔁 指紋 {prev} 沒回應，改試 {fp}：{label}")
+        try:
+            res = nba_get(url, impersonate=fp)
+            res.raise_for_status()
+            data = res.json()
+        except Exception as e:
+            print(f"Error fetching {label} [{fp}]: {e}")
+            time.sleep(2)
+            continue
+        _fp["current"] = fp
+        _save_fingerprint(prev)
+        print(f"🔁 指紋 {prev} 沒回應，改用 {fp}（已記住）")
+        return data
+    print(f"🔁 {len(FINGERPRINTS)} 個指紋都沒回應（多半是 IP 被擋或伺服器問題，不是指紋）")
+    return None
 
 
 class NBABlockedError(Exception):
@@ -365,6 +420,8 @@ def fetch_with_retry(url, label, max_retries=3):
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Response Body: {e.response.text[:300]}")
             time.sleep(3 * (attempt + 1))  # 遞增等待，提高連續 500 時的成功率
+    if data is None and _block_guard["ok"] == 0 and not _fp["tried_all"]:
+        data = _try_other_fingerprints(url, label)
     if data is None:
         print(f"[FAILED] {label}: {max_retries} 次重試皆失敗，本項資料將缺漏")
     _block_guard_update(data is not None)
@@ -454,26 +511,18 @@ def init_firebase():
 def fetch_roster_with_ids(season):
     """抓取指定賽季的灰狼名單，回傳 [{'id': int, 'name': str}, ...]"""
     url = f"https://stats.nba.com/stats/commonteamroster?LeagueID=00&Season={season}&TeamID={TEAM_ID}"
-    for attempt in range(3):
-        try:
-            print(f"Fetching {season} 灰狼名單 (Attempt {attempt+1}/3)...")
-            # commonteamroster 用 safari15_5 比較不會被擋，故不用共用 SESSION
-            res = requests.get(url, headers=SESSION.headers, impersonate="safari15_5", timeout=15)
-            res.raise_for_status()
-            data = res.json()
-            headers_list = data['resultSets'][0]['headers']
-            rows = data['resultSets'][0]['rowSet']
-            roster = [
-                {'id': row[headers_list.index("PLAYER_ID")], 'name': row[headers_list.index("PLAYER")]}
-                for row in rows
-            ]
-            print(f"✅ {season} 共 {len(roster)} 位球員: {', '.join(p['name'] for p in roster)}")
-            return roster
-        except Exception as e:
-            print(f"Error fetching roster: {e}")
-            time.sleep(3)
-    print(f"[FAILED] {season} 灰狼名單: 3 次重試皆失敗")
-    return []
+    # 走 fetch_with_retry：--games-only 時名冊是第一個請求，要能觸發換指紋與 block guard
+    data = fetch_with_retry(url, f"{season} 灰狼名單")
+    if data is None:
+        return []
+    headers_list = data['resultSets'][0]['headers']
+    rows = data['resultSets'][0]['rowSet']
+    roster = [
+        {'id': row[headers_list.index("PLAYER_ID")], 'name': row[headers_list.index("PLAYER")]}
+        for row in rows
+    ]
+    print(f"✅ {season} 共 {len(roster)} 位球員: {', '.join(p['name'] for p in roster)}")
+    return roster
 
 
 def fetch_team_game_log(season, season_type_api):

@@ -42,6 +42,7 @@ from nba_common import (
     get_current_season,
     enable_block_guard,
     NBABlockedError,
+    fingerprint_info,
 )
 from build_bundles import upsert_game
 from fetch_shotchart import capture_game_shots
@@ -64,8 +65,9 @@ def write_status(mode, ok, note=""):
             status = json.load(f)
     except (OSError, ValueError):
         status = {}
+    # 指紋與有沒有中途換過（fingerprint／switchedFrom）給 watchdog.py 回報
     status[mode] = {"ok": ok, "finishedAt": datetime.now().isoformat(timespec="seconds"),
-                    "etDate": get_today_str(), "note": note}
+                    "etDate": get_today_str(), "note": note, **fingerprint_info()}
     with open(STATUS_PATH, "w", encoding="utf-8") as f:
         json.dump(status, f, ensure_ascii=False, indent=2)
 

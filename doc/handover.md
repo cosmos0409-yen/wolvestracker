@@ -10,7 +10,7 @@
 | 1 | Firebase 整合 | ✅ | 前端以 Firestore lite 的 `getDocs`（當季範圍查詢）+ `getDoc`（歷史）讀取（2026-10-28 前當季用 `onSnapshot`） |
 | 2 | Python 爬蟲腳本 | ✅ | `scripts/fetch_data.py`，含 11 PlayType + 6 Tracking |
 | 3 | 前端 UI 全面改寫 | ✅ | 雷達圖、Tracking 卡片、球員頭像、賽季標籤 |
-| 4 | 反爬蟲機制 | ✅ | curl_cffi 瀏覽器 TLS 模擬 + retry |
+| 4 | 反爬蟲機制 | ✅ | curl_cffi 瀏覽器 TLS 模擬 + retry；被擋自動換指紋（2026-10-29，見 FAQ「NBA API 跑失敗」） |
 | 5 | 賽季類型自動判斷 | ✅ | `get_season_type()`（後端）+ `getSeasonPhase()`（前端） |
 | 6 | Windows 排程器自動執行 | ✅ | 每日 03:00 抓前一晚比賽（`WolvesTracker`）、每週一 14:30 抓熱圖（`WolvesShotchart`）；詳見「自動化排程」 |
 | 7 | `seasonType` / `season` 欄位 | ✅ | 所有文件含「例行賽 / 季後賽」標籤 |
@@ -837,6 +837,8 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: NBA API 跑失敗
 看對應 log：`fetch_log.txt`（每日）/ `shotchart_log.txt`（熱圖）/ `backfill_games_log*.txt`（單場回補）。搜 `[FAILED]` 看缺哪項；腳本有 3 次 retry，通常等隔天即可。
 
+**全部逾時（`curl: (28) ... 0 bytes received`）多半是瀏覽器指紋被擋，不是 IP**（2026-10-29：`chrome110` 整天全逾時、同機 `safari15_5` 0.5 秒回 200）。stats.nba.com 前面的 Akamai Bot Manager 會檢查 TLS 指紋，被判定是機器人時不回 403、直接不回應。2026-10-29 起 `nba_common` 自動處理：這次執行第一個請求重試耗盡、且還沒有任何成功時，依 `FINGERPRINTS` 順序換其他指紋各試 1 次，成功就寫進 `nba_fingerprint.json`（本機、不進版控）下次沿用；所有腳本共用（名冊也走 `fetch_with_retry`）。User-Agent 不再隨機換，由 impersonate 帶出與指紋相符的 UA。log 看 `🔁` 行；`fetch_status.json` 記 `fingerprint`／`switchedFrom`／`triedAll`，看門狗 log 與通知會寫「指紋 X」或「🔁 指紋 A 沒回應，已自動換成 B」，換過的那天 15:00 另跳「已自動換指紋」通知。**全部指紋都不行**＝多半是 IP 被擋或伺服器問題，block guard 照常收手，等冷卻（網路回報約 1 小時起跳、不固定）。候選全被擋時：升級 `curl_cffi`（本機 0.6.2，新版有較新的指紋；版本跨度大要另外測），再把新名稱加進 `FINGERPRINTS`；想從頭試就刪 `nba_fingerprint.json`。參考：[swar/nba_api#652](https://github.com/swar/nba_api/issues/652)
+
 ### Q: 網站少了昨晚那場比賽
 正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 26 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt`（或 `fetch_log_watchdog.txt`）的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
 
@@ -956,7 +958,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
-- 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）；被擋時少打 request：`fetch_data.py` 開頭連續 3 項失敗提前結束（碼 2）、早上看門狗當天已失敗過就不再重試、逾時中止的補抓輸出補換行
+- 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）；被擋時少打 request：`fetch_data.py` 開頭連續 3 項失敗提前結束（碼 2）、早上看門狗當天已失敗過就不再重試、逾時中止的補抓輸出補換行；瀏覽器指紋自動切換（`FINGERPRINTS`、`nba_fingerprint.json`，UA 跟指紋一致、名冊併入共用重試），看門狗 log／通知回報指紋與是否換過（起因：`chrome110` 被 Akamai 擋整天，同機 `safari15_5` 正常）
 - 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算
 - 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期
