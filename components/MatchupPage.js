@@ -390,9 +390,13 @@
                                 <ol className="divide-y divide-white/[0.06] border-t border-white/[0.08]">
                                     {ops.slice(0, 8).map(p => (
                                         <li key={p.pid} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-3 py-1.5 text-[13px]">
-                                            <span className="truncate text-slate-200">{p.name} <span className="font-mono text-[10px] text-slate-500">{p.n}場 · {p.MIN.toFixed(0)}分鐘</span></span>
+                                            {/* 場數／分鐘放名字下一行：手機上同一行會把名字截掉 */}
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-slate-200">{p.name}</span>
+                                                <span className="block font-mono text-[10px] text-slate-500">{p.n}場 · {p.MIN.toFixed(0)}分鐘</span>
+                                            </span>
                                             <span className="font-mono tabular-nums text-slate-50">{p.PTS.toFixed(1)}<span className="ml-0.5 text-[10px] text-slate-500">分</span></span>
-                                            <span className="w-40 whitespace-nowrap text-right font-mono text-[11px] tabular-nums text-slate-400">{p.REB.toFixed(1)}板 {p.AST.toFixed(1)}助 · {signed(p.PM)}</span>
+                                            <span className="whitespace-nowrap sm:w-40 text-right font-mono text-[11px] tabular-nums text-slate-400">{p.REB.toFixed(1)}板 {p.AST.toFixed(1)}助 · {signed(p.PM)}</span>
                                         </li>
                                     ))}
                                 </ol>
@@ -430,7 +434,7 @@
                                                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-slate-200">{signed(p.agg.PLUS_MINUS)}</td>
                                             </tr>
                                             {openPid === p.pid && (
-                                                <tr><td colSpan={9} className="p-0"><PlayerDetail pid={p.pid} name={p.name} team={team} seasons={data.win.seasons} type={type} /></td></tr>
+                                                <UI.ExpandRow colSpan={9}><PlayerDetail pid={p.pid} name={p.name} team={team} seasons={data.win.seasons} type={type} /></UI.ExpandRow>
                                             )}
                                         </React.Fragment>
                                     ))}

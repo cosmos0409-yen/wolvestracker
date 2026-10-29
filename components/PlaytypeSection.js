@@ -49,7 +49,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = fal
                     <span className="relative inline-block h-[3px] w-16 bg-white/[0.08]" aria-hidden="true">
                         <span className="absolute inset-y-0 left-0" style={{ width: Math.max(0, Math.min(100, r.percentile)) + '%', background: UI.pctColor(r.percentile) }}></span>
                     </span>
-                    <span className="w-9 text-right" style={{ color: UI.pctColor(r.percentile) }}>{r.percentile.toFixed(1)}</span>
+                    <span className="w-10 text-right" style={{ color: UI.pctColor(r.percentile) }}>{r.percentile.toFixed(1)}</span>
                     {r._rank && <span className="w-8 text-right font-mono text-[11px] text-slate-400" title={`30 隊中第 ${r._rank.rank}（由球隊百分位換算）`}>第{r._rank.rank}</span>}
                 </span>) },
         { key: 'fgPct', label: '命中率', en: 'FG%', gkey: 'FG_PCT', render: (r) => typeof r.fgPct === 'number' ? r.fgPct.toFixed(1) + '%' : '—' },

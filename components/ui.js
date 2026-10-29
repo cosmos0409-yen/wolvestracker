@@ -7,6 +7,7 @@
 //   Seg       膠囊分段切換（aria-pressed）
 //   TabBar    sticky 分頁列（章節列／薪資頁／單場頁共用）＋ useTabKeys 數字鍵切分頁
 //   Section   區塊（標題＋小字原文＋說明＋右側操作），Note 空狀態／提示，Chip/selectClass 篩選膠囊
+//   ExpandRow 可橫捲表格的展開列（內容固定在可視寬度，手機不會跑到畫面外）
 //   寫作工具  CopyBtn/citeLine/doCopy（複製引用）、Info（指標定義，讀 glossary.js；帶 cite 時小卡內含複製引用）、toast、ExportMenu/exportCSV/exportPNG（匯出）
 //   DataTable 可排序表格（Synergy 式：數字右對齊等寬、首欄在手機橫捲時固定且限寬換行，避免長名稱蓋住數字）
 window.UI = (function () {
@@ -116,7 +117,8 @@ window.UI = (function () {
     const Info = ({ k, align = 'left', cite, rank, quote }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
-        const ref = React.useRef(null);
+        const [pos, setPos] = React.useState(null);
+        const ref = React.useRef(null), popRef = React.useRef(null);
         React.useEffect(() => {
             if (!open) return;
             const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -124,6 +126,23 @@ window.UI = (function () {
             document.addEventListener('mousedown', off); document.addEventListener('keydown', esc, true);
             return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc, true); };
         }, [open]);
+        // 小卡用 fixed 定位、夾在視窗內：absolute 往單側展開時，手機上靠邊的「?」會讓小卡超出畫面，
+        // 放在可橫捲表格（overflow-x-auto）表頭裡的還會被容器裁掉。捲動／縮放時跟著按鈕重算
+        React.useLayoutEffect(() => {
+            if (!open) { setPos(null); return; }
+            const place = () => {
+                const b = ref.current && ref.current.getBoundingClientRect(), p = popRef.current;
+                if (!b || !p) return;
+                const W = document.documentElement.clientWidth, H = window.innerHeight, M = 8, w = p.offsetWidth, h = p.offsetHeight;
+                const left = Math.max(M, Math.min(align === 'right' ? b.right - w : b.left, W - w - M));
+                const below = b.bottom + 4;
+                const top = below + h > H - M && b.top - 4 - h >= M ? b.top - 4 - h : below;
+                setPos({ left, top });
+            };
+            place();
+            window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
+            return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+        }, [open, align]);
         if (!g && !quote) return cite ? <CopyBtn text={cite} /> : null;
         const addQuote = () => {
             const r = window.Quote.add(typeof quote === 'function' ? quote() : quote);
@@ -139,8 +158,9 @@ window.UI = (function () {
                     <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[9px] leading-none ${open ? 'border-[#12A150] text-[#12A150]' : 'border-white/20 text-slate-500 group-hover/info:border-white/40 group-hover/info:text-slate-200'}`}>?</span>
                 </button>
                 {open && (
-                    <span role={cite || quote ? 'dialog' : 'tooltip'} aria-label={cite || quote ? '指標定義' : undefined} onClick={(e) => e.stopPropagation()}
-                        className={`absolute top-6 z-40 block w-72 max-w-[80vw] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal ${align === 'right' ? 'right-0' : 'left-0'}`}>
+                    <span ref={popRef} role={cite || quote ? 'dialog' : 'tooltip'} aria-label={cite || quote ? '指標定義' : undefined} onClick={(e) => e.stopPropagation()}
+                        style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: 'hidden' }}
+                        className="fixed z-40 block w-72 max-w-[calc(100vw-16px)] border border-white/15 bg-[#0C1A2E] p-3 text-left text-[12px] font-normal normal-case leading-relaxed tracking-normal text-slate-200 shadow-2xl whitespace-normal">
                         {g ? (<>
                             <span className="block">{g.def}</span>
                             {g.calc && <span className="mt-1.5 block font-mono text-[11px] text-slate-400">計算：{g.calc}</span>}
@@ -326,10 +346,11 @@ window.UI = (function () {
                 )}
                 {/* pr-8：右上角複製鈕佔 4–28px，標題要留到 32px 外，兩個點擊範圍才不重疊 */}
                 <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
-                    <span className="truncate" title={label}>{label}</span>
+                    {/* 手機 3 欄時每格只剩約 60px：標籤換行而不截斷（「急停三分命中率」會被切成「急停三分…」） */}
+                    <span className="min-w-0 break-words">{label}</span>
                     {gkey && <Info k={gkey} rank={rank} quote={quoteFn} cite={missing ? undefined : () => citeLine({ label, en, value, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
                 </div>
-                {en && <div className="font-mono text-[10px] leading-tight text-slate-500 truncate" title={en}>{en}</div>}
+                {en && <div className="font-mono text-[10px] leading-tight text-slate-500 break-words">{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
                     {isNA ? (
                         <span className="font-display text-[26px] font-semibold leading-none text-slate-600 cursor-help" title={naReason}>—</span>
@@ -554,5 +575,28 @@ window.UI = (function () {
     );
     const selectClass = (active) => `shrink-0 rounded-full border bg-[#0A1626] px-3 py-1 text-xs focus:outline-none focus:border-[#12A150] ${active ? 'border-[#12A150] text-slate-50' : 'border-white/15 text-slate-400'}`;
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
+    // 可橫捲表格裡的展開列（td colSpan）：內容寬度會跟著整張表攤開，手機上數值落到畫面外。
+    // 改成黏在捲動容器左緣、寬度＝可視寬度（容器變寬時跟著量）
+    const ExpandRow = ({ colSpan, className = '', children }) => {
+        const ref = React.useRef(null);
+        const [w, setW] = React.useState(null);
+        React.useLayoutEffect(() => {
+            let sc = ref.current && ref.current.parentElement;
+            while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowX)) sc = sc.parentElement;
+            if (!sc) return;
+            const update = () => setW(sc.clientWidth);
+            update();
+            if (!window.ResizeObserver) return;
+            const ro = new ResizeObserver(update);
+            ro.observe(sc);
+            return () => ro.disconnect();
+        }, []);
+        return (
+            <tr><td colSpan={colSpan} className={`p-0 ${className}`}>
+                <div ref={ref} className="sticky left-0" style={w ? { width: w } : undefined}>{children}</div>
+            </td></tr>
+        );
+    };
+
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
 })();

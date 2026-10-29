@@ -203,15 +203,18 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const teamBlock = (t, side) => {
         const lose = t.score < (side === 'away' ? home.score : away.score);
         const score = <div className={`font-display text-[56px] sm:text-[80px] font-bold leading-none tabular-nums ${lose ? 'text-slate-50/40' : 'text-slate-50'}`}>{t.score}</div>;
+        // 手機半欄只有約 170px：隊徽＋隊名一列、比分放下一列（同一列會把隊名擠到剩幾 px、三碼蓋住隊徽）
         return (
-            <div className={`flex items-center gap-3 sm:gap-4 ${side === 'home' ? 'flex-row-reverse text-right' : ''}`}>
-                <img src={logo(t.teamId)} alt="" className="h-12 w-12 sm:h-20 sm:w-20 shrink-0" />
-                <div className="min-w-0">
-                    <div className="font-display text-[30px] sm:text-[40px] font-bold leading-none">{t.tricode}</div>
-                    <div className="truncate text-[12px] text-slate-400">{t.name}</div>
-                    <div className="font-mono text-[11px] text-slate-500">{side === 'home' ? '主' : '客'}</div>
+            <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 ${side === 'home' ? 'items-end text-right sm:flex-row-reverse' : 'items-start'}`}>
+                <div className={`flex min-w-0 max-w-full items-center gap-2 sm:gap-4 ${side === 'home' ? 'flex-row-reverse' : ''}`}>
+                    <img src={logo(t.teamId)} alt="" className="h-10 w-10 sm:h-20 sm:w-20 shrink-0" />
+                    <div className="min-w-0">
+                        <div className="font-display text-[26px] sm:text-[40px] font-bold leading-none">{t.tricode}</div>
+                        <div className="truncate text-[12px] text-slate-400">{t.name}</div>
+                        <div className="font-mono text-[11px] text-slate-500">{side === 'home' ? '主' : '客'}</div>
+                    </div>
                 </div>
-                <div className={side === 'home' ? 'mr-auto' : 'ml-auto'}>{score}</div>
+                <div className={side === 'home' ? 'sm:mr-auto' : 'sm:ml-auto'}>{score}</div>
             </div>
         );
     };
@@ -414,7 +417,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                         <td key={k} className={`px-2 py-1.5 text-right font-mono tabular-nums whitespace-nowrap ${tdCls(p.stats, k)}`}>{cell(p.stats, k)}</td>
                     ))}
                 </tr>
-                {open && <tr><td colSpan={BOX_COLS.length + 1} className="bg-[#12A150]/[0.04] p-0">{expandRow(mp)}</td></tr>}
+                {open && <UI.ExpandRow colSpan={BOX_COLS.length + 1} className="bg-[#12A150]/[0.04]">{expandRow(mp)}</UI.ExpandRow>}
             </React.Fragment>
         );
     };
