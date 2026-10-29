@@ -40,6 +40,8 @@ from nba_common import (
     fetch_single_game,
     game_docs,
     get_current_season,
+    enable_block_guard,
+    NBABlockedError,
 )
 from build_bundles import upsert_game
 from fetch_shotchart import capture_game_shots
@@ -52,6 +54,7 @@ DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defe
 # 執行結果狀態檔（本機產物、不進版控）：watchdog.py 讀它判斷 03:00 主排程有沒有完成。
 # 不能改看快照文件在不在——沒比賽的日子數據相同會被 dedup 跳過寫入
 STATUS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fetch_status.json")
+STATUS_MODE = None  # 這次執行要寫的狀態（'full'／'games'；強制模式 None 不寫），提前結束時用
 
 
 def write_status(mode, ok, note=""):
@@ -227,6 +230,9 @@ def main():
         parser.error("--games-only 不能和 --force-type 併用")
 
     force = bool(args.force_type)
+    global STATUS_MODE
+    STATUS_MODE = None if force else ("games" if args.games_only else "full")
+    enable_block_guard()
     if force:
         season_type_api = "Regular+Season" if args.force_type == "regular" else "Playoffs"
         season_type_label = "例行賽" if args.force_type == "regular" else "季後賽"
@@ -399,4 +405,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except NBABlockedError as e:
+        # 開頭連續失敗就提前結束，不把剩下幾百個 request 打完；結束碼同「Synergy 與 base 皆無資料」
+        print(f"❌ {e}，疑似遭到 NBA API 阻擋，提前結束（未寫入）。")
+        if STATUS_MODE:
+            write_status(STATUS_MODE, False, f"{e}，疑似被 NBA 擋（提前結束）")
+        sys.exit(2)

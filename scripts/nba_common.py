@@ -322,10 +322,35 @@ def nba_get(url, timeout=30):
     return SESSION.get(url, timeout=timeout)
 
 
+class NBABlockedError(Exception):
+    """開頭連續 BLOCK_ABORT_AFTER 項都失敗、且這次執行還沒有任何一項成功 → 疑似被 NBA 擋"""
+
+
+BLOCK_ABORT_AFTER = 3  # 被擋時每項要等 3×30 秒逾時，整次完整抓取會拖 2 小時、送出幾百個 request
+_block_guard = {"on": False, "ok": 0, "fails": 0}
+
+
+def enable_block_guard():
+    """開啟後 fetch_with_retry 在「開頭連續失敗」時丟 NBABlockedError 讓呼叫端提早結束；
+    中途零星失敗（已有成功項目）不影響。目前只有 fetch_data.py 開啟"""
+    _block_guard.update(on=True, ok=0, fails=0)
+
+
+def _block_guard_update(ok):
+    g = _block_guard
+    if ok:
+        g["ok"] += 1
+        g["fails"] = 0
+        return
+    g["fails"] += 1
+    if g["on"] and g["ok"] == 0 and g["fails"] >= BLOCK_ABORT_AFTER:
+        raise NBABlockedError(f"開頭連續 {g['fails']} 項都失敗")
+
+
 def fetch_with_retry(url, label, max_retries=3):
     """
     帶重試的抓取，回傳解析後的 JSON dict；重試耗盡回傳 None 並印出 [FAILED] 標記。
-    每次呼叫（無論成敗）尾端休息 2 秒防擋。
+    每次呼叫（無論成敗）尾端休息 2 秒防擋。開了 enable_block_guard() 時，開頭連續失敗會丟 NBABlockedError
     """
     data = None
     for attempt in range(max_retries):
@@ -342,6 +367,7 @@ def fetch_with_retry(url, label, max_retries=3):
             time.sleep(3 * (attempt + 1))  # 遞增等待，提高連續 500 時的成功率
     if data is None:
         print(f"[FAILED] {label}: {max_retries} 次重試皆失敗，本項資料將缺漏")
+    _block_guard_update(data is not None)
     time.sleep(2)
     return data
 

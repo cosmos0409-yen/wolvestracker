@@ -11,7 +11,8 @@ Wolves Tracker - 每日抓取看門狗（排程 WolvesWatchdog，台北 15:00 �
 
 早上模式 --morning（排程 WolvesWatchdogMorning：每日 09:00＋登入＋解鎖螢幕）：筆電用電池待命時 03:00 不會被喚醒，
 主排程常要拖到 15:00 才由上面的看門狗補上。早上模式只做第 1 級：主排程今天的觸發時間已過、卻沒完成 → 完整補抓
-（此時前一晚的比賽已定稿，補到的就是最終版）。今天已完成或還沒到觸發時間就直接結束：不發 request、不寫 log，
+（此時前一晚的比賽已定稿，補到的就是最終版）。今天已完成、今天已失敗過（多半被擋，留給 15:00）或還沒到觸發時間
+就直接結束：不發 request、不寫 log，
 所以一天被解鎖觸發很多次也沒關係。第 2 級（昨晚那場）仍留給 15:00。
 
 用法：
@@ -146,6 +147,12 @@ def ran_today(mode, since):
     return bool(s.get("ok")) and s.get("finishedAt", "") >= since.isoformat(timespec="seconds")
 
 
+def failed_today(mode, since):
+    """mode 在 since 之後執行完、但失敗（主排程或看門狗補抓都算；被逾時中止的不會寫狀態檔）"""
+    s = read_status(mode)
+    return s.get("ok") is False and s.get("finishedAt", "") >= since.isoformat(timespec="seconds")
+
+
 def latest_game(season, season_type_api):
     """賽程上最新一場 (doc_date, matchup, wl)；賽程抓不到回 None"""
     log_ = fetch_team_game_log(season, season_type_api)
@@ -182,6 +189,8 @@ def run_fetch(extra_args):
         out, rc = (r.stdout or "") + (r.stderr or ""), r.returncode
     except subprocess.TimeoutExpired as e:
         out, rc = str(e.stdout or ""), -1
+    if out and not out.endswith("\n"):
+        out += "\n"  # 被中止的輸出停在行中間，不補換行下一段標頭會黏上來
     log_name = write_fetch_log(
         f"=== [watchdog] fetch_data.py {' '.join(extra_args)} {datetime.now():%Y-%m-%d %H:%M} ===\n{out}")
     if rc == -1:
@@ -224,13 +233,18 @@ def main():
             if args.dry_run:
                 print("[dry-run][早上] 今天主排程已完成，不用補")
             return
+        if failed_today("full", since):
+            # 被擋時解鎖一次就重抓一次只會越擋越久（2026-10-29），今天已失敗過就留給 15:00 那次
+            if args.dry_run:
+                print("[dry-run][早上] 今天完整抓取已失敗過，不再重試，留給 15:00 看門狗")
+            return
         if not main_state()["due_passed_today"]:
             if args.dry_run:
                 print("[dry-run][早上] 今天主排程還沒到觸發時間，不用補")
             return
     wait_note, still_running = wait_for_main(args.dry_run)
-    if args.morning and ran_today("full", since):
-        return   # 等到主排程自己補跑完成
+    if args.morning and (ran_today("full", since) or failed_today("full", since)):
+        return   # 等到主排程自己補跑完成；它失敗了也不接著重試（同上，留給 15:00）
     if still_running:
         log(f"⚠️ 主排程或 fetch_data.py 等了 {WAIT_MAIN_MINUTES} 分鐘仍在執行（多半是 NBA 逾時／被擋），本次不補抓，交給下一次看門狗")
         return
