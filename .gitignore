@@ -56,3 +56,4 @@ node_modules/
 ### 看門狗本機產物 ###
 fetch_status.json
 watchdog_log.txt
+fetch_log_watchdog.txt

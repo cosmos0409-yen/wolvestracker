@@ -36,6 +36,7 @@ from nba_common import get_season_type, get_current_season, fetch_team_game_log,
 STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
 FETCH_LOG_PATH = os.path.join(ROOT, "fetch_log.txt")
+FETCH_LOG_FALLBACK = os.path.join(ROOT, "fetch_log_watchdog.txt")  # fetch_log.txt 被主排程鎖住時改寫這裡
 MAIN_TASK = "WolvesTracker"
 FETCH_PROC_PATTERN = "*fetch_data.py*"  # 偵測執行中的抓取（含手動執行）
 WAIT_MAIN_START_MINUTES = 10  # 主排程錯過時，等它開機補跑啟動最多這麼久
@@ -104,11 +105,14 @@ def main_state(now=None):
 
 def wait_for_main(dry_run):
     """開機補跑時主排程與看門狗會同時啟動，啟動順序不保證：主排程錯過時先等它啟動（最多 WAIT_MAIN_START_MINUTES），
-    再等它跑完（最多 WAIT_MAIN_MINUTES），避免兩邊同時完整抓取。回傳 dry-run 要附註的說明"""
+    再等它跑完（最多 WAIT_MAIN_MINUTES），避免兩邊同時完整抓取。
+    回傳 (dry-run 要附註的說明, 等滿仍在跑)；仍在跑時呼叫端不補抓——跑這麼久多半是 NBA 逾時／被擋，
+    再開一個抓取只會加重（2026-10-29 兩個抓取並行、看門狗那個 45 分鐘逾時）"""
     s = main_state()
     if dry_run:
         return ("主排程錯過、尚未補跑，正式執行時會先等它；" if s["missed"] else
-                "主排程或 fetch_data.py 執行中，正式執行時會等它跑完；" if s["running"] else "")
+                f"主排程或 fetch_data.py 執行中，正式執行時會等它跑完（超過 {WAIT_MAIN_MINUTES} 分鐘就不補抓）；"
+                if s["running"] else ""), False
     if s["missed"] and not s["running"]:
         print(f"主排程 {MAIN_TASK} 錯過、尚未補跑，等它啟動…")
         for _ in range(WAIT_MAIN_START_MINUTES * 2):
@@ -125,7 +129,7 @@ def wait_for_main(dry_run):
         time.sleep(60)
         waited += 1
         s = main_state()
-    return ""
+    return "", s["running"]
 
 
 def read_status(mode):
@@ -155,8 +159,21 @@ def game_captured(db, d):
     return db.collection("wolves_player_games").document(d).get(field_paths=["date"]).exists
 
 
+def write_fetch_log(text):
+    """補抓輸出併入 fetch_log.txt；主排程 run_fetch.bat 的 >> 轉向會鎖住它（Windows 檔案鎖），
+    寫不進去改寫 FETCH_LOG_FALLBACK，回傳實際寫入的檔名（給通知用）"""
+    for path in (FETCH_LOG_PATH, FETCH_LOG_FALLBACK):
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(text)
+            return os.path.basename(path)
+        except OSError:
+            continue
+    return "（log 寫入失敗）"
+
+
 def run_fetch(extra_args):
-    """跑 fetch_data.py，輸出併入 fetch_log.txt；回傳 (結束碼, 輸出中最後一條錯誤訊息)"""
+    """跑 fetch_data.py，輸出併入 fetch_log.txt；回傳 (結束碼, 輸出中最後一條錯誤訊息, 輸出寫進的 log 檔名)"""
     cmd = [sys.executable, os.path.join(ROOT, "scripts", "fetch_data.py")] + extra_args
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     try:
@@ -165,15 +182,15 @@ def run_fetch(extra_args):
         out, rc = (r.stdout or "") + (r.stderr or ""), r.returncode
     except subprocess.TimeoutExpired as e:
         out, rc = str(e.stdout or ""), -1
-    with open(FETCH_LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(f"=== [watchdog] fetch_data.py {' '.join(extra_args)} {datetime.now():%Y-%m-%d %H:%M} ===\n{out}")
+    log_name = write_fetch_log(
+        f"=== [watchdog] fetch_data.py {' '.join(extra_args)} {datetime.now():%Y-%m-%d %H:%M} ===\n{out}")
     if rc == -1:
-        return rc, f"執行超過 {FETCH_TIMEOUT_MINUTES} 分鐘被中止"
+        return rc, f"執行超過 {FETCH_TIMEOUT_MINUTES} 分鐘被中止", log_name
     lines = [l.strip() for l in out.splitlines() if l.strip()]
     errs = [l for l in lines if l.startswith(("❌", "[FAILED]"))]
     if not errs and rc != 0 and lines:
         errs = lines[-1:]  # 未捕捉例外：Traceback 最後一行就是錯誤本身
-    return rc, (errs[-1] if errs else "")
+    return rc, (errs[-1] if errs else ""), log_name
 
 
 def label(game):
@@ -211,9 +228,12 @@ def main():
             if args.dry_run:
                 print("[dry-run][早上] 今天主排程還沒到觸發時間，不用補")
             return
-    wait_note = wait_for_main(args.dry_run)
+    wait_note, still_running = wait_for_main(args.dry_run)
     if args.morning and ran_today("full", since):
         return   # 等到主排程自己補跑完成
+    if still_running:
+        log(f"⚠️ 主排程或 fetch_data.py 等了 {WAIT_MAIN_MINUTES} 分鐘仍在執行（多半是 NBA 逾時／被擋），本次不補抓，交給下一次看門狗")
+        return
 
     season = get_current_season()
     db = init_firebase()
@@ -245,7 +265,7 @@ def main():
         return
 
     print(f"{reason}，開始補抓…")
-    rc, err = run_fetch(fetch_args)
+    rc, err, log_name = run_fetch(fetch_args)
 
     # 補抓後再檢查一次：狀態檔要是這次成功，且最新一場要在
     game = latest_game(season, season_type_api)
@@ -259,7 +279,7 @@ def main():
     else:
         detail = err or (f"結束碼 {rc}" if rc != 0 else "最新一場仍不在資料庫")
         log(f"❌ 補抓失敗（{kind}）：{reason}；{detail}")
-        notify("Wolves Tracker：補抓失敗", f"{reason}。{detail.rstrip('。')}。詳見 fetch_log.txt")
+        notify("Wolves Tracker：補抓失敗", f"{reason}。{detail.rstrip('。')}。詳見 {log_name}")
         sys.exit(1)
 
 

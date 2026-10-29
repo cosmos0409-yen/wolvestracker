@@ -246,7 +246,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - `scripts/watchdog.py`：台北 15:00（≈ 美東 02:00，最晚的西岸場剛打完）檢查兩件事——**今天主排程有沒有完成**（讀 `fetch_status.json`，不看快照文件在不在：沒比賽的日子數據相同會被 dedup 跳過寫入）、**賽程上最新一場在不在 `wolves_player_games`**。前者沒完成 → 完整抓取（約 95 requests）；後者缺 → `fetch_data.py --games-only`（約 26 requests：名冊 1＋賽程 1＋單場 24）。補完再檢查一次，成功／失敗都跳通知；正常只花 1 個 request（讀賽程）、不通知
 - 下午補抓的單場未過定稿門檻（`final=False`），隔天 03:00 主排程照「單場數據」的定稿規則自動重抓成最終版，**不必另外處理**
 - `fetch_data.py`：新增 `--games-only`；每次執行寫 `fetch_status.json`（`full`／`games` 分開記 `ok`、`finishedAt`、`etDate`、`note`）；「Synergy 與 base 皆空」改以**結束碼 2** 結束、Firebase 初始化失敗結束碼 1（舊版都是 0，排程看不出來）
-- 主排程與看門狗同時啟動（電腦 03:00、15:00 都沒開機，開機登入後兩個一起補跑，**啟動順序不保證**）：看門狗讀 `WolvesTracker` 的上次執行時間，早於最近一次應觸發時間（觸發時刻從排程讀，不寫死 03:00）＝錯過待補跑 → 先等它啟動（每 30 秒看一次，最多 10 分鐘，`WAIT_MAIN_START_MINUTES`），再等它跑完（最多 60 分鐘）；10 分鐘都沒啟動（如被停用）才由看門狗自行補抓並記 `⚠️`。另外也偵測系統中執行中的 `fetch_data.py`（含終端機手動執行）一樣等它跑完；`Win32_Process` 會列出已結束但仍被握著 handle 的殘影程序（`HasExited=True`，重開機才消失，2026-10-26 遇過 10/23 的 `backfill_history.py` 殘影），偵測時以 `Get-Process` 確認還活著才算，避免殘影讓看門狗每天白等 60 分鐘。主排程 03:00 有跑但失敗時上次執行時間是當天，不等、照常補抓。2026-10-26 修補（初版只看排程狀態，看門狗若先啟動會和主排程同時完整抓取）
+- 主排程與看門狗同時啟動（電腦 03:00、15:00 都沒開機，開機登入後兩個一起補跑，**啟動順序不保證**）：看門狗讀 `WolvesTracker` 的上次執行時間，早於最近一次應觸發時間（觸發時刻從排程讀，不寫死 03:00）＝錯過待補跑 → 先等它啟動（每 30 秒看一次，最多 10 分鐘，`WAIT_MAIN_START_MINUTES`），再等它跑完（最多 60 分鐘）；10 分鐘都沒啟動（如被停用）才由看門狗自行補抓並記 `⚠️`。另外也偵測系統中執行中的 `fetch_data.py`（含終端機手動執行）一樣等它跑完；`Win32_Process` 會列出已結束但仍被握著 handle 的殘影程序（`HasExited=True`，重開機才消失，2026-10-26 遇過 10/23 的 `backfill_history.py` 殘影），偵測時以 `Get-Process` 確認還活著才算，避免殘影讓看門狗每天白等 60 分鐘。主排程 03:00 有跑但失敗時上次執行時間是當天，不等、照常補抓。2026-10-26 修補（初版只看排程狀態，看門狗若先啟動會和主排程同時完整抓取）。**等滿 60 分鐘主排程仍在跑就放棄這次補抓**（記 `⚠️ … 本次不補抓`，交給下一次看門狗）：跑這麼久多半是 NBA 逾時／被擋，再開一個抓取只會加重。2026-10-29 修補（舊版等滿照樣補抓：07:37 解鎖觸發早上看門狗、07:43 主排程補跑後每個 request 都逾時，08:48 看門狗自己再開完整抓取，45 分鐘逾時被殺，寫 `fetch_log.txt` 又撞到 `run_fetch.bat` 的檔案鎖 → `PermissionError`）。補抓輸出寫不進 `fetch_log.txt`（主排程的 `>>` 轉向握著）時改寫 `fetch_log_watchdog.txt`（不進版控），失敗通知寫出實際檔名
 - 通知：PowerShell 5.1 內建 toast（借用 Windows PowerShell 的 AppUserModelID，免註冊、免套件；pwsh 7 沒有 WinRT 不能用）；勿擾／專注模式時不跳出但留在通知中心
 - `WolvesTracker` 一併改為**用電池可啟動、拔電不中斷**（原設定備份在 `~/.claude/ops/backup-20261026/WolvesTracker-task.xml`）
 
@@ -501,7 +501,7 @@ wolvestracker/
 | 排程名稱 | 時間 | 腳本 | 用途 | Log |
 |---|---|---|---|---|
 | `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
-| `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑，上限 2 小時） | `run_watchdog.bat` | 看門狗：主排程沒完成 → 完整補抓；昨晚那場缺 → 只抓單場；有補抓或失敗才跳桌面通知 | `watchdog_log.txt`（補抓過程併入 `fetch_log.txt`，標頭 `=== [watchdog] ...`） |
+| `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑，上限 2 小時） | `run_watchdog.bat` | 看門狗：主排程沒完成 → 完整補抓；昨晚那場缺 → 只抓單場；有補抓或失敗才跳桌面通知 | `watchdog_log.txt`（補抓過程併入 `fetch_log.txt`，標頭 `=== [watchdog] ...`；被主排程鎖住時寫 `fetch_log_watchdog.txt`） |
 | `WolvesWatchdogMorning` | 每日 09:00＋登入＋解鎖螢幕（2026-10-28 起） | `run_watchdog.bat --morning` | 早上看門狗：03:00 主排程今天該跑卻沒完成 → 完整補抓；已完成或未到觸發時間就安靜結束（不發 request、不寫 log） | `watchdog_log.txt`（標 `[早上]`） |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
 
@@ -838,7 +838,7 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 看對應 log：`fetch_log.txt`（每日）/ `shotchart_log.txt`（熱圖）/ `backfill_games_log*.txt`（單場回補）。搜 `[FAILED]` 看缺哪項；腳本有 3 次 retry，通常等隔天即可。
 
 ### Q: 網站少了昨晚那場比賽
-正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 26 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt` 的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
+正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 26 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt`（或 `fetch_log_watchdog.txt`）的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
 
 ### Q: Backfill 進度怎麼看
 看 `scripts/backfill_queue.txt` 還剩幾行。Phase 1 已完成、queue 已清空。
@@ -956,6 +956,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）
 - 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算
 - 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期
