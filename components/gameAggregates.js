@@ -15,7 +15,11 @@ window.GameAgg = (function () {
         D_FG_PCT: ['D_FGM', 'D_FGA'], D_FG3_PCT: ['D_FG3M', 'D_FG3A'],
         REB_COL_PCT: ['REB', 'REB_CHANCES'],
         PCT_BOX_OUTS_REB: ['BOX_OUT_REBS', 'BOX_OUTS'],   // 卡位後自己搶下比例（不以 _PCT 結尾，不加這行會被當次數相加）
+        // 球員在場效率（每 100 回合得／失分）：逐場 bundle 的 ON_PTS／ON_OPP_PTS／ON_POSS 由進階 box 還原（2026-27 起）
+        ON_OFF_RATING: ['ON_PTS', 'ON_POSS'], ON_DEF_RATING: ['ON_OPP_PTS', 'ON_POSS'],
     };
+    // 差值：輸出 = 兩個加權值相減（各自先依 RATIO_DEFS 重算）
+    const DIFF_DEFS = { ON_NET_RATING: ['ON_OFF_RATING', 'ON_DEF_RATING'] };
     // eFG 特殊公式：100 * (Σ分子 + 0.5*Σ三分分子) / Σ分母
     const EFG_DEFS = {
         CATCH_SHOOT_EFG_PCT: ['CATCH_SHOOT_FGM', 'CATCH_SHOOT_FG3M', 'CATCH_SHOOT_FGA'],
@@ -50,6 +54,7 @@ window.GameAgg = (function () {
         // 只要分母資料在，就一定算出該比率欄（即使某場未存 _PCT 本身）
         Object.keys(RATIO_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[k][1])) keys.add(k); });
         Object.keys(EFG_DEFS).forEach(k => { if (keys.has(EFG_DEFS[k][2])) keys.add(k); });
+        Object.keys(DIFF_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[DIFF_DEFS[k][0]][1])) keys.add(k); });
         for (const k of keys) {
             if (k === 'playerId') { out[k] = rows[0][k]; continue; }
             // GP/W/L 由場次計算，勿被單場 base 的 per-game 值（每場 GP=1）覆寫
@@ -66,6 +71,7 @@ window.GameAgg = (function () {
             const d = sum(RATIO_DEFS[k][1]);
             return d ? round1(100 * sum(RATIO_DEFS[k][0]) / d) : 0;
         }
+        if (DIFF_DEFS[k]) return round1(valueOf(rows, DIFF_DEFS[k][0]) - valueOf(rows, DIFF_DEFS[k][1]));
         if (EFG_DEFS[k]) {
             const [fgm, fg3m, fga] = EFG_DEFS[k];
             const d = sum(fga);
@@ -84,7 +90,7 @@ window.GameAgg = (function () {
         const rows = [];
         for (const g of games) { const e = entityOf(g, entityKey, viewMode); if (e) rows.push(e); }
         if (!rows.length) return null;
-        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : k;
+        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : DIFF_DEFS[k] ? RATIO_DEFS[DIFF_DEFS[k][0]][1] : k;
         if (!rows.some(r => typeof r[need] === 'number')) return null;
         return valueOf(rows, k);
     }

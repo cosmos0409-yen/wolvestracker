@@ -243,7 +243,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 起因：使用者常在白天發現「昨晚那場沒抓到」。查證後 10/26 那次其實不是失敗——03:00 主排程（≈ 美東前一天 14:00）在比賽開打前就跑完，美東晚上的比賽要等隔天 03:00 才上站，**每場比賽約賽後 17～20 小時才看得到**；再加上開季以來另有被擋誤判、程式崩潰（10/24 `NameError`）、筆電用電池時排程直接跳過等失敗型態，沒人發現。
 
 做法（方案 C：03:00 主排程照舊＋15:00 看門狗分級補抓，每次最多補抓一次）：
-- `scripts/watchdog.py`：台北 15:00（≈ 美東 02:00，最晚的西岸場剛打完）檢查兩件事——**今天主排程有沒有完成**（讀 `fetch_status.json`，不看快照文件在不在：沒比賽的日子數據相同會被 dedup 跳過寫入）、**賽程上最新一場在不在 `wolves_player_games`**。前者沒完成 → 完整抓取（約 95 requests）；後者缺 → `fetch_data.py --games-only`（約 26 requests：名冊 1＋賽程 1＋單場 24）。補完再檢查一次，成功／失敗都跳通知；正常只花 1 個 request（讀賽程）、不通知
+- `scripts/watchdog.py`：台北 15:00（≈ 美東 02:00，最晚的西岸場剛打完）檢查兩件事——**今天主排程有沒有完成**（讀 `fetch_status.json`，不看快照文件在不在：沒比賽的日子數據相同會被 dedup 跳過寫入）、**賽程上最新一場在不在 `wolves_player_games`**。前者沒完成 → 完整抓取（約 95 requests）；後者缺 → `fetch_data.py --games-only`（約 28 requests：名冊 1＋賽程 1＋單場 26）。補完再檢查一次，成功／失敗都跳通知；正常只花 1 個 request（讀賽程）、不通知
 - 下午補抓的單場未過定稿門檻（`final=False`），隔天 03:00 主排程照「單場數據」的定稿規則自動重抓成最終版，**不必另外處理**
 - `fetch_data.py`：新增 `--games-only`；每次執行寫 `fetch_status.json`（`full`／`games` 分開記 `ok`、`finishedAt`、`etDate`、`note`）；「Synergy 與 base 皆空」改以**結束碼 2** 結束、Firebase 初始化失敗結束碼 1（舊版都是 0，排程看不出來）
 - 主排程與看門狗同時啟動（電腦 03:00、15:00 都沒開機，開機登入後兩個一起補跑，**啟動順序不保證**）：看門狗讀 `WolvesTracker` 的上次執行時間，早於最近一次應觸發時間（觸發時刻從排程讀，不寫死 03:00）＝錯過待補跑 → 先等它啟動（每 30 秒看一次，最多 10 分鐘，`WAIT_MAIN_START_MINUTES`），再等它跑完（最多 60 分鐘）；10 分鐘都沒啟動（如被停用）才由看門狗自行補抓並記 `⚠️`。另外也偵測系統中執行中的 `fetch_data.py`（含終端機手動執行）一樣等它跑完；`Win32_Process` 會列出已結束但仍被握著 handle 的殘影程序（`HasExited=True`，重開機才消失，2026-10-26 遇過 10/23 的 `backfill_history.py` 殘影），偵測時以 `Get-Process` 確認還活著才算，避免殘影讓看門狗每天白等 60 分鐘。主排程 03:00 有跑但失敗時上次執行時間是當天，不等、照常補抓。2026-10-26 修補（初版只看排程狀態，看門狗若先啟動會和主排程同時完整抓取）。**等滿 60 分鐘主排程仍在跑就放棄這次補抓**（記 `⚠️ … 本次不補抓`，交給下一次看門狗）：跑這麼久多半是 NBA 逾時／被擋，再開一個抓取只會加重。2026-10-29 修補（舊版等滿照樣補抓：07:37 解鎖觸發早上看門狗、07:43 主排程補跑後每個 request 都逾時，08:48 看門狗自己再開完整抓取，45 分鐘逾時被殺，寫 `fetch_log.txt` 又撞到 `run_fetch.bat` 的檔案鎖 → `PermissionError`）。補抓輸出寫不進 `fetch_log.txt`（主排程的 `>>` 轉向握著）時改寫 `fetch_log_watchdog.txt`（不進版控），失敗通知寫出實際檔名
@@ -352,7 +352,7 @@ wolvestracker/
 │   ├── watchdog.py                  ← 每日抓取看門狗（15:00 檢查、分級補抓、桌面通知；--dry-run／--test-notify）
 │   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common）
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
-│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--clean-players 對帳剔除非當時隊員）
+│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--adv-only 已有 box 的場次只補進階＋單場 On/Off；--clean-players 對帳剔除非當時隊員）
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
@@ -400,7 +400,7 @@ wolvestracker/
   - `m`＝Splits 打開逐場走勢的指標 key、`hl`＝走勢上圈出的那一場日期（僅 `tab=splits`）。App 以 `focus = {m, hl, key}` 保存，`key`＝「實體＋章節」：Splits 內換球員保留 `m`、拿掉 `hl`；離開 Splits 清掉。Splits 開關走勢／換指標會回報（`onFocusChange`），網址跟著記住
   - **球員 `p=ID-名字`**（2026-10-24）：`UrlState.playerToken(id, name)` 組（名字部分 `window.nameSlug`＝`nameKey` 後非英數字換 `-`），`tokenPlayerId(p)` 解（符合 `^\d+(-[a-z0-9-]*)?$` 取開頭數字，否則 `null`＝舊連結的完整名字）。App 不直接把網址的 p 塞進 `selectedPlayer`：`wantPlayer = {pid|name, seasonKey}` 交給「自動修正 selectedPlayer」effect，**等 `loadedSeasonKey()`（由 `playerHistory[0].date` 推回：日期字串＝當季、賽季標籤＝歷史）等於目標賽季才比對**（ID 用 `playerIdOf`、名字用 `nameKey`），避開切季那一拍舊名單誤判成「沒有這個人」而退回第一人；比對期間網址只寫 ID（或舊名字），不配上前一位球員的名字。網址帶 ID 時 `selectedPlayer` 初值留空，不先閃出 localStorage 記住的球員
   - **賽季 `s=年份&t=賽別`**（2026-10-24）：歷史賽季寫 `s=2025-26&t=playoffs`（例行賽也寫 `t=regular`）；parse 時 `s=當季年份` 視為當季、舊 key `s=2025-26_playoffs`／`s=current` 照收；`t` 只在當季寫進 `seasonTypeView`（歷史賽季的賽別在 key 裡，不可改到當季賽別）
-  - 單場頁 `#game=日期&tab=box&p=展開的球員`（**沒有 `v=`**）。`tab`＝單場分頁 box／compare／shots（省略＝概要，2026-10-24）；`p` 是展開進階的灰狼球員、只在 `tab=box` 寫入，不改主畫面的 `selectedPlayer`；**舊連結只帶 `p=` 時 parse 成 `tab=box`**；`p` 同主畫面寫「ID-名字」，GamePage 先用 ID 對、舊名字才比名字，對到後把網址改寫成目前的 token。App 以 `gameTab` 保存，切分頁用 `replaceState`，離開 Box Score 清掉 `p`
+  - 單場頁 `#game=日期&tab=box&p=展開的球員`（**沒有 `v=`**）。`tab`＝單場分頁 box／compare／shots（省略＝概要，2026-10-24）；`p` 是展開進階的灰狼球員、只在 `tab=box` 寫入，不改主畫面的 `selectedPlayer`；**舊連結只帶 `p=` 時 parse 成 `tab=box`**；`p` 同主畫面寫「ID-名字」，GamePage 先用 ID 對、舊名字才比名字，對到後把網址改寫成目前的 token。App 以 `gameTab` 保存，切分頁用 `replaceState`，離開 Box Score 清掉 `p`。`bx=adv`＝Box Score 看進階欄組（App 的 `gameBox`，只在 `tab=box` 寫入，離開 Box Score 清掉；賽程條換場次保留，2026-10-29）
   - 薪資頁 `#cap&s=2025-26&tab=contracts`（2026-10-20，**沒有 `v=`**）：`s`＝薪資賽季（省略＝薪資當季，7/1 切換）、`tab`＝contracts／picks／rules（省略＝總覽）。進出同單場頁（改 `location.hash`、「← 回主畫面」直接切回）；切分頁、換賽季用 `replaceState`
   - 進出單場頁一律改 `location.hash`（產生瀏覽紀錄，返回鍵可回上一頁）；單場頁期間主畫面狀態不動，「← 回主畫面」直接切回（不用 `history.back()`：從外部連結直接打開時會離開本站）
   - 改刊頭賽季／賽別／日期、用搜尋面板 → 都會先離開單場頁；數字鍵在單場頁切單場分頁（2026-10-24 起，不再離開）
@@ -632,17 +632,21 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
 兩者共同：gameId、oppId、oppAbbr、matchup、wl、partial、final、captureTries
 ```
 含 Tracking(6) + 對位防守 + Hustle + 分區投籃 + 基本數據的單場值（`DateFrom=DateTo` 抓）。不含 Clutch（單日不穩）與 Synergy（不支援日期）。
-- **對手與 box score（2026-10 起擷取的場次才有）**：box score 已用 `backfill_games.py --season 2025-26 --type {regular,playoffs} --box-only` 補完 2025-26（每場 2 requests，`update` 合併寫入 `box`／`gameId`，不動 `stats`）；對手 Tracking／Hustle 舊場次**不補**（要補得整場重跑，每場約 20 requests，或另寫只抓球隊端的模式約 9 requests）
+- **對手與 box score（2026-10 起擷取的場次才有）**：box score 已用 `backfill_games.py --season 2025-26 --type {regular,playoffs} --box-only` 補完 2025-26（當時每場 2 requests，`update` 合併寫入 `box`／`gameId`，不動 `stats`；2026-10-29 起 `--box-only` 每場 4 個，含進階＋單場 On/Off）；對手 Tracking／Hustle 舊場次**不補**（要補得整場重跑，每場約 20 requests，或另寫只抓球隊端的模式約 9 requests）
   - `fetch_boxscore` 的 `complete` 改為「兩隊都有每節比分」才算完整：summaryv3 偶爾回空殼（2025-11-19 實例，有回應但沒有 periods／背號／傷停／場館），原本只看 `bool(sm)` 會誤判完整
   - 對手球隊：球隊 request 改傳 `TeamID=0`，同一個 request 拿到當天所有球隊，取灰狼（key `MIN`）與對手（key 為 TEAM_ID 字串）——`_team_key()`。每日快照的球隊呼叫維持預設 `team_id=TEAM_ID`，行為不變。
   - 對手球員：球員 request 本來就是全聯盟，以 box score 的對手上場名單（PlayerID）篩出；對位防守另用對手 TeamID 抓（多 2 request）。
   - box score：`nba_common.fetch_boxscore(game_id)` 合併 `boxscoretraditionalv3`（兩隊球員/合計、先發＝有 position、DNP 原因在 comment）與 `boxscoresummaryv3`（每節比分 periods、傷停 inactives、背號、場館、觀眾、裁判）。欄位對照表 `BOX_STAT_FIELDS`（想多存欄位加一行即可）。`MIN` 是字串 `"38:01"`、DNP 球員的 stats 為空 `{}`。
+  - 進階 box（2026-10-29 起，2026-27 全季）：`add_box_advanced` 抓 `boxscoreadvancedv3`（每場 1 request）把 `BOX_ADV_FIELDS` 併進兩隊球員 `stats` 與球隊 `totals`：`OFF_RATING`／`DEF_RATING`／`NET_RATING`（球員＝**在場時**球隊每 100 回合得失分）、`POSS`、`PACE`、`USG_PCT`／`TS_PCT`／`AST_PCT`／`OREB_PCT`／`DREB_PCT`／`REB_PCT`／`PIE`（比例 ×100）。
+  - 單場 On/Off（同日起）：`teamplayeronoffdetails` **吃 `DateFrom=DateTo`**（舊註解說沒有單場版本是錯的；實測 GP=1、在場與進階 box 完全一致）。`add_box_onoff` 每場 1 request，把灰狼球員的「不在場」`OFF_OFF_RATING`／`OFF_DEF_RATING`／`OFF_NET_RATING`／`OFF_MIN` 併進 box 球員 `stats`（對手沒有）。**不可用「全隊 − 在場」推不在場**：NBA 依每段上場分開算回合，在場＋不在場回合 ≠ 全隊回合（10/26 Kuminga 77＋36＝113，全隊 111），推算差 7～16 分。
+  - 進階或 On/Off 沒抓到 → `complete=False`／`partial`，每日補抓會重抓。只缺這兩項的舊場次用 `backfill_games.py --adv-only --dates …`（每場 2 requests）。
+  - 逐場 bundle（`build_bundles`）把 box 的在場效率還原成 `ON_PTS`＝`OFF_RATING×POSS/100`、`ON_OPP_PTS`、`ON_POSS` 併進球員逐場（`nba_common.box_oncourt_totals`，每日 `upsert_game` 帶 `box`）。前端 `GameAgg.RATIO_DEFS` 的 `ON_OFF_RATING`／`ON_DEF_RATING`＝Σ得失分 ÷ Σ回合、`DIFF_DEFS.ON_NET_RATING`＝兩者相減。2026-10-29 用本季前 4 場驗證：加權進攻效率與 On/Off 整季快照完全一致、防守效率差 ≤ 0.9（NBA 防守回合另計）。單場頁展開列的效率「季均」就是此場之前各場的加權值（原本想用 On/Off 快照，但快照會缺日子——10/26 沒有快照時退回 10/25，少算一場）。
   - Game ID 來自 `teamgamelog`（`fetch_team_game_log` 回傳 5 元組，第 5 個是 game_id；`wolves_games_index` 每場也帶 `gameId`）。
   - 球隊 bundle 的每場多 `opp`/`oppAbbr`（舊場次維持原形狀）；box score 不放 bundle（整季約 0.9 MB，會逼近 1 MiB 上限），前端看單場時讀 `wolves_team_games/{date}` 一份即可。
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
 - **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取
 - **2022-23～2024-25 清理（2026-10-23，`backfill_games.py --clean-players`）**：這三季沒有 box，改用**多欄位對帳**（0 request）。每場把 `players` 加總比 `wolves_team_games.stats`：PTS／FGM／FGA／FG3M／FTM／FTA／OREB／DREB／AST／STL／BLK／PF 必須全等，TOV 只要求不超過球隊（球隊失誤含 24 秒違例等團隊失誤），上場時間加總 ≈ 5 × 球隊 MIN（容差 1.5 分鐘）。對不上時找「剔除後全部對得上」的最少人數組合（1～4 人），**該人數下唯一一組才剔除**，否則只列出不動。先用已清理的 2025-26 校準：94 場零誤刪（唯一對不上的 2026-03-01 是 NBA 球員 DREB 加總比球隊少 1，全員都在 box，屬資料落差）。三季例行賽剔除 76 場、105 人次（2022-23：Conley 26、Alexander-Walker 23、Russell 9、Matt Ryan 7、A.J. Lawson 3；2023-24：Troy Brown Jr. 13、Monte Morris 5、Shake Milton 4、Wendell Moore Jr. 1；2024-25：Hyland 13、Tristen Newton 1），剔除日期與真實交易時間吻合；季後賽三季本來就對得上。重建三季 bundle 後，得分加總、對帳腳本、bundle 端反推三種核對全部歸零。用法：先 `--dry-run` 看名單，再拿掉 `--dry-run` 寫入，接著 `build_bundles.py --season X --type Y`
-- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v2_`（同日換版，舊 `wt_gc_{date}` 在 `gamesData.js` 載入時刪掉）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
+- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v3_`（2026-10-29 box 補進階後換版；舊 `wt_gc_{date}`／`wt_gc_v2_{date}` 在 `gamesData.js` 載入時刪掉）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
 - **灰狼單場球員以 box score 上場名單的 PlayerID 過濾，不用名字**：名冊 API 與數據 API 的名字寫法可能不同（2025-26 實例：`Terrence Shannon Jr.` vs `Terrence Shannon Jr`），用名字過濾會整個人漏掉。名字清單只在 box score 抓不到時當後備（`keep_is_fallback`）；`backfill_games.py --min-gp > 0` 時才另外套輪換門檻。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
@@ -747,7 +751,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ### 單場比賽頁（`GamePage.js`，2026-10-19）
 - App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar；ChapterNav 保留但不標選中，點章節＝回主畫面該章節（2026-10-23）。Masthead 期別行改「單場 · 日期」、隱藏賽季／賽別
 - **賽程月曆 `GameCalendar.js`**（2026-10-23，取代「最新一場」按鈕）：App `scheduleSeason`＝單場頁時 `seasonForDate(gameDate)`、否則刊頭所選賽季 → `gamesData.loadSeasonSchedule(season)`（例行＋季後索引合併、每場帶 `type`）。月曆格子標對手縮寫（`@`＝客場）＋勝綠敗紅，季後賽標「季後」，點日期 `openGame`；彈出層用 `ReactDOM.createPortal` 掛 body（刊頭控制列是 overflow-x-auto，放裡面會被裁），fixed 定位、視窗太矮時內部捲動。搜尋「最近比賽」也讀同一份。2021-22 以前沒有 `wolves_games_index` → 按鈕停用並說明
-- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players），經 `gamesData.loadGameDocs(date)` 讀取（2026-10-23 抽出，與對戰頁共用）：記憶體快取 `window.__gameDocCache`＋ localStorage `wt_gc_v2_{date}`（`final === false` 不寫，免得鎖住半成品；對戰頁傳 `persist=false` 只讀不寫）
+- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players），經 `gamesData.loadGameDocs(date)` 讀取（2026-10-23 抽出，與對戰頁共用）：記憶體快取 `window.__gameDocCache`＋ localStorage `wt_gc_v3_{date}`（`final === false` 不寫，免得鎖住半成品；對戰頁傳 `persist=false` 只讀不寫）
 - 比分下方「與 {對手} 歷次交手 →」連到 `#vs=對手`（2026-10-23；沒有 box 的場次也有）
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
@@ -840,7 +844,7 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 **全部逾時（`curl: (28) ... 0 bytes received`）多半是瀏覽器指紋被擋，不是 IP**（2026-10-29：`chrome110` 整天全逾時、同機 `safari15_5` 0.5 秒回 200）。stats.nba.com 前面的 Akamai Bot Manager 會檢查 TLS 指紋，被判定是機器人時不回 403、直接不回應。2026-10-29 起 `nba_common` 自動處理：這次執行第一個請求重試耗盡、且還沒有任何成功時，依 `FINGERPRINTS` 順序換其他指紋各試 1 次，成功就寫進 `nba_fingerprint.json`（本機、不進版控）下次沿用；所有腳本共用（名冊也走 `fetch_with_retry`）。User-Agent 不再隨機換，由 impersonate 帶出與指紋相符的 UA。log 看 `🔁` 行；`fetch_status.json` 記 `fingerprint`／`switchedFrom`／`triedAll`，看門狗 log 與通知會寫「指紋 X」或「🔁 指紋 A 沒回應，已自動換成 B」，換過的那天 15:00 另跳「已自動換指紋」通知。**全部指紋都不行**＝多半是 IP 被擋或伺服器問題，block guard 照常收手，等冷卻（網路回報約 1 小時起跳、不固定）。候選全被擋時：升級 `curl_cffi`（本機 0.6.2，新版有較新的指紋；版本跨度大要另外測），再把新名稱加進 `FINGERPRINTS`；想從頭試就刪 `nba_fingerprint.json`。參考：[swar/nba_api#652](https://github.com/swar/nba_api/issues/652)
 
 ### Q: 網站少了昨晚那場比賽
-正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 26 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt`（或 `fetch_log_watchdog.txt`）的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
+正常情況下台北 15:00 看門狗會補上暫定版（美東晚上的比賽、台北早上結束，03:00 主排程那時還沒開賽），隔天 03:00 自動換成定稿版。15:00 前想先看：`python scripts/fetch_data.py --games-only`（約 28 requests，同樣是暫定版）。15:00 後還沒有：看 `watchdog_log.txt` 最後幾行與通知中心，再翻 `fetch_log.txt`（或 `fetch_log_watchdog.txt`）的 `=== [watchdog]` 段落；`python scripts/watchdog.py --dry-run` 可看它現在的判斷。
 
 ### Q: Backfill 進度怎麼看
 看 `scripts/backfill_queue.txt` 還剩幾行。Phase 1 已完成、queue 已清空。
@@ -866,7 +870,7 @@ Sheet `settings` 分頁的 `show_value` 改成 FALSE，同步後整個區塊消�
 只改 `components/constants.js` 的 `window.MATCHUP_RULES`（`halfSeasonGames` 近三季多含一季的門檻、`minGames` 標籤與淡化的最少場數、`rivalTopN` 勁敵幾隊、`topN`／`tagMinZ` 順手棘手幾隊與 z 門檻、`factorTopN` 關鍵因子幾項），再 `python scripts/bundle.py`。`glossary.js` 的 `MU_TAGS`／`MU_RANGE` 說明文字寫死了數字，改門檻時一起改。
 
 ### Q: 發現單場球員文件混入不是當時隊員的球員
-症狀：某場 `players` 得分加總 ≠ 全隊得分，或球員 Splits 出現他還沒加入時的比賽。跑 `python scripts/backfill_games.py --season X --type Y --clean-players --dry-run` 看名單，確認後拿掉 `--dry-run` 寫入，再 `python scripts/build_bundles.py --season X --type Y`，最後把 `SingleGamePanel` 的 `wt_game_v3_` 與 `gamesData.loadGameDocs` 的 `wt_gc_v2_` 快取鍵各加一版（舊鍵在載入時刪掉）。`--clean-players` 只做多欄位對帳、不看 box；另一種更權威的做法是用 box 上場名單（tricode＝MIN 且有 stats）的 personId 比對，只適用於有 box 的場次（2025-26 起，2026-10-19 清理 2025-26 用的就是這個，見「單場數據」）。
+症狀：某場 `players` 得分加總 ≠ 全隊得分，或球員 Splits 出現他還沒加入時的比賽。跑 `python scripts/backfill_games.py --season X --type Y --clean-players --dry-run` 看名單，確認後拿掉 `--dry-run` 寫入，再 `python scripts/build_bundles.py --season X --type Y`，最後把 `SingleGamePanel` 的 `wt_game_v3_` 與 `gamesData.loadGameDocs` 的 `wt_gc_v3_` 快取鍵各加一版（舊鍵在載入時刪掉）。`--clean-players` 只做多欄位對帳、不看 box；另一種更權威的做法是用 box 上場名單（tricode＝MIN 且有 stats）的 personId 比對，只適用於有 box 的場次（2025-26 起，2026-10-19 清理 2025-26 用的就是這個，見「單場數據」）。
 
 ### Q: 想追蹤其他球隊
 改 `scripts/nba_common.py` 的 `TEAM_ID` 常數（所有腳本共用）。
@@ -936,7 +940,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
-- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（`wt_gc_v2_`，單場頁／對戰頁）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
+- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（`wt_gc_v3_`，單場頁／對戰頁）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
 - **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
 - **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 
@@ -944,7 +948,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 72/天（快照 71＋賽程 1；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 24（含對手與 box score）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 26（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 72/天（快照 71＋賽程 1；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 26（含對手、box score、進階 box 與單場 On/Off）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 28（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
@@ -958,6 +962,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-10-29 — 單場進階 box 與在場／不在場效率：`nba_common` 加 `BOX_ADV_FIELDS`／`add_box_advanced`（boxscoreadvancedv3）、`fetch_onoff(game_date=)`／`add_box_onoff`（單場 On/Off 不在場，只有灰狼）、`box_oncourt_totals`（bundle 的 `ON_PTS`／`ON_OPP_PTS`／`ON_POSS`）；每場抓取 +2 requests；`backfill_games.py --adv-only` 補本季 5 場；`build_bundles` 重建 2026-27；前端 Box Score「傳統｜進階」切換（`bx=adv`）、展開列「效率（在場）」附季均與不在場、`GameAgg` 加 `ON_*_RATING` 加權；`wt_gc_v3_` 換版。使用者決定：不標樣本少、不回補 2025-26 以前
 - 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）；被擋時少打 request：`fetch_data.py` 開頭連續 3 項失敗提前結束（碼 2）、早上看門狗當天已失敗過就不再重試、逾時中止的補抓輸出補換行；瀏覽器指紋自動切換（`FINGERPRINTS`、`nba_fingerprint.json`，UA 跟指紋一致、名冊併入共用重試），看門狗 log／通知回報指紋與是否換過（起因：`chrome110` 被 Akamai 擋整天，同機 `safari15_5` 正常）
 - 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算

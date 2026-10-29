@@ -48,8 +48,10 @@ def build_one(db, index_id):
     for d in dates:
         tg = db.collection("wolves_team_games").document(d).get()
         m = w = ""
+        oncourt = {}
         if tg.exists:
             t = tg.to_dict()
+            oncourt = nc.box_oncourt_totals(t.get("box"))
             m, w = t.get("matchup", ""), t.get("wl", "")
             team_games.append(_team_entry(d, m, w, t.get("stats", {}), t.get("opp"), t.get("oppAbbr", "")))
         pg = db.collection("wolves_player_games").document(d).get()
@@ -62,7 +64,7 @@ def build_one(db, index_id):
                     continue
                 rec = per_player.setdefault(pid, {"playerName": name, "games": []})
                 rec["playerName"] = name
-                rec["games"].append({"date": d, "matchup": m, "wl": w, "stats": pdata})
+                rec["games"].append({"date": d, "matchup": m, "wl": w, "stats": {**pdata, **oncourt.get(pid, {})}})
 
     team_doc = {"season": season, "seasonType": season_type_label, "type": "逐場打包",
                 "count": len(team_games), "timestamp": ts, "games": team_games}
@@ -100,10 +102,11 @@ def _team_entry(date, matchup, wl, stats, opp=None, opp_abbr=""):
 
 
 def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team_stats, players,
-                opp_stats=None, opp_abbr=""):
+                opp_stats=None, opp_abbr="", box=None):
     """增量更新：把單場併入既有 bundle（每日 fetch_data.py 用；同日重抓會取代舊的那場）。
     只讀寫這場有關的 doc（球隊 1 份 + 當場出賽球員各 1 份），不像 build_one 重讀整季。
-    players：球員名為 key 的 dict（同 wolves_player_games.players），值須含 playerId。"""
+    players：球員名為 key 的 dict（同 wolves_player_games.players），值須含 playerId。
+    box：本場 box score（有進階欄位時把在場得失分／回合數併進球員逐場，見 nba_common.box_oncourt_totals）。"""
     import json
     ts = int(datetime.now().timestamp() * 1000)
     base = {"season": season, "seasonType": season_type_label, "type": "逐場打包", "timestamp": ts}
@@ -115,6 +118,7 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
                               _team_entry(date, matchup, wl, team_stats, opp_stats, opp_abbr))
         ref.set({**base, "count": len(games), "games": games})
 
+    oncourt = nc.box_oncourt_totals(box)
     n = 0
     for name, pdata in (players or {}).items():
         pid = str(pdata.get("playerId", ""))
@@ -123,7 +127,7 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
         ref = db.collection("wolves_pgames_bundle").document(f"{index_id}_{pid}")
         snap = ref.get()
         games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
-                              {"date": date, "matchup": matchup, "wl": wl, "stats": pdata})
+                              {"date": date, "matchup": matchup, "wl": wl, "stats": {**pdata, **oncourt.get(pid, {})}})
         pdoc = {**base, "playerId": int(pid), "playerName": name, "count": len(games), "games": games}
         if len(json.dumps(pdoc, ensure_ascii=False).encode("utf-8")) > 0.95 * MiB:
             print(f"   ⚠️ {name} bundle 逼近 1 MiB")

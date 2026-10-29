@@ -19,9 +19,11 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const MAX_OPEN = 8, MAX_EXTRAS = 3, TEAM = '__TEAM__';
     const tableRef = React.useRef(null);
 
-    // 預設選最近兩季
+    // 預設選最近兩季（同目前賽別，如當季例行賽 vs 上季例行賽；不足兩季才混賽別）
     useEffect(() => {
-        if (!selected.length && seasons.length) setSelected(seasons.slice(0, 2).map(s => s.key));
+        if (selected.length || !seasons.length) return;
+        const same = seasons.filter(s => s.type === seasonType);
+        setSelected((same.length >= 2 ? same : seasons).slice(0, 2).map(s => s.key));
     }, [seasons]);
 
     // 載入選取賽季資料
@@ -107,8 +109,11 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const TYPE_LABEL_Q = { regular: '例行賽', playoffs: '季後賽' };
     const quoteOf = (m) => () => {
         const sameType = cols.length && cols.every(c => c.type === cols[0].type) && TYPE_LABEL_Q[cols[0].type];
+        // Playtype 列的 l/e 是表格用（英文 key／「進攻 PPP」），引用改成與 Playtype 章節同名：中文名每球權得分／Cut PPP
+        const label = m.playtype ? `${window.ptName(m.k)}每球權得分` : m.l;
+        const en = m.playtype ? `${m.k} PPP` : m.e;
         return window.Quote.make({
-            kind: 'compare', sep: '→', label: m.l, en: m.e, gkey: m.k, context: sameType || '', asOf: 'none',
+            kind: 'compare', sep: '→', label, en, gkey: m.playtype ? 'PPP' : m.k, context: sameType || '', asOf: 'none',
             values: cols.map(c => ({ tag: (sameType && c.season ? c.season.slice(2) : (c.short || c.label)) + window.tagOfMeta(metaOf(c.key)), value: fmt(getVal(c.key, m), m) })),
         });
     };

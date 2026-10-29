@@ -29,7 +29,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = fal
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`}
                     quote={typeof r.ppp === 'number' ? () => window.Quote.make({
-                        label: isDef ? `防守${window.ptName(r.playType)}每回合失分` : `${window.ptName(r.playType)}每回合得分`,
+                        label: isDef ? `防守${window.ptName(r.playType)}每球權失分` : `${window.ptName(r.playType)}每球權得分`,
                         en: `${r.playType} PPP`, gkey: 'PPP', values: [{ value: r.ppp.toFixed(2) }],
                         rank: r._rank, pr: typeof r.percentile === 'number' ? r.percentile : null, better: isDef ? 'low' : 'high', asOf: 'snap' }) : undefined}
                     cite={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',

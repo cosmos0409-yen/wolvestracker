@@ -4,8 +4,11 @@
 //   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每日增量、每週整季對帳）
 // 灰狼球員一律用 box score 的 personId 對應 players 文件的 playerId（名字寫法兩邊可能不同，且早期文件含非當時隊員）
 // 舊場次沒有 box（2026-10 以前、未回補者）→ 比分看板／Box Score／焦點／Four Factors 降級隱藏
-// props：date、gamePlayer（展開的球員，網址 p=ID-名字；舊連結可能是名字）、onExpand(token|'')、gameTab（網址 tab=，''＝概要）、onGameTab(tab|'')
-const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
+// 進階 box（效率／使用率等，boxscoreadvancedv3）與單場 On/Off「不在場」（只有灰狼）2026-27 起才有；
+//   效率季均＝此場之前各場依回合數加權（逐場 bundle 的 ON_PTS／ON_POSS，GameAgg 的 ON_*_RATING）
+// props：date、gamePlayer（展開的球員，網址 p=ID-名字；舊連結可能是名字）、onExpand(token|'')、gameTab（網址 tab=，''＝概要）、onGameTab(tab|'')、
+//        gameBox（Box Score 欄組，網址 bx=，''＝傳統／adv＝進階）、onGameBox(v)
+const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox = '', onGameBox }) => {
     const { useState, useEffect, useMemo } = React;
     const UI = window.UI;
     const GA = window.GameAgg;
@@ -130,15 +133,21 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
 
     // ── 指標中繼資料（名稱／原文／方向／中性）一律取 constants.js defs ──
     const ALL_DEFS = [window.SPLITS_BASE_DEF, ...(window.trackingDefs || []), ...(window.shootingDefs || []), ...(window.defenseDefs || [])].filter(Boolean);
-    const metaOf = (k) => { for (const d of ALL_DEFS) { const m = d.metrics.find(x => x.key === k); if (m) return m; } return { key: k, label: k }; };
+    // 進階 box 的效率（球員＝在場時球隊每 100 回合得失分）：defs 沒有（逐場 bundle 不含），在這裡補名稱與方向
+    const ADV_META = {
+        OFF_RATING: { key: 'OFF_RATING', label: '進攻效率', englishLabel: 'OffRtg' },
+        DEF_RATING: { key: 'DEF_RATING', label: '防守效率', englishLabel: 'DefRtg', betterIsLarger: false },
+        NET_RATING: { key: 'NET_RATING', label: '淨效率', englishLabel: 'NetRtg' },
+    };
+    const metaOf = (k) => { if (ADV_META[k]) return ADV_META[k]; for (const d of ALL_DEFS) { const m = d.metrics.find(x => x.key === k); if (m) return m; } return { key: k, label: k }; };
     // 比率類的分母（判斷樣本少、顯示 命中/出手）
     const RATIO = { ...GA.RATIO_DEFS, ...Object.fromEntries(Object.entries(GA.EFG_DEFS).map(([k, [fgm, , fga]]) => [k, [fgm, fga]])), PCT_PLUSMINUS: [null, 'D_FGA'], D_FG3_PLUSMINUS: [null, 'D_FG3A'] };
     const MIN_N = 5;
     const fmtV = (k, v) => {
         if (typeof v !== 'number') return '—';
         const m = metaOf(k);
-        const s = m.unit === '%' || /_PCT$|PLUSMINUS$/.test(k) ? v.toFixed(1) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
-        return (k === 'PCT_PLUSMINUS' && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
+        const s = m.unit === '%' || /_PCT$|PLUSMINUS$|_RATING$/.test(k) ? window.fix1(v) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+        return ((k === 'PCT_PLUSMINUS' || /NET_RATING$/.test(k)) && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
     };
     // 本場 vs 季平均：中性→不判；樣本少→不判；否則依 betterIsLarger
     const judge = (k, v, avg, ent) => {
@@ -179,12 +188,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const prevG = idxPos > 0 ? index[idxPos - 1] : null, nextG = idxPos >= 0 && idxPos < index.length - 1 ? index[idxPos + 1] : null;
     const strip = (
         <nav aria-label="賽程" className="flex items-stretch gap-1.5 border-b border-white/10 pb-3">
-            <a href={prevG ? window.UrlState.gameHref(prevG.date, '', gameTab) : undefined} aria-label="上一場" aria-disabled={!prevG}
+            <a href={prevG ? window.UrlState.gameHref(prevG.date, '', gameTab, gameBox) : undefined} aria-label="上一場" aria-disabled={!prevG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${prevG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>‹</a>
             <div className="flex flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]" ref={el => { if (el) { const on = el.querySelector('[aria-current="page"]'); if (on) el.scrollLeft = on.offsetLeft - el.clientWidth / 2 + on.clientWidth / 2; } }}>
                 {/* 換場次保留目前分頁（連看好幾場的 Box Score）；不帶展開的球員 */}
                 {index.map(g => (
-                    <a key={g.date} href={window.UrlState.gameHref(g.date, '', gameTab)} aria-current={g.date === date ? 'page' : undefined}
+                    <a key={g.date} href={window.UrlState.gameHref(g.date, '', gameTab, gameBox)} aria-current={g.date === date ? 'page' : undefined}
                         className={`w-[104px] shrink-0 rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100'}`}>
                         <div className="font-mono text-[10px]">{g.date.slice(5)}</div>
                         <div className="font-medium text-slate-100">{String(g.matchup || '').replace(/^MIN\s*/, '')}</div>
@@ -192,7 +201,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                     </a>
                 ))}
             </div>
-            <a href={nextG ? window.UrlState.gameHref(nextG.date, '', gameTab) : undefined} aria-label="下一場" aria-disabled={!nextG}
+            <a href={nextG ? window.UrlState.gameHref(nextG.date, '', gameTab, gameBox) : undefined} aria-label="下一場" aria-disabled={!nextG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${nextG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>›</a>
         </nav>
     );
@@ -327,7 +336,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     // ── 展開列：該員單場進階（Tracking／最近防守者／Hustle）vs 季平均 ──
     const EXP_GROUPS = [...(window.trackingDefs || []).filter(d => ['Touches', 'Drives', 'CatchShoot', 'PullUpShot', 'Passing', 'Rebounding'].includes(d.id)),
         ...(window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))];
-    const metricRow = (name, k, v, avg, ent, link = true) => {
+    const metricRow = (name, k, v, avg, ent, link = true, sub = null) => {
         const m = metaOf(k), j = judge(k, v, avg, ent), frac = fracOf(k, ent);
         return (
             <div key={k} title={((window.GLOSSARY || {})[k] || {}).def || undefined}
@@ -343,6 +352,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                     {frac && <span className="ml-1 font-mono text-[10px] text-slate-500">{frac}</span>}
                     {j.small && <span className="ml-1 text-[10px] text-amber-300/80">樣本少</span>}
                     <span className="block font-mono text-[10px] text-slate-500">季均 {avg === undefined ? '…' : fmtV(k, avg)}</span>
+                    {sub && <span className="block font-mono text-[10px] text-slate-500">{sub}</span>}
                 </span>
             </div>
         );
@@ -350,11 +360,23 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
     const expandRow = (p) => {
         const ent = p.adv;
         const avgAgg = avgCache[p.pid];
-        if (!ent) return <UI.Note>這位球員本場沒有進階數據</UI.Note>;
-        const groups = EXP_GROUPS.map(d => ({ d, ms: d.metrics.filter(m => typeof ent[m.key] === 'number') })).filter(g => g.ms.length);
+        // 效率：box 的在場效率＋單場 On/Off 不在場（灰狼才有），季均＝此場之前各場依回合數加權（GameAgg ON_*_RATING）
+        const bs = p.box && p.box.stats;
+        const hasEff = !!(bs && typeof bs.OFF_RATING === 'number');
+        const effAvg = (k) => avgAgg === undefined ? undefined : (avgAgg && typeof avgAgg['ON_' + k] === 'number' ? avgAgg['ON_' + k] : null);
+        if (!ent && !hasEff) return <UI.Note>這位球員本場沒有進階數據</UI.Note>;
+        const groups = ent ? EXP_GROUPS.map(d => ({ d, ms: d.metrics.filter(m => typeof ent[m.key] === 'number') })).filter(g => g.ms.length) : [];
         return (
             <div className="px-3 pb-3 pt-2 sm:pl-10">
                 <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {hasEff && (
+                        <div>
+                            <h4 className="mb-1 font-mono text-[10px] tracking-[0.1em] text-slate-500">效率（在場）</h4>
+                            {['OFF_RATING', 'DEF_RATING', 'NET_RATING'].map(k => metricRow(p.name, k, bs[k],
+                                effAvg(k), bs, false,
+                                typeof bs['OFF_' + k] === 'number' ? `不在場 ${fmtV(k, bs['OFF_' + k])}` : null))}
+                        </div>
+                    )}
                     {groups.map(({ d, ms }) => (
                         <div key={d.id}>
                             <h4 className="mb-1 font-mono text-[10px] tracking-[0.1em] text-slate-500">{d.title}</h4>
@@ -365,6 +387,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                 <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
                     <span className="inline-block h-3 w-3 bg-[#12A150]/25 shadow-[inset_2px_0_0_#12A150]" aria-hidden="true"></span>
                     優於賽前季平均（失誤率、對手命中率越低越好；觸球、切入次數等次數類不標色）· 比率類出手少於 {MIN_N} 次標「樣本少」· 點指標名稱看逐場走勢 · 滑過看定義
+                    {hasEff && <span>· 效率＝在場時球隊每 100 回合得失分，季均＝這場之前各場依回合數加權，「不在場」＝他坐板凳時</span>}
                     {avgAgg === null && <span className="text-amber-300/80">（本季沒有更早的逐場資料，無季平均）</span>}
                 </p>
             </div>
@@ -373,13 +396,31 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
 
     // ── Box Score ──
     const BOX_COLS = [['MIN', 'MIN'], ['PTS', 'PTS'], ['FG', 'FG'], ['FG_PCT', 'FG%'], ['3P', '3P'], ['FG3_PCT', '3P%'], ['FT', 'FT'], ['OREB', 'OREB'], ['DREB', 'DREB'], ['REB', 'REB'], ['AST', 'AST'], ['STL', 'STL'], ['BLK', 'BLK'], ['TOV', 'TOV'], ['PF', 'PF'], ['PLUS_MINUS', '+/-']];
+    // 進階欄組（bx=adv）：效率對球員是在場時球隊每 100 回合得失分；「不在場」只有灰狼（單場 On/Off）
+    const ADV_COLS = [['MIN', 'MIN'], ['POSS', 'POSS'], ['OFF_RATING', 'OffRtg'], ['DEF_RATING', 'DefRtg'], ['NET_RATING', 'NetRtg'],
+        ['USG_PCT', 'USG%'], ['TS_PCT', 'TS%'], ['AST_PCT', 'AST%'], ['REB_PCT', 'REB%'], ['PIE', 'PIE']];
+    const OFFCOURT_COLS = [['OFF_OFF_RATING', 'OffRtg'], ['OFF_DEF_RATING', 'DefRtg']];
+    const COL_TITLE = { POSS: '回合數（在場時）', OFF_RATING: '進攻效率：在場時球隊每 100 回合得分', DEF_RATING: '防守效率：在場時球隊每 100 回合失分（越低越好）',
+        NET_RATING: '淨效率：進攻效率 − 防守效率', USG_PCT: '使用率：在場時由他結束的球權比例', TS_PCT: '真實命中率：三分與罰球都算進去的得分效率',
+        AST_PCT: '助攻率：在場時隊友進球中由他助攻的比例', REB_PCT: '籃板率：在場時搶下的可搶籃板比例', PIE: 'PIE：本場所有數據中由他貢獻的比例（NBA 綜合指標）',
+        OFF_OFF_RATING: '不在場進攻效率：他坐板凳時球隊每 100 回合得分', OFF_DEF_RATING: '不在場防守效率：他坐板凳時球隊每 100 回合失分' };
+    const ADV_KEYS = new Set([...ADV_COLS, ...OFFCOURT_COLS].map(c => c[0]).filter(k => k !== 'MIN'));
+    const hasAdvBox = !!(box && box.players.some(p => p.stats && typeof p.stats.OFF_RATING === 'number'));
+    const advView = hasAdvBox && gameBox === 'adv';
     const TOP_KEYS = ['PTS', 'REB', 'AST', 'STL', 'BLK'];
     const sideTri = boxSide === 'MIN' ? 'MIN' : oppAbbr;
     const sidePlayers = box ? box.players.filter(p => p.tricode === sideTri) : [];
     const sideTeam = box ? box.teams.find(t => t.tricode === sideTri) : null;
+    const cols = advView ? [...ADV_COLS, ...(sideTri === 'MIN' ? OFFCOURT_COLS : [])] : BOX_COLS;
     const activeP = sidePlayers.filter(p => p.stats && Object.keys(p.stats).length);
     const topOf = (k) => Math.max(0, ...activeP.map(p => p.stats[k] || 0));
     const cell = (s, k) => {
+        if (ADV_KEYS.has(k)) {
+            const v = s[k];
+            if (typeof v !== 'number') return '—';
+            if (k === 'POSS') return String(Math.round(v));
+            return (k === 'NET_RATING' && v > 0 ? '+' : '') + window.fix1(v);
+        }
         if (k === 'FG') return `${s.FGM}-${s.FGA}`;
         if (k === '3P') return `${s.FG3M}-${s.FG3A}`;
         if (k === 'FT') return `${s.FTM}-${s.FTA}`;
@@ -389,6 +430,8 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
         return s[k] == null ? '' : String(s[k]);
     };
     const tdCls = (s, k) => {
+        if (k === 'NET_RATING') return s.NET_RATING > 0 ? 'text-[#12A150]' : s.NET_RATING < 0 ? 'text-[#EF4444]' : '';
+        if (ADV_KEYS.has(k)) return '';
         if (k === 'PLUS_MINUS') return s.PLUS_MINUS > 0 ? 'text-[#12A150]' : s.PLUS_MINUS < 0 ? 'text-[#EF4444]' : '';
         if (k === 'PTS') return TOP_KEYS.includes(k) && s[k] > 0 && s[k] === topOf(k) ? 'font-semibold text-[#12A150]' : 'font-semibold text-slate-50';
         return TOP_KEYS.includes(k) && s[k] > 0 && s[k] === topOf(k) ? 'font-semibold text-[#12A150]' : '';
@@ -412,43 +455,50 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab }) => {
                         {mine && mp && !dnp && <span className="ml-2 font-mono text-[10px] text-slate-500">{open ? '▴ 收合' : '▾ 進階'}</span>}
                     </th>
                     {dnp ? (
-                        <td colSpan={BOX_COLS.length} className="px-2 py-1.5 text-left text-[12px] text-slate-500">{p.comment || 'DNP'}</td>
-                    ) : BOX_COLS.map(([k]) => (
+                        <td colSpan={cols.length} className="px-2 py-1.5 text-left text-[12px] text-slate-500">{p.comment || 'DNP'}</td>
+                    ) : cols.map(([k]) => (
                         <td key={k} className={`px-2 py-1.5 text-right font-mono tabular-nums whitespace-nowrap ${tdCls(p.stats, k)}`}>{cell(p.stats, k)}</td>
                     ))}
                 </tr>
-                {open && <UI.ExpandRow colSpan={BOX_COLS.length + 1} className="bg-[#12A150]/[0.04]">{expandRow(mp)}</UI.ExpandRow>}
+                {open && <UI.ExpandRow colSpan={cols.length + 1} className="bg-[#12A150]/[0.04]">{expandRow(mp)}</UI.ExpandRow>}
             </React.Fragment>
         );
     };
+    // CSV 含兩隊；進階欄組時「不在場」只有灰狼有值（對手為「—」）
+    const csvCols = advView ? [...ADV_COLS, ...OFFCOURT_COLS] : BOX_COLS;
     const boxCsv = () => ({
-        header: ['球隊', '球員', '背號', '先發', ...BOX_COLS.map(c => c[1])],
-        rows: box.players.map(p => [p.tricode, p.name, p.jersey, p.starter ? '先發' : '', ...(p.stats && Object.keys(p.stats).length ? BOX_COLS.map(([k]) => cell(p.stats, k)) : BOX_COLS.map((c, i) => i === 0 ? (p.comment || 'DNP') : ''))]),
+        header: ['球隊', '球員', '背號', '先發', ...csvCols.map(c => OFFCOURT_COLS.includes(c) ? `不在場 ${c[1]}` : c[1])],
+        rows: box.players.map(p => [p.tricode, p.name, p.jersey, p.starter ? '先發' : '', ...(p.stats && Object.keys(p.stats).length ? csvCols.map(([k]) => cell(p.stats, k)) : csvCols.map((c, i) => i === 0 ? (p.comment || 'DNP') : ''))]),
     });
     const boxSection = box && (
-        <UI.Section title="Box Score" en="Traditional" accent="silver"
-            sub="點灰狼球員那一列展開本場進階（網址會記住，可分享）；點名字到球員頁 · 綠字＝該欄全隊最高"
+        <UI.Section title="Box Score" en={advView ? 'Advanced' : 'Traditional'} accent="silver"
+            sub={advView
+                ? '效率＝在場時球隊每 100 回合得失分（NetRtg 綠正紅負）；「不在場」＝他坐板凳時，只有灰狼 · 點灰狼球員那一列展開本場進階'
+                : '點灰狼球員那一列展開本場進階（網址會記住，可分享）；點名字到球員頁 · 綠字＝該欄全隊最高'}
             right={<>
+                {hasAdvBox && <UI.Seg ariaLabel="Box Score 欄組" size="sm" value={advView ? 'adv' : 'trad'} onChange={v => onGameBox(v === 'adv' ? 'adv' : '')}
+                    options={[{ value: 'trad', label: '傳統' }, { value: 'adv', label: '進階' }]} />}
                 <UI.Seg ariaLabel="Box Score 球隊" size="sm" value={boxSide} onChange={setBoxSide}
                     options={[{ value: 'MIN', label: 'MIN 灰狼' }, { value: 'OPP', label: `${oppAbbr} 對手` }]} />
-                <UI.ExportMenu title={`Box Score ${date} ${meta.matchup || ''}`} getNode={() => boxRef.current} csv={boxCsv} />
+                <UI.ExportMenu title={`Box Score${advView ? '（進階）' : ''} ${date} ${meta.matchup || ''}`} getNode={() => boxRef.current} csv={boxCsv} />
             </>}>
             <div ref={boxRef} className="overflow-x-auto border-t border-white/[0.08]">
-                <table className="w-full min-w-[820px] border-collapse text-[13px]">
+                <table className={`w-full border-collapse text-[13px] ${advView ? 'min-w-[760px]' : 'min-w-[820px]'}`}>
                     <caption className="sr-only">{sideTri} Box Score</caption>
                     <thead><tr className="border-b border-white/15">
                         <th scope="col" className="sticky left-0 bg-[#0A1626] px-2 py-2 text-left font-mono text-[10px] font-normal text-slate-500">球員</th>
-                        {BOX_COLS.map(([k, l]) => <th key={k} scope="col" className="px-2 py-2 text-right font-mono text-[10px] font-normal text-slate-500">{l}</th>)}
+                        {cols.map(([k, l]) => <th key={k} scope="col" title={COL_TITLE[k]} className="px-2 py-2 text-right font-mono text-[10px] font-normal text-slate-500">
+                            {OFFCOURT_COLS.some(c => c[0] === k) && <span className="block font-sans text-slate-400">不在場</span>}{l}</th>)}
                     </tr></thead>
                     <tbody>
-                        <tr><td colSpan={BOX_COLS.length + 1} className="px-2 pt-3 pb-1 font-mono text-[10px] tracking-[0.14em] text-slate-500">先發 STARTERS</td></tr>
+                        <tr><td colSpan={cols.length + 1} className="px-2 pt-3 pb-1 font-mono text-[10px] tracking-[0.14em] text-slate-500">先發 STARTERS</td></tr>
                         {sidePlayers.filter(p => p.starter).map(boxRow)}
-                        <tr><td colSpan={BOX_COLS.length + 1} className="px-2 pt-3 pb-1 font-mono text-[10px] tracking-[0.14em] text-slate-500">替補 BENCH</td></tr>
+                        <tr><td colSpan={cols.length + 1} className="px-2 pt-3 pb-1 font-mono text-[10px] tracking-[0.14em] text-slate-500">替補 BENCH</td></tr>
                         {sidePlayers.filter(p => !p.starter).map(boxRow)}
                         {sideTeam && (
                             <tr className="border-t border-white/20 font-semibold text-slate-50">
                                 <th scope="row" className="sticky left-0 bg-[#0A1626] px-2 py-2 text-left">合計</th>
-                                {BOX_COLS.map(([k]) => <td key={k} className="px-2 py-2 text-right font-mono tabular-nums">{k === 'MIN' || k === 'PLUS_MINUS' ? '' : cell(sideTeam.totals, k)}</td>)}
+                                {cols.map(([k]) => <td key={k} className="px-2 py-2 text-right font-mono tabular-nums">{['MIN', 'PLUS_MINUS', 'USG_PCT', 'OFF_OFF_RATING', 'OFF_DEF_RATING'].includes(k) ? '' : cell(sideTeam.totals, k)}</td>)}
                             </tr>
                         )}
                     </tbody>

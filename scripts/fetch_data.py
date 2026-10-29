@@ -193,7 +193,7 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         db.collection("wolves_player_games").document(d).set(player_doc)
         db.collection("wolves_team_games").document(d).set(team_doc)
         upsert_game(db, index_id, season, season_type_label, d, m, w, team, player,
-                    opp_stats=g["opp_team"], opp_abbr=g["opp_abbr"])
+                    opp_stats=g["opp_team"], opp_abbr=g["opp_abbr"], box=g["box"])
         flag = ("未定稿（距比賽未滿 12 小時），下次重抓" if not final else "完整" if not partial else
                 "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
         print(f"✅ 單場已寫入 wolves_*_games/{d}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人，{flag}）")

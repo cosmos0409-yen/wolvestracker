@@ -60,16 +60,16 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
 };
 
 // 單場兩份文件 → { team: wolves_team_games/{date}, player: wolves_player_games/{date} }；兩份都沒有回 null，讀取失敗往上拋。
-// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v2_{date}）。
+// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v3_{date}）。
 //   未定稿（final=false）不寫 localStorage，免得鎖住半成品；persist=false 只讀不寫（對戰頁一次讀十幾場，避免塞爆儲存空間）
-//   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；舊鍵 wt_gc_{date} 載入時刪掉
+//   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；v3：2026-10-29 box 補進階＋單場 On/Off 後換版；舊鍵載入時刪掉
 try {
-    Object.keys(localStorage).filter(k => /^wt_gc_\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => /^wt_gc_(v2_)?\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
 } catch (e) { /* 私密模式等無法存取 localStorage */ }
 window.loadGameDocs = async function (date, persist = true) {
     const mem = (window.__gameDocCache = window.__gameDocCache || {});
     if (mem[date]) return mem[date];
-    const lsKey = `wt_gc_v2_${date}`;
+    const lsKey = `wt_gc_v3_${date}`;
     const clean = (c) => ({ team: window.cleanGameDoc(c.team), player: window.cleanGameDoc(c.player) });
     try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = clean(c); return mem[date]; } } catch (e) { /* ignore */ }
     const { doc, getDoc } = window.firebaseModules;

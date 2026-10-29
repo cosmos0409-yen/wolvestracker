@@ -969,17 +969,17 @@ def fetch_assisted_pct(season, season_type_api, player_or_team="Player"):
 # ==========================================
 # 在場/不在場進階效率（teamplayeronoffdetails，僅球員）
 # ==========================================
-def fetch_onoff(season, season_type_api):
+def fetch_onoff(season, season_type_api, game_date=None):
     """在場/不在場進階效率（球隊在該球員上/下場時的 OFF/DEF/NET_RATING/PACE）。
     回傳 {PlayerID字串: {ON_OFF_RATING, ON_DEF_RATING, ..., OFF_OFF_RATING, ...}}。
     此 endpoint 的 PLAYER_NAME 為 'Last, First' 格式，故不回傳 playerName，
     由呼叫端以 PlayerID 對照名單取名（避免與其他 endpoint 的 'First Last' 不一致）。
-    Synergy 不吃日期，此 endpoint 亦僅取整季，無單場版本。"""
-    url = (f"https://stats.nba.com/stats/teamplayeronoffdetails?{LEAGUE_DASH_COMMON}"
+    game_date（MM/DD/YYYY）：只算那一天＝單場（2026-10-29 實測 GP=1、On 與進階 box 一致；舊註解說沒有單場版本是錯的）。"""
+    url = _with_date(f"https://stats.nba.com/stats/teamplayeronoffdetails?{LEAGUE_DASH_COMMON}"
            f"&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
-           f"&ShotClockRange=&GameSegment=&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
+           f"&ShotClockRange=&GameSegment=&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}", game_date)
     results = {}
-    data = fetch_with_retry(url, "OnOff [Team]")
+    data = fetch_with_retry(url, f"OnOff [Team]{' ' + game_date if game_date else ''}")
     if data is None:
         return results
     # resultSets[1]=在場(On), [2]=不在場(Off)；皆以 VS_PLAYER_ID 為主鍵
@@ -1116,9 +1116,24 @@ BOX_STAT_FIELDS = [
 ]
 
 
-def _box_stats(st):
+# boxscoreadvancedv3 進階欄位（每場 1 request，兩隊球員＋球隊）：比例欄 API 為 0～1 → ×100。
+# OFF/DEF/NET_RATING 對球員是「在場時」球隊每 100 回合得失分，與 teamplayeronoffdetails 單場的 On 完全一致（2026-10-29 驗證）
+BOX_ADV_FIELDS = [
+    ("OFF_RATING", "offensiveRating", False), ("DEF_RATING", "defensiveRating", False), ("NET_RATING", "netRating", False),
+    ("POSS", "possessions", False), ("PACE", "pace", False),
+    ("USG_PCT", "usagePercentage", True), ("TS_PCT", "trueShootingPercentage", True),
+    ("AST_PCT", "assistPercentage", True),
+    ("OREB_PCT", "offensiveReboundPercentage", True), ("DREB_PCT", "defensiveReboundPercentage", True),
+    ("REB_PCT", "reboundPercentage", True), ("PIE", "PIE", True),
+]
+# 單場 On/Off 只存「不在場」（在場＝進階 box 的 OFF/DEF/NET_RATING）；只有灰狼球員。
+# 不能用「全隊－在場」推：NBA 依每段上場分開算回合數，在場＋不在場回合 ≠ 全隊回合，推算差 7～16 分（2026-10-29 實測）
+BOX_ONOFF_KEYS = ["OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_NET_RATING", "OFF_MIN"]
+
+
+def _box_stats(st, fields=BOX_STAT_FIELDS):
     out = {}
-    for name, key, pct in BOX_STAT_FIELDS:
+    for name, key, pct in fields:
         v = (st or {}).get(key)
         out[name] = (round(v * 100, 1) if v is not None else 0) if pct else (v if v is not None else 0)
     return out
@@ -1181,8 +1196,59 @@ def fetch_boxscore(game_id):
                                      "jersey": (pl.get("jerseyNum") or "").strip()})
     # summary 偶爾回傳空殼（2025-11-19 實例：有回應但兩隊 periods 皆空、無背號/傷停/場館），
     # 只看 bool(sm) 會誤判完整 → 以「兩隊都有每節比分」為準
-    complete = bool(sm) and all(t["periods"] for t in box["teams"])
+    adv_ok = add_box_advanced(box, game_id)
+    complete = bool(sm) and all(t["periods"] for t in box["teams"]) and adv_ok
     return box, complete
+
+
+def add_box_advanced(box, game_id):
+    """抓 boxscoreadvancedv3，把 BOX_ADV_FIELDS 併進 box 的球員 stats 與球隊 totals（就地修改）。
+    DNP（stats 為空）不併。回傳是否抓到（False → 呼叫端視為 partial）。"""
+    adv = fetch_with_retry(
+        f"https://stats.nba.com/stats/boxscoreadvancedv3?GameID={game_id}"
+        f"&StartPeriod=0&EndPeriod=0&StartRange=0&EndRange=0&RangeType=0", f"BoxAdvanced {game_id}")
+    ba = (adv or {}).get("boxScoreAdvanced")
+    if not ba:
+        return False
+    players, teams = {}, {}
+    for side in ("homeTeam", "awayTeam"):
+        t = ba.get(side) or {}
+        teams[t.get("teamId")] = _box_stats(t.get("statistics"), BOX_ADV_FIELDS)
+        for pl in t.get("players") or []:
+            if (pl.get("statistics") or {}).get("minutes"):
+                players[pl.get("personId")] = _box_stats(pl.get("statistics"), BOX_ADV_FIELDS)
+    for t in box["teams"]:
+        t["totals"].update(teams.get(t["teamId"]) or {})
+    for pl in box["players"]:
+        if pl["stats"] and pl["personId"] in players:
+            pl["stats"].update(players[pl["personId"]])
+    return bool(players)
+
+
+def box_oncourt_totals(box):
+    """逐場 bundle 用：灰狼球員本場「在場」的得分／失分／回合數（由進階 box 的效率 × 回合數還原）。
+    前端 GameAgg 以 Σ得分 ÷ Σ回合 重算任意期間的在場效率（ON_OFF_RATING／ON_DEF_RATING）；
+    2026-10-29 驗證：本季前 4 場加權的進攻效率與 On/Off 整季快照一致，防守效率差 ≤ 0.9（NBA 防守回合另計）。
+    回傳 {personId字串: {ON_PTS, ON_OPP_PTS, ON_POSS}}；沒有進階欄位的場次回 {}。"""
+    out = {}
+    for pl in (box or {}).get("players", []):
+        s = pl.get("stats") or {}
+        if pl.get("tricode") == "MIN" and s.get("POSS") and isinstance(s.get("OFF_RATING"), (int, float)):
+            out[str(pl["personId"])] = {"ON_PTS": round(s["OFF_RATING"] * s["POSS"] / 100, 2),
+                                        "ON_OPP_PTS": round(s["DEF_RATING"] * s["POSS"] / 100, 2),
+                                        "ON_POSS": s["POSS"]}
+    return out
+
+
+def add_box_onoff(box, season, season_type_api, api_date):
+    """單場 On/Off（teamplayeronoffdetails 帶單場日期，1 request）：灰狼球員的「不在場」併進 box 球員 stats。
+    回傳是否抓到（False → 呼叫端視為 partial）。"""
+    oo = fetch_onoff(season, season_type_api, game_date=api_date)
+    for pl in box["players"]:
+        v = oo.get(str(pl["personId"]))
+        if pl["stats"] and pl["tricode"] == "MIN" and v:
+            pl["stats"].update({k: v[k] for k in BOX_ONOFF_KEYS if k in v})
+    return bool(oo)
 
 
 # ==========================================
@@ -1216,8 +1282,10 @@ def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, cas
       box                    完整 box score（見 fetch_boxscore）
       partial                某來源缺漏（NBA 單場資料偶爾晚更新；Tracking 回整組 0 也算，見 tracking_zero_filled），
                              寫入時標記、每日腳本下次重抓
-    request 數約 24：box 2 + 球員 11（全聯盟）+ 對手對位防守 2 + 球隊 9（TeamID=0 一次拿兩隊）。"""
+    request 數約 26：box 3（傳統＋summary＋進階）+ 單場 On/Off 1 + 球員 11（全聯盟）+ 對手對位防守 2 + 球隊 9（TeamID=0 一次拿兩隊）。"""
     box, box_complete = fetch_boxscore(game_id)
+    if box and not add_box_onoff(box, season, season_type_api, api_date):
+        box_complete = False
     opp = next((t for t in (box or {}).get("teams", []) if t.get("teamId") != TEAM_ID), None)
     opp_id = opp["teamId"] if opp else None
     p_sources = [

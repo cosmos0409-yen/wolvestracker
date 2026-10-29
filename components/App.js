@@ -59,6 +59,7 @@ const App = () => {
     const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
     const [gamePlayer, setGamePlayer] = useState(() => urlInit.gamePlayer || '');
     const [gameTab, setGameTab] = useState(() => urlInit.gameTab || '');   // 單場分頁（網址 tab=）：''＝概要／box／compare／shots
+    const [gameBox, setGameBox] = useState(() => urlInit.gameBox || '');   // Box Score 欄組（網址 bx=）：''＝傳統／adv＝進階
     // 首頁＝最新一場：網址完全沒帶畫面時，先找最新一場再開單場頁；找的期間不寫網址、主區顯示載入中（避免先閃總覽）
     const [homePending, setHomePending] = useState(() => !window.location.hash.replace(/^#/, ''));
     // 薪資頁（網址 #cap）：有值時主區改顯示 CapPage；capSeason＝薪資賽季（網址 s=，空＝薪資當季）
@@ -761,9 +762,41 @@ const App = () => {
     const gameMeta = {};
     (seasonGames || []).forEach(g => { if (g.date) gameMeta[g.date] = { wl: g.wl, matchup: g.matchup }; });
 
-    // 跨季比較的可選賽季（皆讀 wolves_*_history 終點快照）。
-    // 單一來源：與賽季下拉共用 constants.js 的 HISTORY_SEASON_OPTIONS，勿再建第二份清單
-    const comparisonSeasons = window.HISTORY_SEASON_OPTIONS || [];
+    // 跨季比較的可選賽季：當季讀每日快照最新一份，其餘讀 wolves_*_history 終點快照。
+    // 單一來源：constants.js 的 COMPARISON_SEASON_OPTIONS（由 HISTORY_SEASON_OPTIONS 加當季組成），勿再建第二份清單
+    const comparisonSeasons = window.COMPARISON_SEASON_OPTIONS || [];
+    // 當季某賽別的最新快照，組成與歷史 doc 同形的 { team, player }（每日快照球員本來就以名字為 key）。
+    // 正在看當季就直接用已載入的序列；看舊賽季時另讀近期快照，該賽別近期沒有才讀整季
+    const loadComparisonSeason = async (key) => {
+        const m = /^current_(regular|playoffs)$/.exec(key || '');
+        if (!m) return loadHistoryByDocId(key);
+        if (compareCache[key]) return compareCache[key];
+        const label = m[1] === 'regular' ? '例行賽' : '季後賽';
+        const latestOf = (arr) => (arr || []).filter(d => d.seasonType === label).sort((a, b) => (a.date < b.date ? 1 : -1))[0] || null;
+        let team = null, player = null;
+        if (selectedSeasonKey === 'current') { team = latestOf(teamHistory); player = latestOf(playerHistory); }
+        if (!team && !player) {
+            if (!window.db || !window.firebaseModules) throw new Error('Firestore 未就緒');
+            const { collection, getDocs, query, where, documentId } = window.firebaseModules;
+            const read = async (name, since) => {
+                const snap = await getDocs(query(collection(window.db, name),
+                    where(documentId(), '>=', since), where(documentId(), '<=', window.SNAPSHOT_UNTIL)));
+                return latestOf(snap.docs.map(d => ({ ...d.data(), date: d.id })));
+            };
+            for (const since of [window.snapshotWindowStart(), window.SNAPSHOT_SINCE]) {
+                [team, player] = await Promise.all([read('wolves_team_stats', since), read('wolves_player_stats', since)]);
+                if (team || player || since === window.SNAPSHOT_SINCE) break;
+            }
+        }
+        // 每日快照沒有 meta：補空 meta 讓「疊加其他球員」的名單（取自 meta 的名字）也列得出當季球員
+        if (player && !player.meta) {
+            const names = [...new Set([...Object.keys(player.stats || {}), ...Object.keys(player.base || {})])];
+            player = { ...player, meta: Object.fromEntries(names.map(n => [n, {}])) };
+        }
+        const v = { team, player };
+        if (team || player) setCompareCache(prev => ({ ...prev, [key]: v }));
+        return v;
+    };
 
     // 疊加比較 chips（搬到雷達圖下方）
     const compareChipsUI = (
@@ -848,7 +881,7 @@ const App = () => {
     useEffect(() => {
         if (!window.UrlState || homePending) return;
         const h = '#' + (gameDate
-            ? window.UrlState.serialize({ gameDate, gamePlayer, gameTab })
+            ? window.UrlState.serialize({ gameDate, gamePlayer, gameTab, gameBox })
             : capView
             ? window.UrlState.serialize({ capView, capSeason, capTab })
             : vs
@@ -857,7 +890,7 @@ const App = () => {
             : window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId]);
     // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
@@ -875,7 +908,7 @@ const App = () => {
     );
     // 回主畫面（單場頁、薪資頁、對戰共用）：主畫面狀態在這些頁期間保持不動
     const leaveGame = () => {
-        if (gameDate) { setGameDate(null); setGamePlayer(''); setGameTab(''); }
+        if (gameDate) { setGameDate(null); setGamePlayer(''); setGameTab(''); setGameBox(''); }
         if (capView) setCapView(false);
         if (vs) setVs(null);
     };
@@ -889,8 +922,8 @@ const App = () => {
             const st = window.UrlState.parse(window.location.hash);
             setHomePending(false);   // 首頁還在找最新一場時使用者已經切走，以使用者的選擇為準
             // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
-            if (st.gameDate) { setCapView(false); setVs(null); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); setGameTab(st.gameTab || ''); window.scrollTo(0, 0); return; }
-            setGameDate(null); setGamePlayer(''); setGameTab('');
+            if (st.gameDate) { setCapView(false); setVs(null); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); setGameTab(st.gameTab || ''); setGameBox(st.gameBox || ''); window.scrollTo(0, 0); return; }
+            setGameDate(null); setGamePlayer(''); setGameTab(''); setGameBox('');
             // 薪資頁：同單場頁，只切換薪資頁狀態
             if (st.capView) { setVs(null); setCapView(true); setCapSeason(st.capSeason || ''); setCapTab(st.capTab || ''); window.scrollTo(0, 0); return; }
             setCapView(false);
@@ -1063,7 +1096,8 @@ const App = () => {
                     {backBtn('← 回主畫面', leaveGame)}
                     {window.GamePage && isCloud
                         ? <window.GamePage date={gameDate} gamePlayer={gamePlayer} onExpand={setGamePlayer}
-                            gameTab={gameTab} onGameTab={(k) => { setGameTab(k); if (k !== 'box') setGamePlayer(''); }} />
+                            gameTab={gameTab} onGameTab={(k) => { setGameTab(k); if (k !== 'box') { setGamePlayer(''); setGameBox(''); } }}
+                            gameBox={gameBox} onGameBox={setGameBox} />
                         : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
                 </main>
             ) : capView ? (
@@ -1219,7 +1253,7 @@ const App = () => {
                                 ? <window.UI.Note>請先從頭像列選一位球員</window.UI.Note>
                                 : <window.ComparisonTab
                                     viewMode={viewMode} selectedPlayer={selectedPlayer} playerId={currentPlayerId}
-                                    seasons={comparisonSeasons} loadSeason={loadHistoryByDocId} seasonType={viewType}
+                                    seasons={comparisonSeasons} loadSeason={loadComparisonSeason} seasonType={viewType}
                                 />
                         )}
                     </div>
