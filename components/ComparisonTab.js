@@ -57,6 +57,9 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         onoff: { label: 'On/Off', playerOnly: true, metrics: [
             { k: 'ON_NET_RATING', l: '在場淨效率', e: 'On NetRtg' }, { k: 'OFF_NET_RATING', l: '不在場淨效率', e: 'Off NetRtg' },
             { k: 'ON_OFF_RATING', l: '在場進攻效率', e: 'On OffRtg' }, { k: 'ON_DEF_RATING', l: '在場防守效率', e: 'On DefRtg' },
+            // 差值列（在場 − 不在場）：進攻越高越好、防守越低越好（負＝上場後對手得分變少）
+            { k: 'OFFRTG_ON_OFF_DIFF', l: '進攻效率在場差', e: 'OffRtg On−Off', diff: ['ON_OFF_RATING', 'OFF_OFF_RATING'], signed: true },
+            { k: 'DEFRTG_ON_OFF_DIFF', l: '防守效率在場差', e: 'DefRtg On−Off', diff: ['ON_DEF_RATING', 'OFF_DEF_RATING'], signed: true },
         ] },
     };
     const catKeys = Object.keys(CATS).filter(c => !(CATS[c].playerOnly && viewMode === 'TEAM'));
@@ -81,12 +84,17 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         const dict = isTeam
             ? (sd.team && sd.team[activeCat])
             : (sd.player && sd.player[activeCat] && sd.player[activeCat][pname]);
+        if (m.diff) {
+            const a = dict && dict[m.diff[0]], b = dict && dict[m.diff[1]];
+            return typeof a === 'number' && typeof b === 'number' ? +(a - b).toFixed(1) : null;
+        }
         const v = dict && dict[m.k];
         return typeof v === 'number' ? v : null;
     };
 
     // 基本數據與百分比統一一位小數（避免同列出現「1」與「0.7」）；Playtype PPP 兩位；Tracking 等保留原始精度（如 PTS/Touch 0.338）
     const fmt = (v, m) => v == null ? '—'
+        : m.signed ? (v > 0 ? '+' : '') + window.fix1(v)
         : m.pct ? v.toFixed(1) + '%'
         : m.playtype ? v.toFixed(2)
         : activeCat === 'base' || activeCat === 'onoff' ? v.toFixed(1) : v;
