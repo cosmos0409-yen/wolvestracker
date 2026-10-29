@@ -68,7 +68,7 @@
   - 季平均 / Splits / 趨勢折線 → `GameAgg` 算 **bundle 逐場**（`gamesData.loadSeasonGames` 讀單一 bundle doc；百分比欄以 Σ分子/Σ分母 加權，見 `GameAgg.RATIO_DEFS`）。
   - Playtype / Clutch / Lineups / On-Off / 防守 → 每日或歷史**快照**。
   - 投籃 → `wolves_shotcharts` 逐球（前端算距離區間/分區/出手方式）。
-  - 跨季比較 → `wolves_*_history` 各季終點快照（`ComparisonTab` + `loadHistoryByDocId`）。
+  - 跨季比較 → `wolves_*_history` 各季終點快照＋當季每日快照最新一份（`ComparisonTab` + `loadComparisonSeason`；清單 `constants.js` 的 `COMPARISON_SEASON_OPTIONS`，當季 key 為 `current_regular`／`current_playoffs`，季後賽要等例行賽期結束才列；當季已進 `HISTORY_SEASONS` 就只用歷史那份）。預設勾同賽別最近兩季。
 - header：賽別切換（例行/季後，預設依時節）+ **日曆日期**（選到哪天 → 總覽顯示截至該日季平均，`GameAgg.seasonToDate`）。取代原 ‹ › 翻頁與 `viewIndex`。
 - `RadarPanel`：軸可自選 3~6 個（localStorage 記憶）+ 疊加 chips 搬到雷達下方 + 自選指標比較表。
 - `normalizeHistoryPlayer` 擴充：各類別皆以球員名展開（不只 stats/tracking）。
@@ -304,6 +304,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 **引用籃（`quoteFormat.js`／`QuoteBasket.js`）**
 - 入口：`UI.Info` 帶 `quote`（回傳項目的函式）時小卡多「＋加入引用籃」；`StatCell` 依 `window.CiteCtx` 自動組項目（`window.Quote.make`），`quote` prop 可覆寫欄位、傳 `null` 不提供。沒有 glossary 定義也保留入口
 - 比較項目的入口：Splits 選期間時 `TrackingCardRow compareTags=['全季', 期間]`（→）、球員 On/Off（在場 vs. 離場）、跨季比較每列名稱旁的「?」（2 季 →、3 季以上每季一行）；Playtype 列存 PPP＋名次或 PR；單場頁 Box Score 展開的球員進階（`CiteCtx.context` 帶「10/26 @ 騎士 125:127 敗」）
+- **名稱一致性**（2026-10-29 徹查）：`label` 是中文、`en` 是原文，兩欄不可對調或塞說明。Playtype 一律「中文名每球權得分／`Cut PPP`」（防守「防守…每球權失分」），跨季比較與 Playtype 章節同名；Clutch 格加「關鍵時刻」前綴（`Clutch PTS`）；`Quote.make` 會剝掉 `en` 裡的全形括號說明（`DIFF%（負=守得好）`→`DIFF%`）；畫面小字不是英文名的格（薪資頁「預估奢侈稅」「標準合約」）用 `quote={{ en }}` 覆寫；受助攻比例原文為 `%AST FGM/2PM/3PM`
 - 儲存：`localStorage` 的 `wt_quote_v1`（項目）、`wt_quote_opts_v1`（格式選項），保留到手動清空；讀寫失敗（私密模式等）退回記憶體；變動發 `wt-quote-change` 事件，另聽 `storage` 讓多分頁同步
 - 項目格式：`{ id, kind: 'single'|'compare', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.', rank, pr, better, asOf, url }`；合併後 `{ id, kind, subject, context, sep, parts: [A, B] }`。能合併的條件見 `Quote.canMerge`（同類、同主體同情境，比較項目還要比較對象相同）
 - 排版 `Quote.render(items, opts)`（純函式）：符號一義（`：` 名稱／`／` 成對／`→` 時間先後／`vs.` 並列）；相鄰同主體同情境合成一組。單值 1A「●主體｜情境（括號為聯盟排名）＋※指標：值（第8）」、前後 2A／2B 差值／2C 📈📉（依 `better`，次數類不標）、並列 3A、三個以上值 3C。成對指標名稱表 `PAIRS` 在 `quoteFormat.js`（沒列到就寫「A／B」）。文末「※本文數據統計至 M/D」不寫「臺灣時間」（快照日期是美東日期）
@@ -964,6 +965,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - 2026-10-29 — 單場進階 box 與在場／不在場效率：`nba_common` 加 `BOX_ADV_FIELDS`／`add_box_advanced`（boxscoreadvancedv3）、`fetch_onoff(game_date=)`／`add_box_onoff`（單場 On/Off 不在場，只有灰狼）、`box_oncourt_totals`（bundle 的 `ON_PTS`／`ON_OPP_PTS`／`ON_POSS`）；每場抓取 +2 requests；`backfill_games.py --adv-only` 補本季 5 場；`build_bundles` 重建 2026-27；前端 Box Score「傳統｜進階」切換（`bx=adv`）、展開列「效率（在場）」附季均與不在場、`GameAgg` 加 `ON_*_RATING` 加權；`wt_gc_v3_` 換版。使用者決定：不標樣本少、不回補 2025-26 以前
 - 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）；被擋時少打 request：`fetch_data.py` 開頭連續 3 項失敗提前結束（碼 2）、早上看門狗當天已失敗過就不再重試、逾時中止的補抓輸出補換行；瀏覽器指紋自動切換（`FINGERPRINTS`、`nba_fingerprint.json`，UA 跟指紋一致、名冊併入共用重試），看門狗 log／通知回報指紋與是否換過（起因：`chrome110` 被 Akamai 擋整天，同機 `safari15_5` 正常）
+- 2026-10-29 — 引用籃名稱徹查（Playtype 中文／原文對調、Clutch 前綴、原文剝說明、薪資與受助攻原文）；跨季比較可選當季（`COMPARISON_SEASON_OPTIONS`、`loadComparisonSeason`）
 - 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算
 - 2026-10-23 — 對戰分析（Phase 0–5）：`backfill_games.py --clean-players` 清理 2022-23～2024-25 單場球員文件（剔除 76 場 105 人次，重建 bundle）；`matchupData.js`（`window.Matchup`）、`MATCHUP_RULES`／`MATCHUP_TAGS`／`NBA_TEAM_NAMES`；對戰首頁 `MatchupHome.js`（`#vs`）、單隊對戰頁 `MatchupPage.js`（`#vs=三碼`）、刊頭「對戰」與搜尋入口、單場頁「歷次交手」連結、Splits 對手篩選；`gamesData.loadGameDocs` 共用單場文件讀取（快取鍵 `wt_gc_v2_`、`SingleGamePanel` 換 `wt_game_v3_`）；`glossary.js` 新增 OPP_PTS／MU_* 說明；新增「2026-10-23 對戰分析」「對戰分析」章節、FAQ、雷區，B2 改為已完成並列出第二期

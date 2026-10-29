@@ -271,7 +271,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
             {Object.keys(assisted).length > 0 && (
                 <UI.Section title="受助攻比例" en="Assisted FGM%" accent="blue" sub="命中球中由隊友助攻的比例 · 全季快照，不受上方期間篩選影響">
                     <UI.Ledger cols="grid-cols-3">
-                        {[['整體受助攻', 'All FGM', 'PCT_AST_FGM'], ['兩分受助攻', '2PM', 'PCT_AST_2PM'], ['三分受助攻', '3PM', 'PCT_AST_3PM']].map(([l, en, k]) => (
+                        {[['整體受助攻', '%AST FGM', 'PCT_AST_FGM'], ['兩分受助攻', '%AST 2PM', 'PCT_AST_2PM'], ['三分受助攻', '%AST 3PM', 'PCT_AST_3PM']].map(([l, en, k]) => (
                             <UI.StatCell key={k} label={l} en={en} value={typeof assisted[k] === 'number' ? assisted[k] : null} unit="%"
                                 gkey={k} citeAsOf="none" citeNote="全季（賽後隔天更新）" />
                         ))}

@@ -209,8 +209,8 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
                         <UI.Ledger cols="grid-cols-2 sm:grid-cols-4">
                             <UI.StatCell label="奢侈稅薪資" en="Tax Payroll" value={capM(p.tax)} valueTitle={capFull(p.tax)} gkey="CAP_TAX_PAYROLL" />
                             <UI.StatCell label="apron 薪資" en="Apron Payroll" value={capM(p.apron)} valueTitle={capFull(p.apron)} gkey="CAP_APRON_PAYROLL" />
-                            <UI.StatCell label="預估奢侈稅" en={`${repeater ? '累犯稅率' : '一般稅率'}${whatIf ? '（試算）' : ''}`} value={capM(tax.total)} valueTitle={capFull(tax.total)} gkey="CAP_TAX_EST" />
-                            <UI.StatCell label="標準合約" en={`雙向 ${p.twoWay} 人另計`} value={p.std.length} unit="人" gkey="CAP_ROSTER" />
+                            <UI.StatCell label="預估奢侈稅" en={`${repeater ? '累犯稅率' : '一般稅率'}${whatIf ? '（試算）' : ''}`} value={capM(tax.total)} valueTitle={capFull(tax.total)} gkey="CAP_TAX_EST" quote={{ en: 'Tax Estimate' }} />
+                            <UI.StatCell label="標準合約" en={`雙向 ${p.twoWay} 人另計`} value={p.std.length} unit="人" gkey="CAP_ROSTER" quote={{ en: 'Standard Contracts' }} />
                             <UI.StatCell label="薪資帽空間" en="Cap Space" value={capM(t.cap - p.tax)} valueTitle={capFull(t.cap - p.tax)} gkey="CAP_SPACE" />
                             <UI.StatCell label="奢侈稅空間" en="Tax Space" value={capM(t.tax - p.tax)} valueTitle={capFull(t.tax - p.tax)} gkey="CAP_TAX_SPACE" />
                             <UI.StatCell label="第一 apron 空間" en="1st Apron Space" value={capM(t.apron1 - p.apron)} valueTitle={capFull(t.apron1 - p.apron)} gkey="CAP_APRON1_SPACE" />

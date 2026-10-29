@@ -198,8 +198,11 @@
         const asOf = fields.asOf === 'none' || c.isHistory ? null : (fields.asOf === 'agg' ? c.asOfAgg : c.asOfSnap) || null;
         let url = '';
         try { url = `${window.location.origin}${window.location.pathname}${window.location.hash}`; } catch (e) { /* Node */ }
-        return Object.assign({ kind: 'single', subject, context: c.context || c.season || '', sep: '→', rank: null, pr: null, better: null, url },
+        const it = Object.assign({ kind: 'single', subject, context: c.context || c.season || '', sep: '→', rank: null, pr: null, better: null, url },
             fields, { asOf });
+        // 原文只留名稱：畫面小字的補充說明（如「DIFF%（負=守得好）」）不進貼文
+        if (it.en) it.en = String(it.en).replace(/（[^）]*）/g, '').trim();
+        return it;
     };
 
     window.Quote = { render, items, add, remove, move, merge, split, canMerge, clear, opts, setOpts, subscribe, make, EVENT, DEFAULT_OPTS, PAIRS };

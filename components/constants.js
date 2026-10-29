@@ -59,7 +59,7 @@ window.capSeasonForDate = function (date) {
     return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 };
 // 賽季選擇器選項：current = 當季每日快照，其餘為歷史終點快照。
-// 單一來源：App.js 的跨季比較清單也讀 HISTORY_SEASON_OPTIONS，勿另建第二份。
+// 單一來源：跨季比較清單（COMPARISON_SEASON_OPTIONS）由 HISTORY_SEASON_OPTIONS 加上當季組成，勿另建第二份。
 // 不變式：option.key === Firestore 的 history docId（`${season}_${type}`）
 // short 用「例行／季後」兩字：單字「季」會被讀成「賽季」。刊頭選單只列年份（SEASON_YEAR_OPTIONS），賽別由例行/季後切換決定
 window.HISTORY_SEASONS = ['2025-26', '2024-25', '2023-24', '2022-23'];
@@ -70,6 +70,19 @@ window.HISTORY_SEASON_OPTIONS = window.HISTORY_SEASONS.flatMap(s =>
         order: parseInt(s.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),  // ComparisonTab 折線 X 軸排序用
     }))
 );
+// 跨季比較清單：當季（每日快照最新一份，key 'current_賽別'）＋歷史終點快照。
+// 當季季後賽要等例行賽期結束才列；當季已進 HISTORY_SEASONS（已建終點快照）就只用歷史那份
+window.COMPARISON_SEASON_OPTIONS = (() => {
+    const cur = window.CURRENT_SEASON;
+    if (window.HISTORY_SEASONS.includes(cur)) return window.HISTORY_SEASON_OPTIONS;
+    const types = window.getSeasonPhase().type === 'regular' ? [['regular', '例行賽', '例行']]
+        : [['playoffs', '季後賽', '季後'], ['regular', '例行賽', '例行']];
+    return [...types.map(([t, l, sh]) => ({
+        key: `current_${t}`, season: cur, type: t, isCurrent: true,
+        label: `${cur} ${l}`, short: `${cur.slice(2)}${sh}`,
+        order: parseInt(cur.slice(0, 4), 10) * 10 + (t === 'playoffs' ? 1 : 0),
+    })), ...window.HISTORY_SEASON_OPTIONS];
+})();
 window.SEASON_OPTIONS = [
     // 休賽期時該季已經打完，寫「進行中」是錯的（getSeasonPhase 必須定義在本行之前）
     {

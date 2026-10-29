@@ -207,7 +207,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     <UI.Ledger cols={UI.ledgerCols(clutchMetrics.length)}>
                         {clutchMetrics.map(m => (
                             <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} value={clutchEntity[m.key]} unit={m.unit}
-                                gkey={m.key} citeNote="Clutch（第四節或延長賽最後 5 分鐘、分差 5 分內，場均）" rank={rankOf('clutch', m.key)} />
+                                gkey={m.key} citeNote="Clutch（第四節或延長賽最後 5 分鐘、分差 5 分內，場均）" rank={rankOf('clutch', m.key)}
+                                quote={{ label: `關鍵時刻${m.label}`, en: `Clutch ${m.englishLabel}` }} />
                         ))}
                     </UI.Ledger>
                 </UI.Section>

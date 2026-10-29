@@ -258,7 +258,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
             </div>
 
             <UI.Section title={viewMode === 'PLAYER' ? selectedPlayer : '全隊'} en="Season by Season" accent="blue"
-                sub={`${catSub} · 點指標列看逐季折線（可多選，同一指標可疊加其他球員）· 「—」表示該季無此類別資料`}
+                sub={`${catSub}${cols.some(c => c.isCurrent) ? '（當季取最新一份快照）' : ''} · 點指標列看逐季折線（可多選，同一指標可疊加其他球員）· 「—」表示該季無此類別資料`}
                 right={<UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenKeys([]); }}
                     options={catKeys.map(c => ({ value: c, label: CATS[c].label }))} />}>
                 {cols.length === 0 ? (
