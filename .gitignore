@@ -58,3 +58,7 @@ fetch_status.json
 watchdog_log.txt
 fetch_log_watchdog.txt
 nba_fingerprint.json
+
+### Local references (not versioned) ###
+_mockup/
+_salary_seed/
