@@ -60,18 +60,27 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
 };
 
 // 單場兩份文件 → { team: wolves_team_games/{date}, player: wolves_player_games/{date} }；兩份都沒有回 null，讀取失敗往上拋。
-// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v4_{date}）。
+// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v5_{date}，存 { savedAt, v }）。
 //   未定稿（final=false）不寫 localStorage，免得鎖住半成品；persist=false 只讀不寫（對戰頁一次讀十幾場，避免塞爆儲存空間）
-//   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；v3：2026-10-29 box 補進階＋單場 On/Off 後換版；v4：2026-11-04 單場文件加 insights（本場題材）後換版；舊鍵載入時刪掉
+//   有效期限：insights 每天重算（「之後被超越」註記、歷史定位標籤的現在排名），永久快取會讓讀者一直看到舊的 →
+//   本季場次 1 天、舊賽季 7 天後重讀（舊賽季的紀錄也可能被本季打破，但變得少）
+//   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；v3：2026-10-29 box 補進階＋單場 On/Off 後換版；v4：2026-11-04 單場文件加 insights（本場題材）後換版；
+//   v5：2026-11-04 改存 { savedAt, v } 加有效期限；舊鍵載入時刪掉
+const GAME_DOC_TTL_DAYS = { current: 1, past: 7 };
 try {
-    Object.keys(localStorage).filter(k => /^wt_gc_(v[23]_)?\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => /^wt_gc_(v[234]_)?\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
 } catch (e) { /* 私密模式等無法存取 localStorage */ }
 window.loadGameDocs = async function (date, persist = true) {
     const mem = (window.__gameDocCache = window.__gameDocCache || {});
     if (mem[date]) return mem[date];
-    const lsKey = `wt_gc_v4_${date}`;
+    const lsKey = `wt_gc_v5_${date}`;
     const clean = (c) => ({ team: window.cleanGameDoc(c.team), player: window.cleanGameDoc(c.player) });
-    try { const c = JSON.parse(localStorage.getItem(lsKey) || 'null'); if (c) { mem[date] = clean(c); return mem[date]; } } catch (e) { /* ignore */ }
+    // seasonForDate 吃 Date 物件（與 GamePage 同寫法）
+    const ttlDays = window.seasonForDate(new Date(date + 'T12:00:00Z')) === window.CURRENT_SEASON ? GAME_DOC_TTL_DAYS.current : GAME_DOC_TTL_DAYS.past;
+    try {
+        const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
+        if (c && c.v && Date.now() - (c.savedAt || 0) < ttlDays * 86400000) { mem[date] = clean(c.v); return mem[date]; }
+    } catch (e) { /* ignore */ }
     const { doc, getDoc } = window.firebaseModules;
     const [t, p] = await Promise.all([
         getDoc(doc(window.db, 'wolves_team_games', date)),
@@ -81,7 +90,7 @@ window.loadGameDocs = async function (date, persist = true) {
     if (v) {
         mem[date] = clean(v);
         const final = (v.team || v.player || {}).final !== false;
-        if (final && persist) { try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch (e) { /* quota */ } }
+        if (final && persist) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
     }
     return v ? mem[date] : v;
 };
