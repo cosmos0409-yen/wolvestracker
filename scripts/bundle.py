@@ -52,6 +52,7 @@ ORDER = [
     "gameAggregates.js",
     "gamesData.js",
     "matchupData.js",
+    "splitConditions.js",
     "SingleGamePanel.js",
     "GamePage.js",
     "CapPage.js",

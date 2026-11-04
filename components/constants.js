@@ -408,6 +408,13 @@ window.MATCHUP_TAGS = { rival: '勁敵', favorable: '順手', tough: '棘手' };
 // 「本場 vs 季平均」格子的標籤（前 3 名）由後端算好存在 insights.marks，門檻在 nba_common.INSIGHT_MARK_RULES
 window.HISTORY_RULES = { since: '2022-23', reportPct: 20, minN: 20, minAtt: 5, sinceGap: 10 };
 
+// 條件戰績（Splits「條件」，splitConditions.js 讀）
+//   maxConds    最多幾個條件（且）
+//   deadlineMD  交易截止日（月-日，取保守值）：「未出賽」的在隊期間＝第一次出賽 → 最後一次出賽，
+//               但最後一次出賽在這天之後的視為待到季末（季末輪休、受傷才算得進缺陣）；截止日前就不再出賽＝離隊
+//   minAtt      球員命中率類條件：該場出手少於這個數不算符合（0 投 1 中的 0% 不該算「命中率 ≤ 30%」）
+window.CONDITION_RULES = { maxConds: 2, deadlineMD: '02-15', minAtt: 3 };
+
 // NBA 30 隊三碼 → 中文隊名（台灣譯名）。對戰分析顯示用；box score 只有 2025-26 起才有隊名
 window.NBA_TEAM_NAMES = {
     ATL: '老鷹', BOS: '塞爾提克', BKN: '籃網', CHA: '黃蜂', CHI: '公牛', CLE: '騎士', DAL: '獨行俠', DEN: '金塊',
