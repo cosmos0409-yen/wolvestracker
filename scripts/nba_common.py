@@ -304,6 +304,23 @@ INSIGHT_PLAYER_METRICS = [
     ("PTS", "得分", 15), ("REB", "籃板", 8), ("AST", "助攻", 6), ("FG3M", "三分命中", 4),
     ("STL", "抄截", 3), ("BLK", "阻攻", 3),
 ]
+# ── 歷史定位標籤（insights.marks → 前端「本場 vs 季平均」格子的「灰狼第 N 高」）──
+# 名次＝「現在」排名：2022-23 起該員所有灰狼場次（含之後的比賽）。只標例外，2026-11-04 用兩季實測選定：
+#   前 3 名＋上場 ≥ 15 分鐘，每 6 個球員場次約亮 1 次；「前後 5%」約一半場次都會亮、且把受傷提早退場標成最低
+# 前端「?」小卡的完整定位另有門檻（constants.js HISTORY_RULES）；共用的「命中率最少出手」「最少場數」兩邊要一致
+INSIGHT_MARK_RULES = {
+    "top": 3,          # 前幾名才標
+    "max_ties": 2,     # 並列超過幾場就不標（0 失誤這種很多場並列的不算特別）
+    "min_n": 20,       # 該員灰狼場次（該指標有效）至少幾場
+    "min_att": 5,      # 命中率類：該場出手至少幾次才排名（HISTORY_RULES.minAtt 同值）
+}
+# (欄名, 命中率類的分母欄 或 None)：對應前端 GamePage 的 VS_KEYS（「本場 vs 季平均」12 格）
+# 高的一側每項都看；低的一側只看命中率類（得分、觸球的最低多半是受傷、犯規麻煩或垃圾時間，不是表現）
+INSIGHT_MARK_METRICS = [
+    ("PTS", None), ("REB", None), ("AST", None), ("FG_PCT", "FGA"), ("FG3_PCT", "FG3A"), ("TOV", None),
+    ("PLUS_MINUS", None), ("DRIVES", None), ("TOUCHES", None), ("D_FG_PCT", "D_FGA"),
+    ("CONTESTED_SHOTS", None), ("DEFLECTIONS", None),
+]
 
 # 瀏覽器指紋（curl_cffi impersonate）：stats.nba.com 前面的 Akamai 會擋特定 TLS 指紋，被擋時不回 403、
 # 直接讓請求逾時（2026-10-29 chrome110 全部逾時、safari15_5 正常）。這次執行第一項就失敗時依序換下一個各試 1 次，

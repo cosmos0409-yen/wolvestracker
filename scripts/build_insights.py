@@ -6,6 +6,7 @@ Wolves Tracker - 單場題材（本場題材 Story Leads）
     個人：本季新高、灰狼生涯（本站資料內）前 N 高
     全隊：本站資料內前 N 高／低、本季最佳／最低
     勝負關鍵：Four Factors 加權貢獻最大的一項（需要 box，2025-26 起）
+    歷史定位標籤 marks：灰狼球員本場在「本場 vs 季平均」12 項中，排進他灰狼場次前 3 名的（現在排名，2026-11-04 起）
 
 只讀逐場 bundle（wolves_games_bundle／wolves_pgames_bundle）與單場 box，0 個 NBA request。
 名次一律「截至當場」：只和這場之前的比賽比，寫入後不隨之後的比賽改變；
@@ -32,7 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nba_common as nc
 
 R = nc.INSIGHT_RULES
-VERSION = 1
+VERSION = 2   # v2（2026-11-04）：加 marks（歷史定位標籤）
 TYPES = ("regular", "playoffs")
 
 
@@ -243,6 +244,35 @@ def four_factors(box):
             "factors": {k: {"min": round(fa[k], 1), "opp": round(fb[k], 1), "contrib": round(contrib[k], 2)} for k in w}}
 
 
+def player_marks(game, players):
+    """歷史定位標籤：{pid: {欄名: {rank, ties, side}}}，只存前 N 名（INSIGHT_MARK_RULES）。
+    名次是「現在」排名（含之後的比賽），不存樣本數——多打一場樣本數就變，存了會讓每場文件每天都改寫"""
+    M = nc.INSIGHT_MARK_RULES
+    out = {}
+    for pid, p in players.items():
+        me = next((g for g in p["games"] if g["date"] == game["date"]), None)
+        if not me or (me["stats"].get("MIN") or 0) < R["min_minutes"]:
+            continue
+        marks = {}
+        for key, den in nc.INSIGHT_MARK_METRICS:
+            ok = lambda s: isinstance(s.get(key), (int, float)) and (not den or (s.get(den) or 0) >= M["min_att"])
+            if not ok(me["stats"]):
+                continue
+            pool = [g["stats"][key] for g in p["games"] if ok(g["stats"])]
+            if len(pool) < M["min_n"]:
+                continue
+            x = me["stats"][key]
+            for side in (("high", "low") if den else ("high",)):
+                rank = sum(1 for v in pool if better(v, x, side)) + 1
+                ties = sum(1 for v in pool if v == x) - 1   # pool 含本場
+                if rank <= M["top"] and ties <= M["max_ties"]:
+                    marks[key] = {"rank": rank, "ties": ties, "side": side}
+                    break
+        if marks:
+            out[pid] = marks
+    return out
+
+
 def build_for(game, team, players, box):
     cards = team_cards(game, team) + player_cards(game, players)
     cards.sort(key=lambda c: (-c["score"], c["kind"] != "player"))
@@ -255,7 +285,8 @@ def build_for(game, team, players, box):
         out.append(c)
         if len(out) >= R["max_cards"]:
             break
-    return {"v": VERSION, "since": R["first_season"], "cards": out, "key": four_factors(box)}
+    return {"v": VERSION, "since": R["first_season"], "cards": out, "key": four_factors(box),
+            "marks": player_marks(game, players)}
 
 
 # ==========================================
@@ -277,6 +308,9 @@ def describe(ins):
     if k:
         f = k["factors"][k["factor"]]
         lines.append(f"  勝負關鍵：{k['factor']} {f['min']} vs {k['oppAbbr']} {f['opp']}")
+    for pid, ms in (ins.get("marks") or {}).items():
+        lines.append(f"  標籤 {pid}：" + "、".join(
+            f"{key} 第 {m['rank']} {'高' if m['side'] == 'high' else '低'}{'（並列）' if m['ties'] else ''}" for key, m in ms.items()))
     return "\n".join(lines) or "  （無）"
 
 
