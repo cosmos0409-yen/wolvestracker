@@ -42,7 +42,7 @@
 
     const TeamCell = ({ r, onOpen }) => (
         <button type="button" onClick={() => onOpen(r.abbr)} title={`開 ${r.abbr} 對戰頁`}
-            className="inline-flex min-h-[24px] flex-wrap items-baseline text-left hover:text-[#12A150]">
+            className="inline-flex min-h-[24px] items-baseline whitespace-nowrap text-left hover:text-[#12A150]">
             <span className="font-display text-[15px] font-bold tracking-wide">{r.abbr}</span>
             <span className="ml-1.5 whitespace-nowrap text-[12px] text-slate-400">{r.name}</span>
             <Tag tag={r.tag} />

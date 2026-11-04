@@ -382,6 +382,16 @@ window.UI = (function () {
         : n % 3 === 0 ? 'grid-cols-2 sm:grid-cols-3'          // 9
         : 'grid-cols-2 sm:grid-cols-4';
 
+    // 橫捲容器的右緣陰影（純 CSS，加在 overflow-x-auto 容器的 style）：還能往右捲時右邊出現淡陰影，捲到底被 local 底色蓋掉；
+    // 表格放得下時不會出現。底色要和頁面同為 #0A1626
+    const scrollHint = {
+        backgroundImage: 'linear-gradient(to left, #0A1626 30%, rgba(10,22,38,0)), radial-gradient(farthest-side at 100% 50%, rgba(196,206,210,0.28), rgba(196,206,210,0))',
+        backgroundPosition: 'right center, right center',
+        backgroundSize: '40px 100%, 16px 100%',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'local, scroll',
+    };
+
     // columns: [{ key, label, en, align:'left'|'right', render(row), sortValue(row), cellClass(row) }]
     // exportTitle：給了就在表格右上加「匯出」（PNG 配圖＋CSV）；CSV 值取 c.csv(r)，否則取 r[c.key] 原始值
     // stackFirst：手機（< sm）把第一欄移到該列上方獨占一行、數字欄收窄，給第一欄很長的表（五人陣容）——否則名字在窄欄折成好幾行、右側欄位被擠到畫面外
@@ -414,7 +424,7 @@ window.UI = (function () {
             {exportTitle && (
                 <div className="mb-2 flex justify-end"><ExportMenu title={exportTitle} getNode={() => wrapRef.current} csv={csv} /></div>
             )}
-            <div ref={wrapRef} className="overflow-x-auto border-t border-white/[0.08]">
+            <div ref={wrapRef} className="overflow-x-auto border-t border-white/[0.08]" style={scrollHint}>
                 <table className="w-full text-sm border-collapse">
                     {caption && <caption className="sr-only">{caption}</caption>}
                     <thead>
@@ -425,7 +435,8 @@ window.UI = (function () {
                                     <th key={c.key} scope="col"
                                         aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                                         className={`px-3 py-2 font-normal whitespace-nowrap align-bottom ${c.align === 'left' ? 'text-left' : 'text-right'} ${ci === 0 ? (stackFirst ? 'max-sm:hidden' : 'max-sm:sticky max-sm:left-0 max-sm:z-[1] max-sm:bg-[#0A1626]') : (stackFirst ? 'max-sm:px-1.5' : '')}`}>
-                                        <span className={`inline-flex items-start gap-0.5 ${c.align === 'left' ? '' : 'flex-row-reverse'}`}>
+                                        {/* 「?」一律跟在標題右邊：放左邊時看起來像屬於前一欄，橫捲切到欄位時還會孤零零露出一顆 */}
+                                        <span className="inline-flex items-start gap-0.5">
                                             <button onClick={() => toggle(c.key)}
                                                 className={`inline-flex min-h-[24px] min-w-[24px] flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
                                                 <span className="text-[11px]">{c.label}{active && <span className="ml-1 text-[#12A150]">{sort.dir === 'asc' ? '↑' : '↓'}</span>}</span>
@@ -615,5 +626,5 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu };
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
 })();

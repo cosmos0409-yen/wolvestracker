@@ -449,7 +449,7 @@ wolvestracker/
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入
 - 背景：底色 `#0A1626`＋刊頭淡光暈＋極淡顆粒，寫在 `styles/app.css` 的 `@layer base`
-- 元件：`UI.StatCell`（指標格，數值三態：0 照常顯示／無資料「—」／不適用「—」+ tooltip）、`UI.Ledger`＋`UI.ledgerCols(n)`（細線數據表，依指標數選能整除的欄數）、`UI.PctBar`（百分位色階條，紅→月光銀→綠；**只給真的有 percentile 的資料**）、`UI.Delta`（漲跌）、`UI.DataTable`（可排序表格，手機首欄固定且限寬換行；`stackFirst` 時手機改成首欄獨占上方一行、數字欄收窄，五人陣容用）
+- 元件：`UI.StatCell`（指標格，數值三態：0 照常顯示／無資料「—」／不適用「—」+ tooltip）、`UI.Ledger`＋`UI.ledgerCols(n)`（細線數據表，依指標數選能整除的欄數）、`UI.PctBar`（百分位色階條，紅→月光銀→綠；**只給真的有 percentile 的資料**）、`UI.Delta`（漲跌）、`UI.DataTable`（可排序表格，手機首欄固定且限寬換行；`stackFirst` 時手機改成首欄獨占上方一行、數字欄收窄，五人陣容用）、`UI.scrollHint`（橫捲容器右緣陰影的 style 物件：還能往右捲時才出現，Box Score 與 DataTable 已套用；底色須為 #0A1626）
 - 2026-10-24 補：`UI.TabBar`（sticky 分頁列，章節列／薪資頁／單場頁共用；`numbered` 標 01 02… 快捷鍵提示、`right` 放右側控制項、`bleed` 在 `<main>` 內用負邊距撐滿）、`UI.useTabKeys`（數字鍵切分頁）。新的分頁列一律用它，不要再複製一份 JSX
 - Phase 4 補：`UI.Section`（區塊標題＋小字原文＋說明＋右側操作，accent 色標保留舊色條語意：攻綠/守紅/Clutch 琥珀/結構藍；右側容器 `max-w-full`，手機上自行換行不撐寬頁面）、`UI.Note`（空狀態）、`UI.Chip`／`UI.selectClass`（篩選膠囊）
 - 新區塊一律用這些元件組，標籤寫「中文＋小字原文」，風格自動一致

@@ -158,7 +158,8 @@ const CapPage = ({ season, onSeason, capTab, onTab, playerNameOf }) => {
                 <h1 className="flex items-baseline gap-2 text-[24px] font-bold leading-tight text-slate-50">
                     薪資與奢侈稅<span className="font-mono text-[12px] font-normal text-slate-500">Cap Sheet</span>
                 </h1>
-                <p className="mt-1 text-[12px] text-slate-400">資料最後同步 {syncDate || '—'}・人工整理自 Spotrac、Hoops Rumors 等公開資料</p>
+                {/* updatedAt 只在 Sheet 內容有變時才寫（sync_salary.py 內容雜湊相同就略過），所以是「最後異動」不是「最後同步」；每日排程照常比對 */}
+                <p className="mt-1 text-[12px] text-slate-400">資料最後異動 {syncDate || '—'}（每日自動比對 Google Sheet）・人工整理自 Spotrac、Hoops Rumors 等公開資料</p>
             </header>
 
             {/* 分頁列（捲動時固定在頂端）：分頁＋唯一的賽季選單。刊頭的賽季／賽別／日期在薪資頁隱藏，避免兩組賽季控制項 */}

@@ -12,11 +12,11 @@ const Masthead = ({
     const UI = window.UI;
     const ownPage = inCap || inGame || inVs;   // 獨立整頁：不顯示主畫面的賽季／賽別／日期
     const pill = (on) => `shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${on ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30'}`;
-    const statusEl = status === 'offline'
-        ? <span className="text-[#EF4444]">● 未連線</span>
-        : status === 'offseason'
-            ? <span className="text-amber-400">● 休賽期</span>
-            : <span className="text-[#12A150]">● 雲端即時</span>;
+    // 手機只留色點（文字給螢幕閱讀器），否則期別行被截斷、連線狀態整個看不到；點期別行可看完整狀態
+    const statusEl = (cls, text) => <span className={cls}>●<span className="max-sm:sr-only"> {text}</span></span>;
+    const statusDot = status === 'offline' ? statusEl('text-[#EF4444]', '未連線')
+        : status === 'offseason' ? statusEl('text-amber-400', '休賽期')
+        : statusEl('text-[#12A150]', '雲端即時');
     return (
         <header className="border-b border-white/10">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-6">
@@ -29,10 +29,13 @@ const Masthead = ({
                         </div>
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
                             className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
-                            {inCap ? '薪資 · Cap Sheet' : inVs ? '對戰分析 · Matchups' : inGame ? `單場 · ${gameDate || ''}` : [issueSeason, issueType].filter(Boolean).join(' · ')}
+                            {/* 手機省掉英文副名與年份，色點才放得下 */}
+                            {inCap ? '薪資 · Cap Sheet' : inVs ? <>對戰分析<span className="max-sm:hidden"> · Matchups</span></>
+                                : inGame ? <>單場 · <span className="max-sm:hidden">{(gameDate || '').slice(0, 5)}</span>{(gameDate || '').slice(5)}</>
+                                : [issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：身分列的時光機已顯示，避免期別行被截斷 */}
                             {!ownPage && <span className="hidden sm:inline">{' · '}{isHistoryMode ? '期末快照' : (effectiveDate ? `截至 ${effectiveDate}` : '')}</span>}
-                            <span className="mx-1.5 text-slate-600">·</span>{statusEl}
+                            <span className="mx-1.5 text-slate-600">·</span>{statusDot}
                         </button>
                     </div>
                     {/* 手機：對戰／薪資／搜尋放字標同一列（第二列放不下，原本被擠到畫面外）；桌面版在右側控制列 */}

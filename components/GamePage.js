@@ -181,7 +181,8 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
 
     const final = meta.final !== false;
     const wl = meta.wl;
-    const linkCls = 'border-b border-transparent hover:border-[#12A150] hover:text-white transition-colors';
+    // inline-block＋leading-6：連結點擊區至少 24px 高（無障礙下限；原本只有 19–20px）
+    const linkCls = 'inline-block leading-6 border-b border-transparent hover:border-[#12A150] hover:text-white transition-colors';
 
     // ── 賽程條 ──
     const idxPos = index.findIndex(g => g.date === date);
@@ -190,16 +191,28 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         <nav aria-label="賽程" className="flex items-stretch gap-1.5 border-b border-white/10 pb-3">
             <a href={prevG ? window.UrlState.gameHref(prevG.date, '', gameTab, gameBox) : undefined} aria-label="上一場" aria-disabled={!prevG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${prevG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>‹</a>
-            <div className="flex flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]" ref={el => { if (el) { const on = el.querySelector('[aria-current="page"]'); if (on) el.scrollLeft = on.offsetLeft - el.clientWidth / 2 + on.clientWidth / 2; } }}>
+            {/* 捲動一律停在卡片左緣（snap＋初始位置取整到卡片寬），左邊不會露出半張看似空白的卡；
+                尾端墊片把最大捲動量補成卡片寬的整數倍，否則捲到最後幾場時被瀏覽器夾住、又停在半張卡 */}
+            <div className="flex flex-1 snap-x snap-mandatory gap-1.5 overflow-x-auto [scrollbar-width:none]" ref={el => {
+                if (!el) return;
+                const cards = [...el.querySelectorAll('a')], on = el.querySelector('[aria-current="page"]'), pad = el.querySelector('[data-strip-pad]');
+                if (cards.length < 2 || !on || !pad) return;
+                const step = cards[1].offsetLeft - cards[0].offsetLeft;
+                pad.style.width = '0px';
+                const rem = (el.scrollWidth - el.clientWidth) % step;
+                if (el.scrollWidth > el.clientWidth && rem) pad.style.width = `${step - rem}px`;
+                el.scrollLeft = Math.max(0, Math.round((cards.indexOf(on) * step - (el.clientWidth - on.offsetWidth) / 2) / step) * step);
+            }}>
                 {/* 換場次保留目前分頁（連看好幾場的 Box Score）；不帶展開的球員 */}
                 {index.map(g => (
                     <a key={g.date} href={window.UrlState.gameHref(g.date, '', gameTab, gameBox)} aria-current={g.date === date ? 'page' : undefined}
-                        className={`w-[104px] shrink-0 rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100'}`}>
+                        className={`w-[104px] shrink-0 snap-start rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100'}`}>
                         <div className="font-mono text-[10px]">{g.date.slice(5)}</div>
                         <div className="font-medium text-slate-100">{String(g.matchup || '').replace(/^MIN\s*/, '')}</div>
                         <div className={`font-mono ${g.wl === 'W' ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>{g.wl}</div>
                     </a>
                 ))}
+                <div data-strip-pad aria-hidden="true" className="shrink-0" />
             </div>
             <a href={nextG ? window.UrlState.gameHref(nextG.date, '', gameTab, gameBox) : undefined} aria-label="下一場" aria-disabled={!nextG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${nextG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>›</a>
@@ -219,7 +232,8 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                     <img src={logo(t.teamId)} alt="" className="h-10 w-10 sm:h-20 sm:w-20 shrink-0" />
                     <div className="min-w-0">
                         <div className="font-display text-[26px] sm:text-[40px] font-bold leading-none">{t.tricode}</div>
-                        <div className="truncate text-[12px] text-slate-400">{t.name}</div>
+                        {/* 平板（sm–lg）半欄放不下全名 → 允許換行，不截成「Minnesota Timber…」 */}
+                        <div className="text-[12px] leading-tight text-slate-400 lg:truncate">{t.name}</div>
                         <div className="font-mono text-[11px] text-slate-500">{side === 'home' ? '主' : '客'}</div>
                     </div>
                 </div>
@@ -230,7 +244,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const periodLabel = (p, i) => p.type === 'OVERTIME' || i >= 4 ? `OT${i - 3 > 1 ? i - 3 : ''}` : `Q${i + 1}`;
     // 對戰分析：這個對手的歷次交手（#vs=三碼）
     const vsLink = /^[A-Z]{3}$/.test(oppAbbr) ? (
-        <a href={window.UrlState.vsHref(oppAbbr)} className={`mt-1.5 inline-block text-[12px] text-slate-300 ${linkCls}`}>與 {oppAbbr} 歷次交手 →</a>
+        <a href={window.UrlState.vsHref(oppAbbr)} className={`mt-1 text-[12px] text-slate-300 ${linkCls}`}>與 {oppAbbr} 歷次交手 →</a>
     ) : null;
     const margin = box ? minTeam.score - oppTeam.score : null;
     const nOT = box ? Math.max(0, away.periods.length - 4) : 0;   // 延長節數（舊場次沒有每節比分 → 0，只顯示 FINAL）
@@ -473,6 +487,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         if (k === 'PTS') return TOP_KEYS.includes(k) && s[k] > 0 && s[k] === topOf(k) ? 'font-semibold text-[#12A150]' : 'font-semibold text-slate-50';
         return TOP_KEYS.includes(k) && s[k] > 0 && s[k] === topOf(k) ? 'font-semibold text-[#12A150]' : '';
     };
+    // 手機名字縮成「J. McDaniels」：首欄是 sticky，全名會吃掉一半寬度、數字只剩兩欄看得到
+    const shortName = (n) => {
+        const parts = String(n || '').split(' ');
+        if (parts.length < 2) return n;
+        return (<><span className="sm:hidden">{parts[0][0]}. {parts.slice(1).join(' ')}</span><span className="hidden sm:inline">{n}</span></>);
+    };
     const boxRow = (p) => {
         const mine = sideTri === 'MIN';
         const mp = mine ? minPlayers.find(x => x.pid === p.personId) : null;
@@ -480,16 +500,16 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         const dnp = !p.stats || !Object.keys(p.stats).length;
         const toggle = () => { if (mine && mp) onExpand(open ? '' : tokenOf(mp)); };
         const nameEl = mine && mp
-            ? <a href={playerHref(mp.name)} onClick={e => e.stopPropagation()} className={linkCls}>{p.name}</a>
-            : <span title={mine ? undefined : '對手球員沒有個人頁（只抓灰狼的季資料）'}>{p.name}</span>;
+            ? <a href={playerHref(mp.name)} onClick={e => e.stopPropagation()} className={linkCls}>{shortName(p.name)}</a>
+            : <span title={mine ? undefined : '對手球員沒有個人頁（只抓灰狼的季資料）'}>{shortName(p.name)}</span>;
         return (
             <React.Fragment key={p.personId}>
                 <tr onClick={dnp ? undefined : toggle} className={`border-b border-white/[0.05] ${mine && mp && !dnp ? 'cursor-pointer hover:bg-white/[0.03]' : ''} ${open ? 'bg-[#12A150]/[0.07]' : ''}`}>
                     <th scope="row" className="sticky left-0 bg-[#0A1626] px-2 py-1.5 text-left font-normal whitespace-nowrap">
                         <span className="inline-block w-6 font-mono text-[10px] text-slate-500">{p.jersey}</span>
                         {nameEl}
-                        {p.position && <span className="ml-1.5 font-mono text-[10px] text-slate-500">{p.position}</span>}
-                        {mine && mp && !dnp && <span className="ml-2 font-mono text-[10px] text-slate-500">{open ? '▴ 收合' : '▾ 進階'}</span>}
+                        {p.position && <span className="ml-1.5 font-mono text-[10px] text-slate-500 max-sm:hidden">{p.position}</span>}
+                        {mine && mp && !dnp && <span className="ml-2 font-mono text-[10px] text-slate-500">{open ? '▴' : '▾'}<span className="max-sm:hidden">{open ? ' 收合' : ' 進階'}</span></span>}
                     </th>
                     {dnp ? (
                         <td colSpan={cols.length} className="px-2 py-1.5 text-left text-[12px] text-slate-500">{p.comment || 'DNP'}</td>
@@ -519,7 +539,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                     options={[{ value: 'MIN', label: 'MIN 灰狼' }, { value: 'OPP', label: `${oppAbbr} 對手` }]} />
                 <UI.ExportMenu title={`Box Score${advView ? '（進階）' : ''} ${date} ${meta.matchup || ''}`} getNode={() => boxRef.current} csv={boxCsv} />
             </>}>
-            <div ref={boxRef} className="overflow-x-auto border-t border-white/[0.08]">
+            <div ref={boxRef} className="overflow-x-auto border-t border-white/[0.08]" style={UI.scrollHint}>
                 <table className={`w-full border-collapse text-[13px] ${advView ? 'min-w-[760px]' : 'min-w-[820px]'}`}>
                     <caption className="sr-only">{sideTri} Box Score</caption>
                     <thead><tr className="border-b border-white/15">
