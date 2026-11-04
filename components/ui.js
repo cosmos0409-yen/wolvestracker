@@ -600,7 +600,8 @@ window.UI = (function () {
                 <div className="min-w-0">
                     <h2 className="flex items-baseline gap-2 text-[20px] font-bold leading-tight text-slate-50">
                         {accent && <span className={`inline-block h-3.5 w-1 shrink-0 ${ACCENT[accent] || ACCENT.silver}`} aria-hidden="true"></span>}
-                        <span>{title}</span>
+                        {/* min-w-0：標題可縮（傳入 truncate 的節點時才會截斷；一般字串照常換行） */}
+                        <span className="min-w-0">{title}</span>
                         {en && <span className="font-mono text-[11px] font-normal text-slate-500">{en}</span>}
                     </h2>
                     {sub && <p className="mt-1 text-[12px] leading-relaxed text-slate-400">{sub}</p>}

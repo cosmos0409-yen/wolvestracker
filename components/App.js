@@ -87,6 +87,8 @@ const App = () => {
     const [focus, setFocus] = useState(() => urlInit.focusMetric
         ? { m: urlInit.focusMetric, hl: urlInit.highlightDate || null, key: focusKeyOf(urlInit.viewMode, urlInit.selectedPlayer, urlInit.activeTab) }
         : null);
+    // Splits 條件戰績（網址 c=，序列化後的完整條件；格式見 splitConditions.js）。只在 Splits 章節寫進網址
+    const [splitCond, setSplitCond] = useState(() => urlInit.splitCond || '');
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -541,6 +543,10 @@ const App = () => {
         return () => { cancelled = true; };
     }, [selectedSeasonKey, seasonTypeView, viewMode, currentPlayerId, isCloud]);
 
+    // Splits 條件戰績要讀「同一份 bundle」的全隊與其他球員逐場：賽季／賽別與上面的載入規則一致
+    const splitsBundle = selectedSeasonKey === 'current' ? [window.CURRENT_SEASON, seasonTypeView]
+        : (() => { const o = SEASON_OPTIONS.find(x => x.key === selectedSeasonKey); return o && o.season ? [o.season, o.type] : [null, null]; })();
+
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
         if (isHistoryMode) return null;
@@ -888,9 +894,10 @@ const App = () => {
             ? window.UrlState.serialize({ vsView: true, vsTeam: vs.team, vsRange: vs.range, vsType: vs.type, vsMetric: vs.metric })
             // 網址帶來的球員還在等名單比對時，原樣寫回（只寫 ID 或舊名字），不可配上前一位球員的名字
             : window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
-                focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null }));
+                focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null,
+                splitCond: activeTab === 'splits' ? splitCond : '' }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, homePending, wantPlayer, currentPlayerId, splitCond]);
     // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
@@ -935,6 +942,7 @@ const App = () => {
             }
             setVs(null);
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
+            setSplitCond(st.splitCond || '');
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
             setWantPlayer(wantOf(st));
@@ -1191,6 +1199,9 @@ const App = () => {
                                 onFocusChange={onSplitsFocus}
                                 onGameClick={(d) => openGame(d, viewMode === 'PLAYER' ? selectedPlayer : '')}
                                 rankable={viewMode === 'TEAM' && !!window.RankCtx && window.RankCtx.latest}
+                                season={splitsBundle[0]} seasonType={splitsBundle[1]} isTeam={viewMode === 'TEAM'}
+                                players={availablePlayers.map(n => ({ name: n, id: playerIdOf(n) })).filter(p => p.id)}
+                                condStr={splitCond} onCondChange={setSplitCond}
                             />
                         )}
 
