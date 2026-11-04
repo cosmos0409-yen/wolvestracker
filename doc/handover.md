@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-04（**單場題材（本場題材 Story Leads）**＋**手機版巡檢修正**：後端 `build_insights.py` 每場算好「本季新高、2022-23 起排名、勝負關鍵」寫進單場文件，單場頁概要新增區塊；手機版陣容表、刊頭換行、比分區、Box Score 欄寬等，見「2026-11-04 手機版巡檢與單場題材」）
+> 最後更新：2026-11-04（**歷史定位**：單場頁「本場 vs 季平均」只在灰狼場次前 3 名的格子標「灰狼第 N 高」、Box Score 展開列「?」小卡點開看完整定位；單場快取加有效期限 `wt_gc_v5_`，見「2026-11-04 歷史定位」）
+> 同日稍早：**單場題材（本場題材 Story Leads）**＋**手機版巡檢修正**：後端 `build_insights.py` 每場算好「本季新高、2022-23 起排名、勝負關鍵」寫進單場文件，單場頁概要新增區塊；手機版陣容表、刊頭換行、比分區、Box Score 欄寬等，見「2026-11-04 手機版巡檢與單場題材」）
 > 前次：2026-10-28（**聯盟名次與引用籃**，見同名章節）；2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**、**單場分頁＋介面統一**、**網站圖示（PWA）**，見同名章節；之前的對戰分析、開季修正、薪資頁、單場比賽頁見同名章節）
 
 ## 已完成項目
@@ -340,6 +341,41 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 **附帶發現（未處理，待使用者決定）**：`wolves_pgames_bundle/2024-25_playoffs` 是一份格式不符的舊文件（內容是 2024-25 季後賽全隊 bundle，誤寫進球員集合），前端用不到；`build_insights.py` 以 id 格式略過
 
+### 2026-11-04 歷史定位
+
+起因：使用者選定的第 3 個點子「這數字算多嗎？」——單場頁看一個數字時，知道它在這位球員灰狼生涯（本站資料內）的位置。
+
+**討論過程與決定（使用者）**
+- 名次基準：**現在排名**（含之後的比賽），另寫「自 X 以來最高」（當時的視角）；與「本場題材」的「截至當場」不同，兩者用途不同
+- 版面：先看了三版預覽（`_mockup/history-rank.html`）——A 每格加「?」、B 每格底部寫一行、**C 只標例外**（採用）。A／B 被否決的理由：12 格中值得寫的通常只有 1～2 格，其餘是「中段」，12 顆「?」或 12 行字都是雜訊；且格子本身是連結，再塞按鈕手機上容易誤觸
+- 標籤門檻：原提「前後 5%」，用 2025-26 起 1,115 球員場次實測後改為**前 3 名＋上場 ≥ 15 分鐘**：
+
+  | 規則 | 平均每人每場 | 至少亮 1 個 |
+  |---|---|---|
+  | 前後 5% | 0.89 | 51% |
+  | 前後 5%＋≥15 分鐘 | 0.73 | 42% |
+  | **前 3 名＋≥15 分鐘＋並列 ≤ 2** | 0.26 | 17%（只算 ≥15 分鐘的場次為 21%） |
+
+  前後 5% 的問題：百分位門檻天生讓每項 10% 的場次被標，12 項合起來一半場次都亮，失去「例外」意義；低的一側多半是受傷提早退場、犯規麻煩（57 例，如 2025-10-26 Edwards 上場 3 分鐘被標得分最低）。指標本身（跟自己歷史比的名次）適合：對角色球員公平、不需常態假設（次數類偏斜、大量並列時 z-score 失真）、可直接寫進貼文；限制：只有 2022-23 起且只算灰狼場次（寫「灰狼第 N 高」不寫生涯）、看總量所以角色／上場時間變化會影響（Edwards 場均得分 25.0 → 33.2）
+
+**兩條計算路徑（刻意分開）**
+- **格子標籤 → 後端**：`build_insights.player_marks()` 寫 `insights.marks`，門檻 `nba_common.INSIGHT_MARK_RULES`（top 3、max_ties 2、min_n 20、min_att 5）、指標 `INSIGHT_MARK_METRICS`（＝前端 `VS_KEYS` 12 項；高的一側每項看、低的一側只看命中率類）。上場分鐘沿用 `INSIGHT_RULES.min_minutes`。**不存樣本數**：多打一場樣本數就變，存了會讓 384 份文件每天全改寫；實測每日新增一場只改寫 7～18 份舊文件
+- **「?」小卡 → 前端**：`GamePage.playerHistory(pid, key)` 點開才讀該員 2022-23 起各季例行／季後 bundle（`loadSeasonGames`，約 600 KB，記憶體快取同次瀏覽不重讀），規則 `constants.js` 的 `HISTORY_RULES`（since、reportPct 20、minN 20、minAtt 5、sinceGap 10）。百分位用中位名次（並列算一半），前後 20% 寫「灰狼 42 場第 2 高（前 2%）」，其餘「中段（前 N%，n 場）」，樣本不足「灰狼才 14 場，樣本少」；往前找最近一場至少這麼高的比賽，相隔 ≥ 10 場才寫「自 2026-03-20 vs POR（86）以來最多」，沒有就寫「當時為 2022-23 起最高」
+- **兩邊共用、必須同值**：命中率最少出手（`min_att`＝`minAtt`＝5）、最少場數（`min_n`＝`minN`＝20）
+- 字眼：命中率類「高／低」；次數類（neutral、名稱以「數」結尾如傳球次數、觸球總數）與越少越好的次數（失誤）「多／少」——`GamePage.histWord`
+- 顏色同本場題材（`CHIP` 已提到元件層級共用）：綠＝好的方向、紅＝不好、灰＝次數類
+
+**元件**
+- `UI.Info` 新增 `history`（回傳 Promise 的函式）：點開小卡才呼叫，顯示「載入歷史…」→ `{ title, main, sub, note }`；結果傳給 `cite(hist)`／`quote(hist)`，引用帶名次（`※切入次數：16（灰狼 42 場第 2 多）`）。**關閉小卡就清掉結果**（React 會把同位置的元件實例沿用給別的球員）；載入後小卡變高會重算位置
+- 只在 Box Score 展開列（`metricRow`）掛 `history`；進階 box 的效率（`ADV_META`，不在 bundle）不掛
+- 「本場 vs 季平均」格子：`markBadge(pid, key)`，標籤在數字列靠右
+
+**單場快取有效期限（同日修正）**：`loadGameDocs` 改存 `{ savedAt, v }`，本季場次 1 天、舊賽季 7 天後重讀（`GAME_DOC_TTL_DAYS`），鍵 `wt_gc_v5_`。原本永久快取，讀者看過的場次不會收到每日重算的「之後被超越」灰框與現在排名。實作時踩到：`seasonForDate` 吃 Date 物件，傳字串會讓單場頁讀取失敗（`d.getTime is not a function`）
+
+**Firestore 用量（2026-11-04 實測）**：全部 1,274 份約 25 MiB（免費額度 1 GiB 的 2.5%），`insights`（題材＋標籤）384 場共 0.47 MiB；每季約增加 10～15 MiB。每日題材計算讀約 550 份、寫 10～20 份（免費額度每日讀 5 萬、寫 2 萬）
+
+**未做／可再議**：全隊數字（Four Factors、對比分頁）沒有歷史定位（本場題材已涵蓋全隊突出項）；小卡的低側（如 Edwards 2024-01-12 觸球並列第 16 少）多半反映上場時間短，若覺得多餘可改成只顯示高的一側
+
 ---
 
 ## 專案檔案結構
@@ -478,7 +514,7 @@ wolvestracker/
 ### 設計系統（2026-10，`components/ui.js` → `window.UI`）
 - 字體：`font-sans`＝Noto Sans TC（內文/中文）、`font-display`＝Barlow Condensed（大數字/標題）、`font-mono`＝JetBrains Mono（小標籤/NBA 原文/表格數字），定義在 `tailwind.config.js`，字型檔由 `index.html` 的 Google Fonts 載入
 - 背景：底色 `#0A1626`＋刊頭淡光暈＋極淡顆粒，寫在 `styles/app.css` 的 `@layer base`
-- 元件：`UI.StatCell`（指標格，數值三態：0 照常顯示／無資料「—」／不適用「—」+ tooltip）、`UI.Ledger`＋`UI.ledgerCols(n)`（細線數據表，依指標數選能整除的欄數）、`UI.PctBar`（百分位色階條，紅→月光銀→綠；**只給真的有 percentile 的資料**）、`UI.Delta`（漲跌）、`UI.DataTable`（可排序表格，手機首欄固定且限寬換行；`stackFirst` 時手機改成首欄獨占上方一行、數字欄收窄，五人陣容用）、`UI.scrollHint`（橫捲容器右緣陰影的 style 物件：還能往右捲時才出現，Box Score 與 DataTable 已套用；底色須為 #0A1626）
+- 元件：`UI.StatCell`（指標格，數值三態：0 照常顯示／無資料「—」／不適用「—」+ tooltip）、`UI.Ledger`＋`UI.ledgerCols(n)`（細線數據表，依指標數選能整除的欄數）、`UI.PctBar`（百分位色階條，紅→月光銀→綠；**只給真的有 percentile 的資料**）、`UI.Delta`（漲跌）、`UI.DataTable`（可排序表格，手機首欄固定且限寬換行；`stackFirst` 時手機改成首欄獨占上方一行、數字欄收窄，五人陣容用）、`UI.Info` 的 `history`（點開才載入的補充段落，2026-11-04 歷史定位用）、`UI.scrollHint`（橫捲容器右緣陰影的 style 物件：還能往右捲時才出現，Box Score 與 DataTable 已套用；底色須為 #0A1626）
 - 2026-10-24 補：`UI.TabBar`（sticky 分頁列，章節列／薪資頁／單場頁共用；`numbered` 標 01 02… 快捷鍵提示、`right` 放右側控制項、`bleed` 在 `<main>` 內用負邊距撐滿）、`UI.useTabKeys`（數字鍵切分頁）。新的分頁列一律用它，不要再複製一份 JSX
 - Phase 4 補：`UI.Section`（區塊標題＋小字原文＋說明＋右側操作，accent 色標保留舊色條語意：攻綠/守紅/Clutch 琥珀/結構藍；右側容器 `max-w-full`，手機上自行換行不撐寬頁面）、`UI.Note`（空狀態）、`UI.Chip`／`UI.selectClass`（篩選膠囊）
 - 新區塊一律用這些元件組，標籤寫「中文＋小字原文」，風格自動一致
@@ -676,7 +712,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
 - **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取
 - **2022-23～2024-25 清理（2026-10-23，`backfill_games.py --clean-players`）**：這三季沒有 box，改用**多欄位對帳**（0 request）。每場把 `players` 加總比 `wolves_team_games.stats`：PTS／FGM／FGA／FG3M／FTM／FTA／OREB／DREB／AST／STL／BLK／PF 必須全等，TOV 只要求不超過球隊（球隊失誤含 24 秒違例等團隊失誤），上場時間加總 ≈ 5 × 球隊 MIN（容差 1.5 分鐘）。對不上時找「剔除後全部對得上」的最少人數組合（1～4 人），**該人數下唯一一組才剔除**，否則只列出不動。先用已清理的 2025-26 校準：94 場零誤刪（唯一對不上的 2026-03-01 是 NBA 球員 DREB 加總比球隊少 1，全員都在 box，屬資料落差）。三季例行賽剔除 76 場、105 人次（2022-23：Conley 26、Alexander-Walker 23、Russell 9、Matt Ryan 7、A.J. Lawson 3；2023-24：Troy Brown Jr. 13、Monte Morris 5、Shake Milton 4、Wendell Moore Jr. 1；2024-25：Hyland 13、Tristen Newton 1），剔除日期與真實交易時間吻合；季後賽三季本來就對得上。重建三季 bundle 後，得分加總、對帳腳本、bundle 端反推三種核對全部歸零。用法：先 `--dry-run` 看名單，再拿掉 `--dry-run` 寫入，接著 `build_bundles.py --season X --type Y`
-- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v4_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4；舊 `wt_gc_{date}`／`wt_gc_v2_`／`wt_gc_v3_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
+- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v5_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4、同日改存 `{ savedAt, v }` 加有效期限換 v5——本季 1 天、舊季 7 天後重讀；舊 `wt_gc_{date}`／`wt_gc_v2_`～`wt_gc_v4_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
 - **灰狼單場球員以 box score 上場名單的 PlayerID 過濾，不用名字**：名冊 API 與數據 API 的名字寫法可能不同（2025-26 實例：`Terrence Shannon Jr.` vs `Terrence Shannon Jr`），用名字過濾會整個人漏掉。名字清單只在 box score 抓不到時當後備（`keep_is_fallback`）；`backfill_games.py --min-gp > 0` 時才另外套輪換門檻。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
@@ -685,10 +721,11 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - `partial`：base 有資料但 tracking/hustle 等某來源整個空，或 Tracking 回「整組 0」（`tracking_zero_filled`，2026-10-27 起）；定稿後最多重抓 3 次（`CAPTURE_MAX_TRIES`）。
   - `captureTries`：定稿後的擷取次數（未定稿時為 0）。舊回補文件沒有這些欄位，視為已定稿完整。
   漏跑幾天也會自動補（5 場內）。
-- **`insights`（單場題材，`build_insights.py` 寫入）**：`{ v: 1, since: '2022-23', computedAt, cards: [...], key }`
+- **`insights`（單場題材＋歷史定位標籤，`build_insights.py` 寫入）**：`{ v: 2, since: '2022-23', computedAt, cards: [...], key, marks }`
   - `cards[]`：`{ kind: 'team'|'player', pid?, name?, key, label, value, tone: 'pos'|'neg'|'neu', tags: [{ scope: 'all'|'season', side: 'high'|'low', rank, ties, n, after }], prev, score }`；`prev`／`after` 為 `{ date, value, matchup, playoffs? }`（`prev`＝第一個標籤範圍內「這場之前」的最佳紀錄；`after`＝之後第一場比它好的比賽，沒有為 null）
   - `key`（勝負關鍵，沒有 box 為 null）：`{ factor: 'efg'|'tov'|'orb'|'ftr', win, oppAbbr, factors: { efg: { min, opp, contrib }, … } }`
-  - 只存結構化資料，文案在前端組；門檻改了用 `build_insights.py` 重算（見 FAQ「單場題材」）
+  - `marks`（v2 起，歷史定位標籤）：`{ [球員ID]: { [欄名]: { rank, ties, side: 'high'|'low' } } }`，只存灰狼場次前 3 名（現在排名），不存樣本數
+  - 只存結構化資料，文案在前端組；門檻改了用 `build_insights.py` 重算（見 FAQ「單場題材」「歷史定位」）
 - 單場抓取邏輯集中在 `nba_common.fetch_single_game()`（回傳 dict）＋ `game_docs()`（組文件），`backfill_games.py` 與每日共用。
 - **前端讀單場數值一律經 `cleanGameStats`／`cleanGameDoc`**（`gamesData.js`）：NBA 未釋出時回的「整組 0」與 0 分母的命中率清成 `null`，見「2026-10-27 正式站掃描」。新增直接讀單場文件或 bundle 的地方要記得套用
 - 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
@@ -785,10 +822,11 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 ### 單場比賽頁（`GamePage.js`，2026-10-19）
 - App 的 `gameDate` 有值時主區改渲染 `GamePage`，隱藏 RosterRail／IdentityBar；ChapterNav 保留但不標選中，點章節＝回主畫面該章節（2026-10-23）。Masthead 期別行改「單場 · 日期」、隱藏賽季／賽別
 - **賽程月曆 `GameCalendar.js`**（2026-10-23，取代「最新一場」按鈕）：App `scheduleSeason`＝單場頁時 `seasonForDate(gameDate)`、否則刊頭所選賽季 → `gamesData.loadSeasonSchedule(season)`（例行＋季後索引合併、每場帶 `type`）。月曆格子標對手縮寫（`@`＝客場）＋勝綠敗紅，季後賽標「季後」，點日期 `openGame`；彈出層用 `ReactDOM.createPortal` 掛 body（刊頭控制列是 overflow-x-auto，放裡面會被裁），fixed 定位、視窗太矮時內部捲動。搜尋「最近比賽」也讀同一份。2021-22 以前沒有 `wolves_games_index` → 按鈕停用並說明
-- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players），經 `gamesData.loadGameDocs(date)` 讀取（2026-10-23 抽出，與對戰頁共用）：記憶體快取 `window.__gameDocCache`＋ localStorage `wt_gc_v4_{date}`（`final === false` 不寫，免得鎖住半成品；對戰頁傳 `persist=false` 只讀不寫）
+- 資料：`wolves_team_games/{date}`（box/stats/opp/matchup/wl/seasonType/final）＋ `wolves_player_games/{date}`（players），經 `gamesData.loadGameDocs(date)` 讀取（2026-10-23 抽出，與對戰頁共用）：記憶體快取 `window.__gameDocCache`＋ localStorage `wt_gc_v5_{date}`（存 `{ savedAt, v }`，本季 1 天、舊季 7 天過期；`final === false` 不寫，免得鎖住半成品；對戰頁傳 `persist=false` 只讀不寫）
 - 比分下方「與 {對手} 歷次交手 →」連到 `#vs=對手`（2026-10-23；沒有 box 的場次也有）
 - 概要「本場題材」（2026-11-04）：讀 `docs.team.insights`，沒有題材也沒有勝負關鍵就不顯示；沒有 box 的舊場次照樣顯示（題材來自逐場 bundle）。細節見「2026-11-04 手機版巡檢與單場題材」
 - 手機（< 640）另有精簡比分區 `mobileBoard`，原看板 `board` 只在 sm 以上顯示（2026-11-04）
+- 歷史定位（2026-11-04）：「本場 vs 季平均」格子讀 `insights.marks` 標「灰狼第 N 高」（`markBadge`）；Box Score 展開列「?」小卡點開算完整定位（`playerHistory`）。細節見「2026-11-04 歷史定位」
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
 - 季平均＝該員 bundle 取「此場之前」的比賽（`GameAgg.aggregate`），各區塊共用 `avgCache`，換場次清空；比率類分母對照 `RATIO`（由 `GameAgg.RATIO_DEFS`／`EFG_DEFS` 推出＋ PCT_PLUSMINUS→D_FGA）
@@ -897,9 +935,14 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 **全隊欄位的聯盟名次**（2026-10-28 起）：全隊新欄位會自動算名次（預設數值大＝第 1）。越低越好的（失誤、對手命中率等）加進 `nba_common.RANK_LOWER_BETTER`、排名沒有意義的加進 `RANK_SKIP`；前端那一格傳 `rank={window.leagueRank('類別', '欄位')}`（或 `TrackingCardRow rankCats`）才會顯示。新類別若要排名，抓取時傳 `team_id=0` 並經 `split_league()`，名次寫進 `ranks.{類別}`。
 
 ### Q: 單場題材（本場題材）的門檻、指標或文案想調整
-- **門檻／指標**：改 `nba_common.py` 的 `INSIGHT_RULES`（前幾名、最少樣本、上場分鐘、每人／全場張數、Four Factors 權重）、`INSIGHT_TEAM_METRICS`（加一列：欄名、中文、方向 high／low／neutral、最低出手）、`INSIGHT_PLAYER_METRICS`（欄名、中文、本場門檻）→ `python scripts/build_insights.py --dry-run --date 2026-11-02,2026-10-31` 看結果 → 拿掉 `--dry-run` 重算全部（約 20 秒，只寫有變的）→ `gamesData.js` 的 `wt_gc_v4_` 換版 → `bundle.py`。新增 low 方向的全隊指標時，前端 `GamePage.js` 的 `FEWER_IS_BETTER` 也要加（決定用「多／少」字眼）
+- **門檻／指標**：改 `nba_common.py` 的 `INSIGHT_RULES`（前幾名、最少樣本、上場分鐘、每人／全場張數、Four Factors 權重）、`INSIGHT_TEAM_METRICS`（加一列：欄名、中文、方向 high／low／neutral、最低出手）、`INSIGHT_PLAYER_METRICS`（欄名、中文、本場門檻）→ `python scripts/build_insights.py --dry-run --date 2026-11-02,2026-10-31` 看結果 → 拿掉 `--dry-run` 重算全部（約 20 秒，只寫有變的）→ `gamesData.js` 的 `wt_gc_v5_` 換版（快取本身有 1～7 天期限，不急可不換）→ `bundle.py`。新增 low 方向的全隊指標時，前端 `GamePage.js` 的 `FEWER_IS_BETTER` 也要加（決定用「多／少」字眼）
 - **文案**：只改 `GamePage.js` 的 `story`（`tagText`／`prevText`），不用重算
 - 欄位必須在逐場 bundle 裡（`build_bundles` 的 stats）；Synergy／Clutch 沒有逐場資料不能用
+
+### Q: 歷史定位的門檻想調整
+- **格子標籤**（本場 vs 季平均）：改 `nba_common.INSIGHT_MARK_RULES`（top、max_ties、min_n、min_att）或 `INSIGHT_MARK_METRICS`（要和 `GamePage.js` 的 `VS_KEYS` 對應）→ `build_insights.py --dry-run --date …` → 重算 → 視需要換 `wt_gc_v5_`
+- **「?」小卡**：只改 `constants.js` 的 `HISTORY_RULES`，不用重算
+- `min_att`／`minAtt`、`min_n`／`minN` 兩邊必須同值；想讓別的格子也有標籤，把欄名加進 `INSIGHT_MARK_METRICS` 並確認該欄在球員逐場 bundle 裡
 
 ### Q: 薪資資料怎麼更新
 改 Google Sheet（或把 Spotrac／Fanspo 截圖、網頁文字給 Claude 轉成新列）。每日排程會自動同步；想立刻生效就手動跑 `python scripts/sync_salary.py`（先 `--dry-run` 看摘要）。發佈的 CSV 有幾分鐘快取，剛改完可能讀到舊版，稍等再跑。何時要更新：休賽期簽約、選項執行、交易截止日、裁員、10 天合約、牽涉選秀權的交易、觸發鎖死；每年 7 月新門檻；每季季末 `tax_history` 加一列。
@@ -911,7 +954,7 @@ Sheet `settings` 分頁的 `show_value` 改成 FALSE，同步後整個區塊消�
 只改 `components/constants.js` 的 `window.MATCHUP_RULES`（`halfSeasonGames` 近三季多含一季的門檻、`minGames` 標籤與淡化的最少場數、`rivalTopN` 勁敵幾隊、`topN`／`tagMinZ` 順手棘手幾隊與 z 門檻、`factorTopN` 關鍵因子幾項），再 `python scripts/bundle.py`。`glossary.js` 的 `MU_TAGS`／`MU_RANGE` 說明文字寫死了數字，改門檻時一起改。
 
 ### Q: 發現單場球員文件混入不是當時隊員的球員
-症狀：某場 `players` 得分加總 ≠ 全隊得分，或球員 Splits 出現他還沒加入時的比賽。跑 `python scripts/backfill_games.py --season X --type Y --clean-players --dry-run` 看名單，確認後拿掉 `--dry-run` 寫入，再 `python scripts/build_bundles.py --season X --type Y`，最後把 `SingleGamePanel` 的 `wt_game_v3_` 與 `gamesData.loadGameDocs` 的 `wt_gc_v4_`（2026-11-04 起）快取鍵各加一版（舊鍵在載入時刪掉）。`--clean-players` 只做多欄位對帳、不看 box；另一種更權威的做法是用 box 上場名單（tricode＝MIN 且有 stats）的 personId 比對，只適用於有 box 的場次（2025-26 起，2026-10-19 清理 2025-26 用的就是這個，見「單場數據」）。
+症狀：某場 `players` 得分加總 ≠ 全隊得分，或球員 Splits 出現他還沒加入時的比賽。跑 `python scripts/backfill_games.py --season X --type Y --clean-players --dry-run` 看名單，確認後拿掉 `--dry-run` 寫入，再 `python scripts/build_bundles.py --season X --type Y`，最後把 `SingleGamePanel` 的 `wt_game_v3_` 與 `gamesData.loadGameDocs` 的 `wt_gc_v5_`（2026-11-04 起，另有 1～7 天期限）快取鍵各加一版（舊鍵在載入時刪掉）。`--clean-players` 只做多欄位對帳、不看 box；另一種更權威的做法是用 box 上場名單（tricode＝MIN 且有 stats）的 personId 比對，只適用於有 box 的場次（2025-26 起，2026-10-19 清理 2025-26 用的就是這個，見「單場數據」）。
 
 ### Q: 想追蹤其他球隊
 改 `scripts/nba_common.py` 的 `TEAM_ID` 常數（所有腳本共用）。
@@ -981,7 +1024,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
-- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（目前 `wt_gc_v4_`，單場頁／對戰頁）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
+- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（目前 `wt_gc_v5_`，單場頁／對戰頁；2026-11-04 起有 1～7 天期限）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
 - **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
 - **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 
@@ -1003,6 +1046,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-04 — 歷史定位（Phase 1–4）：`nba_common` 加 `INSIGHT_MARK_RULES`／`INSIGHT_MARK_METRICS`、`build_insights.player_marks()`（`insights.marks`，v2，回補 384 場）；`loadGameDocs` 快取加有效期限並換 `wt_gc_v5_`；`constants.js` 加 `HISTORY_RULES`；`UI.Info` 加 `history`；單場頁「本場 vs 季平均」標籤與展開列「?」歷史定位。使用者決定：現在排名＋自 X 以來、版型 C 只標例外、標籤前 3 名＋15 分鐘（實測否決前後 5%）、快取期限一起修
 - 2026-11-04 — 單場題材（Phase 1–4）：`nba_common` 加 `INSIGHT_RULES`／`INSIGHT_TEAM_METRICS`／`INSIGHT_PLAYER_METRICS`；新增 `scripts/build_insights.py`（0 request，寫 `wolves_team_games/{date}.insights`，回補 384 場）；`fetch_data.py` 擷取新場次後重算；`loadGameDocs` 快取換 `wt_gc_v4_`；單場頁概要新增「本場題材」（勝負關鍵＋最多 5 個題材、可引用）。使用者決定：名次截至當場＋之後被超越改灰框註記、回補全部、開季照常列「本季新高」、不做逐節走勢與對手球員
 - 2026-11-04 — 手機版巡檢 P1／P2：`DataTable` `stackFirst`、`UI.scrollHint`、刊頭換行與副標色點、身分列併行、單場頁精簡比分區、Box Score 名字縮寫、表頭「?」移到右側、連結點擊區 24px、賽程條 snap、薪資「最後異動」標籤；確認切入失誤 0 為 NBA 原始資料
 - 2026-10-29 — 單場進階 box 與在場／不在場效率：`nba_common` 加 `BOX_ADV_FIELDS`／`add_box_advanced`（boxscoreadvancedv3）、`fetch_onoff(game_date=)`／`add_box_onoff`（單場 On/Off 不在場，只有灰狼）、`box_oncourt_totals`（bundle 的 `ON_PTS`／`ON_OPP_PTS`／`ON_POSS`）；每場抓取 +2 requests；`backfill_games.py --adv-only` 補本季 5 場；`build_bundles` 重建 2026-27；前端 Box Score「傳統｜進階」切換（`bx=adv`）、展開列「效率（在場）」附季均與不在場、`GameAgg` 加 `ON_*_RATING` 加權；`wt_gc_v3_` 換版。使用者決定：不標樣本少、不回補 2025-26 以前

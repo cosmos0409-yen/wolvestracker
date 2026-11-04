@@ -24,6 +24,7 @@ Minnesota Timberwolves 的每日 Synergy PlayType 與 NBA Tracking 數據研究�
 - **複製引用**：點數字旁的「?」看定義，小卡內可一鍵複製「球員｜賽季｜截至日期｜指標 數值｜資料來源｜畫面網址」
 - **聯盟名次**：全隊數據（身分列、季平均、全隊效率、Clutch、防守、Splits「全季」）下方標「聯盟第N」（30 隊，當季每日更新）；球隊 Playtype 由百分位換算名次。總覽另有「全隊效率」（OffRtg／DefRtg／NetRtg／Pace／TS% 等）
 - **本場題材（找題材用）**：單場頁概要自動列出這場值得寫的點——勝負關鍵（Four Factors 加權貢獻最大的一項）＋最多 5 個題材（本季新高、2022-23 起的排名、本季最佳／最低），附前一筆紀錄是哪一場；名次截至當場，之後被超越的會標灰並註明；每項可複製引用或加入引用籃
+- **歷史定位（這數字算多嗎）**：單場頁「本場 vs 季平均」只在球員打出灰狼場次（2022-23 起）前 3 名的格子標「灰狼第 2 高」；Box Score 展開列每項的「?」點開看完整定位——第幾名與前幾 %、或「中段」、「自 X 以來最高」，引用時一併帶上
 - **引用籃（貼文用純文字）**：在各頁「?」小卡「加入引用籃」收集數值或比較（Splits 期間、跨季、On/Off、單場），右下角抽屜裡排順序、把出手數＋命中率併成一行、選格式（※行首、名次、→／差值／📈📉），一鍵複製成可直接貼臉書的文字
 - **指標定義**：指標旁的「?」說明定義、計算方式與資料來源
 - **匯出**：表格可匯出 CSV（Excel 可直接開），圖表與表格可匯出 16:9／1:1 PNG 專欄配圖
@@ -68,7 +69,7 @@ wolvestracker/
 │   ├── nba_common.py        # 共用模組：連線/欄位設定表/抓取函式
 │   ├── fetch_data.py        # 每日當季爬蟲 (NBA Stats API → Firebase；--games-only 只抓單場)
 │   ├── watchdog.py          # 每日抓取看門狗（主排程沒完成或昨晚那場缺就補抓，桌面通知）
-│   ├── build_insights.py    # 單場題材（逐場 bundle＋box → 單場文件 insights；每日抓取後自動重算，0 request）
+│   ├── build_insights.py    # 單場題材＋歷史定位標籤（逐場 bundle＋box → 單場文件 insights；每日抓取後自動重算，0 request）
 │   ├── backfill_games.py    # 單場逐場回補（--dates 補失敗場；--box-only 只補 box score；--adv-only 只補進階＋單場 On/Off；--clean-players 對帳剔除非當時隊員）
 │   ├── backfill_history.py  # 歷史賽季完整終點快照回補
 │   ├── build_bundles.py     # 逐場打包成 bundle doc（前端 Splits/總覽用）
