@@ -1,4 +1,4 @@
-// 精簡身分列：頭像（球隊為 Logo）＋ 名稱 ＋ 出賽/戰績 ＋ 4 個主數字，單行高度，第一屏就是數據
+// 精簡身分列：頭像（球隊為 Logo）＋ 名稱 ＋ 出賽/戰績 ＋ 4 個主數字，單行高度，第一屏就是數據（手機戰績行不重複賽季，和「數據截至」同一行）
 // 數字與總覽「季平均」同源：逐場 bundle 以 GameAgg 算截至 untilDate；bundle 缺時退回快照 base
 // 要換顯示的指標 → 改下方 FIELDS（格式同 OverviewTab 的 SUMMARY）
 // salary：球員檢視時的薪資膠囊 { season, text, title, badge }（App 依 playerId 對薪資資料組好），onSalary 點擊開薪資頁
@@ -39,8 +39,9 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                             {name}{tag && <span className="ml-2 align-middle font-mono text-[12px] font-normal normal-case text-amber-400/80">{tag}</span>}
                         </h1>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {/* 手機省略賽季（刊頭選單已顯示），讓「數據截至」能併在同一行、省一列高度 */}
                             <p className="text-[12px] text-slate-400 truncate">
-                                {[seasonLabel, record].filter(Boolean).join(' · ')}
+                                {seasonLabel && <span className={record ? 'hidden sm:inline' : ''}>{seasonLabel}{record ? ' · ' : ''}</span>}{record}
                             </p>
                             {asOf && (<span className="inline-flex items-center gap-1.5">
                                 <label htmlFor="asof-date" className="font-mono text-[10px] text-slate-500">數據截至</label>

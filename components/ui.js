@@ -384,7 +384,8 @@ window.UI = (function () {
 
     // columns: [{ key, label, en, align:'left'|'right', render(row), sortValue(row), cellClass(row) }]
     // exportTitle：給了就在表格右上加「匯出」（PNG 配圖＋CSV）；CSV 值取 c.csv(r)，否則取 r[c.key] 原始值
-    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption, exportTitle }) => {
+    // stackFirst：手機（< sm）把第一欄移到該列上方獨占一行、數字欄收窄，給第一欄很長的表（五人陣容）——否則名字在窄欄折成好幾行、右側欄位被擠到畫面外
+    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption, exportTitle, stackFirst = false }) => {
         const [sort, setSort] = React.useState(initialSort);   // { key, dir: 'asc'|'desc' }
         const wrapRef = React.useRef(null);
         const colOf = (k) => columns.find(c => c.key === k);
@@ -423,7 +424,7 @@ window.UI = (function () {
                                 return (
                                     <th key={c.key} scope="col"
                                         aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                        className={`px-3 py-2 font-normal whitespace-nowrap align-bottom ${c.align === 'left' ? 'text-left' : 'text-right'} ${ci === 0 ? 'max-sm:sticky max-sm:left-0 max-sm:z-[1] max-sm:bg-[#0A1626]' : ''}`}>
+                                        className={`px-3 py-2 font-normal whitespace-nowrap align-bottom ${c.align === 'left' ? 'text-left' : 'text-right'} ${ci === 0 ? (stackFirst ? 'max-sm:hidden' : 'max-sm:sticky max-sm:left-0 max-sm:z-[1] max-sm:bg-[#0A1626]') : (stackFirst ? 'max-sm:px-1.5' : '')}`}>
                                         <span className={`inline-flex items-start gap-0.5 ${c.align === 'left' ? '' : 'flex-row-reverse'}`}>
                                             <button onClick={() => toggle(c.key)}
                                                 className={`inline-flex min-h-[24px] min-w-[24px] flex-col ${c.align === 'left' ? 'items-start' : 'items-end'} gap-0.5 hover:text-slate-100 ${active ? 'text-slate-100' : 'text-slate-400'}`}>
@@ -438,17 +439,33 @@ window.UI = (function () {
                         </tr>
                     </thead>
                     <tbody>
-                        {sorted.map((r, i) => (
-                            <tr key={rowKey(r, i)} className="border-b border-white/[0.06] odd:bg-white/[0.015] hover:bg-white/[0.04]">
+                        {sorted.map((r, i) => {
+                            // 條紋用列序（stackFirst 時一筆資料是兩個 <tr>，odd: 會錯位）
+                            const zebra = i % 2 === 0 ? 'bg-white/[0.015]' : '';
+                            const cellOf = (c) => (<>
+                                {c.render ? c.render(r) : (isBlank(r[c.key]) ? '—' : r[c.key])}
+                                {c.after && <span className="ml-1 inline-flex items-center align-middle">{c.after(r)}</span>}
+                            </>);
+                            return (
+                            <React.Fragment key={rowKey(r, i)}>
+                            {stackFirst && (
+                                <tr className={`sm:hidden ${zebra}`}>
+                                    <td colSpan={columns.length - 1} className={`px-1.5 pt-2.5 pb-0.5 text-left text-[13px] leading-snug text-slate-100 ${columns[0].cellClass ? columns[0].cellClass(r) : ''}`}>
+                                        {cellOf(columns[0])}
+                                    </td>
+                                </tr>
+                            )}
+                            <tr className={`border-b border-white/[0.06] hover:bg-white/[0.04] ${zebra}`}>
                                 {columns.map((c, ci) => (
                                     <td key={c.key}
-                                        className={`px-3 py-2 whitespace-nowrap ${c.align === 'left' ? 'text-left text-slate-200' : 'text-right font-mono tabular-nums text-slate-200'} ${ci === 0 ? 'max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626] max-sm:whitespace-normal max-sm:min-w-[7.5rem] max-sm:max-w-[9.5rem] max-sm:text-[13px] max-sm:leading-snug' : ''} ${c.cellClass ? c.cellClass(r) : ''}`}>
-                                        {c.render ? c.render(r) : (isBlank(r[c.key]) ? '—' : r[c.key])}
-                                        {c.after && <span className="ml-1 inline-flex items-center align-middle">{c.after(r)}</span>}
+                                        className={`px-3 py-2 whitespace-nowrap ${c.align === 'left' ? 'text-left text-slate-200' : 'text-right font-mono tabular-nums text-slate-200'} ${ci === 0 ? (stackFirst ? 'max-sm:hidden' : 'max-sm:sticky max-sm:left-0 max-sm:bg-[#0A1626] max-sm:whitespace-normal max-sm:min-w-[7.5rem] max-sm:max-w-[9.5rem] max-sm:text-[13px] max-sm:leading-snug') : (stackFirst ? 'max-sm:px-1.5 max-sm:pt-1' : '')} ${c.cellClass ? c.cellClass(r) : ''}`}>
+                                        {cellOf(c)}
                                     </td>
                                 ))}
                             </tr>
-                        ))}
+                            </React.Fragment>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

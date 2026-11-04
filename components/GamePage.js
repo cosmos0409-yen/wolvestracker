@@ -234,35 +234,72 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     ) : null;
     const margin = box ? minTeam.score - oppTeam.score : null;
     const nOT = box ? Math.max(0, away.periods.length - 4) : 0;   // 延長節數（舊場次沒有每節比分 → 0，只顯示 FINAL）
+    const finalTag = <span className="inline-block bg-[#C4CED2] px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#0A1626]">FINAL{nOT > 0 ? `/${nOT > 1 ? nOT : ''}OT` : ''}</span>;
+    const lineScore = box && away.periods.length > 0 && (
+        <table className="mx-auto mt-3 border-collapse font-mono text-[12px]" aria-label="每節比分">
+            <thead><tr>
+                <th className="px-2"></th>
+                {away.periods.map((p, i) => <th key={i} className="px-2 py-1 text-[10px] font-normal text-slate-500">{periodLabel(p, i)}</th>)}
+                <th className="border-l border-white/15 px-2 text-[10px] font-normal text-slate-500">T</th>
+            </tr></thead>
+            <tbody>{[away, home].map(t => {
+                const other = t === away ? home : away;
+                return (
+                    <tr key={t.tricode} className="border-t border-white/10">
+                        <td className="px-2 py-1 text-left font-display text-[14px] font-bold">{t.tricode}</td>
+                        {t.periods.map((p, i) => <td key={i} className={`px-2 py-1 tabular-nums ${p.pts > ((other.periods[i] || {}).pts || 0) ? 'text-[#12A150]' : 'text-slate-300'}`}>{p.pts}</td>)}
+                        <td className="border-l border-white/15 px-2 py-1 font-semibold text-slate-50 tabular-nums">{t.score}</td>
+                    </tr>
+                );
+            })}</tbody>
+        </table>
+    );
+    // 手機（< sm）精簡版：比分一列（隊徽＋三碼＋主客＋比分，不放全名以免被截）、場次資訊兩行、逐節比分
+    // 原本的直排看板在手機上約 400px 高，內容要捲過大半屏才出現
+    const miniTeam = (t, side) => {
+        const lose = t.score < (side === 'away' ? home.score : away.score);
+        return (
+            <div className={`flex min-w-0 flex-1 items-center gap-2 ${side === 'home' ? 'flex-row-reverse text-right' : ''}`}>
+                <img src={logo(t.teamId)} alt="" className="h-9 w-9 shrink-0" />
+                <div className="min-w-0">
+                    <div className="font-display text-[22px] font-bold leading-none">{t.tricode}</div>
+                    <div className="font-mono text-[10px] text-slate-500">{side === 'home' ? '主' : '客'}</div>
+                </div>
+                <div className={`font-display text-[40px] font-bold leading-none tabular-nums ${side === 'home' ? 'mr-auto' : 'ml-auto'} ${lose ? 'text-slate-50/40' : 'text-slate-50'}`}>{t.score}</div>
+            </div>
+        );
+    };
+    const mobileBoard = box ? (
+        <div className="border-b border-white/10 py-4 sm:hidden">
+            <div className="flex items-center gap-3">
+                {miniTeam(away, 'away')}
+                <span aria-hidden="true" className="text-slate-600">–</span>
+                {miniTeam(home, 'home')}
+            </div>
+            <div className="mt-3 text-center">
+                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                    {finalTag}
+                    {!final && <span className="inline-block border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">數據可能更新</span>}
+                    <span className="text-[13px] text-slate-200">{date}</span>
+                    <span className={`font-mono text-[11px] ${margin > 0 ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>灰狼{margin > 0 ? '勝' : '敗'} {margin > 0 ? '+' : ''}{margin}</span>
+                </div>
+                {box.arena && <div className="mt-1 text-[11px] text-slate-400">{box.arena}{box.attendance ? ` · ${box.attendance.toLocaleString()} 人` : ''}</div>}
+                {vsLink}
+                {lineScore}
+            </div>
+        </div>
+    ) : null;
     const board = box ? (
-        <div className="grid grid-cols-2 gap-4 border-b border-white/10 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-6">
+        <div className="hidden sm:grid grid-cols-2 gap-4 border-b border-white/10 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-6">
             <div className="order-2 lg:order-1">{teamBlock(away, 'away')}</div>
             <div className="order-1 col-span-2 text-center lg:order-2 lg:col-span-1">
-                <span className="inline-block bg-[#C4CED2] px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#0A1626]">FINAL{nOT > 0 ? `/${nOT > 1 ? nOT : ''}OT` : ''}</span>
+                {finalTag}
                 {!final && <span className="ml-2 inline-block border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">數據可能更新</span>}
                 <div className="mt-2 text-[13px] text-slate-200">{date}</div>
                 {box.arena && <div className="text-[11px] text-slate-400">{box.arena}{box.attendance ? ` · ${box.attendance.toLocaleString()} 人` : ''}</div>}
                 <div className={`mt-1.5 font-mono text-[11px] ${margin > 0 ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>灰狼{margin > 0 ? '勝' : '敗'} {margin > 0 ? '+' : ''}{margin}</div>
                 {vsLink}
-                {away.periods.length > 0 && (
-                    <table className="mx-auto mt-3 border-collapse font-mono text-[12px]" aria-label="每節比分">
-                        <thead><tr>
-                            <th className="px-2"></th>
-                            {away.periods.map((p, i) => <th key={i} className="px-2 py-1 text-[10px] font-normal text-slate-500">{periodLabel(p, i)}</th>)}
-                            <th className="border-l border-white/15 px-2 text-[10px] font-normal text-slate-500">T</th>
-                        </tr></thead>
-                        <tbody>{[away, home].map(t => {
-                            const other = t === away ? home : away;
-                            return (
-                                <tr key={t.tricode} className="border-t border-white/10">
-                                    <td className="px-2 py-1 text-left font-display text-[14px] font-bold">{t.tricode}</td>
-                                    {t.periods.map((p, i) => <td key={i} className={`px-2 py-1 tabular-nums ${p.pts > ((other.periods[i] || {}).pts || 0) ? 'text-[#12A150]' : 'text-slate-300'}`}>{p.pts}</td>)}
-                                    <td className="border-l border-white/15 px-2 py-1 font-semibold text-slate-50 tabular-nums">{t.score}</td>
-                                </tr>
-                            );
-                        })}</tbody>
-                    </table>
-                )}
+                {lineScore}
             </div>
             <div className="order-3">{teamBlock(home, 'home')}</div>
         </div>
@@ -694,6 +731,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     return (
         <div>
             {strip}
+            {mobileBoard}
             {board}
             <div ref={tabTopRef} aria-hidden="true"></div>
             <UI.TabBar ariaLabel="單場分頁" tabs={TABS} value={cur.key} onChange={goTab} numbered bleed className="mt-6" />

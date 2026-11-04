@@ -2,7 +2,7 @@
 // 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、賽程月曆（GameCalendar）、對戰、薪資、搜尋（/）
 // 時光機（截至日期）在身分列 IdentityBar：它影響所有章節，放每章都看得到的地方；期別行仍顯示「截至 日期」
 // 單場頁／薪資頁／對戰是獨立整頁：期別行改顯示頁名，並隱藏賽季／賽別／日期（避免刊頭寫的賽季和內容對不上）
-// 手機：控制項換到第二列並可橫向捲動，不擠壓字標
+// 手機：控制項換到字標下方，放不下就換行（不橫捲，避免按鈕藏在畫面外）
 const Masthead = ({
     yearOptions, viewYear, onYearChange, isHistoryMode, historyLoading, displayDate,
     viewType, onTypeChange, effectiveDate,
@@ -19,7 +19,7 @@ const Masthead = ({
             : <span className="text-[#12A150]">● 雲端即時</span>;
     return (
         <header className="border-b border-white/10">
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-6">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-6">
                 <div className="flex items-center gap-3 min-w-0">
                     {/* 站徽與 PWA 圖示同一張（icons/icon.svg）；身分列／頭像列的球隊 Logo 仍用 NBA 官方 */}
                     <img src="icons/icon.svg" alt="" width="40" height="40" className="w-10 h-10 shrink-0 rounded-lg" />
@@ -48,7 +48,8 @@ const Masthead = ({
                     </span>
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 lg:mx-0 lg:px-0 pb-1 lg:pb-0 [scrollbar-width:none]">
+                {/* 手機：控制項總寬約 540px，橫捲會把「複製連結」藏在畫面外且沒有提示 → 改成換行；桌面維持單列 */}
+                <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:overflow-x-auto [scrollbar-width:none]">
                     {/* 主畫面的賽季／賽別／日期：薪資頁、對戰有自己的範圍選單，單場頁只屬於那一場，都隱藏 */}
                     {!ownPage && (<>
                     <label className="sr-only" htmlFor="season-select">賽季</label>
