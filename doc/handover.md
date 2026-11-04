@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-04（**條件戰績**：Splits 期間列多「條件」——球員數據／全隊數據／有出賽／未出賽，最多 2 個（且），看符合場次的戰績、勝率、場均分差與平均，網址 `c=` 可分享，見「2026-11-04 條件戰績」）
+> 最後更新：2026-11-04（**賽前預覽與完整賽程**：未開打的比賽也能開單場頁（預覽模式：雙方對照＋聯盟名次、交手、近況），賽程條有「下一場」卡、小月曆有未開打格子；新頁 `#schedule` 列出本季全部賽程（對手、主客、台北開賽時間、隊徽）。日期全站維持美東，開賽時間寫「台北隔日 09:30」，見「2026-11-04 賽前預覽與完整賽程」）
+> 同日稍早：**條件戰績**：Splits 期間列多「條件」——球員數據／全隊數據／有出賽／未出賽，最多 2 個（且），看符合場次的戰績、勝率、場均分差與平均，網址 `c=` 可分享，見「2026-11-04 條件戰績」）
 > 同日稍早：**歷史定位**：單場頁「本場 vs 季平均」只在灰狼場次前 3 名的格子標「灰狼第 N 高」、Box Score 展開列「?」小卡點開看完整定位；單場快取加有效期限 `wt_gc_v5_`，見「2026-11-04 歷史定位」）
 > 同日稍早：**單場題材（本場題材 Story Leads）**＋**手機版巡檢修正**：後端 `build_insights.py` 每場算好「本季新高、2022-23 起排名、勝負關鍵」寫進單場文件，單場頁概要新增區塊；手機版陣容表、刊頭換行、比分區、Box Score 欄寬等，見「2026-11-04 手機版巡檢與單場題材」）
 > 前次：2026-10-28（**聯盟名次與引用籃**，見同名章節）；2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**、**單場分頁＋介面統一**、**網站圖示（PWA）**，見同名章節；之前的對戰分析、開季修正、薪資頁、單場比賽頁見同名章節）
@@ -316,7 +317,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 ### 2026-11-04 手機版巡檢與單場題材
 
-起因：使用者要求巡一次正式站（尤其手機版），並提出「讓專欄找題材」的互動點子；8 個點子中選定 1 單場靈感卡、2 條件戰績、3 歷史定位、6 賽前預覽（後三項尚未做，討論與決定見記憶檔 `project-interaction-ideas`）。
+起因：使用者要求巡一次正式站（尤其手機版），並提出「讓專欄找題材」的互動點子；8 個點子中選定 1 單場靈感卡、2 條件戰績、3 歷史定位、6 賽前預覽（四項皆已上線，討論與決定見記憶檔 `project-interaction-ideas`）。
 
 **手機版巡檢方法**：瀏覽器面板截圖在捲動後常畫不完整，改用 scratchpad 的 Node 腳本走 Chrome DevTools Protocol（`Emulation.setDeviceMetricsOverride` 375×812、DPR 2、mobile、觸控），整頁截圖再切一屏一張，並在頁面跑稽核腳本（橫向溢出、點擊區 < 24px、字級 < 10px、被截斷的文字）。headless Chrome 視窗最小約 500px 寬、iframe 內 Firebase 匿名登入會卡在「連線中」，都不能用來模擬手機。腳本未提交（本機暫存），要重做時照此思路重寫即可。
 
@@ -405,6 +406,61 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 **踩到的坑：本機驗證被瀏覽器快取騙**：`python -m http.server` 不送快取標頭，瀏覽器面板與自動化截圖的 Chrome 設定檔會沿用舊 `index.html`（指向舊 bundle），一度誤判「首次開帶 `c=` 的網址會丟條件」。用全新設定檔＋在頁面載入前攔截 `history.replaceState` 才確認程式沒問題。**之後本機驗證前端：面板網址加查詢參數（`?nc=1#…`）或關掉快取（CDP `Network.setCacheDisabled`）**
 
+### 2026-11-04 賽前預覽與完整賽程
+
+起因：使用者選定的第 6 個點子（賽前預覽），討論中又擴充出「單獨一頁的完整賽程月曆（對手、主客、開賽時間、隊徽）」。兩者讀同一份文件，合併成一個計畫。
+
+**決定（使用者）**：
+- 預覽放在單場頁的「預覽模式」，首頁仍是最新一場；賽程條最後一張是「下一場」卡。
+- 名次寫數字＋英文序數（1st、2nd…）。
+- **日期全站維持美東**（評估過改台北顯示：5 季 458 場都是台北＝美東＋1 天，技術上可行，但使用者認為球迷記的是對手不是日期），開賽時間寫「台北隔日 09:30」。
+- 完整賽程桌面用月曆格、手機用清單；入口三處：刊頭小月曆底部、單場頁返回列右側、搜尋。
+- 只做當季。
+- 版型預覽：`_mockup/preview.html`、`_mockup/schedule.html`；計畫：`_mockup/plan-preview-schedule.md`（皆不進版控）。
+
+**後端（Phase 1，`b4a5706`；Phase 2 補 `oppId`／`fields`）**
+- `scripts/build_preview.py` 寫 `wolves_games_index/{season}_preview`（約 36 KB，每天覆寫；放在既有集合，所以不用設安全規則與索引豁免；`build_bundles.py --all` 只認 `{season}_{regular|playoffs}`，不會誤處理）。
+- 每日由 `fetch_data.py` 在單場擷取後呼叫 `build_preview.build()`，傳入本來就抓好的 30 隊 base／advanced，**只多 1 個 request**（cdn.nba.com 全聯盟賽程檔 `nc.SCHEDULE_URL`，要用 `nc.nba_get`，curl 會 403）；賽程檔抓不到就不寫、沿用前一天。
+- 單獨執行 `python scripts/build_preview.py [--dry-run]` 共 3 個 request（賽程＋全隊 base／advanced）。
+- 設定在 `nba_common`：`PREVIEW_TEAM_FIELDS`（欄位、來源、方向 high／low／neutral／none）、`PREVIEW_FORM_N`（近況場數）、`SCHEDULE_GAME_PREFIXES`（只收例行／季後／附加賽／盃賽決賽）、`fetch_league_schedule()`、`rank_all()`（同分取最小名次）。
+
+**前端**
+- `gamesData.loadPreview(season)`：只有當季才讀；記憶體＋localStorage `wt_pv_v1_{season}`（存 `{ savedAt, v }`，3 小時過期）；失敗回 null，入口自動隱藏。
+- `constants.js`：
+  - `kickoffTPE(g)`：依 `utc` 用 `Intl` 實算。台北日期剛好是美東＋1 天才寫「台北隔日 HH:MM」，否則寫「台北 M/D HH:MM」，不寫死。
+  - `kickoffET(g)`：美東當地時間，含夏令時間。
+  - `etToday()`：與 `get_today_str()` 同為 UTC−5。
+  - `ordinal(n)`、`teamLogo(id 或三碼)`、`NBA_TEAM_IDS`、`PREVIEW_LABELS`（對照表列名）、`SPECIAL_GAME_TAGS`／`specialTag(label)`（盃賽、宿敵週）。
+- **預覽模式 `PreviewPanel.js`**：`GamePage` 找不到單場文件、但預覽賽程有這天時改畫它（等預覽文件讀完才決定，避免「找不到」閃一下）。
+  - 看板：隊徽、W-L、主客、「美東 11/4（三）20:30 · 台北隔日 09:30」、球館、休息天數（0＝背靠背）、本季第 N 次交手、特殊賽事。
+  - 雙方對照：照文件 `fields` 的順序與方向，較好的一方標綠，前 5 名的名次標綠，節奏不分好壞。
+  - 交手：`window.Matchup` 近三季，與對戰頁同規則與標籤；本季剩餘交手取自預覽賽程。
+  - 近況：雙方近 5 場。
+  - 狀態：開賽後顯示「比賽進行中」；有比分或開賽 3 小時後改顯示「比賽已結束」，並說明數據何時補上（15:00 看門狗或隔天 03:00）。
+- **賽程條**：索引最後一場之後的第一場預覽場次加成虛框「下一場」卡；正在看更後面的預覽場次時，那場也放上來。上一場／下一場箭頭走同一串。賽別依 GameID（`004`＝季後賽）。
+- **刊頭小月曆**：App 把未開打場次（`future: true`、`kickoff`）併進 `games`，呈虛框灰字，滑過看台北開賽時間。「最新一場」只算已打完的；月份範圍含未開打；標題「8／80 場」。有 `onFull` 時底部顯示「完整賽程 →」。
+- **完整賽程 `SchedulePage.js`**（`#schedule[&m=YYYY-MM][&f=home|away]`，`urlState` 的 `schedView`／`schedHref`，App 的 `sched` 狀態）：
+  - 頁首：戰績、主客戰績、剩餘場數（後兩項只在桌面）、下一場。
+  - 月份用 `UI.TabBar`，數字鍵可切；主客篩選用 `UI.Seg`。
+  - 桌面（md 以上）月曆格：左緣色條標勝負，右上角 B2B、特殊賽事，今天加銀框。手機改清單，一場一列。
+  - 點任何一場都進 `#game=日期`。
+- **入口**只在有預覽文件時出現（App 的 `canSchedule`）：小月曆底部、單場頁返回列右側（只限當季場次）、搜尋「賽程」群組（完整賽程＋下一場）。
+- 隊徽：`cdn.nba.com/logos/nba/{id}/primary/L/logo.svg`，失敗就隱藏、只留文字。**不用 `loading="lazy"`**：瀏覽器面板裡格子明明在畫面內卻一直沒載；桌面格與手機清單用同一組網址，快取共用。
+
+**驗證**：
+- 預覽頁數字與預覽文件、手算的休息天數與台北開賽時間一致。
+- 已打完的場次、沒比賽的日期維持原樣。
+- 模擬開賽後與已結束兩種狀態。
+- 12 月主場篩選 5 場與賽程一致。
+- 數字鍵、網址還原、返回、三個入口、歷史賽季不出現入口。
+- 桌面 1280／手機 375 沒有溢出、換行或 10px 以下的字。
+
+**限制**：
+- 預覽文件每天 03:00 更新，30 隊數據與比賽狀態最多落後一天。
+- 「進行中」是用開賽時間推算的，不即時。
+- 歷史賽季沒有開賽時間與對手 ID，所以不做。
+- **無頭 Chrome 用桌面 UA 時抓不到 NBA CDN 的隊徽**（手機 UA 可以），截圖驗證看到隊徽空白不代表壞了，用瀏覽器面板確認。
+
 ---
 
 ## 專案檔案結構
@@ -421,11 +477,13 @@ wolvestracker/
 │   ├── constants.js                 ← 標籤與 defs / SEASON_OPTIONS / getSeasonPhase / 快照讀取範圍（SNAPSHOT_SINCE/UNTIL、snapshotWindowStart）/ nameKey、nameSlug / 聯盟名次 RankCtx、leagueRank、ptRank
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
 │   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
-│   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
+│   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）／賽前預覽（loadPreview）載入
 │   ├── splitConditions.js           ← 條件戰績資料層 window.SplitCond（條件篩選、在隊期間、戰績摘要、網址 c=）
 │   ├── matchupData.js               ← 對戰分析資料層 window.Matchup（範圍、對手彙整、偏離程度 z、標籤、勝負關鍵因子）
 │   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
-│   ├── GamePage.js                  ← 單場比賽頁（#game=日期[&tab=]，單場分頁）
+│   ├── GamePage.js                  ← 單場比賽頁（#game=日期[&tab=]，單場分頁；未開打場次改畫 PreviewPanel）
+│   ├── PreviewPanel.js              ← 賽前預覽模式（看板、雙方對照、交手、近況）
+│   ├── SchedulePage.js              ← 完整賽程（#schedule：桌面月曆格／手機清單）
 │   ├── CapPage.js                   ← 薪資頁（#cap）：CapCalc 計算、loadCapDoc／loadCapContrib 載入、各分頁區塊
 │   ├── MatchupHome.js / MatchupPage.js ← 對戰首頁（#vs）、單隊對戰頁（#vs=三碼）
 │   ├── OverviewTab.js / SplitsTab.js / ShootingTab.js / ComparisonTab.js / RadarPanel.js / HistoryModal.js
@@ -449,6 +507,7 @@ wolvestracker/
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
 │   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--adv-only 已有 box 的場次只補進階＋單場 On/Off；--clean-players 對帳剔除非當時隊員）
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
+│   ├── build_preview.py             ← 賽前預覽：賽程檔＋30 隊數據 → wolves_games_index/{season}_preview（每日由 fetch_data 呼叫；--dry-run）
 │   ├── build_insights.py            ← 單場題材：逐場 bundle＋box → wolves_team_games/{date}.insights（每日由 fetch_data 呼叫；--date／--season／--dry-run）
 │   ├── backfill_queue.txt           ← 回補佇列（已清空）
 │   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
@@ -598,7 +657,7 @@ wolvestracker/
 
 | 排程名稱 | 時間 | 腳本 | 用途 | Log |
 |---|---|---|---|---|
-| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場（有新場次就重算單場題材 `build_insights`）；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
+| `WolvesTracker` | 每日 03:00（喚醒＋錯過補跑＋用電池可跑） | `run_fetch.bat` | 抓累積快照（與前一筆完全相同則跳過寫入）＋補抓單場（有新場次就重算單場題材 `build_insights`）＋寫賽前預覽 `build_preview`（+1 request）；接著跑 `sync_salary.py`（休賽期也會跑） | `fetch_log.txt` |
 | `WolvesWatchdog` | 每日 15:00（喚醒＋錯過補跑＋用電池可跑，上限 2 小時） | `run_watchdog.bat` | 看門狗：主排程沒完成 → 完整補抓；昨晚那場缺 → 只抓單場；有補抓或失敗才跳桌面通知 | `watchdog_log.txt`（補抓過程併入 `fetch_log.txt`，標頭 `=== [watchdog] ...`；被主排程鎖住時寫 `fetch_log_watchdog.txt`） |
 | `WolvesWatchdogMorning` | 每日 09:00＋登入＋解鎖螢幕（2026-10-28 起） | `run_watchdog.bat --morning` | 早上看門狗：03:00 主排程今天該跑卻沒完成 → 完整補抓；已完成或未到觸發時間就安靜結束（不發 request、不寫 log） | `watchdog_log.txt`（標 `[早上]`） |
 | `WolvesShotchart` | 每週一 14:30 | `run_shotchart.bat` | 逐球員投籃座標（整季覆寫） | `shotchart_log.txt` |
@@ -760,6 +819,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - 只存結構化資料，文案在前端組；門檻改了用 `build_insights.py` 重算（見 FAQ「單場題材」「歷史定位」）
 - 單場抓取邏輯集中在 `nba_common.fetch_single_game()`（回傳 dict）＋ `game_docs()`（組文件），`backfill_games.py` 與每日共用。
 - **前端讀單場數值一律經 `cleanGameStats`／`cleanGameDoc`**（`gamesData.js`）：NBA 未釋出時回的「整組 0」與 0 分母的命中率清成 `null`，見「2026-10-27 正式站掃描」。新增直接讀單場文件或 bundle 的地方要記得套用
+- **賽前預覽 `wolves_games_index/{season}_preview`**（`build_preview.py`，每天覆寫、只有當季）：`{ season, statsAsOf, updatedAt, teamsN, fields: [{ key, dir }], games: [{ id, date（美東）, utc, home, opp, oppId, status（1 未開打／2 進行中／3 結束）, label, arena, city, rest: [灰狼, 對手]（空檔天數，0＝背靠背，開季首戰 null）, score?: [灰狼, 對手] }], form: { 三碼: [{ date, vs, wl, pts, opp }] }, league: { 三碼: { W, L, PTS, OPP_PTS, … } }, ranks: { 三碼: { 欄: 名次 } } }`；`form` 用物件陣列，因為 Firestore 不允許陣列裡放陣列
 - 前端單場面板（G-c）已完成：`SingleGamePanel.js` 選日期看單場，只渲染有資料的群組（單場無 ShotProfile/DefenseBox/PlayType）；日期選單讀 `wolves_games_index/{season}_{type}`（一份 doc，`backfill_games.py --index-only` 產生）。
 
 ### 歷史賽季快照（`backfill_history.py` 寫入）
@@ -858,6 +918,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 比分下方「與 {對手} 歷次交手 →」連到 `#vs=對手`（2026-10-23；沒有 box 的場次也有）
 - 概要「本場題材」（2026-11-04）：讀 `docs.team.insights`，沒有題材也沒有勝負關鍵就不顯示；沒有 box 的舊場次照樣顯示（題材來自逐場 bundle）。細節見「2026-11-04 手機版巡檢與單場題材」
 - 手機（< 640）另有精簡比分區 `mobileBoard`，原看板 `board` 只在 sm 以上顯示（2026-11-04）
+- 預覽模式（2026-11-04）：沒有單場文件、預覽賽程有這天 → `PreviewPanel`；賽程條尾端「下一場」卡。細節見「2026-11-04 賽前預覽與完整賽程」
 - 歷史定位（2026-11-04）：「本場 vs 季平均」格子讀 `insights.marks` 標「灰狼第 N 高」（`markBadge`）；Box Score 展開列「?」小卡點開算完整定位（`playerHistory`）。細節見「2026-11-04 歷史定位」
 - 賽季＝`seasonForDate(date)`、賽別＝文件 `seasonType`；賽程條讀 `loadGamesIndex(season, type)`（`gamesData.js`，App 的單場面板也改用它）
 - **灰狼球員以 box `personId` 對應 players 文件的 `playerId`**，連結用 players 文件的名字（數據 API 寫法，才找得到主畫面的球員）
@@ -971,6 +1032,13 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 - **文案**：只改 `GamePage.js` 的 `story`（`tagText`／`prevText`），不用重算
 - 欄位必須在逐場 bundle 裡（`build_bundles` 的 stats）；Synergy／Clutch 沒有逐場資料不能用
 
+### Q: 賽前預覽或完整賽程沒有更新／想調內容
+- **沒更新**：`fetch_log.txt` 找「賽前預覽已寫入」；看到「⚠️ 賽前預覽」是賽程檔或全隊數據沒抓到，前端沿用前一份。手動補：`python scripts/build_preview.py`（3 requests），前端快取 3 小時，要立刻看就清 localStorage `wt_pv_v1_*`
+- **對照表加指標**：`nba_common.PREVIEW_TEAM_FIELDS` 加一列（方向 high／low／neutral）＋前端 `constants.js` 的 `PREVIEW_LABELS` 補名稱；衍生欄位在 `build_preview.league_table` 算
+- **近況場數**：`PREVIEW_FORM_N`；**特殊賽事標籤**：`constants.js` 的 `SPECIAL_GAME_TAGS`（NBA 改名就加一筆，沒對到不顯示）
+- **文件格式改了**：前端快取鍵換 `wt_pv_v2_`
+- **日期規則**：資料、網址、月曆一律美東，開賽時間一律經 `kickoffTPE`；不要在別處自己加 8 小時
+
 ### Q: 條件戰績想加新的條件類型或調規則
 - **調規則**（條件數上限、交易截止日、命中率最少出手）：只改 `constants.js` 的 `CONDITION_RULES`；說明文字同步改 `glossary.js` 的 `SPLIT_COND`
 - **多一個可選指標**：Splits defs 有的會自動出現；只想給條件用的次數欄加進 `splitConditions.js` 的 `EXTRA`（欄位要在逐場 bundle 裡）
@@ -1070,7 +1138,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 72/天（快照 71＋賽程 1；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 26（含對手、box score、進階 box 與單場 On/Off）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 28（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 73/天（快照 71＋賽程 1＋賽前預覽的 CDN 賽程檔 1，2026-11-04 起；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 26（含對手、box score、進階 box 與單場 On/Off）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 28（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
@@ -1084,6 +1152,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-04 — 賽前預覽與完整賽程（Phase 1–4）：新增 `scripts/build_preview.py`（`wolves_games_index/{season}_preview`，每日 +1 CDN request）與 `nba_common` 的 `PREVIEW_*`／`fetch_league_schedule`／`rank_all`；前端 `loadPreview`、`kickoffTPE`／`kickoffET`／`etToday`／`ordinal`／`teamLogo`、`PreviewPanel.js`（預覽模式）、賽程條下一場卡、小月曆未開打場次、`SchedulePage.js`（`#schedule`）與三個入口。使用者決定：預覽放單場頁、名次用英文序數、日期維持美東＋台北隔日開賽時間、只做當季
 - 2026-11-04 — 條件戰績（Phase 1–3）：新增 `components/splitConditions.js`（`window.SplitCond`）與 `CONDITION_RULES`；`SplitsTab` 期間列「條件」、條件編輯器（單顆 ≥／≤ 鈕、名字縮寫、單行）、戰績摘要、符合場次；網址 `c=`（`urlState`／App `splitCond`）；`glossary` 加 `SPLIT_COND`；`UI.Section` 標題可截斷。使用者決定：三種條件、最多 2 個、跟著所選賽季、未出賽採交易截止日後算到季末、名字縮寫與不換行原則
 - 2026-11-04 — 歷史定位（Phase 1–4）：`nba_common` 加 `INSIGHT_MARK_RULES`／`INSIGHT_MARK_METRICS`、`build_insights.player_marks()`（`insights.marks`，v2，回補 384 場）；`loadGameDocs` 快取加有效期限並換 `wt_gc_v5_`；`constants.js` 加 `HISTORY_RULES`；`UI.Info` 加 `history`；單場頁「本場 vs 季平均」標籤與展開列「?」歷史定位。使用者決定：現在排名＋自 X 以來、版型 C 只標例外、標籤前 3 名＋15 分鐘（實測否決前後 5%）、快取期限一起修
 - 2026-11-04 — 單場題材（Phase 1–4）：`nba_common` 加 `INSIGHT_RULES`／`INSIGHT_TEAM_METRICS`／`INSIGHT_PLAYER_METRICS`；新增 `scripts/build_insights.py`（0 request，寫 `wolves_team_games/{date}.insights`，回補 384 場）；`fetch_data.py` 擷取新場次後重算；`loadGameDocs` 快取換 `wt_gc_v4_`；單場頁概要新增「本場題材」（勝負關鍵＋最多 5 個題材、可引用）。使用者決定：名次截至當場＋之後被超越改灰框註記、回補全部、開季照常列「本季新高」、不做逐節走勢與對手球員
