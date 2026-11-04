@@ -384,6 +384,108 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         </UI.Section>
     );
 
+    // ── 本場題材：後端 build_insights.py 算好的 wolves_team_games/{date}.insights（文案在這裡組）──
+    // 名次截至當場；tag.after＝之後第一場超越它的比賽 → 標籤改灰框並加註；排名範圍 since 起（球員只算灰狼場次）
+    const insights = docs.team && docs.team.insights;
+    const story = insights && ((insights.cards || []).length > 0 || insights.key) && (() => {
+        const since = insights.since || '2022-23';
+        // 用「多／少」而非「高／低」的指標：越少越好（對應 nba_common.INSIGHT_TEAM_METRICS 的 low）與次數類
+        const FEWER_IS_BETTER = new Set(['OPP_PTS', 'TOV']);
+        const EN = { OPP_PTS: 'OPP PTS' };
+        const countLike = (c) => c.tone === 'neu' || FEWER_IS_BETTER.has(c.key);
+        const fmt = (k, v) => typeof v !== 'number' ? '—' : /_PCT$/.test(k) ? `${v.toFixed(1)}%` : String(Math.round(v * 10) / 10);
+        const shortMatchup = (m) => String(m || '').replace(/^MIN\s*/, '').replace(/^vs\.\s*/, 'vs ').replace(/^@\s*/, '@');
+        // 同一季只寫月/日，跨季寫完整日期（賽季＝起始年 10 月到隔年 9 月）
+        const y0 = Number(season.slice(0, 4));
+        const sameSeason = (d) => d >= `${y0}-10-01` && d <= `${y0 + 1}-09-30`;
+        const when = (r) => `${sameSeason(r.date) ? r.date.slice(5).replace('-', '/') : r.date} ${shortMatchup(r.matchup)}${r.playoffs ? ' 季後賽' : ''}`;
+        // inline＝引用用：不附場數括號（避免貼文出現雙層括號）
+        const tagText = (c, t, inline = false) => {
+            const hi = countLike(c) ? '多' : '高', lo = countLike(c) ? '少' : '低', w = t.side === 'high' ? hi : lo;
+            if (t.scope === 'season') return countLike(c) ? `本季最${w}` : t.side === 'high' ? '本季新高' : '本季最低';
+            return `${since} 起${t.ties ? '並列' : ''}${t.rank === 1 ? `最${w}` : `第 ${t.rank} ${w}`}${inline ? '' : `（${t.n} 場）`}`;
+        };
+        // inline＝引用用（不再套括號，貼文裡整段已在括號內）
+        const prevText = (c, inline = false) => {
+            const t = c.tags[0], p = c.prev;
+            if (!p) return '';
+            const w = t.side === 'high' ? (countLike(c) ? '多' : '高') : (countLike(c) ? '少' : '低');
+            const lead = t.rank > 1 ? `最${w}` : t.ties ? '追平' : countLike(c) ? '前紀錄' : `前${w}`;
+            return inline ? `${lead} ${fmt(c.key, p.value)}，${when(p)}` : `${lead} ${fmt(c.key, p.value)}（${when(p)}）`;
+        };
+        const afterOf = (c) => c.tags.map(t => t.after).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0] || null;
+        const CHIP = {
+            pos: 'border-[#12A150]/50 text-[#12A150]',
+            neg: 'border-[#EF4444]/50 text-[#EF4444]',
+            neu: 'border-[#C4CED2]/30 text-slate-300',
+        };
+        const FF = { efg: ['有效命中率', 'eFG%'], tov: ['失誤率', 'TOV%'], orb: ['進攻籃板率', 'OREB%'], ftr: ['罰球率', 'FTM/FGA'] };
+        const inSplits = (k) => ALL_DEFS.some(d => d.metrics.some(x => x.key === k));
+        const teamMetricHref = (k) => '#' + window.UrlState.serialize({ viewMode: 'TEAM', activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
+        const cell = 'min-w-0 border-b border-r border-white/[0.08] px-3 py-2.5';
+
+        const card = (c, i) => {
+            const isTeam = c.kind === 'team';
+            const mp = isTeam ? null : minPlayers.find(p => Number(p.pid) === Number(c.pid));
+            const who = isTeam ? '灰狼' : (mp ? mp.name : c.name);
+            const en = EN[c.key] || metaOf(c.key).englishLabel || c.key;
+            const value = fmt(c.key, c.value);
+            const after = afterOf(c);
+            const tags = c.tags.map(t => tagText(c, t));
+            const note = [prevText(c), after ? `之後被 ${when(after)}（${fmt(c.key, after.value)}）超越` : ''].filter(Boolean).join(' · ');
+            const labelEl = !inSplits(c.key) ? c.label
+                : <a href={isTeam ? teamMetricHref(c.key) : metricHref(who, c.key)} className={linkCls} title="看這項指標的逐場走勢（圈出這場）">{c.label}</a>;
+            const quoteNote = [c.tags.map(t => tagText(c, t, true)).join('、'), prevText(c, true)].filter(Boolean).join('；');
+            return (
+                <div key={i} className={cell}>
+                    <div className="flex items-baseline gap-1.5">
+                        <span className="shrink-0 font-mono text-[10px] text-slate-500">{isTeam ? '全隊' : '個人'}</span>
+                        <span className="min-w-0 truncate text-[14px] font-medium text-slate-100">
+                            {mp ? <a href={playerHref(mp.name)} className={linkCls}>{who}</a> : who}・{labelEl}
+                        </span>
+                        <span className="ml-auto shrink-0 pl-1.5 font-display text-[22px] font-semibold leading-none tabular-nums text-slate-50">{value}</span>
+                        <UI.Info k={c.key} align="right"
+                            cite={() => [who === '灰狼' ? '灰狼全隊' : who, gameCtx, `${c.label}（${en}） ${value}（${quoteNote}）`, '資料：NBA.com Stats', `${location.origin}${location.pathname}${location.hash}`].join('｜')}
+                            quote={() => window.Quote.make({ subject: isTeam ? '灰狼全隊' : who, context: gameCtx, label: c.label, en, gkey: c.key,
+                                values: [{ tag: '', value: `${value}（${quoteNote}）`, unit: '' }], asOf: 'none' })} />
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {c.tags.map((t, j) => (
+                            <span key={j} className={`inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 text-[11px] leading-[18px] ${CHIP[t.after ? 'neu' : c.tone] || CHIP.neu}`}>{tags[j]}</span>
+                        ))}
+                        {note && <span className="font-mono text-[11px] text-slate-500">{note}</span>}
+                    </div>
+                </div>
+            );
+        };
+
+        const k = insights.key, kf = k && k.factors && k.factors[k.factor];
+        const keyCell = kf && (
+            <div className={`${cell} bg-[#C4CED2]/[0.04]`}>
+                <div className="flex items-baseline gap-1.5">
+                    <span className="shrink-0 font-mono text-[10px] text-slate-500">勝負關鍵</span>
+                    <span className="min-w-0 truncate text-[14px] font-bold text-slate-100">{FF[k.factor][0]}<span className="ml-1.5 font-mono text-[10px] font-normal text-slate-500">{FF[k.factor][1]}</span></span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                    <span className={`font-display text-[22px] font-semibold leading-none tabular-nums ${k.win ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>{kf.min.toFixed(1)}</span>
+                    <span className="font-mono text-[11px] text-slate-500">vs {k.oppAbbr} {kf.opp.toFixed(1)}</span>
+                </div>
+                <div className="mt-1 text-[11px] leading-snug text-slate-500">Four Factors 依權重（40／25／20／15）換算，對這場{k.win ? '勝' : '敗'}場貢獻最大的一項</div>
+            </div>
+        );
+
+        return (
+            <UI.Section title="本場題材" en="Story Leads" accent="silver"
+                sub={`名次截至當場（只和這場之前的比賽比）· 排名範圍 ${since} 起，球員只算灰狼場次 · 灰框＝次數類，或之後已被超越 · 點「?」複製或加入引用籃`}>
+                {/* 每格要放「誰・指標＋數字＋標籤」，比本場焦點寬：640 寬三欄會把名字截掉 → 768 起兩欄、1024 起三欄 */}
+                <div className="grid grid-cols-1 border-l border-t border-white/[0.08] md:grid-cols-2 lg:grid-cols-3">
+                    {keyCell}
+                    {(insights.cards || []).map(card)}
+                </div>
+            </UI.Section>
+        );
+    })();
+
     // ── 展開列：該員單場進階（Tracking／最近防守者／Hustle）vs 季平均 ──
     const EXP_GROUPS = [...(window.trackingDefs || []).filter(d => ['Touches', 'Drives', 'CatchShoot', 'PullUpShot', 'Passing', 'Rebounding'].includes(d.id)),
         ...(window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))];
@@ -738,7 +840,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     );
 
     // ── 單場分頁：沒有內容的分頁不顯示；網址指定的分頁不在清單裡（如舊場次沒有對比）→ 退回概要 ──
-    const overviewBody = (leaders || vsSection || info) ? <>{leaders}{vsSection}{info}</> : <UI.Note>這場沒有可摘要的資料，請看其他分頁</UI.Note>;
+    const overviewBody = (leaders || story || vsSection || info) ? <>{leaders}{story}{vsSection}{info}</> :<UI.Note>這場沒有可摘要的資料，請看其他分頁</UI.Note>;
     const TABS = [
         { key: 'overview', label: '概要', body: overviewBody },
         (boxSection || noBoxPlayers) && { key: 'box', label: box ? 'Box Score' : '球員進階', body: boxSection || noBoxPlayers },
