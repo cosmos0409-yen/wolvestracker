@@ -399,6 +399,15 @@ window.MATCHUP_RULES = {
 // 標籤用中性字眼（描述灰狼打起來的感受，不評價對手）
 window.MATCHUP_TAGS = { rival: '勁敵', favorable: '順手', tough: '棘手' };
 
+// 歷史定位（單場頁 Box Score 展開列「?」小卡，GamePage 的 playerHistory 讀）：點開才讀該員各季逐場 bundle
+//   since       比較範圍起點＝本站逐場資料起點（只算灰狼場次）
+//   reportPct   前／後幾 % 才寫名次，其餘寫「中段（前 N%）」；百分位用中位名次（並列算一半）
+//   minN        該員有效場次少於這個數只提示樣本少      ← 與 nba_common.INSIGHT_MARK_RULES.min_n 同值
+//   minAtt      命中率類該場出手少於這個數不排名         ← 與 nba_common.INSIGHT_MARK_RULES.min_att 同值
+//   sinceGap    「自 X 以來最高」只在相隔 ≥ 這麼多場時才寫（相隔 2 場的「以來最高」沒有意義）
+// 「本場 vs 季平均」格子的標籤（前 3 名）由後端算好存在 insights.marks，門檻在 nba_common.INSIGHT_MARK_RULES
+window.HISTORY_RULES = { since: '2022-23', reportPct: 20, minN: 20, minAtt: 5, sinceGap: 10 };
+
 // NBA 30 隊三碼 → 中文隊名（台灣譯名）。對戰分析顯示用；box score 只有 2025-26 起才有隊名
 window.NBA_TEAM_NAMES = {
     ATL: '老鷹', BOS: '塞爾提克', BKN: '籃網', CHA: '黃蜂', CHI: '公牛', CLE: '騎士', DAL: '獨行俠', DEN: '金塊',

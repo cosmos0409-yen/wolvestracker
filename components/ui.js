@@ -114,11 +114,22 @@ window.UI = (function () {
     // rank：{ rank, n, date }，有給就在小卡加一行名次說明
     // quote：回傳引用籃項目的函式（window.Quote.make 組），有給就在「複製引用」旁放「加入引用籃」；
     //        沒有 glossary 定義也照樣開小卡（只放按鈕），不讓加入引用籃的入口消失
-    const Info = ({ k, align = 'left', cite, rank, quote }) => {
+    // history：非同步取得的補充段落（單場頁「歷史定位」）——點開小卡才呼叫一次，回傳 { title, main, sub, note } 或 null；
+    //   載入結果會傳給 cite(hist)／quote(hist)，讓引用帶上名次（不需要的呼叫端忽略參數即可）
+    const Info = ({ k, align = 'left', cite, rank, quote, history }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
         const [pos, setPos] = React.useState(null);
+        const [hist, setHist] = React.useState(undefined);   // undefined＝未載入／載入中，null＝沒有資料或失敗
         const ref = React.useRef(null), popRef = React.useRef(null);
+        React.useEffect(() => {
+            // 關閉就清掉：同一個元件位置可能換成別的球員／場次（React 沿用實例），不能留著上一個人的結果
+            if (!open) { if (hist !== undefined) setHist(undefined); return; }
+            if (!history || hist !== undefined) return;
+            let off = false;
+            Promise.resolve().then(history).then(r => { if (!off) setHist(r || null); }).catch(e => { console.error('history fail', e); if (!off) setHist(null); });
+            return () => { off = true; };
+        }, [open]);
         React.useEffect(() => {
             if (!open) return;
             const off = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -142,10 +153,10 @@ window.UI = (function () {
             place();
             window.addEventListener('scroll', place, true); window.addEventListener('resize', place);
             return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
-        }, [open, align]);
+        }, [open, align, hist]);   // hist：歷史定位載入後小卡變高，重算位置
         if (!g && !quote) return cite ? <CopyBtn text={cite} /> : null;
         const addQuote = () => {
-            const r = window.Quote.add(typeof quote === 'function' ? quote() : quote);
+            const r = window.Quote.add(typeof quote === 'function' ? quote(hist || null) : quote);
             toast(r.added ? `已加入引用籃（${r.total} 項）` : `引用籃裡已經有這一項（${r.total} 項）`);
         };
         const btnCls = 'inline-flex min-h-[24px] items-center gap-1.5 border border-white/15 px-2.5 text-[11px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]';
@@ -167,6 +178,17 @@ window.UI = (function () {
                             <span className="mt-1.5 block text-[11px] text-slate-500">來源：{g.src}</span>
                             {g.verify && <span className="mt-1.5 block text-[11px] text-amber-300/90">此定義的細節待確認</span>}
                         </>) : <span className="block text-slate-400">這個指標還沒有定義說明。</span>}
+                        {history && (
+                            <span className="mt-2.5 block border-t border-white/10 pt-2">
+                                <span className="block font-mono text-[10px] tracking-[0.12em] text-slate-500">歷史定位{hist && hist.title ? ` · ${hist.title}` : ''}</span>
+                                {hist === undefined ? <span className="block text-[11px] text-slate-500 animate-pulse">載入歷史…</span>
+                                    : !hist ? <span className="block text-[11px] text-slate-500">沒有可比較的歷史資料</span>
+                                    : (<>
+                                        <span className="block text-[12px] font-medium text-slate-100">{hist.main}</span>
+                                        {hist.sub && <span className="block text-[11px] text-slate-400">{hist.sub}</span>}
+                                    </>)}
+                            </span>
+                        )}
                         {rank && (
                             <span className="mt-1.5 block text-[11px] text-slate-400">
                                 聯盟第 {rank.rank}（{rank.n} 隊）：依 NBA 官方全季數值排序{rank.date ? `，快照 ${rank.date}` : ''}；與逐場重算的數字可能差一點小數，同值同名次
@@ -175,7 +197,7 @@ window.UI = (function () {
                         {(cite || quote) && (
                             <span className="mt-2.5 flex flex-wrap gap-2">
                                 {cite && (
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite() : cite); }} className={btnCls}>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(false); doCopy(typeof cite === 'function' ? cite(hist || null) : cite); }} className={btnCls}>
                                         <CopyIcon />複製引用
                                     </button>
                                 )}

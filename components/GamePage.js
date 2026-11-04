@@ -384,21 +384,28 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         </UI.Section>
     );
 
+    // ── 本場題材與歷史定位共用：場次寫法（同一季只寫月/日、跨季寫完整日期；賽季＝起始年 10 月到隔年 9 月）──
+    const shortMatchup = (m) => String(m || '').replace(/^MIN\s*/, '').replace(/^vs\.\s*/, 'vs ').replace(/^@\s*/, '@');
+    const y0 = Number(season.slice(0, 4));
+    const sameSeason = (d) => d >= `${y0}-10-01` && d <= `${y0 + 1}-09-30`;
+    const when = (r) => `${sameSeason(r.date) ? r.date.slice(5).replace('-', '/') : r.date} ${shortMatchup(r.matchup)}${r.playoffs ? ' 季後賽' : ''}`;
+    // 用「多／少」而非「高／低」的指標：越少越好（對應 nba_common.INSIGHT_TEAM_METRICS 的 low）與次數類
+    const FEWER_IS_BETTER = new Set(['OPP_PTS', 'TOV']);
+    // 標籤框色：綠＝好的方向、紅＝不好的方向、灰＝次數類或已被超越（本場題材、歷史定位標籤共用）
+    const CHIP = {
+        pos: 'border-[#12A150]/50 text-[#12A150]',
+        neg: 'border-[#EF4444]/50 text-[#EF4444]',
+        neu: 'border-[#C4CED2]/30 text-slate-300',
+    };
+
     // ── 本場題材：後端 build_insights.py 算好的 wolves_team_games/{date}.insights（文案在這裡組）──
     // 名次截至當場；tag.after＝之後第一場超越它的比賽 → 標籤改灰框並加註；排名範圍 since 起（球員只算灰狼場次）
     const insights = docs.team && docs.team.insights;
     const story = insights && ((insights.cards || []).length > 0 || insights.key) && (() => {
         const since = insights.since || '2022-23';
-        // 用「多／少」而非「高／低」的指標：越少越好（對應 nba_common.INSIGHT_TEAM_METRICS 的 low）與次數類
-        const FEWER_IS_BETTER = new Set(['OPP_PTS', 'TOV']);
         const EN = { OPP_PTS: 'OPP PTS' };
         const countLike = (c) => c.tone === 'neu' || FEWER_IS_BETTER.has(c.key);
         const fmt = (k, v) => typeof v !== 'number' ? '—' : /_PCT$/.test(k) ? `${v.toFixed(1)}%` : String(Math.round(v * 10) / 10);
-        const shortMatchup = (m) => String(m || '').replace(/^MIN\s*/, '').replace(/^vs\.\s*/, 'vs ').replace(/^@\s*/, '@');
-        // 同一季只寫月/日，跨季寫完整日期（賽季＝起始年 10 月到隔年 9 月）
-        const y0 = Number(season.slice(0, 4));
-        const sameSeason = (d) => d >= `${y0}-10-01` && d <= `${y0 + 1}-09-30`;
-        const when = (r) => `${sameSeason(r.date) ? r.date.slice(5).replace('-', '/') : r.date} ${shortMatchup(r.matchup)}${r.playoffs ? ' 季後賽' : ''}`;
         // inline＝引用用：不附場數括號（避免貼文出現雙層括號）
         const tagText = (c, t, inline = false) => {
             const hi = countLike(c) ? '多' : '高', lo = countLike(c) ? '少' : '低', w = t.side === 'high' ? hi : lo;
@@ -414,11 +421,6 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
             return inline ? `${lead} ${fmt(c.key, p.value)}，${when(p)}` : `${lead} ${fmt(c.key, p.value)}（${when(p)}）`;
         };
         const afterOf = (c) => c.tags.map(t => t.after).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0] || null;
-        const CHIP = {
-            pos: 'border-[#12A150]/50 text-[#12A150]',
-            neg: 'border-[#EF4444]/50 text-[#EF4444]',
-            neu: 'border-[#C4CED2]/30 text-slate-300',
-        };
         const FF = { efg: ['有效命中率', 'eFG%'], tov: ['失誤率', 'TOV%'], orb: ['進攻籃板率', 'OREB%'], ftr: ['罰球率', 'FTM/FGA'] };
         const inSplits = (k) => ALL_DEFS.some(d => d.metrics.some(x => x.key === k));
         const teamMetricHref = (k) => '#' + window.UrlState.serialize({ viewMode: 'TEAM', activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
@@ -486,6 +488,60 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         );
     })();
 
+    // ── 歷史定位 ──
+    // 「本場 vs 季平均」格子：後端 insights.marks 的前 3 名標籤（markBadge，門檻在 nba_common.INSIGHT_MARK_RULES）
+    // Box Score 展開列「?」小卡：點開才讀該員 HISTORY_RULES.since 起各季逐場 bundle（loadSeasonGames 有記憶體快取），
+    //   算「現在」排名（含之後的比賽）；前後 reportPct% 寫名次、其餘寫中段；「自 X 以來」相隔 ≥ sinceGap 場才寫
+    const HR = window.HISTORY_RULES;
+    const histSeasons = () => {
+        const out = [];
+        for (let y = Number(HR.since.slice(0, 4)); y <= Number(window.CURRENT_SEASON.slice(0, 4)); y++) out.push(`${y}-${String((y + 1) % 100).padStart(2, '0')}`);
+        return out;
+    };
+    // 命中率類寫高／低；次數類（neutral、名稱以「次數／數」結尾，如傳球次數、觸球總數）與越少越好的次數（失誤）寫多／少
+    const histWord = (k, side) => {
+        const m = metaOf(k), cnt = m.unit !== '%' && !/_PCT$/.test(k) && (m.neutral || m.betterIsLarger === false || /數$/.test(m.label || ''));
+        return side === 'high' ? (cnt ? '多' : '高') : (cnt ? '少' : '低');
+    };
+    const playerHistory = async (pid, k) => {
+        if (!pid || !window.loadSeasonGames) return null;
+        const lists = await Promise.all(histSeasons().flatMap(s => ['regular', 'playoffs'].map(t =>
+            window.loadSeasonGames(s, t, 'PLAYER', pid).then(r => (r.games || []).map(g => ({ ...g, playoffs: t === 'playoffs' }))))));
+        const den = (RATIO[k] || [])[1];
+        const ok = (st) => st && typeof st[k] === 'number' && (!den || (st[den] || 0) >= HR.minAtt);
+        const games = [].concat(...lists).filter(g => ok(g.stats)).sort((a, b) => (a.date < b.date ? -1 : 1));
+        const me = games.find(g => g.date === date);
+        if (!me) return null;   // 本場不符門檻（命中率出手太少）或還沒併入 bundle
+        const x = me.stats[k], n = games.length, title = `${HR.since} 起 · 灰狼場次`;
+        if (n < HR.minN) return { title, main: `灰狼才 ${n} 場，樣本少`, sub: '', note: '' };
+        const above = games.filter(g => g.stats[k] > x).length, below = games.filter(g => g.stats[k] < x).length, ties = n - above - below - 1;
+        const pHi = (above + ties / 2) / n * 100, pLo = (below + ties / 2) / n * 100;   // 中位名次：並列算一半
+        const side = pHi < HR.reportPct ? 'high' : pLo < HR.reportPct ? 'low' : null;
+        if (!side) return { title, main: `中段（前 ${Math.round(pHi)}%，${n} 場）`, sub: '', note: '' };
+        const w = histWord(k, side), rank = (side === 'high' ? above : below) + 1;
+        const rankTxt = `灰狼 ${n} 場${ties ? '並列' : ''}第 ${rank} ${w}`;
+        // 往前找最近一場「至少這麼高（低）」的比賽
+        const idx = games.indexOf(me);
+        let j = idx - 1;
+        while (j >= 0 && !(side === 'high' ? games[j].stats[k] >= x : games[j].stats[k] <= x)) j--;
+        const ref = j >= 0 ? games[j] : null;
+        const sub = !ref ? `當時為 ${HR.since} 起最${w}`
+            : idx - j - 1 >= HR.sinceGap ? `自 ${when(ref)}（${fmtV(k, ref.stats[k])}）以來最${w}` : '';
+        return { title, main: `${rankTxt}（${side === 'high' ? '前' : '後'} ${Math.max(1, Math.round(side === 'high' ? pHi : pLo))}%）`, sub,
+            note: ref && sub ? `${rankTxt}，自 ${when(ref)} 以來最${w}` : rankTxt };
+    };
+    const markBadge = (pid, k) => {
+        const mk = insights && insights.marks && (insights.marks[String(pid)] || {})[k];
+        if (!mk) return null;
+        const m = metaOf(k), good = (mk.side === 'high') === (m.betterIsLarger !== false);
+        return (
+            <span title={`${HR.since} 起他所有灰狼場次中的名次（含之後的比賽）`}
+                className={`ml-auto self-center whitespace-nowrap rounded-sm border px-1.5 text-[11px] leading-[18px] ${CHIP[m.neutral ? 'neu' : good ? 'pos' : 'neg']}`}>
+                灰狼{mk.ties ? '並列' : ''}第 {mk.rank} {histWord(k, mk.side)}
+            </span>
+        );
+    };
+
     // ── 展開列：該員單場進階（Tracking／最近防守者／Hustle）vs 季平均 ──
     const EXP_GROUPS = [...(window.trackingDefs || []).filter(d => ['Touches', 'Drives', 'CatchShoot', 'PullUpShot', 'Passing', 'Rebounding'].includes(d.id)),
         ...(window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))];
@@ -496,8 +552,10 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                 className={`-mx-1.5 flex items-baseline justify-between gap-2 border-b border-dotted border-white/10 px-1.5 py-1 text-[12px] ${j.good ? 'bg-[#12A150]/10 shadow-[inset_2px_0_0_#12A150]' : ''}`}>
                 <span className="min-w-0">
                     {link ? <a href={metricHref(name, k)} className={`text-slate-200 ${linkCls}`}>{m.label}</a> : <span className="text-slate-200">{m.label}</span>}
-                    {typeof v === 'number' && <UI.Info k={k} quote={() => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
-                        values: [{ value: fmtV(k, v) }], better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
+                    {typeof v === 'number' && <UI.Info k={k}
+                        history={ADV_META[k] ? undefined : () => playerHistory(pidOf(name), k)}
+                        quote={(h) => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
+                            values: [{ value: h && h.note ? `${fmtV(k, v)}（${h.note}）` : fmtV(k, v) }], better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
                     {m.englishLabel && <span className="block font-mono text-[9px] text-slate-500">{m.englishLabel}</span>}
                 </span>
                 <span className="shrink-0 text-right">
@@ -764,6 +822,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                                     <span className="font-display text-[26px] font-semibold leading-none tabular-nums text-slate-50">{fmtV(k, v)}</span>
                                     {d != null && <span className={`font-mono text-[11px] ${j.good ? 'text-[#12A150]' : j.bad ? 'text-[#EF4444]' : 'text-slate-500'}`}>{d >= 0 ? '+' : ''}{d.toFixed(1)}</span>}
                                     {j.small && <span className="text-[10px] text-amber-300/80">樣本少</span>}
+                                    {markBadge(vsPlayer.pid, k)}
                                 </div>
                                 <div className="relative h-2.5 bg-white/[0.05]">
                                     <i className={`absolute inset-y-0.5 left-0 block ${color}`} style={{ width: `${Math.max(0, v) / hi * 100}%` }}></i>
