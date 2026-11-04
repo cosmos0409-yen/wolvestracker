@@ -149,8 +149,11 @@ def main():
         sys.exit(1)
 
     if args.all:
+        # 同集合還有 {season}_preview（賽前預覽）等非索引文件，只處理 {season}_{regular|playoffs}
+        import re
         for doc in db.collection("wolves_games_index").stream():
-            build_one(db, doc.id)
+            if re.fullmatch(r"\d{4}-\d{2}_(regular|playoffs)", doc.id):
+                build_one(db, doc.id)
     elif args.season and args.type:
         build_one(db, f"{args.season}_{args.type}")
     else:

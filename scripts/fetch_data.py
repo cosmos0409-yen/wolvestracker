@@ -46,6 +46,7 @@ from nba_common import (
 )
 from build_bundles import upsert_game
 import build_insights
+import build_preview
 from fetch_shotchart import capture_game_shots
 
 SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
@@ -276,7 +277,9 @@ def main():
     # 1. 抓取球隊資料
     # 各類別以 TeamID=0 一次拿全聯盟 30 隊（請求數不變），拆出灰狼那份與聯盟名次（split_league）
     team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
-    team_base, rank_base = split_league(fetch_base_box(SEASON, season_type_api, "Team", team_id=0))
+    # base／advanced 的 30 隊原始資料留著給賽前預覽（build_preview 的聯盟表，0 額外 request）
+    league_base = fetch_base_box(SEASON, season_type_api, "Team", team_id=0)
+    team_base, rank_base = split_league(league_base)
     team_tracking, rank_tracking = split_league(fetch_tracking_data(SEASON, season_type_api, "Team", team_id=0))
     team_shooting, rank_shooting = split_league(merge_maps(
         fetch_shot_locations(SEASON, season_type_api, "Team", team_id=0),
@@ -289,7 +292,8 @@ def main():
         fetch_defense_box(SEASON, season_type_api, "Team", team_id=0),
         fetch_opp_shot_locations(SEASON, season_type_api, team_id=0),
     ))
-    team_advanced, rank_advanced = split_league(fetch_team_advanced(SEASON, season_type_api, team_id=0))
+    league_advanced = fetch_team_advanced(SEASON, season_type_api, team_id=0)
+    team_advanced, rank_advanced = split_league(league_advanced)
 
     final_team_data = {
         "date": today,
@@ -402,6 +406,11 @@ def main():
         # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）
         if not force:
             games_ok = capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+            # 賽前預覽：賽程檔 1 個 request（cdn.nba.com）＋上面已抓的 30 隊資料；失敗不影響抓取結果
+            try:
+                build_preview.build(db, SEASON, league_base, league_advanced, today)
+            except Exception as e:
+                print(f"⚠️ 賽前預覽更新失敗（不影響抓取）：{e}")
             write_status("full", True, "" if games_ok else "快照已寫入，但單場擷取未成功")
 
     # 本地測試模式：寫出為 json (一律寫出以供驗證)

@@ -322,6 +322,22 @@ INSIGHT_MARK_METRICS = [
     ("CONTESTED_SHOTS", None), ("DEFLECTIONS", None),
 ]
 
+# ── 賽前預覽（build_preview.py → wolves_games_index/{season}_preview，前端單場頁預覽模式）──
+# 賽程：cdn.nba.com 的全聯盟賽程檔（每日 1 個 request，非 stats.nba.com；curl 會被擋，要用 nba_get 的瀏覽器指紋）
+SCHEDULE_URL = "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json"
+# 只留正式比賽：gameId 前三碼 002 例行賽（含 NBA Cup 小組賽）、004 季後賽、005 附加賽、006 NBA Cup 冠軍戰；001 季前賽不要
+SCHEDULE_GAME_PREFIXES = ("002", "004", "005", "006")
+# 雙方對照的欄位：(欄名, 來源, 方向)。來源 base／advanced＝每日抓取本來就拿到的 30 隊資料（0 額外 request），
+# derived＝由其他欄算（OPP_PTS＝PTS − PLUS_MINUS）。方向 high／low 決定名次（low＝越少越好），neutral 照數值大排（節奏），
+# none＝不排名（戰績）。想多一項：加一列，前端照順序顯示（label 在前端）
+PREVIEW_TEAM_FIELDS = [
+    ("W", "base", "none"), ("L", "base", "none"),
+    ("PTS", "base", "high"), ("OPP_PTS", "derived", "low"),
+    ("OFF_RATING", "advanced", "high"), ("DEF_RATING", "advanced", "low"), ("NET_RATING", "advanced", "high"),
+    ("PACE", "advanced", "neutral"), ("FG3_PCT", "base", "high"), ("REB", "base", "high"), ("TOV", "base", "low"),
+]
+PREVIEW_FORM_N = 5   # 近況：最近幾場
+
 # 瀏覽器指紋（curl_cffi impersonate）：stats.nba.com 前面的 Akamai 會擋特定 TLS 指紋，被擋時不回 403、
 # 直接讓請求逾時（2026-10-29 chrome110 全部逾時、safari15_5 正常）。這次執行第一項就失敗時依序換下一個各試 1 次，
 # 成功的記在 FINGERPRINT_PATH（本機產物、不進版控），下次從它開始；刪掉該檔就從清單第一個重來。
@@ -1122,6 +1138,39 @@ def league_ranks(team_map):
 def split_league(team_map):
     """全聯盟球隊 dict → (灰狼那份 dict, 灰狼的聯盟名次 dict)"""
     return team_map.get("MIN", {}), league_ranks(team_map)
+
+
+def rank_all(values, lower=False):
+    """{隊: 值} → {隊: 名次}；同分取最小名次（1、2、2、4），與 league_ranks 同規則；非數值的隊不排"""
+    nums = {k: v for k, v in values.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    return {k: 1 + sum(1 for x in nums.values() if (x < v if lower else x > v)) for k, v in nums.items()}
+
+
+def fetch_league_schedule(retries=3):
+    """全聯盟賽程（SCHEDULE_URL）→ 正式比賽清單（依開賽時間排序），每場：
+    {id, date（美東日期）, utc, status（1 未開打／2 進行中／3 結束）, label, arena, city,
+     home: {id, tri, score, w, l}, away: {…}}；抓不到回 None（呼叫端自行略過，不影響其他抓取）"""
+    for i in range(retries):
+        try:
+            r = nba_get(SCHEDULE_URL, timeout=60)
+            if r.status_code == 200:
+                ls = r.json()["leagueSchedule"]
+                out = []
+                for gd in ls.get("gameDates", []):
+                    for g in gd.get("games", []):
+                        if str(g.get("gameId", ""))[:3] not in SCHEDULE_GAME_PREFIXES:
+                            continue
+                        team = lambda t: {"id": t.get("teamId"), "tri": t.get("teamTricode"), "score": t.get("score"),
+                                          "w": t.get("wins"), "l": t.get("losses")}
+                        out.append({"id": g["gameId"], "date": str(g.get("gameDateEst", ""))[:10], "utc": g.get("gameDateTimeUTC"),
+                                    "status": g.get("gameStatus"), "label": g.get("gameLabel") or "", "arena": g.get("arenaName") or "",
+                                    "city": g.get("arenaCity") or "", "home": team(g["homeTeam"]), "away": team(g["awayTeam"])})
+                return sorted(out, key=lambda g: g["utc"] or "")
+            print(f"⚠️ 賽程檔 HTTP {r.status_code}（第 {i + 1} 次）")
+        except Exception as e:
+            print(f"⚠️ 賽程檔抓取失敗（第 {i + 1} 次）：{e}")
+        time.sleep(3)
+    return None
 
 
 def pid_to_name_keyed(pid_map, keep=None, casefold=False, keep_ids=None):
