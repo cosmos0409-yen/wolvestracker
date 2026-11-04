@@ -26,11 +26,15 @@
 //   #vs=DEN&m=FG3_PCT          單隊對戰頁
 //   vs 對戰（=三碼＝單隊頁）；r 範圍 cur（只看本季）／YYYY-YY（指定賽季），省略＝近三季；
 //   t 賽別 regular / playoffs，省略＝例行＋季後；m 單隊頁標亮的指標（從首頁熱圖點進來時帶）
+// 完整賽程（另一種畫面，沒有 v=；只有當季）：
+//   #schedule&m=2026-11&f=home
+//   m 美東月份 YYYY-MM（省略＝今天所在月份）；f 篩選 home / away（省略＝全部）
 window.UrlState = (function () {
     const TABS = ['overview', 'splits', 'shooting', 'defense', 'playtype', 'comparison'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     const METRIC_RE = /^[A-Z0-9_]+$/;
     const SEASON_RE = /^\d{4}-\d{2}$/;
+    const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
     const CAP_TABS = ['contracts', 'picks', 'rules'];
     const GAME_TABS = ['box', 'compare', 'shots'];
     // 球員在網址裡的寫法：ID-名字（沒有 ID 才退回完整名字）；解析只看開頭的 ID，解不出＝舊連結的名字
@@ -53,6 +57,13 @@ window.UrlState = (function () {
             out.capView = true;
             out.capSeason = SEASON_RE.test(q.get('s') || '') ? q.get('s') : '';
             out.capTab = CAP_TABS.includes(q.get('tab')) ? q.get('tab') : '';
+            return out;
+        }
+        // 完整賽程：有 schedule 且沒有 v。不改動主畫面狀態
+        if (q.has('schedule') && !q.get('v')) {
+            out.schedView = true;
+            out.schedMonth = MONTH_RE.test(q.get('m') || '') ? q.get('m') : '';
+            out.schedFilter = q.get('f') === 'home' || q.get('f') === 'away' ? q.get('f') : '';
             return out;
         }
         // 對戰分析：有 vs 且沒有 v。r/t 是對戰自己的範圍，不可改動主畫面的賽季／賽別
@@ -116,6 +127,7 @@ window.UrlState = (function () {
             return toStr(q);
         }
         if (st.capView) return ['cap', st.capSeason && `s=${st.capSeason}`, st.capTab && `tab=${st.capTab}`].filter(Boolean).join('&');
+        if (st.schedView) return ['schedule', st.schedMonth && `m=${st.schedMonth}`, st.schedFilter && `f=${st.schedFilter}`].filter(Boolean).join('&');
         if (st.vsView) return [st.vsTeam ? `vs=${st.vsTeam}` : 'vs', st.vsRange && `r=${st.vsRange}`, st.vsType && `t=${st.vsType}`,
             st.vsTeam && st.vsMetric && `m=${st.vsMetric}`].filter(Boolean).join('&');
         q.set('v', st.viewMode === 'PLAYER' ? 'player' : 'team');
@@ -139,7 +151,8 @@ window.UrlState = (function () {
     // 給連結用的 href（一般 <a href>：會產生瀏覽紀錄，返回鍵可回上一頁）
     const gameHref = (date, player, tab, box) => '#' + serialize({ gameDate: date, gamePlayer: player || '', gameTab: tab || '', gameBox: box || '' });
     const capHref = (season, tab) => '#' + serialize({ capView: true, capSeason: season || '', capTab: tab || '' });
+    const schedHref = (month, filter) => '#' + serialize({ schedView: true, schedMonth: month || '', schedFilter: filter || '' });
     const vsHref = (team, range, type, metric) => '#' + serialize({ vsView: true, vsTeam: team || '', vsRange: range || '', vsType: type || '', vsMetric: metric || '' });
 
-    return { parse, serialize, gameHref, capHref, vsHref, playerToken, tokenPlayerId, TABS };
+    return { parse, serialize, gameHref, capHref, schedHref, vsHref, playerToken, tokenPlayerId, TABS };
 })();

@@ -3,8 +3,8 @@
 // 刊頭控制列是橫向捲動容器（overflow-x-auto），彈出層若放在裡面會被裁掉 → 用 portal 掛到 body、fixed 定位在按鈕下方
 // 未開打場次（App 從賽前預覽文件併進來，future: true、kickoff「台北隔日 09:30」，只有當季）：虛框＋灰字，點了進單場頁預覽模式
 // props：games（[{date, matchup, wl, type, future?, kickoff?}]，由舊到新）、season（顯示用）、activeDate（目前單場頁日期，有則高亮並預設翻到該月）、
-//        inGame（單場頁中，按鈕呈選中樣式）、onPick(date)
-const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
+//        inGame（單場頁中，按鈕呈選中樣式）、onPick(date)、onFull（有給才在底部顯示「完整賽程 →」，只有當季）
+const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull }) => {
     const { useState, useEffect, useRef, useMemo } = React;
     const [open, setOpen] = useState(false);
     const [month, setMonth] = useState(null);   // 'YYYY-MM'；null＝依 activeDate／最新一場
@@ -144,6 +144,12 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
                 {latest && <button type="button" onClick={() => { setOpen(false); onPick(latest.date); }}
                     className="min-h-[24px] px-1 text-slate-400 hover:text-slate-100">最新一場 →</button>}
             </div>
+            {onFull && (
+                <button type="button" onClick={() => { setOpen(false); onFull(); }}
+                    className="mt-2.5 flex min-h-[32px] w-full items-center justify-between gap-2 whitespace-nowrap border-t border-white/10 pt-2 text-left text-[13px] text-slate-100 hover:text-white">
+                    <span>完整賽程<span className="ml-1.5 text-[11px] text-slate-500">對手、主客、開賽時間</span></span><span aria-hidden="true">→</span>
+                </button>
+            )}
         </div>,
         document.body
     );

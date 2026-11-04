@@ -7,10 +7,10 @@ const Masthead = ({
     yearOptions, viewYear, onYearChange, isHistoryMode, historyLoading, displayDate,
     viewType, onTypeChange, effectiveDate,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    schedule, scheduleSeason, onPickGame, inGame, gameDate, inCap, onCap, inVs, onVs, playoffsAvailable = true,
+    schedule, scheduleSeason, onPickGame, inGame, gameDate, inCap, onCap, inVs, onVs, inSched, onFullSchedule, playoffsAvailable = true,
 }) => {
     const UI = window.UI;
-    const ownPage = inCap || inGame || inVs;   // 獨立整頁：不顯示主畫面的賽季／賽別／日期
+    const ownPage = inCap || inGame || inVs || inSched;   // 獨立整頁：不顯示主畫面的賽季／賽別／日期
     const pill = (on) => `shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${on ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30'}`;
     // 手機只留色點（文字給螢幕閱讀器），否則期別行被截斷、連線狀態整個看不到；點期別行可看完整狀態
     const statusEl = (cls, text) => <span className={cls}>●<span className="max-sm:sr-only"> {text}</span></span>;
@@ -30,7 +30,7 @@ const Masthead = ({
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
                             className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
                             {/* 手機省掉英文副名與年份，色點才放得下 */}
-                            {inCap ? '薪資 · Cap Sheet' : inVs ? <>對戰分析<span className="max-sm:hidden"> · Matchups</span></>
+                            {inCap ? '薪資 · Cap Sheet' : inSched ? <>完整賽程<span className="max-sm:hidden"> · Schedule</span></> : inVs ? <>對戰分析<span className="max-sm:hidden"> · Matchups</span></>
                                 : inGame ? <>單場 · <span className="max-sm:hidden">{(gameDate || '').slice(0, 5)}</span>{(gameDate || '').slice(5)}</>
                                 : [issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：身分列的時光機已顯示，避免期別行被截斷 */}
@@ -69,7 +69,7 @@ const Masthead = ({
                     </>)}
                     {/* 賽程月曆：整季比賽畫在月曆上，點日期開該場單場頁（取代原「最新一場」按鈕） */}
                     {window.GameCalendar && <window.GameCalendar games={schedule} season={scheduleSeason}
-                        activeDate={inGame ? gameDate : null} inGame={inGame} onPick={onPickGame} />}
+                        activeDate={inGame ? gameDate : null} inGame={inGame || inSched} onPick={onPickGame} onFull={onFullSchedule} />}
                     {/* 對戰：開對戰首頁（#vs） */}
                     <button type="button" onClick={onVs} aria-pressed={!!inVs} title="灰狼對各隊的表現：勁敵、順手、棘手，與交手前瞻"
                         className={`hidden lg:inline-flex ${pill(inVs)}`}>
