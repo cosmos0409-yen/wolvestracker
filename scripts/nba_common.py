@@ -269,6 +269,42 @@ RANK_LOWER_BETTER = {
 }
 RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA"}
 
+# ── 單場題材（build_insights.py → wolves_team_games/{date}.insights，前端單場頁「本場題材」）──
+# 只讀既有逐場 bundle 與單場 box，0 個 NBA request。改這裡之後：
+#   python scripts/build_insights.py --all --dry-run 看差異 → 拿掉 --dry-run 寫入 → 前端單場快取鍵換版
+# 名次一律「截至當場」（只和之前的場次比），之後被超越另記在 tag.after（每日重算）
+INSIGHT_RULES = {
+    "first_season": "2022-23",   # 比較範圍起點＝本站逐場資料起點（前端寫「2022-23 起」）
+    "team_top": 3,               # 全隊：本站資料內前幾名才列
+    "team_min_n": 100,           # 全隊排名至少要有幾場可比
+    "player_top": 3,             # 個人：灰狼生涯前幾名才列
+    "player_min_n": 20,          # 個人生涯排名至少要有幾場可比
+    "season_min_prior": 3,       # 「本季新高／最低」至少要有幾場賽前比賽
+    "min_minutes": 15,           # 個人：上場分鐘門檻
+    "max_per_player": 2,
+    "max_cards": 5,
+    # 勝負關鍵：Four Factors 權重（Dean Oliver）；勝場取加權貢獻最大、敗場取最小（最負）的一項
+    "ff_weights": {"efg": 0.40, "tov": 0.25, "orb": 0.20, "ftr": 0.15},
+}
+# 全隊指標：(欄名, 中文, 方向, 最低出手(分母欄, 門檻) 或 None)
+#   方向 high＝越多越好（另看反向「最低」）、low＝越少越好（失分、失誤）、neutral＝次數類（只看「最多」，前端灰框）
+#   OPP_PTS 是衍生欄（PTS − PLUS_MINUS）
+INSIGHT_TEAM_METRICS = [
+    ("PTS", "得分", "high", None), ("OPP_PTS", "失分", "low", None),
+    ("REB", "籃板", "high", None), ("OREB", "進攻籃板", "high", None),
+    ("AST", "助攻", "high", None), ("STL", "抄截", "high", None), ("BLK", "阻攻", "high", None),
+    ("TOV", "失誤", "low", None), ("FG3M", "三分命中數", "high", None),
+    ("FG3_PCT", "三分命中率", "high", ("FG3A", 20)), ("FG_PCT", "命中率", "high", ("FGA", 60)),
+    ("FT_PCT", "罰球命中率", "high", ("FTA", 15)),
+    ("DRIVES", "切入次數", "neutral", None), ("PASSES_MADE", "傳球次數", "neutral", None),
+    ("DEFLECTIONS", "干擾球", "high", None),
+]
+# 個人指標：(欄名, 中文, 本場最低量門檻)——只看「高」，低於門檻的小數字不列（避免「2 助攻生涯第 2 高」）
+INSIGHT_PLAYER_METRICS = [
+    ("PTS", "得分", 15), ("REB", "籃板", 8), ("AST", "助攻", 6), ("FG3M", "三分命中", 4),
+    ("STL", "抄截", 3), ("BLK", "阻攻", 3),
+]
+
 # 瀏覽器指紋（curl_cffi impersonate）：stats.nba.com 前面的 Akamai 會擋特定 TLS 指紋，被擋時不回 403、
 # 直接讓請求逾時（2026-10-29 chrome110 全部逾時、safari15_5 正常）。這次執行第一項就失敗時依序換下一個各試 1 次，
 # 成功的記在 FINGERPRINT_PATH（本機產物、不進版控），下次從它開始；刪掉該檔就從清單第一個重來。

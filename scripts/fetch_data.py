@@ -45,6 +45,7 @@ from nba_common import (
     fingerprint_info,
 )
 from build_bundles import upsert_game
+import build_insights
 from fetch_shotchart import capture_game_shots
 
 SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
@@ -179,6 +180,7 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         print(f"（最近 {min(len(game_log), CAPTURE_LOOKBACK_GAMES)} 場皆已擷取，比賽索引已更新）")
 
     ok = True
+    wrote_any = False
     for d, api_date, m, w, gid, tries, why in todo:
         print(f"--- 擷取單場 {d} {m} {w} [{gid}]（{why}）---")
         g = fetch_single_game(season, season_type_api, api_date, gid, normalized_active, casefold=True)
@@ -197,6 +199,15 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
         flag = ("未定稿（距比賽未滿 12 小時），下次重抓" if not final else "完整" if not partial else
                 "⚠️ 部分來源缺漏，下次重抓" if tries + 1 < CAPTURE_MAX_TRIES else "⚠️ 部分來源缺漏，已達重試上限")
         print(f"✅ 單場已寫入 wolves_*_games/{d}（灰狼 {len(player)} 人、對手 {g['opp_abbr']} {len(g['opp_players'])} 人，{flag}）")
+        wrote_any = True
+
+    # 單場題材：有新寫入的場次才重算（全部場次重算「之後被超越」註記，只寫有變動的；0 個 NBA request）。
+    # 失敗不影響抓取結果，下次有新場次會再算；也可手動 python scripts/build_insights.py
+    if wrote_any:
+        try:
+            build_insights.run(db)
+        except Exception as e:
+            print(f"⚠️ 單場題材計算失敗（不影響抓取）：{e}")
 
     capture_recent_shots(db, season, season_type_api, season_type_label, game_log[-CAPTURE_LOOKBACK_GAMES:])
     return ok
