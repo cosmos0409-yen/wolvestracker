@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-04（**歷史定位**：單場頁「本場 vs 季平均」只在灰狼場次前 3 名的格子標「灰狼第 N 高」、Box Score 展開列「?」小卡點開看完整定位；單場快取加有效期限 `wt_gc_v5_`，見「2026-11-04 歷史定位」）
+> 最後更新：2026-11-04（**條件戰績**：Splits 期間列多「條件」——球員數據／全隊數據／有出賽／未出賽，最多 2 個（且），看符合場次的戰績、勝率、場均分差與平均，網址 `c=` 可分享，見「2026-11-04 條件戰績」）
+> 同日稍早：**歷史定位**：單場頁「本場 vs 季平均」只在灰狼場次前 3 名的格子標「灰狼第 N 高」、Box Score 展開列「?」小卡點開看完整定位；單場快取加有效期限 `wt_gc_v5_`，見「2026-11-04 歷史定位」）
 > 同日稍早：**單場題材（本場題材 Story Leads）**＋**手機版巡檢修正**：後端 `build_insights.py` 每場算好「本季新高、2022-23 起排名、勝負關鍵」寫進單場文件，單場頁概要新增區塊；手機版陣容表、刊頭換行、比分區、Box Score 欄寬等，見「2026-11-04 手機版巡檢與單場題材」）
 > 前次：2026-10-28（**聯盟名次與引用籃**，見同名章節）；2026-10-24（**網址改用球員「ID-名字」＋賽季 `s=年份&t=賽別`**、**單場分頁＋介面統一**、**網站圖示（PWA）**，見同名章節；之前的對戰分析、開季修正、薪資頁、單場比賽頁見同名章節）
 
@@ -376,6 +377,34 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 **未做／可再議**：全隊數字（Four Factors、對比分頁）沒有歷史定位（本場題材已涵蓋全隊突出項）；小卡的低側（如 Edwards 2024-01-12 觸球並列第 16 少）多半反映上場時間短，若覺得多餘可改成只顯示高的一側
 
+
+### 2026-11-04 條件戰績
+
+起因：使用者選定的第 2 個點子——專欄最常用的句型「Edwards 30+ 時灰狼 18-14」「Gobert 缺陣時 3-3」。試算時就冒出題材：2025-26 Edwards 30+ 勝率 56%、低於其他場次的 62%。
+
+**決定（使用者）**：條件三種（球員數據、全隊數據、球員有／未出賽）全做；最多 2 個條件（且）；範圍跟著所選賽季（與賽別），不做跨季；版型先看預覽（`_mockup/conditions.html`）；名字一律縮寫、控制項與標題不換行（記憶 `feedback-no-wrap-abbrev`，往後設計都適用）；「未出賽」的在隊期間採「交易截止日後算到季末」
+
+**資料層 `components/splitConditions.js`（`window.SplitCond`，無 JSX，打包順序在 `matchupData.js` 之後、`urlState.js` 之前）**
+- 條件：`{ who: 'T'|球員ID, kind: 'stat', key, op: 'ge'|'le', value }` 或 `{ who: 球員ID, kind: 'played'|'absent' }`；`isComplete`／`needPids`
+- `evaluate(conds, { teamGames, playerGames, season })` → 符合的全隊場次日期 Set：**母體一律是全隊逐場**（球員視角也是）；球員數據條件要他有上場才算，命中率類該場出手 < `minAtt`（3）不算（`denOf` 取 `GameAgg.RATIO_DEFS`／`EFG_DEFS` 的分母）
+- 在隊期間 `tenure()`：第一次出賽 → 最後一次出賽；最後一次在 `{賽季次年}-{deadlineMD}`（`02-15`）之後的算到該季最後一場。例：Gobert 2025-26 最後出賽 4/07，季末 4/08、4/10、4/12 輪休算進「未出賽」（6 場；只算到最後出賽是 3 場）。限制：交易截止日後才被裁或買斷的球員（少見）會被誤算成季末缺陣
+- `summary(teamGames, dates)` → 符合／其他／全部的 `{ n, w, l, pct, pm }`（`pm`＝全隊正負值平均＝場均分差）
+- 文字：`label`／`condLabel` 單行縮寫（`A. Edwards 得分≥30・全隊失誤≤12`），`abbr` 同單場頁 Box Score 手機版規則
+- 指標：Splits 的 defs（基本、進階、投籃分區、防守）＋條件專用次數欄 `EXTRA`（上場時間〔僅球員〕、投籃命中、出手數、三分命中、三分出手、罰球出手、進攻／防守籃板、犯規）——Splits 卡片只有比率，但條件最常問次數
+- 網址：`serialize`／`parse`，`c=1630162:PTS:ge:30~T:TOV:le:12`、`c=203497:absent`（`:` 分欄、`~` 分條件；格式不對的條件直接丟掉）
+- 門檻：`constants.js` 的 `CONDITION_RULES`（maxConds 2、deadlineMD `02-15`、minAtt 3）；說明文字在 `glossary.js` 的 `SPLIT_COND`（摘要「?」小卡顯示）
+
+**介面（`SplitsTab.js`）**
+- 期間列最後「條件」；點了才展開編輯器，預設一列「第一位球員 得分 ≥（待填）」。每列：對象下拉（全隊＋球員縮寫）→ 指標下拉（球員多「出賽」群組：未出賽／有出賽；只列該實體有值的欄）→ **單顆 ≥／≤ 切換鈕**（兩段式 `UI.Seg` 在手機上約 76px，會把名字擠成「A. Edw」）→ 數值 → ✕；「＋ 加一個條件（且）」到上限就消失；移除最後一個條件回到全季
+- 手機單行：下拉在手機限寬（對象 6.75rem、指標 5rem）、數值框 2.5rem、間距 3px；列本身 `overflow-x-auto`，更窄的手機放不下時只在列內橫捲、不撐寬整頁（實測 375px：兩列右緣 317／330px）
+- 結果：戰績摘要一排三格（符合／其他／全季，手機也一排；「?」可複製引用、加入引用籃：`※A. Edwards 得分≥30・全隊失誤≤12 戰績：4-6（勝率 40%，其他 45-27）`）；少於 10 場顯示 `smallSampleNote`；「符合的 N 場」可展開，點了到單場頁；下方卡片牆照舊（這些場次 vs 全季）。Section 標題用條件文字、`truncate`、手機 18px、不顯示英文小字（`UI.Section` 的標題 span 加了 `min-w-0` 才能截斷）
+- 資料：全隊視角直接用 `games`；球員視角另讀全隊 bundle（`condTeam`）當母體；條件提到的球員讀該季 bundle（`condPlayers`，換賽季清空）；都經 `loadSeasonGames` 記憶體快取
+- App：`splitCond` 狀態（網址 `c=`，只在 Splits 寫入；`hashchange` 同步）、`splitsBundle`（＝逐場 bundle 載入的賽季／賽別）、`players`（`availablePlayers`＋`playerIdOf`）傳給 SplitsTab；SplitsTab 草稿完整才回報（`onCondChange`），離開「條件」期間回報空字串，回來草稿還在
+
+**驗證**：2025-26 例行賽 9 組條件與 Python 試算一致（Edwards 30+ 18-14／其他 31-19、40+ 5-5、三分命中 ≥5 12-8、全隊三分% ≥40% 22-9、失誤 ≤12 17-9、籃板 ≥50 14-3、Edwards 未出賽 12-9、30+ 且失誤 ≤12 4-6）；互動（填值、切換 ≥／≤、加第二條件、改未出賽、離開再回來）、引用籃、點場次進單場頁、球員視角、手機／平板／桌面皆驗證
+
+**踩到的坑：本機驗證被瀏覽器快取騙**：`python -m http.server` 不送快取標頭，瀏覽器面板與自動化截圖的 Chrome 設定檔會沿用舊 `index.html`（指向舊 bundle），一度誤判「首次開帶 `c=` 的網址會丟條件」。用全新設定檔＋在頁面載入前攔截 `history.replaceState` 才確認程式沒問題。**之後本機驗證前端：面板網址加查詢參數（`?nc=1#…`）或關掉快取（CDP `Network.setCacheDisabled`）**
+
 ---
 
 ## 專案檔案結構
@@ -393,6 +422,7 @@ wolvestracker/
 │   ├── MetricComponents.js / PlayTypeCard.js / PlaytypeSection.js / TrackingCardRow.js
 │   ├── ShotChart.js / DefenseHeatmap.js ← 投籃熱圖、防守熱圖
 │   ├── gameAggregates.js / gamesData.js ← GameAgg 逐場重算、bundle／索引／單場文件（loadGameDocs）載入
+│   ├── splitConditions.js           ← 條件戰績資料層 window.SplitCond（條件篩選、在隊期間、戰績摘要、網址 c=）
 │   ├── matchupData.js               ← 對戰分析資料層 window.Matchup（範圍、對手彙整、偏離程度 z、標籤、勝負關鍵因子）
 │   ├── SingleGamePanel.js / Highlights.js ← 單場面板、近期異動
 │   ├── GamePage.js                  ← 單場比賽頁（#game=日期[&tab=]，單場分頁）
@@ -463,6 +493,7 @@ wolvestracker/
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
 - 網址 hash（`components/urlState.js`）：`#v=player&p=1630183-jaden-mcdaniels&tab=shooting&s=2024-25&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
+  - `c`＝Splits 條件戰績（僅 `tab=splits`，2026-11-04）：`c=1630162:PTS:ge:30~T:TOV:le:12`；App 的 `splitCond`（`hashchange` 同步），SplitsTab 只回報完整條件、離開「條件」期間清掉。格式見「2026-11-04 條件戰績」
   - `m`＝Splits 打開逐場走勢的指標 key、`hl`＝走勢上圈出的那一場日期（僅 `tab=splits`）。App 以 `focus = {m, hl, key}` 保存，`key`＝「實體＋章節」：Splits 內換球員保留 `m`、拿掉 `hl`；離開 Splits 清掉。Splits 開關走勢／換指標會回報（`onFocusChange`），網址跟著記住
   - **球員 `p=ID-名字`**（2026-10-24）：`UrlState.playerToken(id, name)` 組（名字部分 `window.nameSlug`＝`nameKey` 後非英數字換 `-`），`tokenPlayerId(p)` 解（符合 `^\d+(-[a-z0-9-]*)?$` 取開頭數字，否則 `null`＝舊連結的完整名字）。App 不直接把網址的 p 塞進 `selectedPlayer`：`wantPlayer = {pid|name, seasonKey}` 交給「自動修正 selectedPlayer」effect，**等 `loadedSeasonKey()`（由 `playerHistory[0].date` 推回：日期字串＝當季、賽季標籤＝歷史）等於目標賽季才比對**（ID 用 `playerIdOf`、名字用 `nameKey`），避開切季那一拍舊名單誤判成「沒有這個人」而退回第一人；比對期間網址只寫 ID（或舊名字），不配上前一位球員的名字。網址帶 ID 時 `selectedPlayer` 初值留空，不先閃出 localStorage 記住的球員
   - **賽季 `s=年份&t=賽別`**（2026-10-24）：歷史賽季寫 `s=2025-26&t=playoffs`（例行賽也寫 `t=regular`）；parse 時 `s=當季年份` 視為當季、舊 key `s=2025-26_playoffs`／`s=current` 照收；`t` 只在當季寫進 `seasonTypeView`（歷史賽季的賽別在 key 裡，不可改到當季賽別）
@@ -524,6 +555,7 @@ wolvestracker/
 - Playtype：`PlaytypeSection.js`，預設 Synergy 式可排序表格（Freq/Poss/PPP/百分位/FG%），可切卡片（`wt_pref_playtypeView`）
 - 投籃：命中率格可點看趨勢；熱圖命中＝實心綠點、未中＝空心紅環，球場線月光銀畫在點下方
 - 投籃「與上季比」（2026-10-19，分區組）：打開時才讀上一季同實體 shotchart（`loadShotDoc`，與本季共用解析與 `__shootTabCache`）；本季套期間篩選、上季一律全季；格子加「上季 % ／差／占比」，下方 `ZoneDiffCourt` 半場圖；任一季該區出手 < 10 標灰；上季無文件時按鈕顯示「XXXX 無資料」
+- Splits「條件」（2026-11-04）：期間列最後，條件戰績（球員數據／全隊數據／有出賽／未出賽，最多 2 個），見「2026-11-04 條件戰績」
 - Splits「防守」欄位組（2026-10-19）：`defenseDefs` 的 MatchupDefense＋Hustle（DefenseBox 沒有單場值不列），只顯示該實體有值的組（球隊沒有最近防守者）。各欄位組的 defs 集中在 `GROUP_DEFS`；基本數據定義移到 `constants.js` 的 `SPLITS_BASE_DEF` 共用
 - 防守熱圖：顏色為「不透明預混色」（`blend()`），避免各區半透明疊色互相污染；基準值 `ZONE_REF` 為寫死的聯盟約略均值，畫面上會直接標出，**非官方即時數字**
 - 走勢 Modal：賽別預設沿用刊頭的例行/季後（舊版用日期判斷，休賽期誤設例行賽）；Esc 關閉；「近 N 筆」（每筆是一份快照，不一定是一場比賽）
@@ -939,6 +971,12 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 - **文案**：只改 `GamePage.js` 的 `story`（`tagText`／`prevText`），不用重算
 - 欄位必須在逐場 bundle 裡（`build_bundles` 的 stats）；Synergy／Clutch 沒有逐場資料不能用
 
+### Q: 條件戰績想加新的條件類型或調規則
+- **調規則**（條件數上限、交易截止日、命中率最少出手）：只改 `constants.js` 的 `CONDITION_RULES`；說明文字同步改 `glossary.js` 的 `SPLIT_COND`
+- **多一個可選指標**：Splits defs 有的會自動出現；只想給條件用的次數欄加進 `splitConditions.js` 的 `EXTRA`（欄位要在逐場 bundle 裡）
+- **新條件類型**（如主客場、背靠背、對手）：`splitConditions.js` 的 `evaluate` 內 `test()` 加一種 `kind`，`parse`／`serialize`／`isComplete`／`condLabel` 一併處理；`SplitsTab.js` 的 `condRow` 指標下拉加選項（或另一個下拉）。網址格式向下相容：舊連結只會少條件、不會壞
+- 本機驗證記得避開快取（面板網址加 `?nc=1`），否則會看到舊版
+
 ### Q: 歷史定位的門檻想調整
 - **格子標籤**（本場 vs 季平均）：改 `nba_common.INSIGHT_MARK_RULES`（top、max_ties、min_n、min_att）或 `INSIGHT_MARK_METRICS`（要和 `GamePage.js` 的 `VS_KEYS` 對應）→ `build_insights.py --dry-run --date …` → 重算 → 視需要換 `wt_gc_v5_`
 - **「?」小卡**：只改 `constants.js` 的 `HISTORY_RULES`，不用重算
@@ -1046,6 +1084,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-04 — 條件戰績（Phase 1–3）：新增 `components/splitConditions.js`（`window.SplitCond`）與 `CONDITION_RULES`；`SplitsTab` 期間列「條件」、條件編輯器（單顆 ≥／≤ 鈕、名字縮寫、單行）、戰績摘要、符合場次；網址 `c=`（`urlState`／App `splitCond`）；`glossary` 加 `SPLIT_COND`；`UI.Section` 標題可截斷。使用者決定：三種條件、最多 2 個、跟著所選賽季、未出賽採交易截止日後算到季末、名字縮寫與不換行原則
 - 2026-11-04 — 歷史定位（Phase 1–4）：`nba_common` 加 `INSIGHT_MARK_RULES`／`INSIGHT_MARK_METRICS`、`build_insights.player_marks()`（`insights.marks`，v2，回補 384 場）；`loadGameDocs` 快取加有效期限並換 `wt_gc_v5_`；`constants.js` 加 `HISTORY_RULES`；`UI.Info` 加 `history`；單場頁「本場 vs 季平均」標籤與展開列「?」歷史定位。使用者決定：現在排名＋自 X 以來、版型 C 只標例外、標籤前 3 名＋15 分鐘（實測否決前後 5%）、快取期限一起修
 - 2026-11-04 — 單場題材（Phase 1–4）：`nba_common` 加 `INSIGHT_RULES`／`INSIGHT_TEAM_METRICS`／`INSIGHT_PLAYER_METRICS`；新增 `scripts/build_insights.py`（0 request，寫 `wolves_team_games/{date}.insights`，回補 384 場）；`fetch_data.py` 擷取新場次後重算；`loadGameDocs` 快取換 `wt_gc_v4_`；單場頁概要新增「本場題材」（勝負關鍵＋最多 5 個題材、可引用）。使用者決定：名次截至當場＋之後被超越改灰框註記、回補全部、開季照常列「本季新高」、不做逐節走勢與對手球員
 - 2026-11-04 — 手機版巡檢 P1／P2：`DataTable` `stackFirst`、`UI.scrollHint`、刊頭換行與副標色點、身分列併行、單場頁精簡比分區、Box Score 名字縮寫、表頭「?」移到右側、連結點擊區 24px、賽程條 snap、薪資「最後異動」標籤；確認切入失誤 0 為 NBA 原始資料
