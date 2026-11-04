@@ -134,3 +134,26 @@ window.loadSeasonSchedule = async function (season) {
         window.loadGamesIndex(season, t).then(gs => gs.map(g => ({ ...g, type: t })))));
     return [...reg, ...po].sort((a, b) => a.date.localeCompare(b.date));
 };
+
+// 賽前預覽 wolves_games_index/{season}_preview（build_preview.py 每日覆寫）：灰狼本季全部賽程（含未開打、開賽時間、oppId）、
+// 30 隊數據與名次、30 隊近 5 場。只有當季有這份 → 其他賽季直接回 null 不讀。
+// 快取：同頁面共用一次讀取＋localStorage wt_pv_v1_{season}（存 { savedAt, v }，3 小時過期；文件一天只更新一次）。
+// 讀取失敗或文件不存在回 null，呼叫端把入口藏起來即可，不擋畫面
+const PREVIEW_TTL_MS = 3 * 3600 * 1000;
+window.loadPreview = function (season) {
+    if (!window.db || !window.firebaseModules || season !== window.CURRENT_SEASON) return Promise.resolve(null);
+    const mem = (window.__previewMem = window.__previewMem || {});
+    if (mem[season]) return mem[season];
+    const lsKey = `wt_pv_v1_${season}`;
+    try {
+        const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
+        if (c && c.v && Date.now() - (c.savedAt || 0) < PREVIEW_TTL_MS) return (mem[season] = Promise.resolve(c.v));
+    } catch (e) { /* ignore */ }
+    const { doc, getDoc } = window.firebaseModules;
+    const p = getDoc(doc(window.db, 'wolves_games_index', `${season}_preview`)).then(snap => {
+        const v = snap.exists() ? snap.data() : null;
+        if (v) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
+        return v;
+    }).catch(e => { console.warn('preview load fail', e); delete mem[season]; return null; });
+    return (mem[season] = p);
+};

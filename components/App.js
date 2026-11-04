@@ -161,6 +161,23 @@ const App = () => {
         return () => { cancelled = true; };
     }, [isCloud, scheduleSeason]);
     const scheduleGames = schedule.season === scheduleSeason ? schedule.games : [];
+    // 未開打場次（賽前預覽文件，只有當季）：月曆虛框格、搜尋「下一場」。點進去是單場頁的預覽模式
+    const [previewDoc, setPreviewDoc] = useState(null);
+    useEffect(() => {
+        if (!isCloud || !window.loadPreview || scheduleSeason !== window.CURRENT_SEASON) { setPreviewDoc(null); return; }
+        let cancelled = false;
+        window.loadPreview(scheduleSeason).then(v => { if (!cancelled) setPreviewDoc(v || null); });
+        return () => { cancelled = true; };
+    }, [isCloud, scheduleSeason]);
+    const futureGames = useMemo(() => {
+        if (!previewDoc || previewDoc.season !== scheduleSeason) return [];
+        const last = scheduleGames.length ? scheduleGames[scheduleGames.length - 1].date : '';
+        return (previewDoc.games || []).filter(g => g.date > last).map(g => ({
+            date: g.date, matchup: `MIN ${g.home ? 'vs.' : '@'} ${g.opp}`, wl: '', type: /^004/.test(g.id || '') ? 'playoffs' : 'regular',
+            future: true, kickoff: window.kickoffTPE(g),
+        }));
+    }, [previewDoc, scheduleGames, scheduleSeason]);
+    const calendarGames = useMemo(() => [...scheduleGames, ...futureGames], [scheduleGames, futureGames]);
 
     // 首頁：當季最新一場；當季還沒比賽（開季後到首戰前）就退到上一季最後一場（休賽期 CURRENT_SEASON 仍是剛打完那季，本來就有）
     useEffect(() => {
@@ -1054,6 +1071,8 @@ const App = () => {
     ];
     const paletteItems = [
         ...paletteBase.map(it => ({ ...it, run: () => { leaveGame(); it.run(); } })),
+        // 賽程：下一場（預覽模式）；group 叫「賽程」，打「賽程」就找得到
+        ...futureGames.slice(0, 1).map(g => ({ id: 'next_' + g.date, group: '賽程', label: `下一場 ${Number(g.date.slice(5, 7))}/${Number(g.date.slice(8))} ${g.matchup.includes('@') ? '@' : 'vs'} ${window.teamName(g.matchup.slice(-3))}`, hint: g.kickoff, run: () => openGame(g.date) })),
         ...scheduleGames.slice(-10).reverse().map(g => ({ id: 'g_' + g.date, group: `${scheduleSeason} 最近比賽`, label: `${g.date} ${g.matchup} ${g.wl}`, run: () => openGame(g.date) })),
         { id: 'cap', group: '薪資', label: '薪資與奢侈稅', hint: 'Cap Sheet', run: openCap },
         { id: 'vs', group: '對戰', label: '對戰分析', hint: '對各隊表現、勁敵／順手／棘手', run: () => openVs() },
@@ -1081,7 +1100,7 @@ const App = () => {
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
                 onCopyLink={() => window.UI.doCopy(window.location.href)}
-                schedule={scheduleGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate || homePending} gameDate={gameDate}
+                schedule={calendarGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate || homePending} gameDate={gameDate}
                 playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 inCap={capView} onCap={openCap} inVs={!!vs} onVs={() => openVs()} />
 

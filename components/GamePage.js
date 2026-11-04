@@ -55,17 +55,28 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     }, [date]);
 
     const meta = (docs && (docs.team || docs.player)) || {};
-    const typeKey = meta.seasonType === '季後賽' ? 'playoffs' : 'regular';
     const season = window.seasonForDate(new Date(date + 'T12:00:00Z'));
+    // 賽前預覽文件（只有當季；gamesData.loadPreview）：未開打場次的預覽模式＋賽程條「下一場」卡。undefined=載入中, null=沒有
+    const [preview, setPreview] = useState(undefined);
+    useEffect(() => {
+        let cancelled = false;
+        if (!window.loadPreview) { setPreview(null); return; }
+        window.loadPreview(season).then(v => { if (!cancelled) setPreview(v || null); });
+        return () => { cancelled = true; };
+    }, [season]);
+    const pvGame = preview ? (preview.games || []).find(g => g.date === date) || null : null;
+    // 賽別：有單場文件看文件；預覽模式看 GameID（004＝季後賽）
+    const pvType = (g) => /^004/.test(g.id || '') ? 'playoffs' : 'regular';
+    const typeKey = meta.seasonType ? (meta.seasonType === '季後賽' ? 'playoffs' : 'regular') : pvGame ? pvType(pvGame) : 'regular';
     const box = docs && docs.team && docs.team.box && (docs.team.box.teams || []).length === 2 ? docs.team.box : null;
 
-    // 賽程條：同季同賽別的比賽索引
+    // 賽程條：同季同賽別的比賽索引（預覽模式 docs=null 也要）
     useEffect(() => {
-        if (!docs || !window.loadGamesIndex) return;
+        if (docs === undefined || !window.loadGamesIndex) return;
         let cancelled = false;
         window.loadGamesIndex(season, typeKey).then(g => { if (!cancelled) setIndex(g); }).catch(e => console.error('game index fail', e));
         return () => { cancelled = true; };
-    }, [season, typeKey, !!docs]);
+    }, [season, typeKey, docs === undefined]);
 
     // ── 灰狼球員：box 名單（personId）× players 文件（playerId）──
     const playersDoc = (docs && docs.player && docs.player.players) || {};
@@ -174,8 +185,9 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         meta.wl === 'W' ? '勝' : meta.wl === 'L' ? '敗' : ''].filter(Boolean).join(' ');
     window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false };
 
-    if (docs === undefined) return <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入比賽資料中…</div>;
-    if (docs === null) return (
+    // 單場文件沒有時先等預覽文件，避免「找不到」閃一下又變成預覽
+    if (docs === undefined || (docs === null && preview === undefined && !loadErr)) return <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入比賽資料中…</div>;
+    if (docs === null && !pvGame) return (
         <UI.Note tone="warn">{loadErr ? `比賽資料讀取失敗：${loadErr}` : `找不到 ${date} 的比賽資料（灰狼當天可能沒有比賽，或這場尚未抓取）`}</UI.Note>
     );
 
@@ -185,11 +197,17 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const linkCls = 'inline-block leading-6 border-b border-transparent hover:border-[#12A150] hover:text-white transition-colors';
 
     // ── 賽程條 ──
-    const idxPos = index.findIndex(g => g.date === date);
-    const prevG = idxPos > 0 ? index[idxPos - 1] : null, nextG = idxPos >= 0 && idxPos < index.length - 1 ? index[idxPos + 1] : null;
+    // 已打完的場次（索引）＋預覽文件裡還沒有單場資料的「下一場」（虛框）；正在看更後面的預覽場次時那場也放上來
+    const lastIdx = index.length ? index[index.length - 1].date : '';
+    const upcoming = preview ? (preview.games || []).filter(g => g.date > lastIdx && pvType(g) === typeKey) : [];
+    const futureCards = upcoming.filter((g, i) => i === 0 || g.date === date).map((g, i) => ({ ...g, future: true, isNext: i === 0 }));
+    const stripGames = [...index, ...futureCards];
+    const idxPos = stripGames.findIndex(g => g.date === date);
+    const prevG = idxPos > 0 ? stripGames[idxPos - 1] : null, nextG = idxPos >= 0 && idxPos < stripGames.length - 1 ? stripGames[idxPos + 1] : null;
+    const stripHref = (g) => g.future ? window.UrlState.gameHref(g.date) : window.UrlState.gameHref(g.date, '', gameTab, gameBox);
     const strip = (
         <nav aria-label="賽程" className="flex items-stretch gap-1.5 border-b border-white/10 pb-3">
-            <a href={prevG ? window.UrlState.gameHref(prevG.date, '', gameTab, gameBox) : undefined} aria-label="上一場" aria-disabled={!prevG}
+            <a href={prevG ? stripHref(prevG) : undefined} aria-label="上一場" aria-disabled={!prevG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${prevG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>‹</a>
             {/* 捲動一律停在卡片左緣（snap＋初始位置取整到卡片寬），左邊不會露出半張看似空白的卡；
                 尾端墊片把最大捲動量補成卡片寬的整數倍，否則捲到最後幾場時被瀏覽器夾住、又停在半張卡 */}
@@ -204,8 +222,16 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                 el.scrollLeft = Math.max(0, Math.round((cards.indexOf(on) * step - (el.clientWidth - on.offsetWidth) / 2) / step) * step);
             }}>
                 {/* 換場次保留目前分頁（連看好幾場的 Box Score）；不帶展開的球員 */}
-                {index.map(g => (
-                    <a key={g.date} href={window.UrlState.gameHref(g.date, '', gameTab, gameBox)} aria-current={g.date === date ? 'page' : undefined}
+                {stripGames.map(g => g.future ? (
+                    // 還沒有單場資料的場次（預覽模式）：虛框，第三行寫台北開賽時間
+                    <a key={g.date} href={stripHref(g)} aria-current={g.date === date ? 'page' : undefined} title={`${g.date} ${g.home ? 'vs.' : '@'} ${g.opp} · ${window.kickoffTPE(g)}`}
+                        className={`w-[104px] shrink-0 snap-start whitespace-nowrap rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-dashed border-[#C4CED2]/35 text-slate-400 hover:border-[#C4CED2]/70 hover:text-slate-100'}`}>
+                        <div className="font-mono text-[10px]">{g.date.slice(5)}{g.isNext && <span className="ml-1 font-sans text-[#C4CED2]">下一場</span>}</div>
+                        <div className="font-medium text-slate-100">{g.home ? 'vs.' : '@'} {g.opp}</div>
+                        <div className="font-mono text-[10px] text-slate-300">{g.score ? `${g.score[0] > g.score[1] ? 'W' : 'L'} ${g.score[0]}-${g.score[1]}` : window.kickoffTPE(g)}</div>
+                    </a>
+                ) : (
+                    <a key={g.date} href={stripHref(g)} aria-current={g.date === date ? 'page' : undefined}
                         className={`w-[104px] shrink-0 snap-start rounded border px-2.5 py-1.5 text-[11px] ${g.date === date ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100'}`}>
                         <div className="font-mono text-[10px]">{g.date.slice(5)}</div>
                         <div className="font-medium text-slate-100">{String(g.matchup || '').replace(/^MIN\s*/, '')}</div>
@@ -214,9 +240,17 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                 ))}
                 <div data-strip-pad aria-hidden="true" className="shrink-0" />
             </div>
-            <a href={nextG ? window.UrlState.gameHref(nextG.date, '', gameTab, gameBox) : undefined} aria-label="下一場" aria-disabled={!nextG}
+            <a href={nextG ? stripHref(nextG) : undefined} aria-label="下一場" aria-disabled={!nextG}
                 className={`flex w-8 shrink-0 items-center justify-center rounded border border-white/15 text-slate-400 ${nextG ? 'hover:border-white/40 hover:text-slate-100' : 'opacity-30 pointer-events-none'}`}>›</a>
         </nav>
+    );
+
+    // ── 賽前預覽模式：還沒有單場文件、預覽賽程裡有這場 ──
+    if (docs === null) return (
+        <div>
+            {strip}
+            {window.PreviewPanel ? <window.PreviewPanel date={date} preview={preview} game={pvGame} /> : null}
+        </div>
     );
 
     // ── 比分看板 ──

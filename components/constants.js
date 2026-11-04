@@ -423,3 +423,53 @@ window.NBA_TEAM_NAMES = {
     POR: '拓荒者', SAC: '國王', SAS: '馬刺', TOR: '暴龍', UTA: '爵士', WAS: '巫師',
 };
 window.teamName = (abbr) => window.NBA_TEAM_NAMES[abbr] || abbr || '';
+// NBA 三碼 → TEAM_ID（隊徽 cdn.nba.com/logos/nba/{id}/... 用；預覽文件也有 oppId，這張表給沒有 id 的地方備用）
+window.NBA_TEAM_IDS = {
+    ATL: 1610612737, BOS: 1610612738, CLE: 1610612739, NOP: 1610612740, CHI: 1610612741, DAL: 1610612742, DEN: 1610612743,
+    GSW: 1610612744, HOU: 1610612745, LAC: 1610612746, LAL: 1610612747, MIA: 1610612748, MIL: 1610612749, MIN: 1610612750,
+    BKN: 1610612751, NYK: 1610612752, ORL: 1610612753, IND: 1610612754, PHI: 1610612755, PHX: 1610612756, POR: 1610612757,
+    SAC: 1610612758, SAS: 1610612759, OKC: 1610612760, TOR: 1610612761, UTA: 1610612762, MEM: 1610612763, WAS: 1610612764,
+    DET: 1610612765, CHA: 1610612766,
+};
+window.teamLogo = (idOrTri) => {
+    const id = typeof idOrTri === 'number' ? idOrTri : window.NBA_TEAM_IDS[idOrTri];
+    return id ? `https://cdn.nba.com/logos/nba/${id}/primary/L/logo.svg` : '';
+};
+
+// 名次：數字＋英文序數（1st、2nd、3rd、4th、11th–13th、21st）——賽前預覽雙方對照用
+window.ordinal = (n) => {
+    if (typeof n !== 'number') return '';
+    const t = n % 100, u = n % 10;
+    return n + (t >= 11 && t <= 13 ? 'th' : u === 1 ? 'st' : u === 2 ? 'nd' : u === 3 ? 'rd' : 'th');
+};
+
+// ── 開賽時間 ──
+// 全站日期一律美東（資料、網址、月曆）；開賽時間寫台北。5 季 458 場灰狼比賽台北日期都是美東＋1 天，
+// 但不寫死：依 utc 實算，剛好＋1 天才寫「台北隔日」，否則寫完整台北日期（海外賽等例外）
+const zoned = (iso, tz) => {
+    const parts = {};
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date(iso)).forEach(p => { parts[p.type] = p.value; });
+    return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+};
+const addDay = (ymd, n) => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+// g：{ date（美東）, utc }。回傳「台北隔日 09:30」或「台北 1/17 01:30」；沒有 utc 回空字串
+window.kickoffTPE = (g) => {
+    if (!g || !g.utc) return '';
+    try {
+        const t = zoned(g.utc, 'Asia/Taipei');
+        return t.date === addDay(g.date, 1) ? `台北隔日 ${t.time}` : `台北 ${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))} ${t.time}`;
+    } catch (e) { return ''; }
+};
+// 美東當地開賽時間「20:30」（含夏令時間）
+window.kickoffET = (g) => { if (!g || !g.utc) return ''; try { return zoned(g.utc, 'America/New_York').time; } catch (e) { return ''; } };
+// 美東今天（與 nba_common.get_today_str() 同為 UTC−5，每日快照 id 也是這個）
+window.etToday = () => new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+// 賽前預覽「雙方對照」的列名（列順序與方向在預覽文件 fields，來自 nba_common.PREVIEW_TEAM_FIELDS；加欄位時這裡補名稱，沒補就顯示原文）
+window.PREVIEW_LABELS = {
+    PTS: ['得分', 'PTS'], OPP_PTS: ['失分', 'OPP PTS'], OFF_RATING: ['進攻效率', 'OffRtg'], DEF_RATING: ['防守效率', 'DefRtg'],
+    NET_RATING: ['淨效率', 'NetRtg'], PACE: ['節奏', 'Pace'], FG3_PCT: ['三分%', '3P%'], REB: ['籃板', 'REB'], TOV: ['失誤', 'TOV'],
+};
+// 預覽文件 games[].label → 特殊賽事短標（沒對到不顯示；NBA 改名就在這裡加）
+window.SPECIAL_GAME_TAGS = [[/Cup/i, '盃賽'], [/Rivals/i, '宿敵週']];
+window.specialTag = (label) => { const hit = window.SPECIAL_GAME_TAGS.find(([re]) => re.test(label || '')); return hit ? hit[1] : ''; };

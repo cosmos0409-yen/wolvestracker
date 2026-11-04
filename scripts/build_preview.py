@@ -3,7 +3,7 @@
 Wolves Tracker - 賽前預覽資料
 
 寫一份 wolves_games_index/{season}_preview（每天覆寫，約 30 KB），前端單場頁的「預覽模式」讀：
-    games   灰狼本季所有正式比賽（含未開打）：美東日期、UTC 開賽時間、主客、對手、球館、特殊賽事標記、
+    games   灰狼本季所有正式比賽（含未開打）：美東日期、UTC 開賽時間、主客、對手（三碼＋oppId，隊徽用）、球館、特殊賽事標記、
             狀態、比分（已結束）、雙方休息天數（距上一場的空檔天數，0＝背靠背）
     form    30 隊各自最近 PREVIEW_FORM_N 場已結束比賽 [{date, vs（vs XXX／@XXX）, wl, pts, opp}]
     league  30 隊本季數據（PREVIEW_TEAM_FIELDS）；ranks 為各欄聯盟名次（方向依設定表）
@@ -99,7 +99,7 @@ def compose(season, sched, base_map, adv_map, as_of):
     games = []
     for g in team_games(sched, MIN_ID):
         me, op, home = _side(g, MIN_ID)
-        row = {'id': g['id'], 'date': g['date'], 'utc': g['utc'], 'home': home, 'opp': op['tri'], 'status': g['status'],
+        row = {'id': g['id'], 'date': g['date'], 'utc': g['utc'], 'home': home, 'opp': op['tri'], 'oppId': op['id'], 'status': g['status'],
                'label': g['label'], 'arena': g['arena'], 'city': g['city'],
                'rest': [rest_days(sched, MIN_ID, g), rest_days(sched, op['id'], g)]}
         if g['status'] == 3 and _num(me['score']) and _num(op['score']):
@@ -108,8 +108,10 @@ def compose(season, sched, base_map, adv_map, as_of):
     tris = sorted(set(id2tri.values()))
     tri2id = {t: i for i, t in id2tri.items()}
     form = {t: form_of(sched, tri2id[t], nc.PREVIEW_FORM_N) for t in tris}
+    # fields：雙方對照的列順序與方向（前端照這個畫，設定表加一列前端就多一列；Firestore map 不保證順序）
+    fields = [{'key': f, 'dir': d} for f, _, d in nc.PREVIEW_TEAM_FIELDS if d != 'none']
     return {'season': season, 'statsAsOf': as_of, 'updatedAt': int(datetime.now().timestamp() * 1000),
-            'teamsN': len(league), 'games': games, 'form': form, 'league': league, 'ranks': ranks}
+            'teamsN': len(league), 'games': games, 'form': form, 'league': league, 'ranks': ranks, 'fields': fields}
 
 
 def summary(doc):

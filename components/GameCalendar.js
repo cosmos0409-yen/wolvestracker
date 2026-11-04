@@ -1,7 +1,8 @@
 // 刊頭「賽程」月曆：取代原本的「最新一場」按鈕
 // 一季（例行賽＋季後賽）的比賽畫在月曆格子上：對手縮寫＋勝綠／敗紅，季後賽另標「季後」；點有比賽的日子進該場單場頁
 // 刊頭控制列是橫向捲動容器（overflow-x-auto），彈出層若放在裡面會被裁掉 → 用 portal 掛到 body、fixed 定位在按鈕下方
-// props：games（[{date, matchup, wl, type}]，由舊到新）、season（顯示用）、activeDate（目前單場頁日期，有則高亮並預設翻到該月）、
+// 未開打場次（App 從賽前預覽文件併進來，future: true、kickoff「台北隔日 09:30」，只有當季）：虛框＋灰字，點了進單場頁預覽模式
+// props：games（[{date, matchup, wl, type, future?, kickoff?}]，由舊到新）、season（顯示用）、activeDate（目前單場頁日期，有則高亮並預設翻到該月）、
 //        inGame（單場頁中，按鈕呈選中樣式）、onPick(date)
 const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
     const { useState, useEffect, useRef, useMemo } = React;
@@ -15,18 +16,21 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
         (games || []).forEach(g => { m[g.date] = g; });
         return m;
     }, [games]);
-    const latest = games && games.length ? games[games.length - 1] : null;
+    // 最新一場＝最後一場已打完的（未開打的不算）；月份範圍含未開打
+    const played = useMemo(() => (games || []).filter(g => !g.future), [games]);
+    const latest = played.length ? played[played.length - 1] : null;
+    const lastAny = games && games.length ? games[games.length - 1] : null;
     const months = useMemo(() => {
         if (!games || !games.length) return [];
         const out = [];
         let [y, mo] = games[0].date.slice(0, 7).split('-').map(Number);
-        const [ey, emo] = latest.date.slice(0, 7).split('-').map(Number);
+        const [ey, emo] = lastAny.date.slice(0, 7).split('-').map(Number);
         while (y < ey || (y === ey && mo <= emo)) {
             out.push(`${y}-${String(mo).padStart(2, '0')}`);
             mo += 1; if (mo > 12) { mo = 1; y += 1; }
         }
         return out;
-    }, [games, latest]);
+    }, [games, lastAny]);
     const defaultMonth = (activeDate && byDate[activeDate] ? activeDate : latest ? latest.date : '').slice(0, 7);
     const shown = month && months.includes(month) ? month : defaultMonth;
     const mi = months.indexOf(shown);
@@ -97,7 +101,7 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-slate-300 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed">‹</button>
                 <div className="text-center">
                     <div className="font-display text-[17px] font-bold tracking-wide text-slate-50">{shown ? monthLabel(shown) : ''}</div>
-                    <div className="font-mono text-[10px] text-slate-500">{season} 賽程 · {games.length} 場</div>
+                    <div className="font-mono text-[10px] text-slate-500">{season} 賽程 · {lastAny && lastAny.future ? `${played.length}／${games.length}` : games.length} 場</div>
                 </div>
                 <button type="button" aria-label="下個月" disabled={mi < 0 || mi >= months.length - 1} onClick={() => setMonth(months[mi + 1])}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 text-slate-300 hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed">›</button>
@@ -111,6 +115,16 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
                     const g = byDate[d], day = Number(d.slice(8));
                     if (!g) return <div key={d} className="flex h-11 items-start justify-center pt-1 font-mono text-[11px] text-slate-600">{day}</div>;
                     const win = g.wl === 'W', sel = d === activeDate, po = g.type === 'playoffs';
+                    if (g.future) return (
+                        <button key={d} type="button" data-focus={d === focusDate ? '1' : undefined}
+                            aria-current={sel ? 'date' : undefined}
+                            aria-label={`${d} ${g.matchup} 未開打 ${g.kickoff || ''}`} title={`${d} ${g.matchup} · ${g.kickoff || '未開打'}`}
+                            onClick={() => { setOpen(false); onPick(d); }}
+                            className={`flex h-11 flex-col items-center justify-start gap-0.5 border pt-1 leading-none ${sel ? 'border-[#12A150] bg-[#12A150]/15' : 'border-dashed border-white/15 hover:border-white/35'}`}>
+                            <span className="font-mono text-[11px] text-slate-300">{day}</span>
+                            <span className="text-[10px] font-medium text-slate-400">{oppOf(g.matchup)}</span>
+                        </button>
+                    );
                     return (
                         <button key={d} type="button" data-focus={d === focusDate ? '1' : undefined}
                             aria-current={sel ? 'date' : undefined}
@@ -126,7 +140,7 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick }) => {
                 })}
             </div>
             <div className="mt-2.5 flex items-center justify-between font-mono text-[10px] text-slate-500">
-                <span><span className="text-[#12A150]">■</span> 勝　<span className="text-[#EF4444]">■</span> 敗　@＝客場</span>
+                <span><span className="text-[#12A150]">■</span> 勝　<span className="text-[#EF4444]">■</span> 敗　{lastAny && lastAny.future ? '虛框＝未開打' : '@＝客場'}</span>
                 {latest && <button type="button" onClick={() => { setOpen(false); onPick(latest.date); }}
                     className="min-h-[24px] px-1 text-slate-400 hover:text-slate-100">最新一場 →</button>}
             </div>
