@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-04（**賽前預覽與完整賽程**：未開打的比賽也能開單場頁（預覽模式：雙方對照＋聯盟名次、交手、近況），賽程條有「下一場」卡、小月曆有未開打格子；新頁 `#schedule` 列出本季全部賽程（對手、主客、台北開賽時間、隊徽）。日期全站維持美東，開賽時間寫「台北隔日 09:30」，見「2026-11-04 賽前預覽與完整賽程」）
+> 最後更新：2026-11-05（**戰報引用**：單場「球隊對比」可加入引用籃（每列「?」只在桌面、分組「整組加入」）、新增四因素與投籃分區兩組；Box Score 展開列「加入本場數據」一行；引用籃新增標頭「單場比分」（客場 @、主場 vs.、城市全名、可附每節）與「排列」（加入順序／依球員／依指標）；「名次」開關改為也控制歷史定位等補充，見「2026-11-05 戰報引用」）
+> 前次：2026-11-04（**賽前預覽與完整賽程**：未開打的比賽也能開單場頁（預覽模式：雙方對照＋聯盟名次、交手、近況），賽程條有「下一場」卡、小月曆有未開打格子；新頁 `#schedule` 列出本季全部賽程（對手、主客、台北開賽時間、隊徽）。日期全站維持美東，開賽時間寫「台北隔日 09:30」，見「2026-11-04 賽前預覽與完整賽程」）
 > 同日稍早：**條件戰績**：Splits 期間列多「條件」——球員數據／全隊數據／有出賽／未出賽，最多 2 個（且），看符合場次的戰績、勝率、場均分差與平均，網址 `c=` 可分享，見「2026-11-04 條件戰績」）
 > 同日稍早：**歷史定位**：單場頁「本場 vs 季平均」只在灰狼場次前 3 名的格子標「灰狼第 N 高」、Box Score 展開列「?」小卡點開看完整定位；單場快取加有效期限 `wt_gc_v5_`，見「2026-11-04 歷史定位」）
 > 同日稍早：**單場題材（本場題材 Story Leads）**＋**手機版巡檢修正**：後端 `build_insights.py` 每場算好「本季新高、2022-23 起排名、勝負關鍵」寫進單場文件，單場頁概要新增區塊；手機版陣容表、刊頭換行、比分區、Box Score 欄寬等，見「2026-11-04 手機版巡檢與單場題材」）
@@ -309,11 +310,35 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 比較項目的入口：Splits 選期間時 `TrackingCardRow compareTags=['全季', 期間]`（→）、球員 On/Off（在場 vs. 離場）、跨季比較每列名稱旁的「?」（2 季 →、3 季以上每季一行）；Playtype 列存 PPP＋名次或 PR；單場頁 Box Score 展開的球員進階（`CiteCtx.context` 帶「10/26 @ 騎士 125:127 敗」）
 - **名稱一致性**（2026-10-29 徹查）：`label` 是中文、`en` 是原文，兩欄不可對調或塞說明。Playtype 一律「中文名每球權得分／`Cut PPP`」（防守「防守…每球權失分」），跨季比較與 Playtype 章節同名；Clutch 格加「關鍵時刻」前綴（`Clutch PTS`）；`Quote.make` 會剝掉 `en` 裡的全形括號說明（`DIFF%（負=守得好）`→`DIFF%`）；畫面小字不是英文名的格（薪資頁「預估奢侈稅」「標準合約」）用 `quote={{ en }}` 覆寫；受助攻比例原文為 `%AST FGM/2PM/3PM`
 - 儲存：`localStorage` 的 `wt_quote_v1`（項目）、`wt_quote_opts_v1`（格式選項），保留到手動清空；讀寫失敗（私密模式等）退回記憶體；變動發 `wt-quote-change` 事件，另聽 `storage` 讓多分頁同步
-- 項目格式：`{ id, kind: 'single'|'compare', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.', rank, pr, better, asOf, url }`；合併後 `{ id, kind, subject, context, sep, parts: [A, B] }`。能合併的條件見 `Quote.canMerge`（同類、同主體同情境，比較項目還要比較對象相同）
+- 項目格式：`{ id, kind: 'single'|'compare'|'line', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.', rank, pr, note, better, asOf, url, game }`（`note`、`line`、`game` 見「2026-11-05 戰報引用」）；合併後 `{ id, kind, subject, context, sep, parts: [A, B] }`。能合併的條件見 `Quote.canMerge`（同類、同主體同情境，比較項目還要比較對象相同）
 - 排版 `Quote.render(items, opts)`（純函式）：符號一義（`：` 名稱／`／` 成對／`→` 時間先後／`vs.` 並列）；相鄰同主體同情境合成一組。單值 1A「●主體｜情境（括號為聯盟排名）＋※指標：值（第8）」、前後 2A／2B 差值／2C 📈📉（依 `better`，次數類不標）、並列 3A、三個以上值 3C。成對指標名稱表 `PAIRS` 在 `quoteFormat.js`（沒列到就寫「A／B」）。文末「※本文數據統計至 M/D」不寫「臺灣時間」（快照日期是美東日期）
 - 抽屜：右下角浮動鈕（有項目才出現，避開安全區域）、桌面右側 460px／手機全螢幕、Esc／點背景關閉、焦點進出歸還；清空要按兩次（不用瀏覽器對話框）
 - 測試：`Quote.render` 可在 Node 跑（`global.window = {addEventListener(){}, removeEventListener(){}}` 後 `require('components/quoteFormat.js')`），2026-10-28 以 15 組固定輸入驗證（測試腳本未提交）
-- 未做：Box Score 傳統數據表、「對比」分頁沒有入口（「對比」格子本身是連結，不能再塞按鈕）；Playtype 卡片檢視沒有名次小字。單場頁概要的「本場題材」有入口（2026-11-04）
+- 未做：Box Score 傳統數據表沒有逐格入口（展開列有「加入本場數據」，2026-11-05）；「對比」分頁 2026-11-05 起有入口；Playtype 卡片檢視沒有名次小字。單場頁概要的「本場題材」有入口（2026-11-04）
+
+### 2026-11-05 戰報引用
+
+起因：使用者寫單場戰報時想直接引用「球隊 vs. 球隊」數據，並回報引用籃「不帶名次」拿不掉歷史定位、希望同人／同指標能合併。預覽圖 `_mockup/recap.html`（11/4 @ HOU 真實資料）確認後實作；使用者決定標頭隊名用全名、客場 `@` 主場 `vs.`、手機版球隊對比不放逐列「?」。
+
+**單場頁「球隊對比」（`GamePage.js` 的 `cmpSection`）**
+- 分組：基本 BOX → **四因素 FOUR FACTORS**（新）→ **投籃分區 SHOT ZONES**（新）→ TRACKING → HUSTLE；沒有數值的組不顯示
+- 四因素全由兩隊 box 合計算：有效命中率 `(FGM+0.5×FG3M)/FGA`、失誤率 `TOV/POSS`（舊場次沒有 POSS 時用 `TOV/(FGA+0.44×FTA+TOV)`）、進攻籃板率 `OREB/(OREB+對手 DREB)`、罰球率 `FTM/FGA`（顯示 `.115`，glossary `FT_RATE`），另附進攻效率、節奏（中性，不比好壞）；失誤率越低越好（`LOW_BETTER`）
+- 投籃分區讀單場 `stats`／`opp` 的 `RA/PAINT/MID/C3/AB3_FGM/FGA`，數值下方小字附「命中/出手」；對手分區只有 2026-10 起的場次
+- 引用：每列「?」小卡（`UI.Info quote`）**只在 ≥640px 顯示**（手機版面太雜，使用者決定）；分組標題右側「＋整組加入」手機桌面都有，逐列 `Quote.add`，重複的不再加、toast 回報幾項已在籃子裡。項目是 `kind 'compare'`、`sep 'vs.'`、`subject ''`、tags「灰狼／火箭」，分區值寫「60.0%（6/10）」
+- 已知資料疑點（未處理）：部分場次合理衝撞區與禁區非 RA 出手數看起來對調（11/4 RA 10、Paint 37；10/21、2025-11-10 也有），待查是 NBA 賽後初版分區還是抓取對應
+
+**Box Score 展開列「加入本場數據」**
+- 展開灰狼球員時最上方虛框預覽一行（`statLine`）：得分、籃板、助攻、投籃（有三分出手才括號三分）、有罰球出手才寫罰球、抄截／阻攻 ≥ 2 才寫、正負值；按鈕加入 `kind 'line'` 項目（`values[0].value` 是整行）
+- 輸出：`●Ayo Dosunmu｜11/4 @ 火箭 117:107 勝` ＋ `※21 分 1 籃板 6 助攻、投籃 10/20（三分 0/3）、罰球 1/2、2 抄截、+10`；和同人的單項同組，「依球員／依指標」時排在該段最前；`line` 不能「併下一項」
+
+**引用籃（`quoteFormat.js`／`QuoteBasket.js`）**
+- `note`：歷史定位、本場焦點標籤等補充改存獨立欄位（以前黏在數值字串裡，「不帶名次」拿不掉），由「名次」開關控制；清單上灰字顯示。**改版前加入的舊項目**仍是黏在數值裡的，要重新加入
+- `game`：單場頁的 `window.CiteCtx.game`（`{ date, home, opp, ms, os, wl, periods: [[灰狼, 對手]…], gameNo }`，季後賽 `gameNo` 取 gameId 末碼），`Quote.make` 自動帶上
+- 整段標頭「單場比分」（籃子裡有帶 `game` 的項目才出現）：`@ 休士頓火箭 117:107 灰狼勝`（主場 `vs.`、季後賽前加 `G4`；城市全名表 `NBA_TEAM_CITIES`／`window.teamFullName` 在 `constants.js`）；選了才出現「每節比分」（`每節：33:30｜24:27｜…`）；同一場的項目省略各段的「｜11/4 @ 火箭…」情境
+- 「排列」（`opts.order`，只影響輸出、不改籃子順序）：加入順序（相鄰同人共用標頭，原行為）／依球員（同主體＋情境集中，依第一次出現排序）／依指標（同指標同情境、兩位以上主體的單值項目合成「●干擾球」＋每人一行，其餘依球員）
+- 測試：Node 跑 `Quote.render` 驗證四種排列、單場比分＋每節、名次開關、主場季後賽 `G4 vs. 丹佛金塊`、舊項目無 `game` 時退回無標頭（腳本未提交）
+
+**驗證**：11/4 @ HOU 單場頁桌面 1280（28 列都有「?」）與手機 375（「?」全隱藏、標籤單行、無橫向溢出）；整組加入、重複加入、單列加入、展開列加入本場數據、名次開關、單場比分＋每節在抽屜實際輸出；舊場次（2026-03-05 vs TOR，無對手 tracking）照常顯示
 
 ### 2026-11-04 手機版巡檢與單場題材
 
@@ -1160,6 +1185,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - 2026-10-29 — 單場進階 box 與在場／不在場效率：`nba_common` 加 `BOX_ADV_FIELDS`／`add_box_advanced`（boxscoreadvancedv3）、`fetch_onoff(game_date=)`／`add_box_onoff`（單場 On/Off 不在場，只有灰狼）、`box_oncourt_totals`（bundle 的 `ON_PTS`／`ON_OPP_PTS`／`ON_POSS`）；每場抓取 +2 requests；`backfill_games.py --adv-only` 補本季 5 場；`build_bundles` 重建 2026-27；前端 Box Score「傳統｜進階」切換（`bx=adv`）、展開列「效率（在場）」附季均與不在場、`GameAgg` 加 `ON_*_RATING` 加權；`wt_gc_v3_` 換版。使用者決定：不標樣本少、不回補 2025-26 以前
 - 2026-10-29 — 看門狗修補：主排程等滿 60 分鐘仍在跑就不補抓（避免兩個抓取並行打 NBA）；`fetch_log.txt` 被鎖時補抓輸出改寫 `fetch_log_watchdog.txt`（`.gitignore` 已加）；被擋時少打 request：`fetch_data.py` 開頭連續 3 項失敗提前結束（碼 2）、早上看門狗當天已失敗過就不再重試、逾時中止的補抓輸出補換行；瀏覽器指紋自動切換（`FINGERPRINTS`、`nba_fingerprint.json`，UA 跟指紋一致、名冊併入共用重試），看門狗 log／通知回報指紋與是否換過（起因：`chrome110` 被 Akamai 擋整天，同機 `safari15_5` 正常）
 - 2026-10-29 — 跨季比較 On/Off 加「進攻／防守效率在場差」兩列（在場 − 不在場，`ComparisonTab` 的 metric `diff: [在場欄, 不在場欄]`＋`signed` 帶正負號；防守差負＝上場後失分變少）
+- 2026-11-05 — 戰報引用：球隊對比可引用（整組加入、桌面逐列「?」）＋四因素／投籃分區；Box Score 展開列加入本場數據；引用籃 `note`／`line`／`game`、標頭「單場比分」＋每節、「排列」三種；新增「2026-11-05 戰報引用」章節
 - 2026-10-29 — 引用籃名稱徹查（Playtype 中文／原文對調、Clutch 前綴、原文剝說明、薪資與受助攻原文）；跨季比較可選當季（`COMPARISON_SEASON_OPTIONS`、`loadComparisonSeason`）
 - 2026-10-28 — 聯盟名次與引用籃（Phase 1–4）：每日抓取全隊類別改拿 30 隊算名次（`ranks`）、新增全隊進階 `advanced`（+1 請求）、`RANK_LOWER_BETTER`／`RANK_SKIP`；前端 `RankCtx`／`leagueRank`／`ptRank`、StatCell 名次小字、總覽「全隊效率」、球隊 Playtype 百分位換算名次；新增 `quoteFormat.js`（`window.Quote`）與 `QuoteBasket.js` 跨頁引用籃；新增「2026-10-28 聯盟名次與引用籃」章節，更新檔案結構、寫作工具、每日快照欄位、新增數據 FAQ、請求預算
 - 2026-10-26 — 每日抓取看門狗（Phase 1–4）：`fetch_data.py` 加 `--games-only`、`fetch_status.json`、被擋結束碼 2／Firebase 失敗結束碼 1；新增 `scripts/watchdog.py`（15:00 分級補抓、Windows 桌面通知、`--dry-run`／`--test-notify`）與 `run_watchdog.bat`、排程 `WolvesWatchdog`；`WolvesTracker` 改為用電池可跑；`.gitignore` 加 `fetch_status.json`、`watchdog_log.txt`；新增「2026-10-26 每日抓取看門狗」章節，更新「自動化排程」、檔案結構、FAQ、請求預算

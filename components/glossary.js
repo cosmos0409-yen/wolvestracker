@@ -110,6 +110,7 @@ window.GLOSSARY = (function () {
         AST_PCT: { def: '助攻率：球隊投進的球中，有助攻的比例。', calc: '助攻 ÷ 投籃命中', src: ADV },
         TM_TOV_PCT: { def: '失誤率：每 100 回合發生的失誤次數，越低越好。', calc: '失誤 ÷ 回合數 × 100', src: ADV },
         OREB_PCT: { def: '進攻籃板率：自己投失的球中，搶回進攻籃板的比例。', src: ADV },
+        FT_RATE: { def: '罰球率（四因素之一）：每次投籃出手換到幾次罰進，衡量製造犯規、站上罰球線的能力。', calc: '罰球命中 ÷ 投籃出手', src: BASE },
         MIN: { def: '該五人陣容一起在場的總分鐘數（此 endpoint 一律回總計，不受 PerMode 影響）。', src: ADV },
         GP: { def: '出賽場次。', src: BASE },
 

@@ -44,10 +44,15 @@ const QuoteBasket = () => {
             : ps.map(p => v(p.values[0])).join('／');
         return `${ps.map(p => p.label).join('／')}：${vals}`;
     };
+    const noteOf = (it) => (it.parts || [it]).map(p => p.note).filter(Boolean).join('；');
+    const hasGame = items.some(it => (it.parts || [it]).some(p => p.game));
 
     const iconBtn = 'inline-flex h-7 w-7 shrink-0 items-center justify-center border border-white/10 text-[12px] text-slate-400 hover:border-white/30 hover:text-slate-100 disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-slate-400';
     const OPT_ROWS = [
-        { k: 'header', label: '整段標頭', options: [{ value: 'none', label: '無' }, { value: 'key', label: '●關鍵數據：' }, { value: 'custom', label: '自訂' }] },
+        { k: 'header', label: '整段標頭', options: [{ value: 'none', label: '無' }, { value: 'key', label: '●關鍵數據：' },
+            ...(hasGame ? [{ value: 'game', label: '單場比分' }] : []), { value: 'custom', label: '自訂' }] },
+        ...(hasGame && opts.header === 'game' ? [{ k: 'periods', label: '每節比分', options: [{ value: 'off', label: '不附' }, { value: 'on', label: '附上' }], bool: true }] : []),
+        { k: 'order', label: '排列', options: [{ value: 'added', label: '加入順序' }, { value: 'player', label: '依球員' }, { value: 'metric', label: '依指標' }] },
         { k: 'prefix', label: '行首', options: [{ value: '※', label: '※' }, { value: '•', label: '•' }, { value: '', label: '無' }] },
         { k: 'names', label: '指標名稱', options: [{ value: 'zh', label: '中文' }, { value: 'en', label: '原文' }, { value: 'both', label: '中文（原文）' }] },
         { k: 'cmpStyle', label: '前後比較', options: [{ value: 'arrow', label: 'A → B' }, { value: 'delta', label: '差值' }, { value: 'trend', label: '→ 加📈📉' }] },
@@ -87,7 +92,7 @@ const QuoteBasket = () => {
                                 return (
                                     <li key={it.id} className="flex items-start gap-2 border-b border-white/[0.08] py-2">
                                         <div className="min-w-0 flex-1">
-                                            <div className="break-words text-[13px] text-slate-100">{summary(it)}</div>
+                                            <div className="break-words text-[13px] text-slate-100">{summary(it)}{noteOf(it) && <span className="text-slate-500">（{noteOf(it)}）</span>}</div>
                                             <div className="font-mono text-[10px] text-slate-500">{[it.subject, it.context].filter(Boolean).join('｜')}{it.parts ? ' · 已合併' : ''}</div>
                                         </div>
                                         <div className="flex shrink-0 flex-wrap justify-end gap-1">

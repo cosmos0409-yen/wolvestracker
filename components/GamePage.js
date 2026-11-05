@@ -183,7 +183,13 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         `${String(meta.matchup || '').includes('@') ? '@' : 'vs.'} ${window.teamName(oppAbbr)}`,
         box && minTeam && oppTeam ? `${minTeam.score}:${oppTeam.score}` : '',
         meta.wl === 'W' ? '勝' : meta.wl === 'L' ? '敗' : ''].filter(Boolean).join(' ');
-    window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false };
+    // game：引用籃「單場比分」標頭用（季後賽 gameId 末碼＝第幾戰）
+    const quoteGame = box && minTeam && oppTeam ? {
+        date, home: !!minTeam.home, opp: oppAbbr, ms: minTeam.score, os: oppTeam.score, wl: meta.wl || null,
+        periods: (minTeam.periods || []).map((p, i) => [p.pts, ((oppTeam.periods || [])[i] || {}).pts]),
+        gameNo: /^004/.test(meta.gameId || '') ? Number(String(meta.gameId).slice(-1)) : null,
+    } : null;
+    window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false, game: quoteGame };
 
     // 單場文件沒有時先等預覽文件，避免「找不到」閃一下又變成預覽
     if (docs === undefined || (docs === null && preview === undefined && !loadErr)) return <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入比賽資料中…</div>;
@@ -483,7 +489,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                         <UI.Info k={c.key} align="right"
                             cite={() => [who === '灰狼' ? '灰狼全隊' : who, gameCtx, `${c.label}（${en}） ${value}（${quoteNote}）`, '資料：NBA.com Stats', `${location.origin}${location.pathname}${location.hash}`].join('｜')}
                             quote={() => window.Quote.make({ subject: isTeam ? '灰狼全隊' : who, context: gameCtx, label: c.label, en, gkey: c.key,
-                                values: [{ tag: '', value: `${value}（${quoteNote}）`, unit: '' }], asOf: 'none' })} />
+                                values: [{ tag: '', value, unit: '' }], note: quoteNote || null, asOf: 'none' })} />
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                         {c.tags.map((t, j) => (
@@ -589,7 +595,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                     {typeof v === 'number' && <UI.Info k={k}
                         history={ADV_META[k] ? undefined : () => playerHistory(pidOf(name), k)}
                         quote={(h) => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
-                            values: [{ value: h && h.note ? `${fmtV(k, v)}（${h.note}）` : fmtV(k, v) }], better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
+                            values: [{ value: fmtV(k, v) }], note: (h && h.note) || null, better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
                     {m.englishLabel && <span className="block font-mono text-[9px] text-slate-500">{m.englishLabel}</span>}
                 </span>
                 <span className="shrink-0 text-right">
@@ -602,6 +608,14 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
             </div>
         );
     };
+    // 球員本場一行（引用籃 kind 'line'）：得分籃板助攻、投籃（有三分出手才括號三分）、有罰球出手才寫罰球、抄截／阻攻 ≥ 2 才寫、正負值
+    const statLine = (s) => {
+        if (!s || typeof s.PTS !== 'number') return null;
+        const pm = typeof s.PLUS_MINUS === 'number' ? Math.round(s.PLUS_MINUS) : null;
+        return [`${s.PTS} 分 ${s.REB} 籃板 ${s.AST} 助攻`, `投籃 ${s.FGM}/${s.FGA}${s.FG3A ? `（三分 ${s.FG3M}/${s.FG3A}）` : ''}`,
+            s.FTA ? `罰球 ${s.FTM}/${s.FTA}` : '', s.STL >= 2 ? `${s.STL} 抄截` : '', s.BLK >= 2 ? `${s.BLK} 阻攻` : '',
+            pm == null ? '' : `${pm > 0 ? '+' : ''}${pm}`].filter(Boolean).join('、');
+    };
     const expandRow = (p) => {
         const ent = p.adv;
         const avgAgg = avgCache[p.pid];
@@ -611,8 +625,21 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         const effAvg = (k) => avgAgg === undefined ? undefined : (avgAgg && typeof avgAgg['ON_' + k] === 'number' ? avgAgg['ON_' + k] : null);
         if (!ent && !hasEff) return <UI.Note>這位球員本場沒有進階數據</UI.Note>;
         const groups = ent ? EXP_GROUPS.map(d => ({ d, ms: d.metrics.filter(m => typeof ent[m.key] === 'number') })).filter(g => g.ms.length) : [];
+        const line = statLine(bs);
+        const addLine = () => {
+            const r = window.Quote.add(window.Quote.make({ kind: 'line', subject: p.name, label: '本場數據', en: 'Box Score', gkey: 'BOX_LINE', values: [{ value: line }], asOf: 'none' }));
+            UI.toast(r.added ? `已加入引用籃（共 ${r.total} 項）` : '這一行已在引用籃裡');
+        };
         return (
             <div className="px-3 pb-3 pt-2 sm:pl-10">
+                {line && (
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-dashed border-white/15 px-2.5 py-2">
+                        <p className="min-w-0 text-[12px] leading-relaxed text-slate-300">
+                            <span className="block font-mono text-[10px] text-slate-500">本場數據 · 加入引用籃會寫成這一行</span>{line}</p>
+                        <button type="button" onClick={addLine}
+                            className="inline-flex min-h-[28px] shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-3 text-[12px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 加入本場數據</button>
+                    </div>
+                )}
                 <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
                     {hasEff && (
                         <div>
@@ -784,41 +811,82 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     // ── 球隊對比（鏡像長條）──
     const MS = (docs.team && docs.team.stats) || {}, OS = (docs.team && docs.team.opp) || null;
     const T = box ? minTeam.totals : null, O = box ? oppTeam.totals : null;
-    const pctOf = (a, b) => (b ? a / b * 100 : null);
+    const pctOf = (a, b) => (typeof a === 'number' && b ? a / b * 100 : null);
+    // 四因素（Dean Oliver）＋效率：全由兩隊 box 合計算；失誤率有回合數用回合數（同全隊進階 TM_TOV_PCT），舊場次用估計回合
+    const tovPct = (t) => typeof t.POSS === 'number' && t.POSS ? t.TOV / t.POSS * 100 : (t.FGA + 0.44 * t.FTA + t.TOV ? t.TOV / (t.FGA + 0.44 * t.FTA + t.TOV) * 100 : null);
+    const FOUR = box ? [
+        ['EFG_PCT', T.FGA ? (T.FGM + 0.5 * T.FG3M) / T.FGA * 100 : null, O.FGA ? (O.FGM + 0.5 * O.FG3M) / O.FGA * 100 : null],
+        ['TM_TOV_PCT', tovPct(T), tovPct(O)],
+        ['OREB_PCT', pctOf(T.OREB, T.OREB + O.DREB), pctOf(O.OREB, O.OREB + T.DREB)],
+        ['FT_RATE', T.FGA ? T.FTM / T.FGA : null, O.FGA ? O.FTM / O.FGA : null],
+        ['OFF_RATING', T.OFF_RATING, O.OFF_RATING], ['PACE', T.PACE, O.PACE],
+    ] : [];
+    // 投籃分區：灰狼與對手的單場分區（stats／opp），附命中／出手
+    const CMP_ZONES = [['RA', '合理衝撞區', 'RA FG%'], ['PAINT', '禁區非 RA', 'Paint FG%'], ['MID', '中距離', 'Mid FG%'], ['C3', '底角三分', 'Corner 3 FG%'], ['AB3', '非底角三分', 'AB3 FG%']];
+    const frac = (S, z) => S && typeof S[z + '_FGA'] === 'number' ? `${S[z + '_FGM']}/${S[z + '_FGA']}` : '';
     const CMP = [
         ['基本 BOX', box ? [
             ['FG_PCT', pctOf(T.FGM, T.FGA), pctOf(O.FGM, O.FGA)], ['FG3_PCT', pctOf(T.FG3M, T.FG3A), pctOf(O.FG3M, O.FG3A)], ['FT_PCT', pctOf(T.FTM, T.FTA), pctOf(O.FTM, O.FTA)],
             ['REB', T.REB, O.REB], ['OREB', T.OREB, O.OREB], ['AST', T.AST, O.AST], ['STL', T.STL, O.STL], ['BLK', T.BLK, O.BLK], ['TOV', T.TOV, O.TOV], ['PF', T.PF, O.PF],
         ] : []],
+        ['四因素 FOUR FACTORS', FOUR],
+        ['投籃分區 SHOT ZONES', CMP_ZONES.map(([z]) => [`${z}_FG_PCT`, pctOf(MS[z + '_FGM'], MS[z + '_FGA']), OS ? pctOf(OS[z + '_FGM'], OS[z + '_FGA']) : null, frac(MS, z), frac(OS, z)])],
         ['TRACKING', ['TOUCHES', 'PASSES_MADE', 'DRIVES', 'POTENTIAL_AST', 'CATCH_SHOOT_EFG_PCT', 'PULL_UP_EFG_PCT'].map(k => [k, MS[k], OS ? OS[k] : null])],
         ['HUSTLE', ['DEFLECTIONS', 'CONTESTED_SHOTS', 'SCREEN_ASSISTS', 'SCREEN_AST_PTS', 'LOOSE_BALLS', 'BOX_OUTS', 'CHARGES_DRAWN'].map(k => [k, MS[k], OS ? OS[k] : null])],
     ].map(([g, rows]) => [g, rows.filter(r => typeof r[1] === 'number')]).filter(([, rows]) => rows.length);
-    const LOW_BETTER = new Set(['TOV', 'PF']);
-    const cmpLabel = (k) => ({ OREB: ['進攻籃板', 'OREB'], PF: ['犯規', 'PF'] }[k] || [metaOf(k).label, metaOf(k).englishLabel]);
+    const LOW_BETTER = new Set(['TOV', 'PF', 'TM_TOV_PCT']);
+    const NEUTRAL = new Set(['PACE']);
+    const ZONE_LABEL = Object.fromEntries(CMP_ZONES.map(([z, zh, en]) => [`${z}_FG_PCT`, [zh, en]]));
+    const cmpLabel = (k) => ({ OREB: ['進攻籃板', 'OREB'], PF: ['犯規', 'PF'], EFG_PCT: ['有效命中率', 'eFG%'], TM_TOV_PCT: ['失誤率', 'TOV%'], OREB_PCT: ['進攻籃板率', 'OREB%'],
+        FT_RATE: ['罰球率', 'FT/FGA'], OFF_RATING: ['進攻效率', 'OffRtg'], PACE: ['節奏', 'Pace'] }[k] || ZONE_LABEL[k] || [metaOf(k).label, metaOf(k).englishLabel]);
+    const cmpFmt = (k, v) => typeof v !== 'number' ? '—' : k === 'FT_RATE' ? v.toFixed(3).replace(/^0/, '')
+        : /_PCT$/.test(k) || k === 'OFF_RATING' || k === 'PACE' ? v.toFixed(1) : (Number.isInteger(v) ? v : v.toFixed(1));
+    // 引用籃：兩隊並列（A vs. B）；分區附命中／出手
+    const cmpQuote = ([k, a, b, fa, fb]) => {
+        const [zh, en] = cmpLabel(k), pct = /_PCT$/.test(k);
+        const qv = (v, fr) => `${cmpFmt(k, v)}${pct && typeof v === 'number' ? '%' : ''}${fr ? `（${fr}）` : ''}`;
+        return window.Quote.make({ kind: 'compare', sep: 'vs.', subject: '', label: ZONE_LABEL[k] ? `${zh}命中率` : zh, en, gkey: k, asOf: 'none',
+            better: NEUTRAL.has(k) ? null : LOW_BETTER.has(k) ? 'low' : 'high',
+            values: [{ tag: '灰狼', value: qv(a, fa) }, { tag: window.teamName(oppAbbr), value: qv(b, fb) }] });
+    };
+    const addGroup = (rows) => {
+        const ok = rows.filter(r => typeof r[2] === 'number');
+        const n = ok.filter(r => window.Quote.add(cmpQuote(r)).added).length;
+        UI.toast(n ? `已加入引用籃 ${n} 項${n < ok.length ? `（${ok.length - n} 項已在籃子裡）` : ''}` : '這組都已在引用籃裡');
+    };
     const cmpSection = CMP.length > 0 && (
         <UI.Section title="球隊對比" en="Team Comparison" accent="blue"
-            sub={`左灰狼、右 ${oppAbbr}；條長以兩隊合計為分母，較佳一方粗體（失誤、犯規越少越好）${OS ? '' : ' · 這場沒有抓對手的 Tracking／Hustle（2026-10 起才有），右側顯示「—」'}`}>
-            <div className="mb-1 grid grid-cols-[1fr_96px_1fr] items-center font-display text-[18px] font-bold sm:grid-cols-[1fr_150px_1fr]">
+            sub={`左灰狼、右 ${oppAbbr}；條長以兩隊合計為分母，較佳一方粗體（失誤、犯規、失誤率越少越好）· 分組右側可整組加入引用籃${OS ? '' : ' · 這場沒有抓對手的 Tracking／Hustle（2026-10 起才有），右側顯示「—」'}`}>
+            <div className="mb-1 grid grid-cols-[1fr_96px_1fr] items-center font-display text-[18px] font-bold sm:grid-cols-[1fr_170px_1fr]">
                 <span className="text-[#12A150]">MIN</span><span className="text-center font-mono text-[10px] font-normal text-slate-500">指標</span><span className="text-right">{oppAbbr}</span>
             </div>
             {CMP.map(([g, rows]) => (
                 <div key={g}>
-                    <div className="border-b border-white/10 pb-1 pt-3 font-mono text-[10px] tracking-[0.14em] text-slate-500">{g}</div>
-                    {rows.map(([k, a, b]) => {
+                    <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1 pt-3 font-mono text-[10px] tracking-[0.14em] text-slate-500">
+                        <span>{g}</span>
+                        {rows.some(r => typeof r[2] === 'number') && (
+                            <button type="button" onClick={() => addGroup(rows)} title="把這組每一列（兩隊並列）加入引用籃"
+                                className="inline-flex min-h-[24px] shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-2.5 font-sans text-[11px] tracking-normal text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 整組加入</button>
+                        )}
+                    </div>
+                    {rows.map((r) => {
+                        const [k, a, b, fa, fb] = r;
                         const [zh, en] = cmpLabel(k);
                         const has = typeof b === 'number';
                         const sum = (a || 0) + (has ? b : 0) || 1;
                         const low = LOW_BETTER.has(k);
-                        const mWin = has && a !== b && (low ? a < b : a > b), oWin = has && a !== b && !mWin;
-                        const pct = /_PCT$/.test(k);
-                        const f = v => typeof v !== 'number' ? '—' : pct ? v.toFixed(1) : (Number.isInteger(v) ? v : v.toFixed(1));
+                        const mWin = has && !NEUTRAL.has(k) && a !== b && (low ? a < b : a > b), oWin = has && !NEUTRAL.has(k) && a !== b && !mWin;
                         return (
-                            <div key={k} className="grid grid-cols-[40px_1fr_96px_1fr_40px] items-center gap-2 border-b border-white/[0.04] py-1.5 sm:grid-cols-[52px_1fr_150px_1fr_52px]">
-                                <span className={`font-mono text-[13px] tabular-nums ${mWin ? 'font-bold text-slate-50' : 'text-slate-300'}`}>{f(a)}</span>
+                            <div key={k} className="grid grid-cols-[40px_1fr_96px_1fr_40px] items-center gap-2 border-b border-white/[0.04] py-1.5 sm:grid-cols-[52px_1fr_170px_1fr_52px]">
+                                <span className={`font-mono text-[13px] tabular-nums ${mWin ? 'font-bold text-slate-50' : 'text-slate-300'}`}>{cmpFmt(k, a)}{fa && <span className="block text-[9px] font-normal text-slate-500">{fa}</span>}</span>
                                 <div className="relative h-2 bg-white/[0.04]"><i className="absolute inset-y-0 right-0 block bg-[#12A150]" style={{ width: `${(a || 0) / sum * 100}%` }}></i></div>
-                                <div className="text-center text-[12px] text-slate-400">{zh}{en && <span className="block font-mono text-[9px] text-slate-500">{en}</span>}</div>
+                                <div className="flex min-w-0 items-center justify-center gap-0.5 text-center text-[11px] text-slate-400 sm:gap-1 sm:text-[12px]">
+                                    <span className="min-w-0 whitespace-nowrap">{zh}{en && <span className="block overflow-hidden text-ellipsis font-mono text-[9px] text-slate-500">{en}</span>}</span>
+                                    {/* 逐列「?」只在桌面：手機版面太雜，手機用分組的「整組加入」 */}
+                                    {has && <span className="hidden sm:inline-flex"><UI.Info k={k} align="right" quote={() => cmpQuote(r)} /></span>}
+                                </div>
                                 <div className="relative h-2 bg-white/[0.04]">{has && <i className="absolute inset-y-0 left-0 block bg-[#C4CED2]/45" style={{ width: `${b / sum * 100}%` }}></i>}</div>
-                                <span className={`text-right font-mono text-[13px] tabular-nums ${oWin ? 'font-bold text-slate-50' : 'text-slate-300'}`}>{f(b)}</span>
+                                <span className={`text-right font-mono text-[13px] tabular-nums ${oWin ? 'font-bold text-slate-50' : 'text-slate-300'}`}>{cmpFmt(k, b)}{fb && <span className="block text-[9px] font-normal text-slate-500">{fb}</span>}</span>
                             </div>
                         );
                     })}

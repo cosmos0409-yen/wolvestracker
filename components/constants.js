@@ -423,6 +423,14 @@ window.NBA_TEAM_NAMES = {
     POR: '拓荒者', SAC: '國王', SAS: '馬刺', TOR: '暴龍', UTA: '爵士', WAS: '巫師',
 };
 window.teamName = (abbr) => window.NBA_TEAM_NAMES[abbr] || abbr || '';
+// 城市名（台灣譯名）：引用籃「單場比分」標頭寫全名（例：@ 休士頓火箭 117:107 灰狼勝），照使用者賽後文寫法
+window.NBA_TEAM_CITIES = {
+    ATL: '亞特蘭大', BOS: '波士頓', BKN: '布魯克林', CHA: '夏洛特', CHI: '芝加哥', CLE: '克里夫蘭', DAL: '達拉斯', DEN: '丹佛',
+    DET: '底特律', GSW: '金州', HOU: '休士頓', IND: '印第安納', LAC: '洛杉磯', LAL: '洛杉磯', MEM: '曼菲斯', MIA: '邁阿密',
+    MIL: '密爾瓦基', MIN: '明尼蘇達', NOP: '紐奧良', NYK: '紐約', OKC: '奧克拉荷馬', ORL: '奧蘭多', PHI: '費城', PHX: '鳳凰城',
+    POR: '波特蘭', SAC: '沙加緬度', SAS: '聖安東尼奧', TOR: '多倫多', UTA: '猶他', WAS: '華盛頓',
+};
+window.teamFullName = (abbr) => `${window.NBA_TEAM_CITIES[abbr] || ''}${window.teamName(abbr)}`;
 // NBA 三碼 → TEAM_ID（隊徽 cdn.nba.com/logos/nba/{id}/... 用；預覽文件也有 oppId，這張表給沒有 id 的地方備用）
 window.NBA_TEAM_IDS = {
     ATL: 1610612737, BOS: 1610612738, CLE: 1610612739, NOP: 1610612740, CHI: 1610612741, DAL: 1610612742, DEN: 1610612743,

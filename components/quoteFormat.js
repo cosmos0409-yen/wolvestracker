@@ -1,7 +1,9 @@
 // 引用籃資料層＋貼文排版：window.Quote（不含 JSX，可在 Node 單獨測 Quote.render）
 // 各頁從「?」小卡「加入引用籃」→ 存在 localStorage（wt_quote_v1，保留到手動清空）→ QuoteBasket 抽屜排序／合併 → render 成貼文用純文字
-// 項目：{ id, kind: 'single'|'compare', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.',
-//        rank: { rank, n }|null, pr: 百分位|null（Playtype）, better: 'high'|'low'|null, asOf, url }
+// 項目：{ id, kind: 'single'|'compare'|'line', subject, context, label, en, gkey, values: [{ tag, value, unit }], sep: '→'|'vs.',
+//        rank: { rank, n }|null, pr: 百分位|null（Playtype）, note: 補充說明|null（歷史定位等，跟「名次」開關）, better: 'high'|'low'|null, asOf, url,
+//        game: { date, home, opp, ms, os, wl, periods: [[灰狼, 對手]…], gameNo }|null（單場頁加入的才有，供「單場比分」標頭） }
+//   kind 'line'：球員本場數據一行（values[0].value 是整行文字）
 //   合併後的項目：{ id, kind, subject, context, sep, parts: [項目A, 項目B] }（成對指標寫成一行「A／B」）
 // 排版規則（使用者確認的格式）：「：」分隔名稱與數值、「／」成對指標、「→」時間先後、「vs.」並列
 //   單值 1A：●主體｜情境（括號為聯盟排名）＋ ※指標：值（第8）
@@ -27,7 +29,7 @@
         ['REB_CHANCES', 'REB_COL_PCT', '籃板機會／轉換率'],
     ];
     const DEFAULT_OPTS = {
-        header: 'none',      // 整段標頭：none／key（●關鍵數據：）／custom（headerText）
+        header: 'none',      // 整段標頭：none／key（●關鍵數據：）／game（單場比分，取第一個帶 game 的項目）／custom（headerText）
         headerText: '',
         prefix: '※',         // 行首：※／•／''
         names: 'zh',         // 指標名稱：zh／en／both（中文（原文））
@@ -36,6 +38,8 @@
         cmpStyle: 'arrow',   // 前後比較：arrow（2A）／delta（2B 差值）／trend（2C 加 📈📉）
         asOfNote: false,     // 文末「※本文數據統計至 M/D」
         source: false,       // 文末附資料來源＋網址
+        periods: false,      // 單場比分標頭下加一行每節比分
+        order: 'added',      // 排列：added 加入順序／player 依球員／metric 依指標（只影響輸出，不改籃子順序）
     };
 
     // ── 排版（純函式）──
@@ -57,6 +61,8 @@
             if (usesPr(it)) return `（PR${Math.round(it.pr)}）`;
             return it.rank ? `（第${it.rank.rank}）` : '';
         };
+        // note：歷史定位、本場焦點標籤等補充說明，和名次共用「名次」開關
+        const nt = (it) => o.rank && it.note ? `（${it.note}）` : '';
         const hasLeague = (it) => it.parts ? it.parts.some(hasLeague) : (!!it.rank && !usesPr(it));
         const val = (v) => v ? `${v.value}${v.unit || ''}` : '—';
         const num = (v) => { const n = parseFloat(String(v && v.value).replace(/[^\d.+-]/g, '')); return isNaN(n) ? null : n; };
@@ -76,51 +82,90 @@
         };
         const tagsOf = (it) => (it.parts ? it.parts[0] : it).values.map(v => v.tag || '');
         const valsAt = (it, i) => it.parts ? it.parts.map(p => val(p.values[i])).join('／') : val(it.values[i]);
-        const ctxOf = (it) => it.context ? `｜${it.context}` : '';
+        const oneVal = (it) => it.parts ? it.parts.map(p => `${val(p.values[0])}${rk(p)}${nt(p)}`).join('／') : `${val(it.values[0])}${rk(it)}${nt(it)}`;
+        const flat = [].concat(...(items || []).map(it => it.parts || [it]));
 
-        // 相鄰、同主體同情境同比較方式的項目合成一組；三個以上值的比較各自成組（3C）
+        // 標頭「單場比分」：取籃子裡第一個帶 game 的項目；同一場的項目省略情境（比分已寫在最上面）
+        const hg = o.header === 'game' ? (flat.find(it => it.game) || {}).game : null;
+        const ctxOf = (it) => hg && it.game && it.game.date === hg.date ? '' : (it.context || '');
+        const who = (it) => [it.subject, ctxOf(it)].filter(Boolean).join('｜');
+
+        // 排列：added 照籃子順序；player 同主體＋情境集中；metric 另把「同指標、不同主體」的單值項目合成一段
+        const gk = (it) => it.kind === 'compare' ? ['c', it.subject, it.context, it.sep, tagsOf(it).join('|')].join('§') : ['s', it.subject, it.context].join('§');
+        const arrange = (list) => {
+            if (o.order !== 'player' && o.order !== 'metric') return list;
+            const first = {};
+            list.forEach((it, i) => { if (!(gk(it) in first)) first[gk(it)] = i; });
+            const units = [];
+            const merged = new Set();
+            if (o.order === 'metric') {
+                const buckets = {};
+                list.forEach((it, i) => {
+                    if (it.kind !== 'single' || it.parts) return;
+                    const k = [it.label, it.context].join('§');
+                    (buckets[k] = buckets[k] || []).push(i);
+                });
+                Object.values(buckets).forEach(ix => {
+                    if (new Set(ix.map(i => list[i].subject)).size < 2) return;
+                    ix.forEach(i => merged.add(i));
+                    units.push({ ord: ix[0], sub: ix[0], e: { metric: ix.map(i => list[i]) } });
+                });
+            }
+            // 同一段裡本場數據列排最前（先整場數據、再單項）
+            list.forEach((it, i) => { if (!merged.has(i)) units.push({ ord: first[gk(it)], sub: it.kind === 'line' ? i - 1e6 : i, e: it }); });
+            return units.sort((a, b) => a.ord - b.ord || a.sub - b.sub).map(u => u.e);
+        };
+
+        // 相鄰、同主體同情境同比較方式的項目合成一組（本場數據列與單值同組）；三個以上值的比較各自成組（3C）
         const groups = [];
-        (items || []).forEach(it => {
+        arrange(items || []).forEach(it => {
+            if (it.metric) { groups.push({ metric: it.metric }); return; }
             const n = tagsOf(it).length;
-            const key = [it.kind, it.subject, it.context, it.kind === 'compare' ? `${it.sep}|${tagsOf(it).join('|')}` : ''].join('§');
+            const kind = it.kind === 'line' ? 'single' : it.kind;
+            const key = [kind, it.subject, it.context, it.kind === 'compare' ? `${it.sep}|${tagsOf(it).join('|')}` : ''].join('§');
             const last = groups[groups.length - 1];
             if (last && last.key === key && !(it.kind === 'compare' && n > 2)) last.items.push(it);
             else groups.push({ key, items: [it], wide: it.kind === 'compare' && n > 2 });
         });
 
         const blocks = groups.map(g => {
-            const first = g.items[0];
+            if (g.metric) {
+                const c = ctxOf(g.metric[0]);
+                return [`●${nm(g.metric[0])}${c ? `｜${c}` : ''}`, ...g.metric.map(it => `${P}${it.subject}：${oneVal(it)}`)];
+            }
+            const first = g.items[0], w = who(first);
             if (g.wide) {
                 const tags = tagsOf(first);
-                return [`●${first.subject}${ctxOf(first)}｜${nameOf(first)}`, ...tags.map((t, i) => `${t}：${valsAt(first, i)}`)];
+                return [`●${[w, nameOf(first)].filter(Boolean).join('｜')}`, ...tags.map((t, i) => `${t}：${valsAt(first, i)}`)];
             }
             if (first.kind === 'compare') {
                 const [A, B] = tagsOf(first);
                 if (first.sep === 'vs.') {
-                    return [`（以下為 ${first.subject}${ctxOf(first)}，${A} vs. ${B}）`,
+                    return [`（以下為 ${w ? `${w}，` : ''}${A} vs. ${B}）`,
                         ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} vs. ${valsAt(it, 1)}`)];
                 }
                 if (o.cmpStyle === 'delta') {
-                    return [`●${first.subject}${ctxOf(first)}：${B}（括號為與${A}差距）`,
+                    return [`●${w ? `${w}：` : ''}${B}（括號為與${A}差距）`,
                         ...g.items.map(it => `${P}${nameOf(it)}：${it.parts
                             ? it.parts.map(p => `${val(p.values[1])}（${delta(p.values[0], p.values[1])}）`).join('／')
                             : `${val(it.values[1])}（${delta(it.values[0], it.values[1])}）`}`)];
                 }
-                return [`●${first.subject}${ctxOf(first)}：${A} → ${B}`,
+                return [`●${w ? `${w}：` : ''}${A} → ${B}`,
                     ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} → ${valsAt(it, 1)}${o.cmpStyle === 'trend' ? trend(it) : ''}`)];
             }
             const note = o.rank && g.items.some(hasLeague) ? '（括號為聯盟排名）' : '';
-            return [`●${first.subject}${ctxOf(first)}${note}`,
-                ...g.items.map(it => `${P}${nameOf(it)}：${it.parts
-                    ? it.parts.map(p => `${val(p.values[0])}${rk(p)}`).join('／')
-                    : `${val(it.values[0])}${rk(it)}`}`)];
+            return [`●${w}${note}`,
+                ...g.items.map(it => it.kind === 'line' ? `${P}${val(it.values[0])}` : `${P}${nameOf(it)}：${oneVal(it)}`)];
         });
 
         const out = [];
-        const head = o.header === 'key' ? '●關鍵數據：' : o.header === 'custom' ? String(o.headerText || '').trim() : '';
+        const full = (abbr) => (typeof window !== 'undefined' && window.teamFullName) ? window.teamFullName(abbr) : abbr;
+        const head = hg
+            ? [`${hg.gameNo ? `G${hg.gameNo} ` : ''}${hg.home ? 'vs.' : '@'} ${full(hg.opp)} ${hg.ms}:${hg.os} 灰狼${hg.wl === 'W' ? '勝' : hg.wl === 'L' ? '敗' : ''}`,
+                o.periods && hg.periods && hg.periods.length ? `每節：${hg.periods.map(([a, b]) => `${a}:${b}`).join('｜')}` : ''].filter(Boolean).join('\n')
+            : o.header === 'key' ? '●關鍵數據：' : o.header === 'custom' ? String(o.headerText || '').trim() : '';
         if (head) out.push(head);
         blocks.forEach((b, i) => { if (i > 0 || head) out.push(''); out.push(...b); });
-        const flat = [].concat(...(items || []).map(it => it.parts || [it]));
         const tail = [];
         if (o.asOfNote) {
             const d = flat.map(it => it.asOf).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x || '')).sort().pop();
@@ -166,7 +211,7 @@
         save(a);
     };
     // 能否和下一項合併：都是未合併的同類項目、同主體同情境，比較項目還要比較對象相同
-    const canMerge = (a, b) => !!(a && b && !a.parts && !b.parts && a.kind === b.kind && a.subject === b.subject
+    const canMerge = (a, b) => !!(a && b && !a.parts && !b.parts && a.kind !== 'line' && a.kind === b.kind && a.subject === b.subject
         && a.context === b.context && (a.kind !== 'compare'
             || (a.sep === b.sep && JSON.stringify(a.values.map(v => v.tag)) === JSON.stringify(b.values.map(v => v.tag)))));
     const merge = (id) => {
@@ -198,7 +243,7 @@
         const asOf = fields.asOf === 'none' || c.isHistory ? null : (fields.asOf === 'agg' ? c.asOfAgg : c.asOfSnap) || null;
         let url = '';
         try { url = `${window.location.origin}${window.location.pathname}${window.location.hash}`; } catch (e) { /* Node */ }
-        const it = Object.assign({ kind: 'single', subject, context: c.context || c.season || '', sep: '→', rank: null, pr: null, better: null, url },
+        const it = Object.assign({ kind: 'single', subject, context: c.context || c.season || '', sep: '→', rank: null, pr: null, note: null, better: null, url, game: c.game || null },
             fields, { asOf });
         // 原文只留名稱：畫面小字的補充說明（如「DIFF%（負=守得好）」）不進貼文
         if (it.en) it.en = String(it.en).replace(/（[^）]*）/g, '').trim();
