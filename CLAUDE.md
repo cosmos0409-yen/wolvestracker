@@ -7,7 +7,7 @@
 - 投籃熱圖：每日抓取已順帶增量（定稿場次每場 1 request 併入 `wolves_shotcharts`，以全隊文件 `gameDates` 判斷已併入）；每週整季重抓 `python scripts/fetch_shotchart.py` 對帳＋更新受助攻比例（跨季重跑 `--season 2024-25 --type regular`）
 - 單場回補：`python scripts/backfill_games.py --season 2024-25 --type regular`（補失敗場 `--dates 2024-11-21,2025-01-09`；只補 box score `--box-only`，每場 4 requests，2025-26 已補；已有 box 只補進階＋單場 On/Off `--adv-only`，每場 2 requests，2026-27 起才有；已有單場只補灰狼球員的最近防守者類別 `--matchup-only [--matchup-cats 2PT,Rim]`，每類每場 1 request，2026-27 起已補）
 - 單場球員混入外隊：`backfill_games.py --season X --type Y --clean-players --dry-run`（多欄位對帳，0 request；確認後拿掉 `--dry-run` 寫入→`build_bundles.py`→前端單場快取鍵換版，見 doc/handover.md；2022-23～2025-26 已清）
-- 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照；只補 Hustle 欄位加 `--only-hustle`、只補全隊最近防守者加 `--only-team-matchup`（4 requests）；只補最近防守者指定類別（球員＋全隊）加 `--only-matchup [--matchup-cats 2PT,Rim]`，每類每份 2 requests，2022-23 起兩分／護框已補；只補組合頁文件加 `--only-lineups`，每份 3 requests，2022-23 起已補）
+- 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照；只補 Hustle 欄位加 `--only-hustle`、只補全隊最近防守者加 `--only-team-matchup`（4 requests）；只補最近防守者指定類別（球員＋全隊）加 `--only-matchup [--matchup-cats 2PT,Rim]`，每類每份 2 requests，2022-23 起兩分／護框已補；只補球員進階＋得分組成（含全隊進階）加 `--only-adv-scoring`，每份 6 requests，2022-23 起已補；只補組合頁文件加 `--only-lineups`，每份 3 requests，2022-23 起已補）
 - 組合數據：每日抓取順抓二人／三人／五人全部組合 → `wolves_games_index/{season}_{type}_lineups`（每天覆寫、只留最新；+2 requests；`nba_common.lineups_consistent` 檢查分鐘加總，沒過不覆寫）；欄位／人數改 `LINEUP_DOC_FIELDS`／`LINEUP_GROUPS`
 - **逐場打包**：回補 games 後跑 `python scripts/build_bundles.py --all`（前端 Splits/總覽讀 bundle）
 - 單場題材：`python scripts/build_insights.py`（逐場 bundle＋box → `wolves_team_games/{date}.insights`，0 request，全部場次約 20 秒、只寫有變的；每日抓取有新場次自動跑；也算歷史定位標籤 `insights.marks`；改 `nba_common.INSIGHT_*` 門檻後先 `--dry-run --date …` 再重算，並把 `wt_gc_v5_` 換版）
@@ -31,7 +31,7 @@
 - 抓取邏輯與欄位對應集中在 `scripts/nba_common.py`——**新增數據改設定表（`*_FIELDS`），不要在 fetch_data.py / backfill_history.py / backfill_games.py 寫重複邏輯**
 - **賽季不寫死**：資料賽季 `nba_common.get_current_season()` ＝ 前端 `constants.js` 的 `seasonForDate()`（美東 10/20 切換，兩邊同規則，改界線要一起改）；名冊／薪資賽季 `get_roster_season()` ＝ 前端 `capSeasonForDate()`（7/1 切換，新援判定與薪資當季用）
 - 每日快照球員以 playerName 為 key；歷史快照以 PlayerID 為 key（前端 `normalizeHistoryPlayer` 對齊，已展開 base/tracking/shooting/clutch/defense/onoff 各類別），勿更動
-- 每日文件欄位：`stats`(Synergy)/`base`/`tracking`/`shooting`/`clutch`/`defense`/`lineups`/`onoff`，全隊另有 `advanced`（全隊進階）/`ranks`（30 隊名次 `{類別: {欄位: 名次, _n}}`，2026-10-28 起、只有當季），新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）
+- 每日文件欄位：`stats`(Synergy)/`base`/`tracking`/`shooting`/`clutch`/`defense`/`lineups`/`onoff`/`advanced`/`scoring`（球員 `advanced`＝整季進階、`scoring`＝得分組成，2026-11-12 起；全隊 `advanced`＝全隊進階），全隊另有 `ranks`（30 隊名次 `{類別: {欄位: 名次, _n}}`，2026-10-28 起、只有當季），新增欄位記得併入 `fetch_data.py` 的 `DATA_KEYS`（去重）；`shooting` 2026-11-13 起只有分區命中（投籃拆分已停抓，出手占比等由逐場 base 算）
 - **聯盟名次**：全隊類別抓取一律 `team_id=0` 拿 30 隊再經 `split_league()` 拆灰狼＋名次（請求數不變）；新增全隊欄位要判斷方向，越低越好加進 `nba_common.RANK_LOWER_BETTER`、不該排名加進 `RANK_SKIP`。球隊 Playtype 名次由百分位換算（`window.ptRank`），球員百分位不可換算
 - **新 Firestore 集合必加安全規則 read 白名單**（Firebase Console，見 doc/handover.md）——已踩過多次，症狀是前端 `Missing or insufficient permissions`
 - **新 Firestore 集合必加 `*` 索引豁免**（Console → 索引 → 自動 → 豁免項目）；所有集合都已豁免，**只能用文件 ID 範圍／getDoc／整集合讀取**，依欄位查詢會回 `requires an index`。專案是 Blaze 方案（超過免費額度會計費，不會停擺）
@@ -41,7 +41,7 @@
 - Pages 部署偶發 `Deployment failed, try again later`（GitHub 暫時性）→ `gh run rerun <id>` 重跑即可
 - **薪資：Google Sheet 是唯一資料來源**（`_salary_seed/` 只是本地參考、不提交）；**計算只在前端 `CapCalc`**，`sync_salary.py` 只檢查與對帳；門檻、稅率、限制條文、選秀權、繳稅紀錄都放 Sheet，不寫死。apron 空間用 apron 薪資（含 unlikely incentives）
 - **快照的球員數據是整季合併**（含季中轉隊前在他隊的比賽）：要「只算灰狼」的累計值一律用逐場 bundle
-- **清理 Firestore 資料後所有 localStorage 快取鍵都要換版**：單場文件有兩處（`SingleGamePanel` 的 `wt_game_v3_`、`gamesData.loadGameDocs` 的 `wt_gc_v5_`，存 `{ savedAt, v }`、本季 1 天／舊季 7 天過期）；單場文件新增前端要讀的欄位也要換 `wt_gc_`
+- **清理 Firestore 資料後所有 localStorage 快取鍵都要換版**：單場文件有兩處（`SingleGamePanel` 的 `wt_game_v4_`、`gamesData.loadGameDocs` 的 `wt_gc_v7_`，存 `{ savedAt, v }`、本季 1 天／舊季 7 天過期）；單場文件新增前端要讀的欄位也要換 `wt_gc_`；**歷史快照有任何回補（加欄位或重跑 `backfill_history.py`）要把 `constants.js` 的 `HISTORY_CACHE_VER` +1**（目前 6）
 - 介面標籤用中性字眼，不可貶低對手球隊或球員（對戰分析標籤：勁敵／順手／棘手）
 
 ## 前端架構（六分頁，React 18 CDN＋預編譯 JSX/Tailwind）
@@ -62,6 +62,9 @@
 - **資料層分工**：季平均/Splits/趨勢/對戰 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score（含進階欄位與灰狼不在場 `OFF_*_RATING`）→ `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（單場頁與對戰頁一律經 `gamesData.loadGameDocs` 讀）（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比；在場效率 `ON_OFF_RATING`／`ON_DEF_RATING` 以 bundle 的 `ON_PTS`÷`ON_POSS` 加權（`ON_NET_RATING` 為兩者相減）
 - 最近防守者（Defense Dashboard）：類別在 `nba_common.MATCHUP_CATEGORIES`（總體／三分／兩分／籃下 < 6 Ft，加類別加一列；單場對手只抓 `MATCHUP_OPP_CATEGORIES`）；「vs 平常」（`*_PLUSMINUS`）期間值一律用 `GameAgg.NORMAL_DEFS` 依出手數加權；小樣本門檻 `DEF_SHOT_RULES`（整季／期間 < 20 次標「樣本小」、單場 < 3 次 vs 平常不計），格子給 `att`／`signed`；逐場的「平常」是擷取當下的射手本季命中率，會漂移（見 doc/handover.md）
+- 逐場重算規則都在 `GameAgg`：命中率類 `RATIO_DEFS`（含三分出手占比 `FG3A_FREQ`）、eFG `EFG_DEFS`、真實命中率 `TS_DEFS`、沒存分子的比率用 `WAVG_DEFS` 依權重欄加權（如切入助攻率 × 切入次數）；新增比率指標先決定走哪一種，不可落到逐場直接平均
+- 球員個人效率（`playerAdvancedDefs`）與得分組成（`scoringShareDefs`／`scoringSituationDefs`）只有整季快照 → 期間篩選時 `UI.Locked`；`TM_TOV_PCT` 在 API 已是百分比，欄位表不乘 100；全隊 Misc 沒有 `PFD`
+- 單場 Tracking 是賽後 12 小時內擷取，NBA 之後可能補正（2026-11-12 發現開季頭 4 場切入次數少一半）；逐場加總和整季快照對不上時，用 `backfill_games.py --dates` 重抓（見 doc/handover.md FAQ）
 - 單場數值讀進來一律經 `cleanGameStats`／`cleanGameDoc`（`gamesData.js`）：NBA 未釋出時回的 C&S／Pull Up「整組 0」（同時缺 `TOUCHES`）與 0 分母命中率清成 `null` 顯示「—」，不當真的 0；新增讀 bundle／單場文件的地方要套用。抓取端同規則 `nba_common.tracking_zero_filled` 標 `partial` 讓每日補抓重抓，改規則兩邊一起改
 - 當季快照先只讀近期（`snapshotWindowStart`），選日期／開走勢／賽別不足時才補讀整季（`snapFull`）；Firestore 只用 doc id **升冪範圍**查詢（`orderBy desc`／`limitToLast` 需索引會被拒）；前端用 **Firestore lite**（沒有 `onSnapshot`，一律 `getDoc`／`getDocs` 並接住錯誤）
 - 場數少於 `SMALL_SAMPLE_GAMES`（10）時用 `window.smallSampleNote` 提示樣本小（Playtype、單場頁季平均）
