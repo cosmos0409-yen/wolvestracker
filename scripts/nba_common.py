@@ -185,7 +185,7 @@ CLUTCH_FIELDS = [
     ("PLUS_MINUS", "PLUS_MINUS", False),
 ]
 
-# leaguedashlineups（MeasureType=Advanced）欄位
+# leaguedashlineups（MeasureType=Advanced）欄位——每日快照 lineups（五人前 10 組，總覽用）
 # 注意：此 endpoint 的 MIN 一律是「總分鐘」——實測 PerMode=PerGame 與 Totals 回傳相同（2026-10 驗證），前端標示為總分鐘
 LINEUP_FIELDS = [
     ("GP", "GP", False),
@@ -195,6 +195,23 @@ LINEUP_FIELDS = [
     ("NET_RATING", "NET_RATING", False),
     ("TS_PCT", "TS_PCT", True),
 ]
+# ── 組合數據頁（wolves_games_index/{season}_{type}_lineups，每天覆寫、不留逐日歷史）──
+# 抓哪幾種人數：每種 1 個 request（五人那次與快照共用）。想加四人就加 4（前端分頁列也要加）
+LINEUP_GROUPS = (2, 3, 5)
+# 組合文件每列的欄位（短欄名省空間，季末一份約 200～300 KB）：(輸出欄名, API 欄名, 是否百分比)
+LINEUP_DOC_FIELDS = [
+    ("gp", "GP", False),
+    ("min", "MIN", False),
+    ("off", "OFF_RATING", False),
+    ("def", "DEF_RATING", False),
+    ("net", "NET_RATING", False),
+    ("ts", "TS_PCT", True),
+    ("poss", "POSS", False),
+]
+LINEUP_DOC_MAX_BYTES = 900 * 1024   # Firestore 單文件上限 1 MiB，超過就從分鐘最少的列開始砍
+# 完整性檢查：每分鐘場上 5 人，二人／三人組合分鐘加總都應是比賽分鐘的 10 倍、五人是 1 倍。
+# 各列 MIN 四捨五入到整數，短時間組合會被捨成 0，五人組合加總實測約少 1%（2026-11-12：二人 5,329、三人 5,331、五人 527）
+LINEUP_MIN_TOLERANCE = 0.03
 
 # ── 防守數據欄位設定表 ──
 # leaguedashptdefend 最近防守者（NBA.com Defense Dashboard，非 leagueseasonmatchups 的對位資料）：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
@@ -812,29 +829,138 @@ def fetch_clutch(season, season_type_api, player_or_team="Player", team_id=TEAM_
 # ==========================================
 # 陣容（五人組合）
 # ==========================================
-def fetch_lineups(season, season_type_api, top_n=10):
+def fetch_lineup_rows(season, season_type_api, group_quantity=5):
     """
-    抓取灰狼五人陣容進階數據（leaguedashlineups, MeasureType=Advanced）。
-    注意：此 endpoint 的 TeamID 參數實測無效（仍回傳全聯盟），故在程式端過濾。
-    回傳依上場時間排序的前 top_n 組 list。
+    抓取灰狼某一種人數的全部組合（leaguedashlineups, MeasureType=Advanced, GroupQuantity=2/3/5）。
+    回傳 list（依上場分鐘由多到少）；抓取失敗回傳 None（和「真的沒有組合」的 [] 分開，呼叫端據此決定要不要覆寫）。
+    每列：{"players": GROUP_NAME, "ids": [PlayerID...], "names": [縮寫...], LINEUP_FIELDS..., "_doc": {LINEUP_DOC_FIELDS}}
+    TeamID：2026-11-12 實測帶灰狼 TeamID 只回灰狼的組合（舊註解說「無效、回全聯盟」已過時）；程式端過濾保留當保險。
     """
     url = (f"https://stats.nba.com/stats/leaguedashlineups?{LEAGUE_DASH_COMMON}"
-           f"&GroupQuantity=5&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N"
+           f"&GroupQuantity={group_quantity}&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N"
            f"&Period=0&ShotClockRange=&GameSegment="
            f"&Season={season}&SeasonType={season_type_api}&TeamID={TEAM_ID}")
-    results = []
-    data = fetch_with_retry(url, "Lineups [Team]")
+    data = fetch_with_retry(url, f"Lineups {group_quantity}-man [Team]")
     if data is None:
-        return results
+        return None
     headers_list = data['resultSets'][0]['headers']
+    results = []
     for row in data['resultSets'][0]['rowSet']:
         if row[headers_list.index("TEAM_ID")] != TEAM_ID:
             continue
-        item = {"players": row[headers_list.index("GROUP_NAME")]}
+        name = row[headers_list.index("GROUP_NAME")] or ""
+        ids = [int(x) for x in str(row[headers_list.index("GROUP_ID")] or "").strip("-").split("-") if x]
+        names = [n.strip() for n in name.split(" - ")]
+        item = {"players": name, "ids": ids, "names": names if len(names) == len(ids) else []}
         apply_fields(item, row, headers_list, LINEUP_FIELDS)
+        item["_doc"] = {}
+        apply_fields(item["_doc"], row, headers_list, LINEUP_DOC_FIELDS)
         results.append(item)
     results.sort(key=lambda x: x.get("MIN", 0), reverse=True)
-    return results[:top_n]
+    return results
+
+
+def top_lineups(rows, top_n=10):
+    """每日快照的 lineups：五人組合依分鐘前 top_n，欄位維持原本形狀（players＋LINEUP_FIELDS），
+    總覽的五人陣容表與快照去重都不受組合頁影響"""
+    keep = ["players"] + [f[0] for f in LINEUP_FIELDS]
+    return [{k: r[k] for k in keep} for r in (rows or [])[:top_n]]
+
+
+def fetch_lineups(season, season_type_api, top_n=10):
+    """灰狼五人陣容前 top_n 組（舊介面，backfill_history.py 完整回補用）"""
+    return top_lineups(fetch_lineup_rows(season, season_type_api, 5), top_n)
+
+
+def lineups_consistent(groups):
+    """組合完整性檢查（0 request）：各人數的分鐘加總換算成「比賽分鐘」後應互相吻合。
+    groups＝{人數: fetch_lineup_rows 結果}。回傳 (ok, 說明)。
+    抓到一半被截斷（例：只回前 N 組）會讓該人數的加總明顯偏少，就不覆寫舊文件"""
+    from math import comb
+    game_min = {}
+    for k, rows in groups.items():
+        total = sum(r.get("MIN", 0) or 0 for r in rows)
+        game_min[k] = total / comb(5, k)
+    ref = max(game_min.values()) if game_min else 0
+    detail = "、".join(f"{k} 人 {sum(r.get('MIN', 0) or 0 for r in groups[k]):,.0f} 分（折合 {v:,.0f}）"
+                      for k, v in sorted(game_min.items()))
+    if ref <= 0:
+        return False, "沒有任何組合分鐘"
+    bad = [k for k, v in game_min.items() if v < ref * (1 - LINEUP_MIN_TOLERANCE)]
+    if bad:
+        return False, f"{'、'.join(f'{k} 人' for k in sorted(bad))}的分鐘加總偏少，疑似被截斷：{detail}"
+    return True, detail
+
+
+def lineups_doc(season, season_type_label, groups, as_of, gp):
+    """組 wolves_games_index/{season}_{type}_lineups 文件。groups＝{人數: fetch_lineup_rows 結果}。
+    players 對照表 {PlayerID: 縮寫名}；每列 {ids, gp, min, off, def, net, ts, poss}。
+    超過 LINEUP_DOC_MAX_BYTES 從分鐘最少的列開始砍、記 trimmed=True"""
+    players = {}
+    out = {}
+    for k, rows in groups.items():
+        for r in rows:
+            for pid, nm in zip(r["ids"], r["names"]):
+                players.setdefault(str(pid), nm)
+        out[str(k)] = [{"ids": r["ids"], **r["_doc"]} for r in rows]
+    doc = {
+        "season": season, "seasonType": season_type_label, "asOf": as_of, "gp": gp,
+        "updatedAt": int(datetime.now().timestamp() * 1000),
+        "players": players, "groups": out, "trimmed": False,
+    }
+
+    def size():
+        return len(json.dumps(doc, ensure_ascii=False).encode("utf-8"))
+    while size() > LINEUP_DOC_MAX_BYTES:
+        # 從列數最多的那種人數砍分鐘最少的一列（rows 已依分鐘由多到少）
+        k = max(out, key=lambda x: len(out[x]))
+        out[k].pop()
+        doc["trimmed"] = True
+    return doc
+
+
+def save_lineups_doc(db, doc_id, doc):
+    """寫入組合文件；組合內容（groups／players／gp）與現有文件完全相同就略過（沒比賽的日子不重寫）。
+    回傳 'written'／'same'"""
+    ref = db.collection("wolves_games_index").document(doc_id)
+    snap = ref.get()
+    if snap.exists:
+        old = snap.to_dict() or {}
+        if all(old.get(k) == doc.get(k) for k in ("groups", "players", "gp", "trimmed")):
+            return "same"
+    ref.set(doc)
+    return "written"
+
+
+def write_lineups(db, season, season_type_api, season_type_label, groups, as_of, gp):
+    """組合頁文件 wolves_games_index/{season}_{type}_lineups（每天覆寫）。
+    任一人數沒抓到、全部都沒有組合（開季前）或完整性檢查沒過 → 不覆寫，舊文件保留、隔天再試。
+    backfill_history.py --only-lineups 也走這裡"""
+    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    doc_id = f"{season}_{type_key}_lineups"
+    missing = [k for k, rows in groups.items() if rows is None]
+    if missing:
+        print(f"⚠️ 組合 {'、'.join(f'{k} 人' for k in missing)}沒抓到，{doc_id} 不更新")
+        return False
+    if not any(groups.values()):
+        print(f"（還沒有組合資料，{doc_id} 不建立）")
+        return False
+    ok, detail = lineups_consistent(groups)
+    if not ok:
+        print(f"⚠️ 組合完整性檢查沒過，{doc_id} 不更新：{detail}")
+        return False
+    doc = lineups_doc(season, season_type_label, groups, as_of, gp)
+    counts = "／".join(f"{k} 人 {len(doc['groups'][str(k)])} 組" for k in groups)
+    trimmed = "（⚠️ 超過大小上限，已砍掉分鐘最少的組合）" if doc["trimmed"] else ""
+    if db is None:
+        print(f"🔍 組合（未寫入）：{counts}；{detail}{trimmed}")
+        return True
+    result = save_lineups_doc(db, doc_id, doc)
+    if result == "same":
+        print(f"⏭️  組合與現有 {doc_id} 相同，略過寫入（{counts}）")
+    else:
+        print(f"✅ 組合已寫入 wolves_games_index/{doc_id}：{counts}；{detail}{trimmed}")
+    return True
 
 
 # ==========================================

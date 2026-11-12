@@ -28,7 +28,10 @@ from nba_common import (
     fetch_shot_locations,
     fetch_pt_shots,
     fetch_clutch,
-    fetch_lineups,
+    fetch_lineup_rows,
+    top_lineups,
+    write_lineups,
+    LINEUP_GROUPS,
     fetch_matchup_defense,
     fetch_team_matchup_defense,
     fetch_hustle,
@@ -287,7 +290,9 @@ def main():
         fetch_pt_shots(SEASON, season_type_api, "Team", team_id=0),
     ))
     team_clutch, rank_clutch = split_league(fetch_clutch(SEASON, season_type_api, "Team", team_id=0))
-    team_lineups = fetch_lineups(SEASON, season_type_api)
+    # 組合：二人／三人／五人全部組合（組合頁用，另寫一份文件）；快照的 lineups 仍只取五人前 10 組（總覽用，形狀不變）
+    lineup_groups = {k: fetch_lineup_rows(SEASON, season_type_api, k) for k in LINEUP_GROUPS}
+    team_lineups = top_lineups(lineup_groups.get(5))
     team_defense, rank_defense = split_league(merge_maps(
         fetch_hustle(SEASON, season_type_api, "Team", team_id=0),
         fetch_defense_box(SEASON, season_type_api, "Team", team_id=0),
@@ -403,6 +408,13 @@ def main():
         else:
             db.collection('wolves_player_stats').document(today).set(final_player_data)
             print(f"✅ 球員數據已寫入 Document: {today}（前一筆：{prev_player or '無'}）")
+
+        # 組合頁文件（強制補期末快照時也寫，等於該季的期末組合）；失敗不影響抓取結果
+        try:
+            write_lineups(db, SEASON, season_type_api, season_type_label, lineup_groups, today,
+                          team_base.get("GP"))
+        except Exception as e:
+            print(f"⚠️ 組合文件更新失敗（不影響抓取）：{e}")
 
         # G2：每次都對賽程補抓缺漏單場（無缺漏時只花 1 個 request 讀賽程）
         # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）

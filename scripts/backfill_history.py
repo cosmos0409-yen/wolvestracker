@@ -31,6 +31,9 @@ from nba_common import (
     fetch_pt_shots,
     fetch_clutch,
     fetch_lineups,
+    fetch_lineup_rows,
+    write_lineups,
+    LINEUP_GROUPS,
     fetch_matchup_defense,
     fetch_team_matchup_defense,
     fetch_hustle,
@@ -102,6 +105,20 @@ def patch_team_matchup(season, season_type_api, doc_id, dry_run=False):
     print(f"✅ {doc_id}：全隊最近防守者 {len(team_m)} 欄已併入")
 
 
+def patch_lineups(season, season_type_api, season_type_label, type_key, dry_run=False):
+    """只抓二人／三人／五人全部組合（每種 1 request），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）。
+    歷史快照的 lineups（五人前 10 組）不動。場數取自 wolves_games_index/{season}_{type}（0 request）"""
+    groups = {k: fetch_lineup_rows(season, season_type_api, k) for k in LINEUP_GROUPS}
+    db = None if dry_run else init_firebase()
+    gp = None
+    if db:
+        idx = db.collection("wolves_games_index").document(f"{season}_{type_key}").get()
+        gp = len((idx.to_dict() or {}).get("games") or []) if idx.exists else None
+    # 歷史賽季的「截至」＝該季最後一場的日期不易取得，寫賽季標籤即可（前端顯示「季末」）
+    if not write_lineups(db, season, season_type_api, season_type_label, groups, "final", gp):
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 歷史賽季回補")
     parser.add_argument("--season", required=True, help="例：2022-23")
@@ -112,6 +129,8 @@ def main():
                         help="只重抓 Hustle（2 requests）併入既有歷史快照的 defense，其他類別不動（新增 HUSTLE_FIELDS 欄位時用）")
     parser.add_argument("--only-team-matchup", action="store_true",
                         help="只重抓全隊最近防守者（2 requests）併入既有歷史快照的球隊 defense，其他類別不動")
+    parser.add_argument("--only-lineups", action="store_true",
+                        help="只抓二人／三人／五人全部組合（3 requests），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）")
     args = parser.parse_args()
 
     season = args.season
@@ -127,6 +146,9 @@ def main():
         return
     if args.only_team_matchup:
         patch_team_matchup(season, season_type_api, doc_id, args.dry_run)
+        return
+    if args.only_lineups:
+        patch_lineups(season, season_type_api, season_type_label, type_key, args.dry_run)
         return
 
     # Step 1: 抓歷史名單
