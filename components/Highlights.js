@@ -3,8 +3,9 @@
 //   用意：平常就波動很大的指標（如正負值）要變很多才算明顯；這是「描述性」的尺度，不是統計檢定
 // 命中率類以 Σ命中 ÷ Σ出手 計算，且近 N 場出手數需達門檻（MIN_ATT），否則不列入
 // 要調整指標或門檻 → 改下方 METRICS
-// n：近幾場，跟著總覽季平均的期間（OverviewTab 傳入：近 5／近 10；全季時用 5），本區不另放切換
-const Highlights = ({ games, untilDate, n = 5 }) => {
+// n：近幾場，跟著全域期間（近 10 場時 10，其他 5），本區不另放切換
+// subset／subsetLabel：全域期間是勝場、對手、條件等時，改成「這些場次 vs 全季」（subset 是篩選出的逐場；少於 3 場不比）
+const Highlights = ({ games, untilDate, n = 5, subset = null, subsetLabel = '' }) => {
     const UI = window.UI;
     const GA = window.GameAgg;
 
@@ -24,8 +25,16 @@ const Highlights = ({ games, untilDate, n = 5 }) => {
     if (!games || !games.length) return null;
     const pool = untilDate ? games.filter(g => !g.date || g.date <= untilDate) : games;
     const sorted = pool.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-    if (sorted.length < n + 5) return null;   // 全季場數太少，比較沒有意義
-    const recent = sorted.slice(-n);
+    const SUB_MIN = 3;
+    if (subset) {
+        const ds = new Set(subset.map(g => g.date));
+        const sub = sorted.filter(g => ds.has(g.date));
+        // 篩選出的場次太少，或等於全季（沒有對照）→ 不比
+        if (sub.length < SUB_MIN || sub.length >= sorted.length) return null;
+        n = sub.length;
+    } else if (sorted.length < n + 5) return null;   // 全季場數太少，比較沒有意義
+    const recent = subset ? sorted.filter(g => subset.some(s => s.date === g.date)) : sorted.slice(-n);
+    const what = subset ? subsetLabel : `近 ${n} 場`;
 
     const num = (v) => (typeof v === 'number' ? v : null);
     const sum = (arr, k) => arr.reduce((a, g) => a + (num(g.stats?.[k]) || 0), 0);
@@ -39,12 +48,12 @@ const Highlights = ({ games, untilDate, n = 5 }) => {
             if (!sA) continue;
             season = 100 * sum(sorted, mk) / sA;
             recAtt = rA;
-            if (rA < m.MIN_ATT) { skipped.push(`${m.label}（近 ${n} 場僅 ${rA} 次出手，門檻 ${m.MIN_ATT}）`); continue; }
+            if (rA < m.MIN_ATT) { skipped.push(`${m.label}（${what}僅 ${rA} 次出手，門檻 ${m.MIN_ATT}）`); continue; }
             rec = 100 * sum(recent, mk) / rA;
             perGame = sorted.filter(g => num(g.stats?.[ak])).map(g => 100 * (num(g.stats[mk]) || 0) / g.stats[ak]);
         } else {
             perGame = sorted.map(g => num(g.stats?.[m.key])).filter(v => v != null);
-            if (perGame.length < n + 5) continue;
+            if (subset ? perGame.length <= n : perGame.length < n + 5) continue;
             season = perGame.reduce((a, b) => a + b, 0) / perGame.length;
             const r = recent.map(g => num(g.stats?.[m.key])).filter(v => v != null);
             if (!r.length) continue;
@@ -63,15 +72,15 @@ const Highlights = ({ games, untilDate, n = 5 }) => {
 
     return (
         <UI.Section title="近期異動" en="Recent Trends" accent="silver"
-            sub={`近 ${n} 場 vs 全季${untilDate ? `（皆截至 ${untilDate}）` : ''}（場數跟著下方季平均的期間切換）· 依「變化量相對於逐場波動」排序，描述性比較、非統計檢定 · 命中率需達最低出手數`}>
+            sub={`${what}${subset ? `（${n} 場）` : ''} vs 全季${untilDate ? `（皆截至 ${untilDate}）` : ''}（跟著「期間」篩選）· 依「變化量相對於逐場波動」排序，描述性比較、非統計檢定 · 命中率需達最低出手數`}>
             {top.length === 0 ? (
-                <UI.Note>近 {n} 場沒有明顯偏離全季水準的指標</UI.Note>
+                <UI.Note>{what}沒有明顯偏離全季水準的指標</UI.Note>
             ) : (
                 <ul className="grid gap-x-10 md:grid-cols-2">
                     {top.map(r => {
                         // 點擊當下才組字串：引用句尾附的網址要是「現在」的畫面（render 時算好會停在舊章節）
                         const text = () => UI.citeLine({ label: r.label, en: r.en, value: fmt(r.rec, r), gkey: r.key, asOf: 'agg',
-                            note: `近 ${n} 場（全季 ${fmt(r.season, r)}，差 ${r.diff > 0 ? '+' : ''}${r.diff.toFixed(1)}${r.pct ? ' 個百分點' : ''}）` });
+                            note: `${what}（全季 ${fmt(r.season, r)}，差 ${r.diff > 0 ? '+' : ''}${r.diff.toFixed(1)}${r.pct ? ' 個百分點' : ''}）` });
                         return (
                             <li key={r.key} className="group/cell grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-b border-white/[0.08] py-2.5">
                                 <div className="min-w-0">
@@ -80,7 +89,7 @@ const Highlights = ({ games, untilDate, n = 5 }) => {
                                         <UI.Info k={r.key} />
                                     </div>
                                     <div className="mt-0.5 font-mono text-[11px] tabular-nums text-slate-400">
-                                        全季 {fmt(r.season, r)} → 近 {n} 場 <span className="text-slate-100">{fmt(r.rec, r)}</span>
+                                        全季 {fmt(r.season, r)} → {what} <span className="text-slate-100">{fmt(r.rec, r)}</span>
                                         {r.recAtt != null && <span className="text-slate-500"> · 出手 {r.recAtt}</span>}
                                     </div>
                                 </div>

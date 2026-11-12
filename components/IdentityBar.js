@@ -3,7 +3,9 @@
 // 要換顯示的指標 → 改下方 FIELDS（格式同 OverviewTab 的 SUMMARY）
 // salary：球員檢視時的薪資膠囊 { season, text, title, badge }（App 依 playerId 對薪資資料組好），onSalary 點擊開薪資頁
 // asOf：時光機（僅當季）{ value, min, max, onChange }——所有章節的快照數據與季平均都只算到這天，所以放在每章都看得到的身分列；歷史賽季傳 null
-const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf }) => {
+// periodSlot：期間膠囊（只在手機顯示，放「數據截至」下一行；桌機在章節列右側，見 PeriodControl.js）
+// 身分列的 4 個主數字一律是「整季（截至該日）」，不跟期間篩選
+const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf, periodSlot }) => {
     const GA = window.GameAgg;
     const FIELDS = viewMode === 'TEAM'
         ? [{ key: 'PTS', en: 'PTS', label: '得分' }, { key: 'REB', en: 'REB', label: '籃板' },
@@ -55,6 +57,7 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                                         className="min-h-[24px] px-1 text-[11px] text-slate-400 hover:text-slate-100">回最新</button>
                                 )}
                             </span>)}
+                            {periodSlot && <span className="flex basis-full sm:hidden">{periodSlot}</span>}
                         </div>
                         {viewMode === 'PLAYER' && salary && (
                             <button type="button" onClick={onSalary} title={salary.title}

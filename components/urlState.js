@@ -12,7 +12,8 @@
 //   side off / def
 //   m    Splits 打開逐場走勢的指標 key（如 D_FG_PCT；僅 tab=splits）
 //   hl   Splits 走勢上圈出的那一場 YYYY-MM-DD（從單場頁點指標過來時帶；僅 tab=splits）
-//   c    Splits 條件戰績（僅 tab=splits）：條件以 ~ 連接，如 1630162:PTS:ge:30~T:TOV:le:12、203497:absent（格式見 splitConditions.js）
+//   pd   全域期間（主畫面各章節共用，格式見 periodFilter.js）：W、L、home、away、last5、last10、month:2026-11、opp:DEN、series:1、range:2026-10-21:2026-11-08
+//   c    期間＝條件（主畫面各章節共用；2026-11 前只在 Splits）：條件以 ~ 連接，如 1630162:PTS:ge:30~T:TOV:le:12、203497:absent（格式見 splitConditions.js）
 // 單場比賽頁（另一種畫面，沒有 v=）：
 //   #game=2026-04-10&tab=box&p=Rudy%20Gobert
 //   game 比賽日期；tab 單場分頁 box/compare/shots（省略＝概要）；
@@ -115,9 +116,10 @@ window.UrlState = (function () {
         if (out.activeTab === 'splits') {
             if (METRIC_RE.test(q.get('m') || '')) out.focusMetric = q.get('m');
             if (out.focusMetric && DATE_RE.test(q.get('hl') || '')) out.highlightDate = q.get('hl');
-            // 條件只留格式正確的（解析失敗＝沒有條件）
-            if (q.get('c') && window.SplitCond && window.SplitCond.parse(q.get('c')).length) out.splitCond = window.SplitCond.serialize(window.SplitCond.parse(q.get('c')));
         }
+        // 全域期間：格式正確才留（解析失敗＝全季）；條件 c= 優先於 pd=
+        if (q.get('c') && window.SplitCond && window.SplitCond.parse(q.get('c')).length) out.periodCond = window.SplitCond.serialize(window.SplitCond.parse(q.get('c')));
+        if (!out.periodCond && q.get('pd') && window.Period && window.Period.isActive(window.Period.parse(q.get('pd')))) out.periodStr = q.get('pd');
         // 有 v= 代表這是本站產生的完整連結：沒寫的項目一律是預設值（serialize 只寫非預設值），
         // 不可退回瀏覽器偏好——否則同一條連結會因為「這台電腦上次看過什麼」而開出不同畫面
         if (out.viewMode) {
@@ -163,7 +165,8 @@ window.UrlState = (function () {
             q.set('m', st.focusMetric);
             if (st.highlightDate) q.set('hl', st.highlightDate);
         }
-        if (st.activeTab === 'splits' && st.splitCond) q.set('c', st.splitCond);
+        if (st.periodCond) q.set('c', st.periodCond);
+        else if (st.periodStr) q.set('pd', st.periodStr);
         return toStr(q);
     };
 

@@ -93,8 +93,12 @@ const App = () => {
     const [focus, setFocus] = useState(() => urlInit.focusMetric
         ? { m: urlInit.focusMetric, hl: urlInit.highlightDate || null, key: focusKeyOf(urlInit.viewMode, urlInit.selectedPlayer, urlInit.activeTab) }
         : null);
-    // Splits 條件戰績（網址 c=，序列化後的完整條件；格式見 splitConditions.js）。只在 Splits 章節寫進網址
-    const [splitCond, setSplitCond] = useState(() => urlInit.splitCond || '');
+    // 全域期間（網址 pd=／c=，格式見 periodFilter.js）：主畫面各章節共用，換章節、換球員不重設；換賽季或賽別回到全季。
+    // 不存 localStorage（開站不帶著上次的篩選，同「預設一律看進行中賽季」）
+    const [period, setPeriod] = useState(() => window.Period ? window.Period.parse(urlInit.periodStr, urlInit.periodCond) : { kind: 'all', conds: [] });
+    const [periodOpen, setPeriodOpen] = useState(false);   // 期間面板（掛在章節列底下）
+    const [condTeam, setCondTeam] = useState(null);         // 期間＝條件、球員視角時的母體：全隊逐場
+    const [condPlayers, setCondPlayers] = useState({});     // { pid: games[] } 條件裡提到的球員
     useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
@@ -570,6 +574,26 @@ const App = () => {
     const splitsBundle = selectedSeasonKey === 'current' ? [window.CURRENT_SEASON, seasonTypeView]
         : (() => { const o = SEASON_OPTIONS.find(x => x.key === selectedSeasonKey); return o && o.season ? [o.season, o.type] : [null, null]; })();
 
+    // 期間＝條件時才讀需要的逐場（loadSeasonGames 有記憶體快取，切換不重讀）；換賽季先清掉別季的球員逐場
+    const periodNeeds = window.Period ? window.Period.needs(period, viewMode === 'TEAM') : { team: false, pids: [] };
+    useEffect(() => { setCondPlayers({}); setCondTeam(null); }, [splitsBundle[0], splitsBundle[1]]);
+    useEffect(() => {
+        if (!periodNeeds.team || !isCloud || !splitsBundle[0] || !window.loadSeasonGames) return;
+        let off = false;
+        window.loadSeasonGames(splitsBundle[0], splitsBundle[1], 'TEAM')
+            .then(r => { if (!off) setCondTeam(r.games || []); }).catch(e => console.error('cond team games fail', e));
+        return () => { off = true; };
+    }, [periodNeeds.team, isCloud, splitsBundle[0], splitsBundle[1]]);
+    useEffect(() => {
+        const todo = periodNeeds.pids.filter(pid => !condPlayers[pid]);
+        if (!todo.length || !isCloud || !splitsBundle[0] || !window.loadSeasonGames) return;
+        let off = false;
+        Promise.all(todo.map(pid => window.loadSeasonGames(splitsBundle[0], splitsBundle[1], 'PLAYER', pid).then(r => [pid, r.games || []])))
+            .then(list => { if (!off) setCondPlayers(m => ({ ...m, ...Object.fromEntries(list) })); })
+            .catch(e => console.error('cond player games fail', e));
+        return () => { off = true; };
+    }, [periodNeeds.pids.join(','), isCloud, splitsBundle[0], splitsBundle[1]]);
+
     // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
     const seasonStatus = useMemo(() => {
         if (isHistoryMode) return null;
@@ -878,8 +902,9 @@ const App = () => {
     // 章節定義（ChapterNav、快捷鍵 1–6、搜尋面板共用）
     const TABS = [
         // sided：該章節內容會隨攻／守切換（章節列只在這些章節顯示攻守切換；新章節用到 viewSide 就加上）
-        { key: 'overview', label: '總覽', sided: true },
-        { key: 'splits', label: 'Splits' },
+        // period：內容跟著全域期間篩選（其他章節篩選時顯示「整季數據」提示）
+        { key: 'overview', label: '總覽', sided: true, period: true },
+        { key: 'splits', label: 'Splits', period: true },
         { key: 'shooting', label: '投籃' },
         { key: 'defense', label: '防守' },
         { key: 'playtype', label: 'Playtype', sided: true },
@@ -922,9 +947,9 @@ const App = () => {
             // 網址帶來的球員還在等名單比對時，原樣寫回（只寫 ID 或舊名字），不可配上前一位球員的名字
             : window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null,
-                splitCond: activeTab === 'splits' ? splitCond : '' }));
+                periodStr: window.Period ? window.Period.serialize(period) : '', periodCond: window.Period ? window.Period.condStr(period) : '' }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, sched, lu, homePending, wantPlayer, currentPlayerId, splitCond]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, sched, lu, homePending, wantPlayer, currentPlayerId, period]);
     // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
@@ -996,7 +1021,7 @@ const App = () => {
             }
             setVs(null);
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
-            setSplitCond(st.splitCond || '');
+            if (window.Period) setPeriod(window.Period.parse(st.periodStr, st.periodCond));
             if (st.viewMode) setViewMode(st.viewMode);
             if (st.selectedPlayer) setSelectedPlayer(st.selectedPlayer);
             setWantPlayer(wantOf(st));
@@ -1047,14 +1072,15 @@ const App = () => {
     // 換到歷史年份沿用目前賽別；回到當季改用時節預設（10 月切去「當季季後賽」只會是空畫面）
     const viewYear = isHistoryMode ? (curOpt?.season || '') : 'current';
     const viewType = isHistoryMode ? (curOpt?.type || 'regular') : seasonTypeView;
+    // 換賽季或賽別：期間回到全季（月份、對手、條件裡的球員都屬於原本那季）
     const changeYear = (y) => {
-        leaveGame();
+        leaveGame(); setPeriod(window.Period.ALL); setPeriodOpen(false);
         if (y !== 'current') { setSelectedSeasonKey(`${y}_${viewType}`); return; }
         const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
         setSelectedSeasonKey('current'); setSeasonTypeView(phase.type === 'regular' ? 'regular' : 'playoffs'); setSelectedDate('');
     };
     const changeType = (t) => {
-        leaveGame();
+        leaveGame(); setPeriod(window.Period.ALL); setPeriodOpen(false);
         if (isHistoryMode) setSelectedSeasonKey(`${viewYear}_${t}`);
         else { setSeasonTypeView(t); setSelectedDate(''); }
     };
@@ -1080,6 +1106,26 @@ const App = () => {
         ? (curOpt?.label || '')
         : `${window.CURRENT_SEASON} ${stTypeLabel}`;
     const untilDateForAvg = isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null);
+
+    // ── 全域期間：各章節共用的 ctx 與膠囊顯示（計算在 window.Period）──
+    const periodOn = !!(window.Period && window.Period.isActive(period));
+    const periodPlayers = availablePlayers.map(n => ({ name: n, id: playerIdOf(n) })).filter(p => p.id);
+    const periodIsPlayoffs = isHistoryMode ? currentSeasonType === '季後賽' : seasonTypeView === 'playoffs';
+    const periodCtx = {
+        isTeam: viewMode === 'TEAM', teamGames: viewMode === 'TEAM' ? seasonGames : condTeam, playerGames: condPlayers,
+        season: splitsBundle[0], isPlayoffs: periodIsPlayoffs,
+        // 當季名冊（快照的球員＝抓取時以名冊 PlayerID 過濾）：還在隊上的人「未出賽」算到最新一場；歷史賽季沒有當時名冊，不傳
+        rosterIds: isHistoryMode ? null : periodPlayers.map(p => Number(p.id)),
+        nameOf: (pid) => ((periodPlayers.find(p => Number(p.id) === Number(pid)) || {}).name) || String(pid),
+    };
+    const periodRes = periodOn && seasonGames ? window.Period.apply(seasonGames, period, periodCtx) : null;
+    const periodRec = periodRes && (periodRes.cond === undefined || (periodRes.cond && periodRes.cond.ready)) ? window.Period.record(periodRes.games) : null;
+    const periodLabel = periodRes ? periodRes.label : (periodOn ? '條件' : '全季');
+    const clearPeriod = () => { setPeriod(window.Period.ALL); setPeriodOpen(false); };
+    const periodPill = (withRecord) => window.PeriodPill && (
+        <window.PeriodPill label={periodLabel} rec={periodRec} active={periodOn} open={periodOpen} withRecord={withRecord}
+            onToggle={() => setPeriodOpen(o => !o)} onClear={clearPeriod} />
+    );
 
     // 複製引用的情境（UI.citeLine 讀取）。快照數字引用快照日、逐場重算的平均引用截至日——兩者可能不同
     window.CiteCtx = {
@@ -1217,14 +1263,25 @@ const App = () => {
             {!noCurrentSnapshots && (
                 <window.IdentityBar viewMode={viewMode} playerName={selectedPlayer} playerId={currentPlayerId} tag={selTag}
                     games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay}
-                    salary={identitySalary} onSalary={openSalary}
+                    salary={identitySalary} onSalary={openSalary} periodSlot={periodPill(false)}
                     asOf={isHistoryMode ? null : {
                         value: effectiveDate, max: latestDate || undefined, onChange: setSelectedDate,
                         min: (snapFull ? (teamSeq[teamSeq.length - 1] || playerSeq[playerSeq.length - 1] || {}).date : window.SNAPSHOT_SINCE) || undefined,
                     }} />
             )}
 
-            <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide} />
+            <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide}
+                periodPill={periodPill(true)} periodOn={periodOn}
+                below={<>
+                    {periodOpen && window.PeriodPanel && (
+                        <window.PeriodPanel st={period} onChange={setPeriod} onClose={() => setPeriodOpen(false)}
+                            games={seasonGames || []} isPlayoffs={periodIsPlayoffs} players={periodPlayers}
+                            isTeam={viewMode === 'TEAM'} teamGames={periodCtx.teamGames} playerGames={condPlayers} />
+                    )}
+                    {periodOn && !periodOpen && window.PeriodStrip && (
+                        <window.PeriodStrip label={periodLabel} rec={periodRec} onClear={clearPeriod} onOpen={() => setPeriodOpen(true)} />
+                    )}
+                </>} />
 
             <main className="max-w-7xl mx-auto px-4 md:px-6 pt-6 space-y-6">
                     {/* Right Content */}
@@ -1255,6 +1312,10 @@ const App = () => {
                         </div>
                     ) : showSkeleton ? <SkeletonBlock /> : (
                     <div className="min-w-0 space-y-6">
+                        {/* 篩選中、但這個章節跟不上期間：說清楚是整季數據（篩選保留，回到其他章節繼續生效） */}
+                        {periodOn && !noCurrentSnapshots && !(TABS.find(t => t.key === activeTab) || {}).period && (
+                            <window.UI.Note>本章節為整季數據，期間篩選（{periodLabel}）不適用；篩選條件保留，回到總覽或 Splits 繼續生效。</window.UI.Note>
+                        )}
 
                         {/* 總覽 */}
                         {activeTab === 'overview' && window.OverviewTab && (
@@ -1266,7 +1327,7 @@ const App = () => {
                                 lineups={currentLineups} lineupsHref={window.UrlState.lineupsHref({ n: 5, season: isHistoryMode ? (curOpt?.season || '') : '', type: viewType })}
                                 gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
                                 radarSlot={radarSlot} stats={currentStats} playerId={currentPlayerId}
-                                seasonLabel={primaryLabel} onoffNA={naCrossTeam}
+                                seasonLabel={primaryLabel} onoffNA={naCrossTeam} period={period} periodCtx={periodCtx}
                                 advanced={viewMode === 'TEAM' ? (teamSeq[teamIdx] || {}).advanced : null}
                             />
                         )}
@@ -1281,8 +1342,7 @@ const App = () => {
                                 onGameClick={(d) => openGame(d, viewMode === 'PLAYER' ? selectedPlayer : '')}
                                 rankable={viewMode === 'TEAM' && !!window.RankCtx && window.RankCtx.latest}
                                 season={splitsBundle[0]} seasonType={splitsBundle[1]} isTeam={viewMode === 'TEAM'}
-                                players={availablePlayers.map(n => ({ name: n, id: playerIdOf(n) })).filter(p => p.id)}
-                                condStr={splitCond} onCondChange={setSplitCond}
+                                period={period} periodCtx={periodCtx}
                             />
                         )}
 

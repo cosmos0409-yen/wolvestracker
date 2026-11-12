@@ -2,7 +2,8 @@
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null }) => {
+// period／periodCtx：全域期間（periodFilter.js）。季平均與近期異動跟著期間；其他區塊（效率、Clutch、陣容、On/Off）是整季快照
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {} }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -22,21 +23,27 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         { key: 'TOV', label: '失誤', en: 'TOV' },
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
     ];
-    // 期間切換：全季／近 5 場／近 10 場（截至同一天）。專欄最常查「最近幾場」，不必再跳到 Splits。
-    // 近 N 場時身分列（全季數字）不再重複，故顯示完整 10 項
-    const [range, setRange] = React.useState('all');
+    // 期間：全域期間篩選（章節列／身分列的「期間」膠囊）。先套「數據截至」，再套期間。
+    // 篩選時身分列（全季數字）不再重複，故顯示完整 10 項，箭頭＝vs 全季（截至同一天）
+    const P = window.Period;
     const IN_IDENTITY = viewMode === 'TEAM' ? ['PTS', 'REB', 'AST', 'PLUS_MINUS'] : ['PTS', 'REB', 'AST', 'FG_PCT'];
 
-    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base（沒有逐場就不能切近 N 場）
+    // 優先用 bundle 逐場算（截至該日，任何日期皆穩定）；bundle 未載入或無資料則退回快照 base（沒有逐場就不能篩期間）
     const gamesUntil = (games && games.length) ? games.filter(g => !untilDate || g.date <= untilDate) : null;
-    const bundleAgg = gamesUntil ? GA.aggregate(range === 'all' ? gamesUntil : GA.lastN(gamesUntil, Number(range)), null, 'TEAM') : null;
+    const periodOn = !!(P && period && P.isActive(period));
+    const res = gamesUntil && periodOn ? P.apply(gamesUntil, period, { ...periodCtx, isTeam: viewMode === 'TEAM' }) : null;
+    const seasonAgg = gamesUntil ? GA.aggregate(gamesUntil, null, 'TEAM') : null;
+    const condWaiting = !!(res && res.cond !== undefined && !(res.cond && res.cond.ready));   // 條件資料還沒到齊或沒填完
+    const bundleAgg = res ? GA.aggregate(res.games, null, 'TEAM') : seasonAgg;
     const baseAgg = (base && typeof base.GP === 'number' && base.GP > 0) ? base : null;
-    const agg = (bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg;
-    const canRange = !!(bundleAgg && bundleAgg.GP > 0);
-    const isRecent = canRange && range !== 'all';
+    const isRecent = !!(res && seasonAgg && seasonAgg.GP > 0);   // 期間篩選生效（有逐場可篩）
+    const agg = isRecent ? bundleAgg : ((bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg);
     const summary = isRecent ? SUMMARY : SUMMARY.filter(s => !IN_IDENTITY.includes(s.key));
-    const rangeLabel = isRecent ? `近 ${range} 場平均` : '季平均';
+    const rangeLabel = isRecent ? `${res.label}平均` : '季平均';
     const loadingAvg = games === null && !baseAgg;
+    // 近期異動：近 5／10 場時比那幾場；其他期間比「篩選出的場次」（太少場不比）
+    const hlSubset = isRecent && !['last5', 'last10'].includes(period.kind) && !condWaiting ? res.games : null;
+    const hlN = isRecent && period.kind === 'last10' ? 10 : 5;
 
     const valOf = (v, s) => {
         if (typeof v !== 'number') return null;
@@ -102,24 +109,31 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
     return (
         <div className="space-y-10">
-            {window.Highlights && <window.Highlights games={games} untilDate={untilDate} n={range === 'all' ? 5 : Number(range)} />}
+            {window.Highlights && !condWaiting && (
+                <window.Highlights games={games} untilDate={untilDate} n={hlN} subset={hlSubset} subsetLabel={isRecent ? res.label : ''} />
+            )}
 
-            <UI.Section title={isRecent ? `近 ${range} 場` : '季平均'} en={isRecent ? `Last ${range} Games` : 'Season Averages'} accent="green"
-                right={canRange && <UI.Seg size="sm" ariaLabel="平均期間" value={range} onChange={setRange}
-                    options={[{ value: 'all', label: '全季' }, { value: '5', label: '近 5 場' }, { value: '10', label: '近 10 場' }]} />}
-                sub={[agg ? `${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W} 勝 ${agg.L} 敗` : ''}` : null, seasonLabel, untilDate ? `截至 ${untilDate}` : '整季', '百分比以 Σ命中 ÷ Σ出手 重算'].filter(Boolean).join(' · ')}>
-                {!agg ? (
+            <UI.Section title={isRecent ? <span className="block truncate max-sm:text-[18px]">{res.label}</span> : '季平均'} en={isRecent ? 'Filtered Averages' : 'Season Averages'} accent="green"
+                sub={[agg && !condWaiting ? `${agg.GP} 場${(agg.W || agg.L) ? ` · ${agg.W} 勝 ${agg.L} 敗` : ''}` : null, seasonLabel, untilDate ? `截至 ${untilDate}` : '整季',
+                    isRecent ? '箭頭＝vs 全季' : null, '百分比以 Σ命中 ÷ Σ出手 重算'].filter(Boolean).join(' · ')}>
+                {condWaiting ? (
+                    <div className="py-6 text-center text-sm text-slate-500 animate-pulse">{res.cond === null ? '讀取條件需要的逐場資料…' : '條件還沒填完（在「期間」面板填入數值）'}</div>
+                ) : isRecent && agg.GP === 0 ? (
+                    <UI.Note>這個期間沒有比賽</UI.Note>
+                ) : !agg ? (
                     <div className={`py-6 text-center text-sm text-slate-500 ${loadingAvg ? 'animate-pulse' : ''}`}>
                         {loadingAvg ? '載入季平均中…' : '此賽季尚無季平均資料'}
                     </div>
-                ) : (
+                ) : (<>
+                    {isRecent && !['last5', 'last10'].includes(period.kind) && window.smallSampleNote(agg.GP, '這個期間') && <div className="mb-3"><UI.Note tone="warn">{window.smallSampleNote(agg.GP, '這個期間')}</UI.Note></div>}
                     <UI.Ledger cols={UI.ledgerCols(summary.length)}>
                         {summary.map(s => (
                             <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
+                                prevValue={isRecent && seasonAgg ? seasonAgg[s.key] : undefined} betterIsLarger={s.key !== 'TOV'}
                                 gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} rank={isRecent ? null : rankOf('base', s.key)} />
                         ))}
                     </UI.Ledger>
-                )}
+                </>)}
             </UI.Section>
 
             {hasAdvanced && (

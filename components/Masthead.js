@@ -52,8 +52,10 @@ const Masthead = ({
                     </span>
                 </div>
 
-                {/* 手機：控制項總寬約 540px，橫捲會把「複製連結」藏在畫面外且沒有提示 → 改成換行；桌面維持單列 */}
-                <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:overflow-x-auto [scrollbar-width:none]">
+                {/* 手機：控制項總寬約 540px，橫捲會把「複製連結」藏在畫面外且沒有提示 → 改成換行。
+                    單列不換行要到 xl（1280）：控制項約 800px＋字標約 290px，1024～1150 單列放不下，橫捲又沒有捲軸＝「複製連結」「搜尋」看不到
+                    （2026-11-12 修）；lg～xl 之間在右側換成兩行、靠右對齊 */}
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end xl:flex-nowrap xl:overflow-x-auto [scrollbar-width:none]">
                     {/* 主畫面的賽季／賽別／日期：薪資頁、對戰有自己的範圍選單，單場頁只屬於那一場，都隱藏 */}
                     {!ownPage && (<>
                     <label className="sr-only" htmlFor="season-select">賽季</label>

@@ -3,7 +3,9 @@
 //   { who: 'T'（全隊）| 球員ID, kind: 'stat', key, op: 'ge'|'le', value }   某人／全隊該場〈指標〉≥／≤ 數值
 //   { who: 球員ID, kind: 'played' | 'absent' }                             該員有出賽／未出賽（只算在隊期間）
 // 篩選一律以「全隊逐場」的日期為母體（球員視角也是），再由呼叫端取該實體在這些日期的場次算平均
-// 在隊期間：第一次出賽 → 最後一次出賽；最後一次出賽在交易截止日（CONDITION_RULES.deadlineMD）之後的視為待到季末
+// 在隊期間：第一次出賽 → 最後一次出賽；以下兩種延到該季最新一場：
+//   1. 當季、且仍在名冊上（ctx.rosterIds）——季中受傷缺陣才算得進「未出賽」（2026-11-12 起；舊規則把傷停的人當成離隊）
+//   2. 最後一次出賽在交易截止日（CONDITION_RULES.deadlineMD）之後（歷史賽季沒有當時名冊，只能靠這條）
 // 網址：c=1630162:PTS:ge:30~T:TOV:le:12、c=203497:absent（serialize／parse）
 window.SplitCond = (function () {
     const R = () => window.CONDITION_RULES || { maxConds: 2, deadlineMD: '02-15', minAtt: 3 };
@@ -58,25 +60,26 @@ window.SplitCond = (function () {
     const needPids = (conds) => [...new Set((conds || []).filter(c => isComplete(c) && c.who !== 'T').map(c => c.who))];
 
     // ── 在隊期間 ──
-    // teamGames：該季該賽別全隊逐場（由舊到新）；playerGames：該員同季同賽別逐場
-    const tenure = (teamGames, playerGames, season) => {
+    // teamGames：該季該賽別全隊逐場（由舊到新）；playerGames：該員同季同賽別逐場；onRoster：當季且仍在名冊上
+    const tenure = (teamGames, playerGames, season, onRoster = false) => {
         const ds = (playerGames || []).map(g => g.date).sort();
         if (!ds.length) return null;
         const end = teamGames.length ? teamGames[teamGames.length - 1].date : ds[ds.length - 1];
         const deadline = `${Number(String(season).slice(0, 4)) + 1}-${R().deadlineMD}`;
         const last = ds[ds.length - 1];
-        return { from: ds[0], to: last > deadline ? end : last, lastPlayed: last };
+        return { from: ds[0], to: onRoster || last > deadline ? end : last, lastPlayed: last };
     };
 
     // ── 篩選：回傳符合條件的全隊場次日期 Set ──
-    // ctx：{ teamGames, playerGames: { [pid]: games[] }, season }
+    // ctx：{ teamGames, playerGames: { [pid]: games[] }, season, rosterIds（當季名冊 PlayerID 陣列；歷史賽季不傳）}
     const evaluate = (conds, ctx) => {
         const list = (conds || []).filter(isComplete);
         const team = ctx.teamGames || [];
+        const roster = new Set((ctx.rosterIds || []).map(Number));
         const byPid = {};
         needPids(list).forEach(pid => {
             const gs = (ctx.playerGames || {})[pid] || [];
-            byPid[pid] = { map: Object.fromEntries(gs.map(g => [g.date, g])), ten: tenure(team, gs, ctx.season) };
+            byPid[pid] = { map: Object.fromEntries(gs.map(g => [g.date, g])), ten: tenure(team, gs, ctx.season, roster.has(Number(pid))) };
         });
         const test = (c, tg) => {
             if (c.who === 'T') {

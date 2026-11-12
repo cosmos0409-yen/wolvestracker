@@ -536,7 +536,8 @@ window.UI = (function () {
     // 分頁列（捲動時固定在頂端）：主畫面章節列、薪資頁、單場頁共用。tabs: [{ key, label }]
     // numbered：分頁前標 01 02…（＝數字快捷鍵，手機無鍵盤隱藏）；right：右側附加控制項（攻守切換、賽季選單）
     // bleed：放在 <main> 內時用負邊距撐滿版寬；不帶時自己置中（章節列在 main 外）
-    const TabBar = ({ tabs, value, onChange, ariaLabel, right, numbered, bleed, className = '' }) => {
+    // below：分頁列底下、同在吸頂範圍內的內容（章節列的期間面板與手機篩選提示）
+    const TabBar = ({ tabs, value, onChange, ariaLabel, right, numbered, bleed, below, className = '' }) => {
         // 手機上分頁放不下時：右緣漸層＋「›」按鈕提示還有分頁（例：主畫面章節列只露出前四章，Playtype／跨季要往右滑）
         const scroller = React.useRef(null);
         const [more, setMore] = React.useState(false);
@@ -577,10 +578,10 @@ window.UI = (function () {
             </div>
         );
         return bleed ? (
-            <nav aria-label={ariaLabel} className={`sticky top-0 z-20 -mx-4 border-b border-white/10 bg-[#0A1626]/85 px-4 backdrop-blur-md md:-mx-6 md:px-6 ${className}`}>{row}</nav>
+            <nav aria-label={ariaLabel} className={`sticky top-0 z-20 -mx-4 border-b border-white/10 bg-[#0A1626]/85 px-4 backdrop-blur-md md:-mx-6 md:px-6 ${className}`}>{row}{below}</nav>
         ) : (
             <nav aria-label={ariaLabel} className={`sticky top-0 z-20 border-b border-white/10 bg-[#0A1626]/85 backdrop-blur-md ${className}`}>
-                <div className="max-w-7xl mx-auto px-4 md:px-6">{row}</div>
+                <div className="max-w-7xl mx-auto px-4 md:px-6">{row}{below}</div>
             </nav>
         );
     };
