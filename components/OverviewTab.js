@@ -2,7 +2,8 @@
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
-// period／periodCtx：全域期間（periodFilter.js）。季平均與近期異動跟著期間；其他區塊（效率、Clutch、陣容、On/Off）是整季快照
+// period／periodCtx：全域期間（periodFilter.js）。季平均與近期異動跟著期間；其他區塊（效率、Playtype 強弱項、雷達、On/Off、Clutch、陣容）
+// 是整季快照，篩選時包 UI.Locked（變淡、不能點）；單場面板本來就是單場，不受影響
 const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {} }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
@@ -136,7 +137,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 </>)}
             </UI.Section>
 
-            {hasAdvanced && (
+            {hasAdvanced && (<UI.Locked on={periodOn}>
                 <UI.Section title="全隊效率" en="Advanced" accent="green"
                     sub={`每 100 回合效率與比率 · 整季快照${window.RankCtx ? ` · 小字為 ${(window.RankCtx.ranks.advanced || {})._n || window.LEAGUE_TEAMS} 隊聯盟名次` : ''}`}>
                     <UI.Ledger cols={UI.ledgerCols(ADVANCED.length)}>
@@ -146,9 +147,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         ))}
                     </UI.Ledger>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
-            {ranked.length > 0 && (
+            {ranked.length > 0 && (<UI.Locked on={periodOn}>
                 <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent={viewSide === 'offensive' ? 'green' : 'red'}
                     sub={`${viewSide === 'offensive' ? '進攻' : '防守'}面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
                     {window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照') && (
@@ -167,25 +168,25 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         </div>
                     </div>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
-            {radarSlot && (
+            {radarSlot && (<UI.Locked on={periodOn}>
                 <UI.Section title="雷達與疊加比較" en="Radar" accent="silver" sub="軸可自選；可疊加歷史賽季或同季隊友">
                     {radarSlot}
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
             {/* On/Off 跨隊不適用（新援該季不在灰狼，API 綁 TeamID 抓不到）。
                 onoffNA 預設 null → 留隊球員、以及本來就沒抓 onoff 的舊賽季 doc，
                 行為與改動前完全相同（整段隱藏）。「舊季沒抓」不可冒充「跨隊不適用」 */}
-            {!hasOnoff && onoffNA && (
+            {!hasOnoff && onoffNA && (<UI.Locked on={periodOn}>
                 <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue"
                     right={<span className="border border-white/15 px-1.5 py-0.5 text-[10px] text-slate-400">{window.NA_BADGE}</span>}>
                     <UI.Note>{onoffNA}</UI.Note>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
-            {hasOnoff && (
+            {hasOnoff && (<UI.Locked on={periodOn}>
                 <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue" sub="球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）">
                     <UI.Ledger cols="grid-cols-1 sm:grid-cols-3">
                         {[
@@ -214,9 +215,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         })}
                     </UI.Ledger>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
-            {hasClutch && (
+            {hasClutch && (<UI.Locked on={periodOn}>
                 <UI.Section title="Clutch" en="Per Game" accent="amber" sub="第四節或延長賽最後 5 分鐘、分差 5 分內（NBA 定義）· 整季快照 · 場均">
                     <UI.Ledger cols={UI.ledgerCols(clutchMetrics.length)}>
                         {clutchMetrics.map(m => (
@@ -226,9 +227,9 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         ))}
                     </UI.Ledger>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
-            {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
+            {viewMode === 'TEAM' && lineups && lineups.length > 0 && (<UI.Locked on={periodOn}>
                 <UI.Section title="五人陣容" en="Lineups" accent="blue" sub="上場最久的 10 組，點欄位標題可改排序（效率值為每 100 回合，整季快照）"
                     right={lineupsHref && <a href={lineupsHref} className="inline-flex min-h-[24px] items-center whitespace-nowrap text-[12px] text-slate-300 hover:text-slate-50">看全部組合 →</a>}>
                     <UI.DataTable caption="五人陣容進階數據" rows={lineups} exportTitle="五人陣容"
@@ -248,7 +249,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                             { key: 'TS_PCT', label: '真實命中率', en: 'TS%', render: (r) => typeof r.TS_PCT === 'number' ? r.TS_PCT.toFixed(1) + '%' : '—' },
                         ]} />
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
             {/* 單場面板（當季，有比賽索引才顯示） */}
             {SingleGamePanel && gamesIndex && gamesIndex.length > 0 && (

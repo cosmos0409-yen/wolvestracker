@@ -1,7 +1,9 @@
 // 投籃分頁：讀 shotchart 逐球資料 → 距離區間/分區/出手方式卡片牆（期間 vs 全季）
 //   + 受助攻卡（全季快照）+ 篩選熱圖 + 點卡片展開趨勢折線
 //   + 分區「與上季比」：讀上一季同一實體的 shotchart，比各區命中率與出手占比（本季套期間篩選、上季為全季）
-// gameMeta：{date:{wl,matchup}}，供勝敗/主客篩選（出手本身只帶 gdate）
+// gameMeta：{date:{wl,matchup}}，走勢鋪勝負底色用（出手本身只帶 gdate）
+// 期間（2026-11 起是全域控制，見 periodFilter.js）：periodDates＝期間內的比賽日期 Set（null＝全季）、periodLabel、
+//   periodWaiting＝條件資料還沒到齊或沒填完。逐球帶比賽日期，所以勝敗、對手、條件都能篩；受助攻是整季快照，篩選時停用
 
 // 讀 wolves_shotcharts/{id}_{season}_{type} 並解析成 {shots, assisted}；不存在回 null。快取在 window.__shootTabCache
 const loadShotDoc = async (docId) => {
@@ -25,16 +27,12 @@ window.loadShotDoc = loadShotDoc;   // 對戰頁共用（同一份快取）
 // '2025-26' → '2024-25'
 const prevSeasonOf = (season) => { const y = parseInt(String(season).slice(0, 4), 10) - 1; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
 
-const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta }) => {
+const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta, periodDates = null, periodLabel: pLabel = '全季', periodWaiting = false }) => {
     const { useState, useEffect } = React;
     const TrendChart = window.TrendChart;
     const ShotChart = window.ShotChart;
 
     const [doc, setDoc] = useState(undefined); // undefined=載入中, null=無, {shots,assisted}
-    const [period, setPeriod] = useState('all');
-    const [monthKey, setMonthKey] = useState('');
-    const [rangeStart, setRangeStart] = useState('');
-    const [rangeEnd, setRangeEnd] = useState('');
     const [group, setGroup] = useState('dist');
     const [openKey, setOpenKey] = useState(null);
     const [gran, setGran] = useState('game');
@@ -72,18 +70,13 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
     if (doc === null || !doc.shots.length) return <UI.Note>此賽季尚無逐球投籃資料（賽後隔天更新，且僅近幾季有）</UI.Note>;
 
     const allShots = doc.shots;
-    const dates = [...new Set(allShots.map(s => s.gdate))].sort();
-    const months = [...new Set(dates.map(d => d.slice(0, 7)))].sort();
     const meta = gameMeta || {};
 
-    // 期間篩選
-    let periodShots = allShots, periodLabel = '全季';
-    if (period === 'month' && monthKey) { periodShots = allShots.filter(s => (s.gdate || '').slice(0, 7) === monthKey); periodLabel = monthKey; }
-    else if (period === 'last5' || period === 'last10') { const n = period === 'last5' ? 5 : 10; const set = new Set(dates.slice(-n)); periodShots = allShots.filter(s => set.has(s.gdate)); periodLabel = `近 ${n} 場`; }
-    else if (period === 'range') { periodShots = allShots.filter(s => (!rangeStart || s.gdate >= rangeStart) && (!rangeEnd || s.gdate <= rangeEnd)); periodLabel = `${rangeStart || '起'}~${rangeEnd || '訖'}`; }
-    else if (period === 'W' || period === 'L') { periodShots = allShots.filter(s => (meta[s.gdate] || {}).wl === period); periodLabel = period === 'W' ? '勝場' : '敗場'; }
-    else if (period === 'home') { periodShots = allShots.filter(s => ((meta[s.gdate] || {}).matchup || '').includes('vs.')); periodLabel = '主場'; }
-    else if (period === 'away') { periodShots = allShots.filter(s => ((meta[s.gdate] || {}).matchup || '').includes('@')); periodLabel = '客場'; }
+    // 期間篩選（全域）：逐球依比賽日期篩
+    const filtered = !!periodDates;
+    const periodShots = filtered ? allShots.filter(s => periodDates.has(s.gdate)) : allShots;
+    const periodLabel = filtered ? pLabel : '全季';
+    if (periodWaiting) return <div className="py-10 text-center text-sm text-slate-500 animate-pulse">等待期間條件（讀取逐場資料或條件還沒填完）…</div>;
 
     // 分組定義
     const DIST_BINS = [[0, 4, '0-4 呎'], [5, 9, '5-9 呎'], [10, 14, '10-14 呎'], [15, 19, '15-19 呎'], [20, 24, '20-24 呎'], [25, 29, '25-29 呎'], [30, 999, '30 呎+']];
@@ -150,34 +143,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 
     return (
         <div className="space-y-10">
-            {/* 篩選列：期間（影響命中率格與熱圖；受助攻為全季快照不受影響） */}
-            <div className="space-y-2.5">
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="mr-1 text-[11px] text-slate-500">期間</span>
-                    <UI.Chip active={period === 'all'} onClick={() => setPeriod('all')}>全季</UI.Chip>
-                    <UI.Chip active={period === 'W'} onClick={() => setPeriod('W')}>勝場</UI.Chip>
-                    <UI.Chip active={period === 'L'} onClick={() => setPeriod('L')}>敗場</UI.Chip>
-                    <UI.Chip active={period === 'home'} onClick={() => setPeriod('home')}>主場</UI.Chip>
-                    <UI.Chip active={period === 'away'} onClick={() => setPeriod('away')}>客場</UI.Chip>
-                    <UI.Chip active={period === 'last5'} onClick={() => setPeriod('last5')}>近 5 場</UI.Chip>
-                    <UI.Chip active={period === 'last10'} onClick={() => setPeriod('last10')}>近 10 場</UI.Chip>
-                    <label className="sr-only" htmlFor="shoot-month">選擇月份</label>
-                    <select id="shoot-month" value={period === 'month' ? monthKey : ''} onChange={e => { setPeriod('month'); setMonthKey(e.target.value); }}
-                        className={UI.selectClass(period === 'month')}>
-                        <option value="">每月</option>
-                        {months.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <UI.Chip active={period === 'range'} onClick={() => setPeriod('range')}>自訂區間</UI.Chip>
-                </div>
-                {period === 'range' && (
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <input type="date" aria-label="起始日" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className={UI.selectClass(!!rangeStart)} />
-                        <span>~</span>
-                        <input type="date" aria-label="結束日" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className={UI.selectClass(!!rangeEnd)} />
-                    </div>
-                )}
-            </div>
-
+            {/* 期間在章節列的期間面板（全域）；影響命中率格、分區比較與熱圖，受助攻為全季快照（篩選時停用） */}
             <UI.Section title={`${groupInfo[1]}命中率`} en={`FG% by ${groupInfo[2]}`} accent="green"
                 sub={`${periodLabel}（${periodTotal} 出手，vs 全季 ${allShots.length}）· 大字＝命中率，箭頭為 vs 全季 · 小字＝出手數／佔比 · 點格子看趨勢`}
                 right={<>
@@ -212,7 +178,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                                     <span className={`font-display text-[26px] font-semibold leading-none tabular-nums ${p.pct != null ? 'text-slate-50' : 'text-slate-600'}`}>
                                         {p.pct != null ? p.pct : '—'}{p.pct != null && <span className="ml-0.5 text-[15px] font-medium text-slate-400">%</span>}
                                     </span>
-                                    {period !== 'all' && <span className="ml-auto"><UI.Delta value={p.pct} prevValue={a.pct} /></span>}
+                                    {filtered && <span className="ml-auto"><UI.Delta value={p.pct} prevValue={a.pct} /></span>}
                                 </div>
                                 <div className="mt-1.5 font-mono text-[10px] text-slate-500">{p.fga} 出手 · 佔 {freq}%</div>
                                 {cmpOn && (() => {
@@ -268,8 +234,8 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
             </UI.Section>
 
             {/* 受助攻（全季快照，不隨篩選） */}
-            {Object.keys(assisted).length > 0 && (
-                <UI.Section title="受助攻比例" en="Assisted FGM%" accent="blue" sub="命中球中由隊友助攻的比例 · 全季快照，不受上方期間篩選影響">
+            {Object.keys(assisted).length > 0 && (<UI.Locked on={filtered}>
+                <UI.Section title="受助攻比例" en="Assisted FGM%" accent="blue" sub="命中球中由隊友助攻的比例 · 全季快照（期間篩選時停用）">
                     <UI.Ledger cols="grid-cols-3">
                         {[['整體受助攻', '%AST FGM', 'PCT_AST_FGM'], ['兩分受助攻', '%AST 2PM', 'PCT_AST_2PM'], ['三分受助攻', '%AST 3PM', 'PCT_AST_3PM']].map(([l, en, k]) => (
                             <UI.StatCell key={k} label={l} en={en} value={typeof assisted[k] === 'number' ? assisted[k] : null} unit="%"
@@ -277,7 +243,7 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                         ))}
                     </UI.Ledger>
                 </UI.Section>
-            )}
+            </UI.Locked>)}
 
             {/* 篩選後熱圖 */}
             {ShotChart && (

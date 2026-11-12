@@ -91,7 +91,9 @@ window.UI = (function () {
         const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
         // 最後附上當下畫面的網址（hash 記住球員/章節/賽季/日期），日後可從引用直接回到原畫面查證
         const url = `${location.origin}${location.pathname}${location.hash}`;
-        return [c.subject, c.season, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
+        // 全域期間篩選中、逐場加總類（asOf agg）的數字：說明文字沒寫到期間時補上（例「勝場（8 場）」）
+        const per = asOf === 'agg' && c.period && !String(note || '').includes(c.period.split('（')[0]) ? c.period : null;
+        return [c.subject, c.season, per, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
             `${label}${en ? `（${en}）` : ''} ${value}${unit}${rank ? `（聯盟第${rank.rank}）` : ''}`, `資料：${g.src || 'NBA.com Stats'}`, url].filter(Boolean).join('｜');
     };
     const doCopy = async (text) => { const ok = await copyText(text); toast(ok ? `已複製：${text}` : '複製失敗，請手動選取'); };
@@ -624,6 +626,26 @@ window.UI = (function () {
             {children}
         </section>
     );
+    // 跟不上全域期間篩選的區塊（整季快照：效率、Clutch、陣容、On/Off、Playtype 百分位、受助攻、防守 Box…）：
+    // on＝篩選生效時變淡、去飽和、標「整季數據 · 篩選時停用」，而且完全不能點（inert：滑鼠、觸控、鍵盤 Tab 都進不去）。
+    // 不可默默顯示沒篩選的數字；沒生效時原樣輸出。新增區塊時：資料來自逐場 bundle／逐球 → 吃期間；來自整季快照 → 包這個
+    const Locked = ({ on, children, label = '整季數據 · 篩選時停用' }) => {
+        const ref = React.useRef(null);
+        // React 18 不認得 inert 屬性，直接設在 DOM 上
+        React.useLayoutEffect(() => {
+            const el = ref.current; if (!el) return;
+            if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+        }, [on]);
+        if (!on) return children;
+        return (
+            <div aria-disabled="true">
+                <div className="mb-1.5 flex justify-end">
+                    <span className="whitespace-nowrap rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-slate-400">{label}</span>
+                </div>
+                <div ref={ref} className="pointer-events-none select-none opacity-[.45] saturate-[.35]">{children}</div>
+            </div>
+        );
+    };
     // 空狀態／提示（取代各處 bg-slate-800/50 圓角提示框）
     const Note = ({ children, tone = 'muted' }) => (
         <div className={`border px-4 py-3 text-sm ${tone === 'warn' ? 'border-amber-500/30 bg-amber-500/[0.06] text-amber-200' : 'border-white/10 bg-white/[0.02] text-slate-400'}`}>{children}</div>
@@ -661,5 +683,5 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
+    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
 })();

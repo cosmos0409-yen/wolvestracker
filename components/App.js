@@ -905,8 +905,8 @@ const App = () => {
         // period：內容跟著全域期間篩選（其他章節篩選時顯示「整季數據」提示）
         { key: 'overview', label: '總覽', sided: true, period: true },
         { key: 'splits', label: 'Splits', period: true },
-        { key: 'shooting', label: '投籃' },
-        { key: 'defense', label: '防守' },
+        { key: 'shooting', label: '投籃', period: true },
+        { key: 'defense', label: '防守', period: true },
         { key: 'playtype', label: 'Playtype', sided: true },
         { key: 'comparison', label: '跨季' },
     ];
@@ -1121,6 +1121,13 @@ const App = () => {
     const periodRes = periodOn && seasonGames ? window.Period.apply(seasonGames, period, periodCtx) : null;
     const periodRec = periodRes && (periodRes.cond === undefined || (periodRes.cond && periodRes.cond.ready)) ? window.Period.record(periodRes.games) : null;
     const periodLabel = periodRes ? periodRes.label : (periodOn ? '條件' : '全季');
+    // 條件資料還沒到齊或沒填完（各章節顯示等待，不可先顯示全季數字）
+    const periodWaiting = !!(periodOn && (!periodRes || (periodRes.cond !== undefined && !(periodRes.cond && periodRes.cond.ready))));
+    const periodDates = periodOn && periodRes && !periodWaiting ? new Set(periodRes.games.map(g => g.date)) : null;
+    // 防守章節：有逐場的群組（GAME_DEFENSE_IDS）改用逐場加總，箭頭＝vs 全季；全季同 Splits（不套「數據截至」）
+    const defPeriod = periodDates && seasonGames ? {
+        cur: window.GameAgg.aggregate(periodRes.games, null, 'TEAM'), all: window.GameAgg.aggregate(seasonGames, null, 'TEAM'),
+    } : null;
     const clearPeriod = () => { setPeriod(window.Period.ALL); setPeriodOpen(false); };
     const periodPill = (withRecord) => window.PeriodPill && (
         <window.PeriodPill label={periodLabel} rec={periodRec} active={periodOn} open={periodOpen} withRecord={withRecord}
@@ -1134,6 +1141,8 @@ const App = () => {
         asOfSnap: displayDate,
         asOfAgg: untilDateForAvg || displayDate,
         isHistory: isHistoryMode,
+        // 全域期間（篩選時）：citeLine／Quote.make 對「截至日」類（逐場加總）的數字附上，避免貼出去被當成季平均
+        period: periodOn && periodRes && !periodWaiting ? `${periodLabel}（${periodRes.games.length} 場）` : null,
     };
     // 聯盟名次情境（window.leagueRank 讀取）：只在全隊視角的當季每日快照；時光機選日期時跟著用那天的快照
     const rankDoc = (viewMode === 'TEAM' && !isHistoryMode) ? teamSeq[teamIdx] : null;
@@ -1314,7 +1323,7 @@ const App = () => {
                     <div className="min-w-0 space-y-6">
                         {/* 篩選中、但這個章節跟不上期間：說清楚是整季數據（篩選保留，回到其他章節繼續生效） */}
                         {periodOn && !noCurrentSnapshots && !(TABS.find(t => t.key === activeTab) || {}).period && (
-                            <window.UI.Note>本章節為整季數據，期間篩選（{periodLabel}）不適用；篩選條件保留，回到總覽或 Splits 繼續生效。</window.UI.Note>
+                            <window.UI.Note>本章節為整季數據，期間篩選（{periodLabel}）不適用；篩選條件保留，回到其他章節繼續生效。</window.UI.Note>
                         )}
 
                         {/* 總覽 */}
@@ -1355,23 +1364,39 @@ const App = () => {
                                     season={shootSeason} typeKey={shootType}
                                     playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer + selTag}
                                     seasonLabel={primaryLabel} gameMeta={gameMeta}
+                                    periodDates={periodDates} periodLabel={periodLabel} periodWaiting={periodWaiting}
                                 />
                         )}
 
                         {/* 防守 */}
                         {activeTab === 'defense' && (
                             <div className="space-y-10">
-                                {hasDefenseData ? (
+                                {periodWaiting ? (
+                                    <div className="py-10 text-center text-sm text-slate-500 animate-pulse">等待期間條件（讀取逐場資料或條件還沒填完）…</div>
+                                ) : hasDefenseData ? (
                                     <window.UI.Section title="防守數據" en="Defense" accent="red"
-                                        sub={`${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
+                                        sub={defPeriod
+                                            ? `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · ${periodLabel}（${defPeriod.cur.GP} 場）· 有逐場資料的群組跟著期間，箭頭＝vs 全季；其他為整季快照（停用）`
+                                            : `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
                                         {/* 球隊：防守 Box → 最近防守者（全隊版 2026-11 起有）→ 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
                                         {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...defenseDefs.filter(d => d.id === 'MatchupDefense'), ...oppZonesDefs, ...defenseDefs.filter(d => d.id !== 'MatchupDefense' && d.id !== 'DefenseBox')]
-                                            .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => (
-                                            <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
-                                                metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
-                                                naReason={def.id === 'MatchupDefense' ? naCrossTeam : null}
-                                                rankCats={viewMode === 'TEAM' ? 'defense' : null} />
-                                        ))}
+                                            .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => {
+                                            // 期間篩選：逐場有這組數字 → 用期間加總；沒有（防守 Box、對手分區、全隊最近防守者）→ 整季快照、停用
+                                            const live = defPeriod && (window.GAME_DEFENSE_IDS || []).includes(def.id)
+                                                && def.metrics.some(m => typeof defPeriod.all[m.key] === 'number');
+                                            return live ? (
+                                                <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense" clickable={false}
+                                                    metrics={def.metrics} current={defPeriod.cur} prev={defPeriod.all}
+                                                    citeAsOf="none" citeNote={`${periodLabel}（${defPeriod.cur.GP} 場）`} compareTags={['全季', periodLabel]} />
+                                            ) : (
+                                                <window.UI.Locked key={def.id} on={periodOn}>
+                                                    <TrackingCardRow title={def.title} category={def.id} source="defense"
+                                                        metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
+                                                        naReason={def.id === 'MatchupDefense' ? naCrossTeam : null}
+                                                        rankCats={viewMode === 'TEAM' ? 'defense' : null} />
+                                                </window.UI.Locked>
+                                            );
+                                        })}
                                     </window.UI.Section>
                                 ) : (
                                     <window.UI.Note>
@@ -1386,8 +1411,8 @@ const App = () => {
                                         </span>
                                     </window.UI.Note>
                                 )}
-                                {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && (
-                                    <window.DefenseHeatmap defense={currentDefense} />
+                                {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && !periodWaiting && (
+                                    <window.UI.Locked on={periodOn}><window.DefenseHeatmap defense={currentDefense} /></window.UI.Locked>
                                 )}
                             </div>
                         )}
