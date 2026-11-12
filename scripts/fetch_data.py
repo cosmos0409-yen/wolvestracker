@@ -26,7 +26,6 @@ from nba_common import (
     fetch_synergy_data,
     fetch_tracking_data,
     fetch_shot_locations,
-    fetch_pt_shots,
     fetch_clutch,
     fetch_lineup_rows,
     top_lineups,
@@ -287,10 +286,8 @@ def main():
     league_base = fetch_base_box(SEASON, season_type_api, "Team", team_id=0)
     team_base, rank_base = split_league(league_base)
     team_tracking, rank_tracking = split_league(fetch_tracking_data(SEASON, season_type_api, "Team", team_id=0))
-    team_shooting, rank_shooting = split_league(merge_maps(
-        fetch_shot_locations(SEASON, season_type_api, "Team", team_id=0),
-        fetch_pt_shots(SEASON, season_type_api, "Team", team_id=0),
-    ))
+    # 投籃拆分（fetch_pt_shots）2026-11-12 停抓：欄位全可由逐場 base 算出、前端沒有讀快照值（見 doc/handover.md）
+    team_shooting, rank_shooting = split_league(fetch_shot_locations(SEASON, season_type_api, "Team", team_id=0))
     team_clutch, rank_clutch = split_league(fetch_clutch(SEASON, season_type_api, "Team", team_id=0))
     # 組合：二人／三人／五人全部組合（組合頁用，另寫一份文件）；快照的 lineups 仍只取五人前 10 組（總覽用，形狀不變）
     lineup_groups = {k: fetch_lineup_rows(SEASON, season_type_api, k) for k in LINEUP_GROUPS}
@@ -340,10 +337,8 @@ def main():
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
     player_tracking = pid_to_name_keyed(
         fetch_tracking_data(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
-    player_shooting = pid_to_name_keyed(merge_maps(
-        fetch_shot_locations(SEASON, season_type_api, "Player"),
-        fetch_pt_shots(SEASON, season_type_api, "Player"),
-    ), keep_ids=roster_ids)
+    player_shooting = pid_to_name_keyed(
+        fetch_shot_locations(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
     player_clutch = pid_to_name_keyed(
         fetch_clutch(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
     player_defense = pid_to_name_keyed(merge_maps(

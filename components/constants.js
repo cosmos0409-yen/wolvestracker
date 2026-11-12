@@ -198,6 +198,7 @@ window.trackingDefs = [
             { key: 'DRIVE_FGM', label: '切入進球', englishLabel: 'Drive FGM' },
             { key: 'DRIVE_FG_PCT', label: '切入命中率', englishLabel: 'Drive FG%', unit: '%' },
             { key: 'DRIVE_TOV_PCT', label: '失誤率', longLabel: '切入失誤率', englishLabel: 'Drive TOV%', unit: '%', betterIsLarger: false },
+            { key: 'DRIVE_AST_PCT', label: '助攻率', longLabel: '切入助攻率', englishLabel: 'Drive AST%', unit: '%' },
         ]
     },
     {
@@ -205,6 +206,7 @@ window.trackingDefs = [
             { key: 'CATCH_SHOOT_FGA', label: '出手次數', longLabel: '接球跳投出手', englishLabel: 'C&S FGA' },
             { key: 'CATCH_SHOOT_FG3_PCT', label: '三分命中率', longLabel: '接球跳投三分命中率', englishLabel: 'C&S 3P%', unit: '%' },
             { key: 'CATCH_SHOOT_EFG_PCT', label: '有效命中率', longLabel: '接球跳投有效命中率', englishLabel: 'C&S eFG%', unit: '%' },
+            { key: 'CATCH_SHOOT_PTS', label: '得分', longLabel: '接球跳投得分', englishLabel: 'C&S PTS' },
         ]
     },
     {
@@ -212,6 +214,7 @@ window.trackingDefs = [
             { key: 'PULL_UP_FGA', label: '急停出手數', englishLabel: 'Pull Up FGA' },
             { key: 'PULL_UP_FG3_PCT', label: '急停三分命中率', englishLabel: 'Pull Up 3P%', unit: '%' },
             { key: 'PULL_UP_EFG_PCT', label: '有效命中率', longLabel: '急停跳投有效命中率', englishLabel: 'Pull Up eFG%', unit: '%' },
+            { key: 'PULL_UP_PTS', label: '急停得分', longLabel: '急停跳投得分', englishLabel: 'Pull Up PTS' },
         ]
     },
     {
@@ -279,6 +282,7 @@ window.SPLITS_BASE_DEF = {
         // 2026-11-12 起：由逐場 PTS／FGA／FTA／FGM／FG3M 重算（GameAgg.TS_DEFS／EFG_DEFS），所有賽季都跟得上期間
         { key: 'TS_PCT', label: '真實命中率', englishLabel: 'TS%', unit: '%' },
         { key: 'EFG_PCT', label: '有效命中率', englishLabel: 'eFG%', unit: '%' },
+        { key: 'FG3A_FREQ', label: '三分出手占比', englishLabel: '3PA Freq', unit: '%', neutral: true },
         { key: 'STL', label: '抄截', englishLabel: 'STL' },
         { key: 'BLK', label: '阻攻', englishLabel: 'BLK' },
         { key: 'TOV', label: '失誤', englishLabel: 'TOV', betterIsLarger: false },
@@ -338,6 +342,7 @@ window.defenseDefs = [
             { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
             { key: 'OPP_PTS_PAINT', label: '對手禁區得分', englishLabel: 'Opp PTS in Paint', betterIsLarger: false },
             { key: 'OPP_PTS_FB', label: '對手快攻得分', englishLabel: 'Opp PTS Fast Break', betterIsLarger: false },
+            { key: 'OPP_PTS_2ND', label: '對手二波得分', englishLabel: 'Opp 2nd Chance PTS', betterIsLarger: false },
         ]
     },
     {

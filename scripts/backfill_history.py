@@ -30,7 +30,6 @@ from nba_common import (
     fetch_synergy_data,
     fetch_tracking_data,
     fetch_shot_locations,
-    fetch_pt_shots,
     fetch_clutch,
     fetch_lineups,
     fetch_lineup_rows,
@@ -282,10 +281,8 @@ def main():
     team_synergy = fetch_synergy_data(season, season_type_api, "T")
     team_tracking = fetch_tracking_data(season, season_type_api, "Team").get("MIN", {})
     team_base = fetch_base_box(season, season_type_api, "Team").get("MIN", {})
-    team_shooting = merge_maps(
-        fetch_shot_locations(season, season_type_api, "Team"),
-        fetch_pt_shots(season, season_type_api, "Team"),
-    ).get("MIN", {})
+    # 投籃拆分（fetch_pt_shots）2026-11-12 起不抓（同 fetch_data.py）
+    team_shooting = fetch_shot_locations(season, season_type_api, "Team").get("MIN", {})
     team_clutch = fetch_clutch(season, season_type_api, "Team").get("MIN", {})
     team_lineups = fetch_lineups(season, season_type_api)
     team_defense = merge_maps(
@@ -302,10 +299,7 @@ def main():
     all_player_synergy = fetch_synergy_data(season, season_type_api, "P")
     p_base = fetch_base_box(season, season_type_api, "Player", with_team_abbr=True)
     p_tracking = fetch_tracking_data(season, season_type_api, "Player")
-    p_shooting = merge_maps(
-        fetch_shot_locations(season, season_type_api, "Player"),
-        fetch_pt_shots(season, season_type_api, "Player"),
-    )
+    p_shooting = fetch_shot_locations(season, season_type_api, "Player")
     p_clutch = fetch_clutch(season, season_type_api, "Player")
     p_defense = merge_maps(
         fetch_matchup_defense(season, season_type_api),

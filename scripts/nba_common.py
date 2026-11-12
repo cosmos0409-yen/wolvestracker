@@ -834,6 +834,8 @@ def fetch_shot_locations(season, season_type_api, player_or_team="Player", game_
 
 def fetch_pt_shots(season, season_type_api, player_or_team="Player", team_id=TEAM_ID):
     """
+    ※ 2026-11-12 起每日與歷史回補都不再呼叫（省每日 2 requests）：欄位全可由逐場 base 算出
+      （出手占比＝FG3A／FGA、兩分命中率＝(FGM−FG3M)／(FGA−FG3A)、eFG%），前端也沒有讀快照值。函式留著備用。
     抓取投籃拆分（leaguedash{player|team}ptshot, GeneralRange=Overall）：
     eFG%、2 分/3 分出手佔比與命中率。回傳結構同 fetch_shot_locations。
     球隊模式 team_id=0 時回傳全聯盟（排名用）。

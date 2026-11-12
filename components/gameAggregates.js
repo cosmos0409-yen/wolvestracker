@@ -14,6 +14,7 @@ window.GameAgg = (function () {
         AB3_FG_PCT: ['AB3_FGM', 'AB3_FGA'],
         D_FG_PCT: ['D_FGM', 'D_FGA'], D_FG3_PCT: ['D_FG3M', 'D_FG3A'],
         D_FG2_PCT: ['D_FG2M', 'D_FG2A'], D_RIM_PCT: ['D_RIM_FGM', 'D_RIM_FGA'],
+        FG3A_FREQ: ['FG3A', 'FGA'],   // 三分出手占比（2026-11-12 起由逐場 base 算，取代停抓的投籃拆分）
         REB_COL_PCT: ['REB', 'REB_CHANCES'],
         PCT_BOX_OUTS_REB: ['BOX_OUT_REBS', 'BOX_OUTS'],   // 卡位後自己搶下比例（不以 _PCT 結尾，不加這行會被當次數相加）
         // 球員在場效率（每 100 回合得／失分）：逐場 bundle 的 ON_PTS／ON_OPP_PTS／ON_POSS 由進階 box 還原（2026-27 起）
@@ -36,6 +37,8 @@ window.GameAgg = (function () {
         CATCH_SHOOT_EFG_PCT: ['CATCH_SHOOT_FGM', 'CATCH_SHOOT_FG3M', 'CATCH_SHOOT_FGA'],
         PULL_UP_EFG_PCT: ['PULL_UP_FGM', 'PULL_UP_FG3M', 'PULL_UP_FGA'],
     };
+    // 依權重欄加權平均：key → 權重欄（沒存分子、但「每場比率 × 權重」＝分子時用；如切入助攻率沒存切入助攻數）
+    const WAVG_DEFS = { DRIVE_AST_PCT: 'DRIVES' };
     // 真實命中率：100 * Σ得分 / (2 * (Σ出手 + 0.44 * Σ罰球出手))，key → [得分, 出手, 罰球出手]（與 NBA 整季值一致，2026-11-12 驗證）
     const TS_DEFS = { TS_PCT: ['PTS', 'FGA', 'FTA'] };
     // 無法精確重算 → 退回逐場平均（比率/效率/頻率/距離類）
@@ -98,6 +101,12 @@ window.GameAgg = (function () {
             const [fgm, fg3m, fga] = EFG_DEFS[k];
             const d = sum(fga);
             return d ? round1(100 * (sum(fgm) + 0.5 * sum(fg3m)) / d) : 0;
+        }
+        if (WAVG_DEFS[k]) {
+            const w = WAVG_DEFS[k];
+            const ok = rows.filter(r => typeof r[k] === 'number' && r[w] > 0);
+            const tw = ok.reduce((a, r) => a + r[w], 0);
+            if (tw) return round1(ok.reduce((a, r) => a + r[k] * r[w], 0) / tw);
         }
         if (TS_DEFS[k]) {
             const [pts, fga, fta] = TS_DEFS[k];
@@ -203,7 +212,7 @@ window.GameAgg = (function () {
     }
 
     return {
-        RATIO_DEFS, EFG_DEFS, TS_DEFS, NORMAL_DEFS, aggregate, metricOf, seasonToDate,
+        RATIO_DEFS, EFG_DEFS, TS_DEFS, NORMAL_DEFS, WAVG_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,
     };
