@@ -242,7 +242,7 @@ def main():
                         help="繞過休賽期，強制指定賽別（一次性補期末完整快照用）")
     parser.add_argument("--date", help="強制快照 doc id 日期 YYYY-MM-DD（配合 --force-type）")
     parser.add_argument("--games-only", action="store_true",
-                        help="只擷取缺漏單場（約 24 requests），不抓累積快照；watchdog.py 下午補抓昨晚那場用")
+                        help="只擷取缺漏單場（約 28 requests），不抓累積快照；watchdog.py 下午補抓昨晚那場用")
     args = parser.parse_args()
     if args.games_only and args.force_type:
         parser.error("--games-only 不能和 --force-type 併用")

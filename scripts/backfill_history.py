@@ -85,7 +85,7 @@ def patch_hustle(season, season_type_api, doc_id, dry_run=False):
 
 
 def patch_team_matchup(season, season_type_api, doc_id, dry_run=False):
-    """只重抓全隊最近防守者（leaguedashptteamdefend，2 requests）併入既有歷史快照的球隊 defense，其他欄位原封不動。"""
+    """只重抓全隊最近防守者（leaguedashptteamdefend，MATCHUP_CATEGORIES 每類 1 request，共 4）併入既有歷史快照的球隊 defense，其他欄位原封不動。"""
     team_m = fetch_team_matchup_defense(season, season_type_api).get("MIN", {})
     if not team_m:
         print("❌ 全隊最近防守者抓取失敗，終止（不寫入）")
@@ -128,7 +128,7 @@ def main():
     parser.add_argument("--only-hustle", action="store_true",
                         help="只重抓 Hustle（2 requests）併入既有歷史快照的 defense，其他類別不動（新增 HUSTLE_FIELDS 欄位時用）")
     parser.add_argument("--only-team-matchup", action="store_true",
-                        help="只重抓全隊最近防守者（2 requests）併入既有歷史快照的球隊 defense，其他類別不動")
+                        help="只重抓全隊最近防守者（4 requests）併入既有歷史快照的球隊 defense，其他類別不動")
     parser.add_argument("--only-lineups", action="store_true",
                         help="只抓二人／三人／五人全部組合（3 requests），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）")
     args = parser.parse_args()

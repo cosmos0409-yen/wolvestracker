@@ -230,6 +230,32 @@ MATCHUP_3PT_FIELDS = [
     ("NORMAL_FG3_PCT", "NS_FG3_PCT", True),
     ("D_FG3_PLUSMINUS", "PLUSMINUS", True),
 ]
+# leaguedashptdefend 對位防守：2 Pointers（NS_FG2_PCT = 對手平常兩分命中率；不能由總體減三分推，實測差到 21 個百分點）
+MATCHUP_2PT_FIELDS = [
+    ("D_FG2M", "FG2M", False),        # 分子（供區間加權重算 D_FG2_PCT）
+    ("D_FG2A", "FG2A", False),
+    ("D_FG2_PCT", "FG2_PCT", True),
+    ("NORMAL_FG2_PCT", "NS_FG2_PCT", True),
+    ("D_FG2_PLUSMINUS", "PLUSMINUS", True),
+]
+# leaguedashptdefend 護框：Less Than 6Ft（籃框 6 呎內的出手；NS_LT_06_PCT = 對手平常在這區的命中率）
+MATCHUP_RIM_FIELDS = [
+    ("D_RIM_FGM", "FGM_LT_06", False),
+    ("D_RIM_FGA", "FGA_LT_06", False),
+    ("D_RIM_PCT", "LT_06_PCT", True),
+    ("NORMAL_RIM_PCT", "NS_LT_06_PCT", True),
+    ("D_RIM_PLUSMINUS", "PLUSMINUS", True),
+]
+# 最近防守者要抓的類別（球員、全隊、單場共用）：(DefenseCategory, 欄位表, log 標籤)，每類 1 request。
+# 想多一類（如 Less+Than+10Ft、Greater+Than+15Ft）：加欄位表＋這裡加一列＋RANK_* 方向＋前端 defenseDefs
+MATCHUP_CATEGORIES = [
+    ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
+    ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
+    ("2+Pointers", MATCHUP_2PT_FIELDS, "2PT"),
+    ("Less+Than+6Ft", MATCHUP_RIM_FIELDS, "Rim"),
+]
+# 單場擷取「對手球員」只抓這兩類（對手不看兩分／護框，省每場 2 requests）
+MATCHUP_OPP_CATEGORIES = MATCHUP_CATEGORIES[:2]
 # leaguehustlestats{player|team} 拼勁數據：計數為每場平均，PCT_* 為比例（×100）
 # 2026-10-23 補欄位。endpoint 另有 6 欄刻意不抓（已與使用者確認）：
 #   BOX_OUT_PLAYER_TEAM_REBS、PCT_BOX_OUTS_TEAM_REB——實測恆等於 BOX_OUTS／100%（NBA 只在球隊搶到籃板時記卡位）
@@ -285,10 +311,12 @@ RANK_LOWER_BETTER = {
     "OPP_PTS_PAINT", "OPP_PTS_FB", "OPP_PTS_2ND", "*_OPP_FG_PCT",
     # 全隊最近防守者：對手命中率與「比平常」越低越好
     "D_FG_PCT", "PCT_PLUSMINUS", "D_FG3_PCT", "D_FG3_PLUSMINUS",
+    "D_FG2_PCT", "D_FG2_PLUSMINUS", "D_RIM_PCT", "D_RIM_PLUSMINUS",
 }
 # 全隊最近防守者的出手／命中次數（量，非好壞）與對手平常命中率（對手強弱，非防守表現）不排
 RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA",
-             "D_FGM", "D_FGA", "D_FG3M", "D_FG3A", "NORMAL_FG_PCT", "NORMAL_FG3_PCT"}
+             "D_FGM", "D_FGA", "D_FG3M", "D_FG3A", "NORMAL_FG_PCT", "NORMAL_FG3_PCT",
+             "D_FG2M", "D_FG2A", "NORMAL_FG2_PCT", "D_RIM_FGM", "D_RIM_FGA", "NORMAL_RIM_PCT"}
 
 # ── 單場題材（build_insights.py → wolves_team_games/{date}.insights，前端單場頁「本場題材」）──
 # 只讀既有逐場 bundle 與單場 box，0 個 NBA request。改這裡之後：
@@ -966,21 +994,22 @@ def write_lineups(db, season, season_type_api, season_type_label, groups, as_of,
 # ==========================================
 # 防守：對位防守（leaguedashptdefend，僅球員）
 # ==========================================
-def fetch_matchup_defense(season, season_type_api, game_date=None, team_id=TEAM_ID):
+def fetch_matchup_defense(season, season_type_api, game_date=None, team_id=TEAM_ID, categories=None, failed=None):
     """
     對位防守（被該球員防守時對手的命中率）。此 endpoint 以 defender 為主鍵，僅球員層級。
-    合併 Overall 與 3 Pointers 兩類。回傳 {PlayerID字串: {playerName, ...}}。
+    合併 categories（預設 MATCHUP_CATEGORIES 全部，每類 1 request）。回傳 {PlayerID字串: {playerName, ...}}。
+    某類沒有出手的球員不會出現在那類的回應裡 → 該類欄位不存在（不補 0）。
     game_date（MM/DD/YYYY）指定時抓該單場
+    failed：給 list 時把抓失敗的類別標籤 append 進去（單場擷取據此標 partial，下次重抓）
     """
     results = {}
-    for category, fields, label in [
-        ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
-        ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
-    ]:
+    for category, fields, label in (categories or MATCHUP_CATEGORIES):
         url = _with_date((f"https://stats.nba.com/stats/leaguedashptdefend?{LEAGUE_DASH_COMMON}"
                f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={team_id}"), game_date)
         data = fetch_with_retry(url, f"MatchupDefense {label}")
         if data is None:
+            if failed is not None:
+                failed.append(label)
             continue
         headers_list = data['resultSets'][0]['headers']
         for row in data['resultSets'][0]['rowSet']:
@@ -991,18 +1020,15 @@ def fetch_matchup_defense(season, season_type_api, game_date=None, team_id=TEAM_
     return results
 
 
-def fetch_team_matchup_defense(season, season_type_api, team_id=TEAM_ID):
+def fetch_team_matchup_defense(season, season_type_api, team_id=TEAM_ID, categories=None):
     """
     全隊版最近防守者（leaguedashptteamdefend，NBA.com Teams > Defense Dashboard）。
-    欄位名稱與球員版相同，共用 MATCHUP_OVERALL_FIELDS／MATCHUP_3PT_FIELDS（2 requests）。
+    欄位名稱與球員版相同，共用 MATCHUP_CATEGORIES 的欄位表（每類 1 request，預設全部 4 類）。
     全隊的 D_FG_PCT 等同對手整體命中率；PCT_PLUSMINUS＝比對手平常低多少（負＝守得好）。
     回傳 {'MIN': {...}}；team_id=0 時含全聯盟（其他隊 key 為 TEAM_ID 字串，排名用）。
     """
     results = {}
-    for category, fields, label in [
-        ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
-        ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
-    ]:
+    for category, fields, label in (categories or MATCHUP_CATEGORIES):
         url = (f"https://stats.nba.com/stats/leaguedashptteamdefend?{LEAGUE_DASH_COMMON}"
                f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={team_id}")
         data = fetch_with_retry(url, f"TeamMatchupDefense {label}")
@@ -1538,20 +1564,23 @@ def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, cas
       box                    完整 box score（見 fetch_boxscore）
       partial                某來源缺漏（NBA 單場資料偶爾晚更新；Tracking 回整組 0 也算，見 tracking_zero_filled），
                              寫入時標記、每日腳本下次重抓
-    request 數約 26：box 3（傳統＋summary＋進階）+ 單場 On/Off 1 + 球員 11（全聯盟）+ 對手對位防守 2 + 球隊 9（TeamID=0 一次拿兩隊）。"""
+    request 數約 28：box 3（傳統＋summary＋進階）+ 單場 On/Off 1 + 球員 13（全聯盟；最近防守者 4 類）
+    + 對手對位防守 2（只抓 MATCHUP_OPP_CATEGORIES）+ 球隊 9（TeamID=0 一次拿兩隊）。"""
     box, box_complete = fetch_boxscore(game_id)
     if box and not add_box_onoff(box, season, season_type_api, api_date):
         box_complete = False
     opp = next((t for t in (box or {}).get("teams", []) if t.get("teamId") != TEAM_ID), None)
     opp_id = opp["teamId"] if opp else None
+    matchup_failed = []   # 最近防守者某一類沒抓到（其他類有值時整份不會空，要另外記）
     p_sources = [
         fetch_base_box(season, season_type_api, "Player", game_date=api_date),
         fetch_tracking_data(season, season_type_api, "Player", game_date=api_date),
-        fetch_matchup_defense(season, season_type_api, game_date=api_date),
+        fetch_matchup_defense(season, season_type_api, game_date=api_date, failed=matchup_failed),
         fetch_hustle(season, season_type_api, "Player", game_date=api_date),
         fetch_shot_locations(season, season_type_api, "Player", game_date=api_date),
     ]
-    opp_def = fetch_matchup_defense(season, season_type_api, game_date=api_date, team_id=opp_id) if opp_id else {}
+    opp_def = fetch_matchup_defense(season, season_type_api, game_date=api_date, team_id=opp_id,
+                                    categories=MATCHUP_OPP_CATEGORIES) if opp_id else {}
     t_sources = [
         fetch_base_box(season, season_type_api, "Team", game_date=api_date, team_id=0),
         fetch_tracking_data(season, season_type_api, "Team", game_date=api_date, team_id=0),
@@ -1580,7 +1609,7 @@ def fetch_single_game(season, season_type_api, api_date, game_id, keep=None, cas
     # Tracking 回「整組 0」也算缺漏（看兩隊球隊數據即可，球員跟著球隊一起缺）
     partial = bool(player or team) and (
         any(not s for s in p_sources) or any(not s.get("MIN") for s in t_sources)
-        or not box_complete or not opp_id or not opp_def
+        or not box_complete or not opp_id or not opp_def or bool(matchup_failed)
         or any(not s.get(str(opp_id)) for s in t_sources)
         or tracking_zero_filled(team) or (bool(opp_team) and tracking_zero_filled(opp_team)))
     return {"player": player, "team": team, "opp_players": opp_players, "opp_team": opp_team,
