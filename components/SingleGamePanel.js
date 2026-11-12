@@ -3,7 +3,7 @@
 // 單場只有部分欄位（tracking + 最近防守者 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
 // 刪掉舊版快取（v1 wt_game_wolves_…、v2 wt_game_v2_…）：內容可能含清理前的非當時隊員，且不刪會永久佔著儲存空間
 try {
-    Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_') || k.startsWith('wt_game_v2_')).forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_') || k.startsWith('wt_game_v2_') || k.startsWith('wt_game_v3_')).forEach(k => localStorage.removeItem(k));
 } catch (e) { /* 私密模式等無法存取 localStorage */ }
 
 const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex }) => {
@@ -29,7 +29,7 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
         if (!selectedDate || !window.db || !window.firebaseModules) return;
         let cancelled = false;
         setDoc(undefined);
-        const cacheKey = `wt_game_v3_${coll}_${selectedDate}`;   // v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
+        const cacheKey = `wt_game_v4_${coll}_${selectedDate}`;   // v4：2026-11-12 重抓 10/21～10/26 四場；v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
         let cached = null;
         try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (e) { /* fall through */ }
         // 舊版會連未定稿的文件一起快取：讀到 final=false 的就丟掉重抓
