@@ -7,7 +7,7 @@
 - 投籃熱圖：每日抓取已順帶增量（定稿場次每場 1 request 併入 `wolves_shotcharts`，以全隊文件 `gameDates` 判斷已併入）；每週整季重抓 `python scripts/fetch_shotchart.py` 對帳＋更新受助攻比例（跨季重跑 `--season 2024-25 --type regular`）
 - 單場回補：`python scripts/backfill_games.py --season 2024-25 --type regular`（補失敗場 `--dates 2024-11-21,2025-01-09`；只補 box score `--box-only`，每場 4 requests，2025-26 已補；已有 box 只補進階＋單場 On/Off `--adv-only`，每場 2 requests，2026-27 起才有）
 - 單場球員混入外隊：`backfill_games.py --season X --type Y --clean-players --dry-run`（多欄位對帳，0 request；確認後拿掉 `--dry-run` 寫入→`build_bundles.py`→前端單場快取鍵換版，見 doc/handover.md；2022-23～2025-26 已清）
-- 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照；只補 Hustle 欄位加 `--only-hustle`，每份 2 requests）
+- 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照；只補 Hustle 欄位加 `--only-hustle`、只補全隊最近防守者加 `--only-team-matchup`，各每份 2 requests）
 - **逐場打包**：回補 games 後跑 `python scripts/build_bundles.py --all`（前端 Splits/總覽讀 bundle）
 - 單場題材：`python scripts/build_insights.py`（逐場 bundle＋box → `wolves_team_games/{date}.insights`，0 request，全部場次約 20 秒、只寫有變的；每日抓取有新場次自動跑；也算歷史定位標籤 `insights.marks`；改 `nba_common.INSIGHT_*` 門檻後先 `--dry-run --date …` 再重算，並把 `wt_gc_v5_` 換版）
 - 賽前預覽：`python scripts/build_preview.py`（賽程檔＋30 隊數據 → `wolves_games_index/{season}_preview`，每日抓取已順跑、只多 1 個 CDN request；單獨跑 3 requests，先 `--dry-run`；對照表欄位改 `nba_common.PREVIEW_TEAM_FIELDS`＋前端 `PREVIEW_LABELS`）

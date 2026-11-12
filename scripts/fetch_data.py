@@ -30,6 +30,7 @@ from nba_common import (
     fetch_clutch,
     fetch_lineups,
     fetch_matchup_defense,
+    fetch_team_matchup_defense,
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
@@ -291,6 +292,7 @@ def main():
         fetch_hustle(SEASON, season_type_api, "Team", team_id=0),
         fetch_defense_box(SEASON, season_type_api, "Team", team_id=0),
         fetch_opp_shot_locations(SEASON, season_type_api, team_id=0),
+        fetch_team_matchup_defense(SEASON, season_type_api, team_id=0),
     ))
     league_advanced = fetch_team_advanced(SEASON, season_type_api, team_id=0)
     team_advanced, rank_advanced = split_league(league_advanced)
@@ -306,7 +308,7 @@ def main():
         "shooting": team_shooting,  # Dict
         "clutch": team_clutch,      # Dict
         "lineups": team_lineups,    # Array
-        "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區）
+        "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區 + 全隊最近防守者）
         "advanced": team_advanced,  # Dict（全隊進階：OffRtg/DefRtg/Pace/TS% 等）
         # 聯盟名次 {類別: {欄位: 名次}}，方向見 nba_common.RANK_LOWER_BETTER／RANK_SKIP
         # 每類另記參與排名的隊數 _n（開季初 Clutch 可能只有 28 隊有資料）

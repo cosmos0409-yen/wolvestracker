@@ -1268,8 +1268,8 @@ const App = () => {
                                 {hasDefenseData ? (
                                     <window.UI.Section title="防守數據" en="Defense" accent="red"
                                         sub={`${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
-                                        {/* 球隊：防守 Box → 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
-                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...oppZonesDefs, ...defenseDefs.filter(d => d.id !== 'MatchupDefense' && d.id !== 'DefenseBox')]
+                                        {/* 球隊：防守 Box → 最近防守者（全隊版 2026-11 起有）→ 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
+                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...defenseDefs.filter(d => d.id === 'MatchupDefense'), ...oppZonesDefs, ...defenseDefs.filter(d => d.id !== 'MatchupDefense' && d.id !== 'DefenseBox')]
                                             .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => (
                                             <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense"
                                                 metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
@@ -1310,6 +1310,7 @@ const App = () => {
                                 : <window.ComparisonTab
                                     viewMode={viewMode} selectedPlayer={selectedPlayer} playerId={currentPlayerId}
                                     seasons={comparisonSeasons} loadSeason={loadComparisonSeason} seasonType={viewType}
+                                    viewSide={viewSide} setViewSide={setViewSide}
                                 />
                         )}
                     </div>

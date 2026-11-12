@@ -1,7 +1,8 @@
 // 跨季比較分頁：賽季軌跡疊圖（逐場對齊）＋ 多選賽季 × 數據類別 → 並列各季終點值表格 + 點指標畫逐季折線
 // seasons：可選賽季清單 [{key,label,short,order}]；loadSeason(key)→{team,player}（normalized）
 // 逐季折線：單一指標可疊加其他球員／全隊（他隊季別空心點＋@隊名）；多選指標改小圖並排或指數化疊圖
-const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason, seasonType }) => {
+// viewSide／setViewSide：與主畫面章節列的攻守切換共用同一個狀態；本頁只有 Playtype 類別會用到（表格上方的「進攻端｜防守端」）
+const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason, seasonType, viewSide = 'offensive', setViewSide }) => {
     const { useState, useEffect } = React;
     const trackingDefs = window.trackingDefs || [];
     const shootingDefs = window.shootingDefs || [];
@@ -43,6 +44,9 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         return () => { cancelled = true; };
     }, [selected]);
 
+    // Playtype 攻守：防守端 Synergy 沒有 Cut／Misc，兩列不顯示；PPP 為對手每球權得分（越低越好）
+    const ptDef = viewSide === 'defensive';
+    const ptSide = ptDef ? '防守 PPP' : '進攻 PPP';
     const flat = defs => defs.reduce((a, d) => a.concat(d.metrics.map(m => ({ k: m.key, l: window.metricLabel(m), e: m.englishLabel, pct: m.unit === '%', playerOnly: m.playerOnly }))), []);
     const CATS = {
         base: { label: '基本', metrics: [
@@ -50,7 +54,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
             { k: 'FG_PCT', l: '命中率', e: 'FG%', pct: true }, { k: 'FG3_PCT', l: '三分命中率', e: '3P%', pct: true }, { k: 'FT_PCT', l: '罰球命中率', e: 'FT%', pct: true },
             { k: 'STL', l: '抄截', e: 'STL' }, { k: 'BLK', l: '阻攻', e: 'BLK' }, { k: 'TOV', l: '失誤', e: 'TOV' }, { k: 'PLUS_MINUS', l: '正負值', e: '+/-' },
         ] },
-        playtype: { label: 'Playtype', metrics: PLAY.map(t => ({ k: t, l: t, e: '進攻 PPP', playtype: true })) },
+        playtype: { label: 'Playtype', metrics: PLAY.filter(t => !(ptDef && (t === 'Cut' || t === 'Misc'))).map(t => ({ k: t, l: t, e: ptSide, playtype: true })) },
         tracking: { label: '進階', metrics: flat(trackingDefs) },
         shooting: { label: '投籃', metrics: ((shootingDefs.find(d => d.id === 'ShotZones') || {}).metrics || []).map(m => ({ k: m.key, l: m.label, e: m.englishLabel, pct: true })) },
         defense: { label: '防守', metrics: flat(defenseDefs) },
@@ -78,7 +82,8 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         if (isTeam && m.playerOnly) return null;   // 球隊沒有此欄（舊資料存成 0，不可顯示）
         if (m.playtype) {
             const arr = isTeam ? (sd.team && sd.team.stats) : (sd.player && sd.player.stats && sd.player.stats[pname]);
-            const it = (arr || []).find(s => s.playType === m.k && (s.side || 'offensive') === 'offensive');
+            const side = ptDef ? 'defensive' : 'offensive';
+            const it = (arr || []).find(s => s.playType === m.k && (s.side || 'offensive') === side);
             return it ? it.ppp : null;
         }
         const dict = isTeam
@@ -117,8 +122,8 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const TYPE_LABEL_Q = { regular: '例行賽', playoffs: '季後賽' };
     const quoteOf = (m) => () => {
         const sameType = cols.length && cols.every(c => c.type === cols[0].type) && TYPE_LABEL_Q[cols[0].type];
-        // Playtype 列的 l/e 是表格用（英文 key／「進攻 PPP」），引用改成與 Playtype 章節同名：中文名每球權得分／Cut PPP
-        const label = m.playtype ? `${window.ptName(m.k)}每球權得分` : m.l;
+        // Playtype 列的 l/e 是表格用（英文 key／「進攻 PPP」），引用改成與 Playtype 章節同名：中文名每球權得分（防守端：防守…每球權失分）／Cut PPP
+        const label = m.playtype ? (ptDef ? `防守${window.ptName(m.k)}每球權失分` : `${window.ptName(m.k)}每球權得分`) : m.l;
         const en = m.playtype ? `${m.k} PPP` : m.e;
         return window.Quote.make({
             kind: 'compare', sep: '→', label, en, gkey: m.playtype ? 'PPP' : m.k, context: sameType || '', asOf: 'none',
@@ -148,7 +153,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         ].filter(Boolean);
         const subject = viewMode === 'PLAYER' ? selectedPlayer : '灰狼全隊';
         return [
-            `【${subject}｜跨季比較・${CATS[activeCat].label}${activeCat === 'playtype' ? '（進攻 PPP）' : ''}】`,
+            `【${subject}｜跨季比較・${CATS[activeCat].label}${activeCat === 'playtype' ? `（${ptSide}）` : ''}】`,
             `${sameType || '賽季'}｜${head.join('｜')}`,
             '',
             ...rows.map(r => r.line),
@@ -230,7 +235,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         const subject = viewMode === 'PLAYER' ? selectedPlayer : '灰狼全隊';
         const what = openMetrics.length === 1 && extras.length ? `・${mName(openMetrics[0])}` : '';
         return [
-            `【${subject}｜跨季比較・${CATS[activeCat].label}${what}${isIndex ? '（指數化）' : ''}】`,
+            `【${subject}｜跨季比較・${CATS[activeCat].label}${activeCat === 'playtype' ? `（${ptSide}）` : ''}${what}${isIndex ? '（指數化）' : ''}】`,
             `${sameType || '賽季'}｜${head.join('｜')}`,
             '',
             ...rows,
@@ -244,7 +249,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const UI = window.UI;
     const catSub = {
         base: '傳統數據，各季終點快照',
-        playtype: 'Synergy 進攻面 PPP（每球權得分），各季終點快照',
+        playtype: ptDef ? 'Synergy 防守面 PPP（對手每球權得分，越低越好），各季終點快照' : 'Synergy 進攻面 PPP（每球權得分），各季終點快照',
         tracking: 'NBA Tracking，各季終點快照',
         shooting: '分區命中率，各季終點快照',
         defense: '最近防守者／Hustle／防守 box，各季終點快照',
@@ -341,8 +346,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
                             </div>
                         )}
                         {/* 比較表：列＝指標、欄＝賽季（依時間排序） */}
-                        <div className="flex justify-end">
-                            <UI.ExportMenu title={`跨季比較（${CATS[activeCat].label}）`} getNode={() => tableRef.current}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            {activeCat === 'playtype' && setViewSide && (
+                                <UI.Seg ariaLabel="攻守視角" size="sm" value={viewSide} onChange={setViewSide}
+                                    options={[
+                                        { value: 'offensive', label: '進攻端', activeClass: 'bg-[#12A150] text-[#0A1626] font-medium' },
+                                        { value: 'defensive', label: '防守端', activeClass: 'bg-[#EF4444] text-[#0A1626] font-medium' },
+                                    ]} />
+                            )}
+                            <UI.ExportMenu title={`跨季比較（${CATS[activeCat].label}${activeCat === 'playtype' ? `・${ptSide}` : ''}）`} getNode={() => tableRef.current}
                                 csv={() => ({ header: ['指標', '原文', ...cols.map(c => c.label)], rows: metrics.map(m => [m.l, m.e || '', ...cols.map(c => { const v = getVal(c.key, m); return v == null ? '' : v; })]) })}
                                 text={fbText} />
                         </div>

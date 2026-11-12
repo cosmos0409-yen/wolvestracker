@@ -266,8 +266,12 @@ ADVANCED_FIELDS = [
 RANK_LOWER_BETTER = {
     "L", "TOV", "PF", "DEF_RATING", "TM_TOV_PCT", "DRIVE_TOV", "DRIVE_TOV_PCT",
     "OPP_PTS_PAINT", "OPP_PTS_FB", "OPP_PTS_2ND", "*_OPP_FG_PCT",
+    # 全隊最近防守者：對手命中率與「比平常」越低越好
+    "D_FG_PCT", "PCT_PLUSMINUS", "D_FG3_PCT", "D_FG3_PLUSMINUS",
 }
-RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA"}
+# 全隊最近防守者的出手／命中次數（量，非好壞）與對手平常命中率（對手強弱，非防守表現）不排
+RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA",
+             "D_FGM", "D_FGA", "D_FG3M", "D_FG3A", "NORMAL_FG_PCT", "NORMAL_FG3_PCT"}
 
 # ── 單場題材（build_insights.py → wolves_team_games/{date}.insights，前端單場頁「本場題材」）──
 # 只讀既有逐場 bundle 與單場 box，0 個 NBA request。改這裡之後：
@@ -858,6 +862,30 @@ def fetch_matchup_defense(season, season_type_api, game_date=None, team_id=TEAM_
             if ident not in results:
                 results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
             apply_fields(results[ident], row, headers_list, fields)
+    return results
+
+
+def fetch_team_matchup_defense(season, season_type_api, team_id=TEAM_ID):
+    """
+    全隊版最近防守者（leaguedashptteamdefend，NBA.com Teams > Defense Dashboard）。
+    欄位名稱與球員版相同，共用 MATCHUP_OVERALL_FIELDS／MATCHUP_3PT_FIELDS（2 requests）。
+    全隊的 D_FG_PCT 等同對手整體命中率；PCT_PLUSMINUS＝比對手平常低多少（負＝守得好）。
+    回傳 {'MIN': {...}}；team_id=0 時含全聯盟（其他隊 key 為 TEAM_ID 字串，排名用）。
+    """
+    results = {}
+    for category, fields, label in [
+        ("Overall", MATCHUP_OVERALL_FIELDS, "Overall"),
+        ("3+Pointers", MATCHUP_3PT_FIELDS, "3PT"),
+    ]:
+        url = (f"https://stats.nba.com/stats/leaguedashptteamdefend?{LEAGUE_DASH_COMMON}"
+               f"&DefenseCategory={category}&Season={season}&SeasonType={season_type_api}&TeamID={team_id}")
+        data = fetch_with_retry(url, f"TeamMatchupDefense {label}")
+        if data is None:
+            continue
+        headers_list = data['resultSets'][0]['headers']
+        for row in data['resultSets'][0]['rowSet']:
+            ident = _team_key(row[headers_list.index("TEAM_ID")])
+            apply_fields(results.setdefault(ident, {}), row, headers_list, fields)
     return results
 
 

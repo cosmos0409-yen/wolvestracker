@@ -32,6 +32,7 @@ from nba_common import (
     fetch_clutch,
     fetch_lineups,
     fetch_matchup_defense,
+    fetch_team_matchup_defense,
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
@@ -80,6 +81,27 @@ def patch_hustle(season, season_type_api, doc_id, dry_run=False):
     print(f"✅ {doc_id}：球隊 Hustle {len(team_h)} 欄、球員 {n}/{len(player_doc.get('stats') or {})} 位已併入")
 
 
+def patch_team_matchup(season, season_type_api, doc_id, dry_run=False):
+    """只重抓全隊最近防守者（leaguedashptteamdefend，2 requests）併入既有歷史快照的球隊 defense，其他欄位原封不動。"""
+    team_m = fetch_team_matchup_defense(season, season_type_api).get("MIN", {})
+    if not team_m:
+        print("❌ 全隊最近防守者抓取失敗，終止（不寫入）")
+        sys.exit(1)
+    print(f"   灰狼：{team_m}")
+    db = None if dry_run else init_firebase()
+    if not db:
+        print(f"🔍 dry-run：球隊 {len(team_m)} 欄，略過寫入")
+        return
+    team_ref = db.collection("wolves_team_history").document(doc_id)
+    team_doc = team_ref.get().to_dict()
+    if not team_doc:
+        print(f"❌ {doc_id} 歷史快照不存在，請先跑完整回補")
+        sys.exit(1)
+    team_doc.setdefault("defense", {}).update(team_m)
+    team_ref.set(team_doc)
+    print(f"✅ {doc_id}：全隊最近防守者 {len(team_m)} 欄已併入")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 歷史賽季回補")
     parser.add_argument("--season", required=True, help="例：2022-23")
@@ -88,6 +110,8 @@ def main():
                         help="只寫本地驗證檔，不寫入 Firestore（供上線前比對用）")
     parser.add_argument("--only-hustle", action="store_true",
                         help="只重抓 Hustle（2 requests）併入既有歷史快照的 defense，其他類別不動（新增 HUSTLE_FIELDS 欄位時用）")
+    parser.add_argument("--only-team-matchup", action="store_true",
+                        help="只重抓全隊最近防守者（2 requests）併入既有歷史快照的球隊 defense，其他類別不動")
     args = parser.parse_args()
 
     season = args.season
@@ -100,6 +124,9 @@ def main():
 
     if args.only_hustle:
         patch_hustle(season, season_type_api, doc_id, args.dry_run)
+        return
+    if args.only_team_matchup:
+        patch_team_matchup(season, season_type_api, doc_id, args.dry_run)
         return
 
     # Step 1: 抓歷史名單
@@ -135,6 +162,7 @@ def main():
         fetch_hustle(season, season_type_api, "Team"),
         fetch_defense_box(season, season_type_api, "Team"),
         fetch_opp_shot_locations(season, season_type_api),
+        fetch_team_matchup_defense(season, season_type_api),
     ).get("MIN", {})
 
     # Step 4: 抓全聯盟球員數據（皆 PlayerID 為 key，待過濾）
