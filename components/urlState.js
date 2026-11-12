@@ -34,6 +34,10 @@
 //   #lineups&n=3&p=1630183-j-mcdaniels~1630228-j-kuminga&min=100&s=2025-26&t=playoffs
 //   n 人數 2/3/5（省略＝2）；p 只看含這些球員的組合，「ID-名字」以 ~ 連接（只用 ID 對人）；min 最少分鐘（省略＝該人數預設）；
 //   view=mx 二人矩陣檢視（不可用 v＝會被當成主畫面連結）；s 賽季（省略＝當季）；t 賽別（省略＝依時節）
+// 球員比較（另一種畫面，沒有 v=）：
+//   #cmp=1630183-jaden-mcdaniels~1630228-jonathan-kuminga&sb=2025-26&t=regular&per=36&pd=last10&m=FG3_PCT
+//   cmp 兩位球員「ID-名字」以 ~ 連接（只用 ID 對人；可只帶一位，另一位自動挑上場時間最接近的隊友）；
+//   sa／sb 各自的賽季（省略＝當季）；t 賽別（省略＝依時節）；per=36 每 36 分鐘；pd 期間（last5、last10、W、L、home、away）；m 走勢指標
 window.UrlState = (function () {
     const TABS = ['overview', 'splits', 'shooting', 'defense', 'playtype', 'comparison'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,6 +73,19 @@ window.UrlState = (function () {
             out.schedView = true;
             out.schedMonth = MONTH_RE.test(q.get('m') || '') ? q.get('m') : '';
             out.schedFilter = q.get('f') === 'home' || q.get('f') === 'away' ? q.get('f') : '';
+            return out;
+        }
+        // 球員比較：有 cmp 且沒有 v。s／t 是比較頁自己的賽季，不可改動主畫面
+        if (q.has('cmp') && !q.get('v')) {
+            out.cmpView = true;
+            const toks = (q.get('cmp') || '').split('~').filter(tok => tokenPlayerId(tok));
+            out.cmpA = toks[0] || ''; out.cmpB = toks[1] || '';
+            out.cmpSa = SEASON_RE.test(q.get('sa') || '') ? q.get('sa') : '';
+            out.cmpSb = SEASON_RE.test(q.get('sb') || '') ? q.get('sb') : '';
+            out.cmpType = q.get('t') === 'regular' || q.get('t') === 'playoffs' ? q.get('t') : '';
+            out.cmpPer = q.get('per') === '36' ? '36' : '';
+            out.cmpPd = ['last5', 'last10', 'W', 'L', 'home', 'away'].includes(q.get('pd')) ? q.get('pd') : '';
+            out.cmpMetric = METRIC_RE.test(q.get('m') || '') ? q.get('m') : '';
             return out;
         }
         // 組合數據：有 lineups 且沒有 v。s/t 是組合頁自己的賽季，不可改動主畫面的賽季／賽別
@@ -145,6 +162,9 @@ window.UrlState = (function () {
         }
         if (st.capView) return ['cap', st.capSeason && `s=${st.capSeason}`, st.capTab && `tab=${st.capTab}`].filter(Boolean).join('&');
         if (st.schedView) return ['schedule', st.schedMonth && `m=${st.schedMonth}`, st.schedFilter && `f=${st.schedFilter}`].filter(Boolean).join('&');
+        if (st.cmpView) return [`cmp=${[st.cmpA, st.cmpB].filter(Boolean).map(encodeURIComponent).join('~')}`,
+            st.cmpSa && `sa=${st.cmpSa}`, st.cmpSb && `sb=${st.cmpSb}`, st.cmpType && `t=${st.cmpType}`, st.cmpPer === '36' && 'per=36',
+            st.cmpPd && `pd=${st.cmpPd}`, st.cmpMetric && `m=${st.cmpMetric}`].filter(Boolean).join('&');
         if (st.luView) return ['lineups', st.luN && st.luN !== 2 && `n=${st.luN}`,
             st.luPicks && st.luPicks.length && `p=${st.luPicks.map(encodeURIComponent).join('~')}`,
             st.luMin != null && `min=${st.luMin}`, st.luN === 2 && st.luView2 === 'mx' && 'view=mx',
@@ -179,5 +199,9 @@ window.UrlState = (function () {
     const lineupsHref = (o = {}) => '#' + serialize({ luView: true, luN: o.n || 2, luPicks: o.picks || [], luMin: o.min == null ? null : o.min,
         luView2: o.view || '', luSeason: o.season || '', luType: o.type || '' });
 
-    return { parse, serialize, gameHref, capHref, schedHref, vsHref, lineupsHref, playerToken, tokenPlayerId, TABS };
+    // 比較頁：o＝{ a, b（「ID-名字」）, sa, sb, type, per, pd, metric }，全部可省略
+    const compareHref = (o = {}) => '#' + serialize({ cmpView: true, cmpA: o.a || '', cmpB: o.b || '', cmpSa: o.sa || '', cmpSb: o.sb || '',
+        cmpType: o.type || '', cmpPer: o.per || '', cmpPd: o.pd || '', cmpMetric: o.metric || '' });
+
+    return { parse, serialize, gameHref, capHref, schedHref, vsHref, lineupsHref, compareHref, playerToken, tokenPlayerId, TABS };
 })();

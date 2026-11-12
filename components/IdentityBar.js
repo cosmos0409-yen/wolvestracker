@@ -5,7 +5,8 @@
 // asOf：時光機（僅當季）{ value, min, max, onChange }——所有章節的快照數據與季平均都只算到這天，所以放在每章都看得到的身分列；歷史賽季傳 null
 // periodSlot：期間膠囊（只在手機顯示，放「數據截至」下一行；桌機在章節列右側，見 PeriodControl.js）
 // 身分列的 4 個主數字一律是「整季（截至該日）」，不跟期間篩選
-const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf, periodSlot }) => {
+// onCompare：球員視角的「比較」（開 #cmp，帶入目前球員；另一位自動挑上場時間最接近的隊友）
+const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf, periodSlot, onCompare }) => {
     const GA = window.GameAgg;
     const FIELDS = viewMode === 'TEAM'
         ? [{ key: 'PTS', en: 'PTS', label: '得分' }, { key: 'REB', en: 'REB', label: '籃板' },
@@ -59,15 +60,23 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                             </span>)}
                             {periodSlot && <span className="flex basis-full sm:hidden">{periodSlot}</span>}
                         </div>
-                        {viewMode === 'PLAYER' && salary && (
+                        {viewMode === 'PLAYER' && (salary || onCompare) && (<div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {onCompare && (
+                            <button type="button" onClick={onCompare} title="和另一位球員並排比較"
+                                className="inline-flex min-h-[24px] items-center gap-1 whitespace-nowrap rounded-full border border-white/15 px-2.5 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-100">
+                                比較<span aria-hidden="true" className="text-slate-500">↗</span>
+                            </button>
+                        )}
+                        {salary && (
                             <button type="button" onClick={onSalary} title={salary.title}
-                                className="mt-1 inline-flex min-h-[24px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-white/15 px-2.5 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-100">
+                                className="inline-flex min-h-[24px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border border-white/15 px-2.5 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-100">
                                 <span className="font-mono text-[10px] text-slate-500">{salary.season} 薪資</span>
                                 <span className="font-mono tabular-nums text-slate-100">{salary.text}</span>
                                 {salary.badge && <span className="text-[11px] text-amber-300">{salary.badge}</span>}
                                 <span aria-hidden="true" className="text-slate-500">↗</span>
                             </button>
                         )}
+                        </div>)}
                     </div>
                 </div>
                 <dl className="grid grid-cols-4 sm:ml-auto sm:flex sm:items-end gap-x-6 gap-y-1">
