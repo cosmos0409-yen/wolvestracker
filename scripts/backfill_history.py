@@ -5,6 +5,7 @@ Wolves Tracker - 歷史賽季回補腳本
 Usage:
     python backfill_history.py --season 2022-23 --type regular
     python backfill_history.py --season 2023-24 --type playoffs
+    python backfill_history.py --season 2024-25 --type regular --only-matchup --dry-run   # 只補最近防守者兩分／護框（4 requests）
 
 說明：
     - 抓取指定歷史賽季的灰狼球隊與球員數據（賽季末終點快照，完整類別）
@@ -36,6 +37,7 @@ from nba_common import (
     LINEUP_GROUPS,
     fetch_matchup_defense,
     fetch_team_matchup_defense,
+    MATCHUP_CATEGORIES,
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
@@ -105,6 +107,55 @@ def patch_team_matchup(season, season_type_api, doc_id, dry_run=False):
     print(f"✅ {doc_id}：全隊最近防守者 {len(team_m)} 欄已併入")
 
 
+def matchup_categories(labels):
+    """'2PT,Rim' → MATCHUP_CATEGORIES 中對應標籤的類別（標籤打錯直接終止，不默默略過）"""
+    want = [x.strip() for x in labels.split(",") if x.strip()]
+    known = {c[2]: c for c in MATCHUP_CATEGORIES}
+    bad = [x for x in want if x not in known]
+    if bad or not want:
+        print(f"❌ --matchup-cats 不認得：{bad or labels}（可用：{', '.join(known)}）")
+        sys.exit(1)
+    return [known[x] for x in want]
+
+
+def patch_matchup(season, season_type_api, doc_id, labels, dry_run=False):
+    """只重抓最近防守者指定類別（球員＋全隊，每類各 1 request），併入既有歷史快照的 defense，其他欄位原封不動。
+    用在新增 MATCHUP_CATEGORIES 類別之後補舊賽季（2026-11 加的兩分、護框：--matchup-cats 2PT,Rim，共 4 requests）。
+    只更新 doc 裡已有的球員（不新增人）；某類沒有出手的球員不會出現在回應裡 → 不寫該類欄位（不補 0）"""
+    cats = matchup_categories(labels)
+    failed = []
+    player_m = fetch_matchup_defense(season, season_type_api, categories=cats, failed=failed)
+    team_m = fetch_team_matchup_defense(season, season_type_api, categories=cats).get("MIN", {})
+    expect = {f[0] for _, fields, _ in cats for f in fields}
+    if failed or not player_m or not expect <= set(team_m):
+        print(f"❌ 最近防守者抓取不完整（球員失敗類別 {failed or '無'}、全隊缺 {sorted(expect - set(team_m))}），終止（不寫入）")
+        sys.exit(1)
+    print(f"   灰狼全隊：{ {k: team_m[k] for k in sorted(expect)} }")
+    db = None if dry_run else init_firebase()
+    if not db:
+        print(f"🔍 dry-run：全隊 {len(expect)} 欄、球員 {len(player_m)} 位，略過寫入")
+        return
+    team_ref = db.collection("wolves_team_history").document(doc_id)
+    team_doc = team_ref.get().to_dict()
+    player_ref = db.collection("wolves_player_history").document(doc_id)
+    player_doc = player_ref.get().to_dict()
+    if not team_doc or not player_doc:
+        print(f"❌ {doc_id} 歷史快照不存在，請先跑完整回補")
+        sys.exit(1)
+    team_doc.setdefault("defense", {}).update({k: team_m[k] for k in expect})
+    n = 0
+    for pid_str, rec in (player_doc.get("stats") or {}).items():
+        m = player_m.get(pid_str)
+        if not m:
+            continue
+        rec.setdefault("defense", {}).update({k: v for k, v in m.items() if k in expect})
+        n += 1
+    team_ref.set(team_doc)
+    player_ref.set(player_doc)
+    print(f"✅ {doc_id}：最近防守者 {', '.join(c[2] for c in cats)}——全隊 {len(expect)} 欄、"
+          f"球員 {n}/{len(player_doc.get('stats') or {})} 位已併入")
+
+
 def patch_lineups(season, season_type_api, season_type_label, type_key, dry_run=False):
     """只抓二人／三人／五人全部組合（每種 1 request），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）。
     歷史快照的 lineups（五人前 10 組）不動。場數取自 wolves_games_index/{season}_{type}（0 request）"""
@@ -129,6 +180,10 @@ def main():
                         help="只重抓 Hustle（2 requests）併入既有歷史快照的 defense，其他類別不動（新增 HUSTLE_FIELDS 欄位時用）")
     parser.add_argument("--only-team-matchup", action="store_true",
                         help="只重抓全隊最近防守者（4 requests）併入既有歷史快照的球隊 defense，其他類別不動")
+    parser.add_argument("--only-matchup", action="store_true",
+                        help="只重抓最近防守者 --matchup-cats 指定類別（球員＋全隊，每類 2 requests）併入既有歷史快照的 defense，其他類別不動")
+    parser.add_argument("--matchup-cats", default="2PT,Rim",
+                        help="搭配 --only-matchup：類別標籤（MATCHUP_CATEGORIES 第三欄，逗號分隔），預設 2PT,Rim")
     parser.add_argument("--only-lineups", action="store_true",
                         help="只抓二人／三人／五人全部組合（3 requests），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）")
     args = parser.parse_args()
@@ -146,6 +201,9 @@ def main():
         return
     if args.only_team_matchup:
         patch_team_matchup(season, season_type_api, doc_id, args.dry_run)
+        return
+    if args.only_matchup:
+        patch_matchup(season, season_type_api, doc_id, args.matchup_cats, args.dry_run)
         return
     if args.only_lineups:
         patch_lineups(season, season_type_api, season_type_label, type_key, args.dry_run)

@@ -15,6 +15,7 @@ Usage:
     python backfill_games.py --season 2025-26 --type regular --start 40 --limit 20  # 分批(第40場起20場)
     python backfill_games.py --season 2025-26 --type regular --box-only  # 只替既有單場補 box score（每場約 4 requests）
     python backfill_games.py --type regular --adv-only                   # 已有 box 的場次只補進階＋單場 On/Off（每場 2 requests）
+    python backfill_games.py --type regular --matchup-only                # 既有單場只補灰狼球員的最近防守者兩分／護框（每場 2 requests）
     python backfill_games.py --season 2023-24 --type regular --clean-players --dry-run  # 對帳找出混入的非當時隊員（0 request）
 """
 
@@ -85,6 +86,53 @@ def backfill_box_only(db, games, season, season_type_api, adv_only=False):
     print(f"\n=== box score 完成 {done}/{len(games)} 場 ===")
     if partial:
         print(f"[PARTIAL] {len(partial)} 場：--dates {','.join(partial)}")
+    if failed:
+        print(f"[FAILED] {len(failed)} 場：--dates {','.join(failed)}")
+    if skipped:
+        print(f"[SKIP] {len(skipped)} 場無單場文件：{', '.join(skipped)}")
+
+
+def backfill_matchup_only(db, games, season, season_type_api, labels):
+    """只替既有單場文件的灰狼球員補最近防守者指定類別（每類每場 1 request），以 playerId 對應、合併寫入 players，
+    不動其他欄位；文件不存在的場次跳過。某類抓失敗的場次整場不寫（印 [FAILED]，之後用 --dates 重補）。
+    某類沒有出手的球員不會出現在回應裡 → 不寫該類欄位（前端當作沒有樣本，不補 0）。"""
+    if not db:
+        print("❌ --matchup-only 需要 Firebase（找不到憑證），終止")
+        sys.exit(1)
+    want = [x.strip() for x in labels.split(",") if x.strip()]
+    known = {c[2]: c for c in nc.MATCHUP_CATEGORIES}
+    if not want or any(x not in known for x in want):
+        print(f"❌ --matchup-cats 不認得：{labels}（可用：{', '.join(known)}）")
+        sys.exit(1)
+    cats = [known[x] for x in want]
+    keys = {f[0] for _, fields, _ in cats for f in fields}
+    done, failed, skipped = 0, [], []
+    for doc_date, api_date, matchup, wl, gid in games:
+        ref = db.collection("wolves_player_games").document(doc_date)
+        snap = ref.get()
+        if not snap.exists:
+            print(f"[SKIP] {doc_date} {matchup}：wolves_player_games 無此文件")
+            skipped.append(doc_date)
+            continue
+        players = (snap.to_dict() or {}).get("players") or {}
+        pid_to_key = {str(v.get("playerId")): k for k, v in players.items() if v.get("playerId")}
+        fail = []
+        res = nc.fetch_matchup_defense(season, season_type_api, game_date=api_date, categories=cats, failed=fail)
+        if fail:
+            print(f"[FAILED] {doc_date} {matchup}：{', '.join(fail)} 抓不到，不寫入")
+            failed.append(doc_date)
+            continue
+        n = 0
+        for pid, rec in res.items():
+            k = pid_to_key.get(pid)
+            if not k:
+                continue
+            players[k].update({f: v for f, v in rec.items() if f in keys})
+            n += 1
+        ref.update({"players": players})
+        print(f"✅ {doc_date} {matchup} {wl}｜{', '.join(want)}：{n}/{len(players)} 人有出手")
+        done += 1
+    print(f"\n=== 最近防守者補類別完成 {done}/{len(games)} 場 ===")
     if failed:
         print(f"[FAILED] {len(failed)} 場：--dates {','.join(failed)}")
     if skipped:
@@ -177,6 +225,10 @@ def main():
                         help="只補 box score（每場約 4 requests，含進階＋單場 On/Off），合併寫入既有 wolves_team_games，不動其他欄位")
     parser.add_argument("--adv-only", action="store_true",
                         help="已有 box 的場次只補進階 box＋單場 On/Off（每場 2 requests）")
+    parser.add_argument("--matchup-only", action="store_true",
+                        help="既有單場只補灰狼球員的最近防守者 --matchup-cats 類別（每類每場 1 request），合併寫入 wolves_player_games")
+    parser.add_argument("--matchup-cats", default="2PT,Rim",
+                        help="搭配 --matchup-only：類別標籤（nba_common.MATCHUP_CATEGORIES 第三欄），預設 2PT,Rim")
     parser.add_argument("--clean-players", action="store_true",
                         help="對帳剔除單場球員文件裡混入的非當時隊員（只讀寫 Firestore，0 request）")
     parser.add_argument("--dry-run", action="store_true", help="搭配 --clean-players：只列出、不寫入")
@@ -192,7 +244,7 @@ def main():
 
     print(f"=== 單場回補 {season} {season_type_label} ===")
     box_mode = args.box_only or args.adv_only
-    if not box_mode:   # --box-only／--adv-only 不需要球員名單，省一次 request
+    if not box_mode and not args.matchup_only:   # --box-only／--adv-only／--matchup-only 不需要球員名單，省一次 request
         rotation = fetch_rotation_names(season, season_type_api, args.min_gp)
         print(f"輪換球員（GP>={args.min_gp}）：{len(rotation)} 人 — {', '.join(sorted(rotation))}")
 
@@ -225,6 +277,9 @@ def main():
             games = games[:args.limit]
     print(f"共 {total} 場，本次處理 {len(games)} 場（start={args.start}, limit={args.limit or '全部'}）")
 
+    if args.matchup_only:
+        backfill_matchup_only(db, games, season, season_type_api, args.matchup_cats)
+        return
     if box_mode:
         backfill_box_only(db, games, season, season_type_api, adv_only=args.adv_only)
         return
