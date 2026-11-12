@@ -6,6 +6,7 @@ Usage:
     python backfill_history.py --season 2022-23 --type regular
     python backfill_history.py --season 2023-24 --type playoffs
     python backfill_history.py --season 2024-25 --type regular --only-matchup --dry-run   # 只補最近防守者兩分／護框（4 requests）
+    python backfill_history.py --season 2024-25 --type regular --only-adv-scoring --dry-run   # 只補球員進階＋得分組成＋全隊進階（6 requests）
 
 說明：
     - 抓取指定歷史賽季的灰狼球隊與球員數據（賽季末終點快照，完整類別）
@@ -38,6 +39,9 @@ from nba_common import (
     fetch_matchup_defense,
     fetch_team_matchup_defense,
     MATCHUP_CATEGORIES,
+    fetch_team_advanced,
+    fetch_player_advanced,
+    fetch_scoring,
     fetch_hustle,
     fetch_defense_box,
     fetch_opp_shot_locations,
@@ -51,7 +55,7 @@ from nba_common import (
 CURRENT_SEASON = get_roster_season()  # 用來抓現役名單（7/1 起即為新一季名冊）：作為 isCurrentRoster 對照，並讓新援納入回補
 
 # 球員終點快照的類別欄位（除 synergy 走 stats[] 陣列外，其餘為 dict）
-PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff"]
+PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff", "advanced", "scoring"]
 
 
 def patch_hustle(season, season_type_api, doc_id, dry_run=False):
@@ -156,6 +160,47 @@ def patch_matchup(season, season_type_api, doc_id, labels, dry_run=False):
           f"球員 {n}/{len(player_doc.get('stats') or {})} 位已併入")
 
 
+def patch_adv_scoring(season, season_type_api, doc_id, dry_run=False):
+    """只抓球員整季進階＋得分組成（球員、全隊）與全隊進階，併入既有歷史快照，其他欄位原封不動（6 requests）。
+    球員：advanced（1）、scoring（Scoring＋Misc 2）；全隊：scoring（2）、advanced（1，歷史期末快照原本沒有全隊進階）。
+    只更新 doc 裡已有的球員（不新增人）；任一支沒抓到就整份不寫"""
+    p_adv = fetch_player_advanced(season, season_type_api)
+    p_sc = fetch_scoring(season, season_type_api, "Player")
+    t_sc = fetch_scoring(season, season_type_api, "Team").get("MIN", {})
+    t_adv = fetch_team_advanced(season, season_type_api).get("MIN", {})
+    if not (p_adv and p_sc and t_sc and t_adv):
+        print(f"❌ 抓取不完整（球員進階 {len(p_adv)}、球員得分 {len(p_sc)}、全隊得分 {len(t_sc)} 欄、全隊進階 {len(t_adv)} 欄），終止（不寫入）")
+        sys.exit(1)
+    print(f"   灰狼全隊得分組成：{t_sc}")
+    print(f"   灰狼全隊進階：{t_adv}")
+    db = None if dry_run else init_firebase()
+    if not db:
+        print(f"🔍 dry-run：全聯盟球員進階 {len(p_adv)} 位、得分 {len(p_sc)} 位，略過寫入")
+        return
+    team_ref = db.collection("wolves_team_history").document(doc_id)
+    team_doc = team_ref.get().to_dict()
+    player_ref = db.collection("wolves_player_history").document(doc_id)
+    player_doc = player_ref.get().to_dict()
+    if not team_doc or not player_doc:
+        print(f"❌ {doc_id} 歷史快照不存在，請先跑完整回補")
+        sys.exit(1)
+    team_doc["scoring"] = t_sc
+    team_doc["advanced"] = t_adv
+    n_adv = n_sc = 0
+    for pid_str, rec in (player_doc.get("stats") or {}).items():
+        a, sc = p_adv.get(pid_str), p_sc.get(pid_str)
+        if a:
+            rec["advanced"] = {k: v for k, v in a.items() if k != "playerName"}
+            n_adv += 1
+        if sc:
+            rec["scoring"] = {k: v for k, v in sc.items() if k != "playerName"}
+            n_sc += 1
+    team_ref.set(team_doc)
+    player_ref.set(player_doc)
+    total = len(player_doc.get("stats") or {})
+    print(f"✅ {doc_id}：全隊得分組成 {len(t_sc)} 欄、全隊進階 {len(t_adv)} 欄；球員進階 {n_adv}/{total}、得分組成 {n_sc}/{total} 位已併入")
+
+
 def patch_lineups(season, season_type_api, season_type_label, type_key, dry_run=False):
     """只抓二人／三人／五人全部組合（每種 1 request），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）。
     歷史快照的 lineups（五人前 10 組）不動。場數取自 wolves_games_index/{season}_{type}（0 request）"""
@@ -184,6 +229,8 @@ def main():
                         help="只重抓最近防守者 --matchup-cats 指定類別（球員＋全隊，每類 2 requests）併入既有歷史快照的 defense，其他類別不動")
     parser.add_argument("--matchup-cats", default="2PT,Rim",
                         help="搭配 --only-matchup：類別標籤（MATCHUP_CATEGORIES 第三欄，逗號分隔），預設 2PT,Rim")
+    parser.add_argument("--only-adv-scoring", action="store_true",
+                        help="只抓球員整季進階＋得分組成（球員、全隊）與全隊進階（6 requests）併入既有歷史快照，其他類別不動")
     parser.add_argument("--only-lineups", action="store_true",
                         help="只抓二人／三人／五人全部組合（3 requests），寫 wolves_games_index/{season}_{type}_lineups（組合頁用）")
     args = parser.parse_args()
@@ -204,6 +251,9 @@ def main():
         return
     if args.only_matchup:
         patch_matchup(season, season_type_api, doc_id, args.matchup_cats, args.dry_run)
+        return
+    if args.only_adv_scoring:
+        patch_adv_scoring(season, season_type_api, doc_id, args.dry_run)
         return
     if args.only_lineups:
         patch_lineups(season, season_type_api, season_type_label, type_key, args.dry_run)
@@ -244,6 +294,8 @@ def main():
         fetch_opp_shot_locations(season, season_type_api),
         fetch_team_matchup_defense(season, season_type_api),
     ).get("MIN", {})
+    team_advanced = fetch_team_advanced(season, season_type_api).get("MIN", {})
+    team_scoring = fetch_scoring(season, season_type_api, "Team").get("MIN", {})
 
     # Step 4: 抓全聯盟球員數據（皆 PlayerID 為 key，待過濾）
     print(f"\n--- 抓取全聯盟球員數據（將以歷史名單過濾） ---")
@@ -261,6 +313,8 @@ def main():
         fetch_defense_box(season, season_type_api, "Player"),
     )
     p_onoff = fetch_onoff(season, season_type_api)
+    p_advanced = fetch_player_advanced(season, season_type_api)
+    p_scoring = fetch_scoring(season, season_type_api, "Player")
 
     # Step 5: 過濾與組裝（PlayerID 為主鍵，內層比照每日快照的 per-player 結構）
     #
@@ -294,7 +348,8 @@ def main():
         ensure(pid_int, pname)["stats"].append(item)
 
     for field, src in [("base", p_base), ("tracking", p_tracking), ("shooting", p_shooting),
-                       ("clutch", p_clutch), ("defense", p_defense), ("onoff", p_onoff)]:
+                       ("clutch", p_clutch), ("defense", p_defense), ("onoff", p_onoff),
+                       ("advanced", p_advanced), ("scoring", p_scoring)]:
         for pid_str, data in src.items():
             pid_int = int(pid_str)
             if pid_int not in include_ids:
@@ -341,6 +396,8 @@ def main():
         "clutch": team_clutch,
         "lineups": team_lineups,
         "defense": team_defense,
+        "advanced": team_advanced,
+        "scoring": team_scoring,
     }
     final_player_data = {
         "season": season,
