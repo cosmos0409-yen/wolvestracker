@@ -1406,22 +1406,23 @@ const App = () => {
                                     <window.UI.Section title="防守數據" en="Defense" accent="red"
                                         sub={defPeriod
                                             ? `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · ${periodLabel}（${defPeriod.cur.GP} 場）· 有逐場資料的群組跟著期間，箭頭＝vs 全季；其他為整季快照（停用）`
-                                            : `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
-                                        {/* 球隊：防守 Box → 最近防守者（全隊版 2026-11 起有）→ 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
-                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...defenseDefs.filter(d => d.id === 'MatchupDefense'), ...oppZonesDefs, ...defenseDefs.filter(d => d.id !== 'MatchupDefense' && d.id !== 'DefenseBox')]
+                                            : `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好；vs 平常負數＝守得好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
+                                        {/* 球隊：防守 Box → 最近防守者（全隊版 2026-11 起有）→ 護框 → 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
+                                        {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...defenseDefs.filter(d => d.id === 'MatchupDefense' || d.id === 'RimProtection'), ...oppZonesDefs, ...defenseDefs.filter(d => !['MatchupDefense', 'RimProtection', 'DefenseBox'].includes(d.id))]
                                             .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => {
                                             // 期間篩選：逐場有這組數字 → 用期間加總；沒有（防守 Box、對手分區、全隊最近防守者）→ 整季快照、停用
                                             const live = defPeriod && (window.GAME_DEFENSE_IDS || []).includes(def.id)
                                                 && def.metrics.some(m => typeof defPeriod.all[m.key] === 'number');
                                             return live ? (
                                                 <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense" clickable={false}
-                                                    metrics={def.metrics} current={defPeriod.cur} prev={defPeriod.all}
+                                                    metrics={def.metrics} current={defPeriod.cur} prev={defPeriod.all} cols={def.cols} gp={defPeriod.cur.GP}
                                                     citeAsOf="none" citeNote={`${periodLabel}（${defPeriod.cur.GP} 場）`} compareTags={['全季', periodLabel]} />
                                             ) : (
                                                 <window.UI.Locked key={def.id} on={periodOn}>
                                                     <TrackingCardRow title={def.title} category={def.id} source="defense"
                                                         metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
-                                                        naReason={def.id === 'MatchupDefense' ? naCrossTeam : null}
+                                                        cols={def.cols} gp={currentBase.GP}
+                                                        naReason={def.id === 'MatchupDefense' || def.id === 'RimProtection' ? naCrossTeam : null}
                                                         rankCats={viewMode === 'TEAM' ? 'defense' : null} />
                                                 </window.UI.Locked>
                                             );

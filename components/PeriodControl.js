@@ -94,7 +94,7 @@ const PeriodPanel = ({ st, onChange, onClose, games, isPlayoffs, players = [], i
                     setCond(i, v === 'played' || v === 'absent' ? { kind: v } : { kind: 'stat', key: v, op: c.op || 'ge', value: c.kind === 'stat' ? c.value : NaN }); }}>
                 {c.who !== 'T' && <optgroup label="出賽"><option value="absent">未出賽</option><option value="played">有出賽</option></optgroup>}
                 {metricGroups(c.who).map(([t, ms]) => (
-                    <optgroup key={t} label={t}>{ms.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}</optgroup>
+                    <optgroup key={t} label={t}>{ms.map(m => <option key={m.key} value={m.key}>{window.metricLabel(m)}</option>)}</optgroup>
                 ))}
             </select>
             {c.kind === 'stat' && (<>

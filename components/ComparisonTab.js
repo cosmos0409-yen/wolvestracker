@@ -108,7 +108,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const metaOf = (key, who) => (who === TEAM || (!who && viewMode !== 'PLAYER')) ? null : (data[key]?.player?.meta?.[who || selectedPlayer] || null);
     // 對位防守的指標 key 集合：同屬 defense 類別，但只有這一組綁 TeamID。
     // Hustle / DefenseBox 走 leaguedash，跨隊拿得到值，不可一併標成不適用
-    const MATCHUP_KEYS = new Set(((defenseDefs.find(d => d.id === 'MatchupDefense') || {}).metrics || []).map(m => m.key));
+    const MATCHUP_KEYS = new Set(defenseDefs.filter(d => d.id === 'MatchupDefense' || d.id === 'RimProtection').flatMap(d => d.metrics).map(m => m.key));
     // 只在「值真的是 null」時才問是不是不適用；有數字一律照常顯示（含真的是 0）
     const naOf = (key, m) => {
         const meta = metaOf(key);

@@ -304,11 +304,27 @@ window.clutchDefs = [
 // 順序＝重要性：最近防守者 → 防守 Box → 拼勁 → 掩護與卡位（球隊防守頁另把對手分區插在防守 Box 後，見 App）
 window.defenseDefs = [
     {
-        id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', metrics: [
+        // 3 層 × 3 格（總體／兩分／三分 × 出手／命中率／vs 平常）；cols：手機也 3 欄，同一層排成一列
+        // att：該格的出手數欄位（小樣本判斷用，見 DEF_SHOT_RULES）；signed：正值帶「+」
+        id: 'MatchupDefense', title: '最近防守者 (Defense Dashboard)', cols: 3, metrics: [
+            // 格子標籤要在手機 3 欄（約 66px）單行放得下；完整名稱放 longLabel（引用、平鋪清單用 window.metricLabel）
             { key: 'D_FGA', label: '防守出手數', englishLabel: 'DFGA', neutral: true },
-            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'DFG%', unit: '%', betterIsLarger: false },
-            { key: 'PCT_PLUSMINUS', label: '對手命中率 vs 平常', englishLabel: 'DIFF%（負=守得好）', unit: '%', betterIsLarger: false },
-            { key: 'D_FG3_PCT', label: '對手三分命中率', englishLabel: 'DFG% · 3 Pointers', unit: '%', betterIsLarger: false },
+            { key: 'D_FG_PCT', label: '對手命中率', englishLabel: 'DFG%', unit: '%', betterIsLarger: false, att: 'D_FGA' },
+            { key: 'PCT_PLUSMINUS', label: '總體 vs 平常', longLabel: '對手命中率 vs 平常', englishLabel: 'DIFF%', unit: '%', betterIsLarger: false, att: 'D_FGA', signed: true },
+            { key: 'D_FG2A', label: '兩分出手', longLabel: '兩分防守出手', englishLabel: 'DFGA · 2PT', neutral: true },
+            { key: 'D_FG2_PCT', label: '兩分命中率', longLabel: '對手兩分命中率', englishLabel: 'DFG% · 2PT', unit: '%', betterIsLarger: false, att: 'D_FG2A' },
+            { key: 'D_FG2_PLUSMINUS', label: '兩分 vs 平常', longLabel: '對手兩分命中率 vs 平常', englishLabel: 'DIFF% · 2PT', unit: '%', betterIsLarger: false, att: 'D_FG2A', signed: true },
+            { key: 'D_FG3A', label: '三分出手', longLabel: '三分防守出手', englishLabel: 'DFGA · 3PT', neutral: true },
+            { key: 'D_FG3_PCT', label: '三分命中率', longLabel: '對手三分命中率', englishLabel: 'DFG% · 3PT', unit: '%', betterIsLarger: false, att: 'D_FG3A' },
+            { key: 'D_FG3_PLUSMINUS', label: '三分 vs 平常', longLabel: '對手三分命中率 vs 平常', englishLabel: 'DIFF% · 3PT', unit: '%', betterIsLarger: false, att: 'D_FG3A', signed: true },
+        ]
+    },
+    {
+        // 護框：籃框 6 呎內（NBA Defense Dashboard「Less Than 6Ft」），2026-11 起
+        id: 'RimProtection', title: '護框 (Rim Protection · Less Than 6 Ft)', cols: 3, metrics: [
+            { key: 'D_RIM_FGA', label: '籃下出手', longLabel: '籃下防守出手', englishLabel: 'DFGA · < 6 Ft', neutral: true },
+            { key: 'D_RIM_PCT', label: '籃下命中率', longLabel: '籃下對手命中率', englishLabel: 'DFG% · < 6 Ft', unit: '%', betterIsLarger: false, att: 'D_RIM_FGA' },
+            { key: 'D_RIM_PLUSMINUS', label: '籃下 vs 平常', longLabel: '籃下對手命中率 vs 平常', englishLabel: 'DIFF% · < 6 Ft', unit: '%', betterIsLarger: false, att: 'D_RIM_FGA', signed: true },
         ]
     },
     {
@@ -362,7 +378,12 @@ window.oppZonesDefs = [
 ];
 
 // 有逐場資料的防守群組（單場頁展開列、Splits、跨季疊圖用）；新增 Hustle 類群組要加進來
-window.GAME_DEFENSE_IDS = ['MatchupDefense', 'Hustle', 'Screens'];
+window.GAME_DEFENSE_IDS = ['MatchupDefense', 'RimProtection', 'Hustle', 'Screens'];
+// 最近防守者（含護框）的小樣本門檻：整季／期間合計出手少於 seasonMin → 數值下方標「樣本小 · N 次」；
+// 單場（單場頁展開列）少於 gameMin → 「vs 平常」顯示「—」（命中／出手照列）
+window.DEF_SHOT_RULES = { seasonMin: 20, gameMin: 3 };
+// 2026-11 加進防守章節的最近防守者格子：兩分、護框只有本季有逐場，對戰頁（近三季）不列，維持原本的 4 格
+window.DEF_NEW_KEYS = ['D_FG2A', 'D_FG2_PCT', 'D_FG2_PLUSMINUS', 'D_FG3A', 'D_FG3_PLUSMINUS', 'D_RIM_FGA', 'D_RIM_PCT', 'D_RIM_PLUSMINUS'];
 
 // ── 聯盟名次（全隊每日快照的 ranks 欄位，fetch_data.py 以 30 隊算好）──
 // App 每次 render 設 window.RankCtx：只在全隊視角、當季每日快照、該快照有 ranks 時有值，其他情況為 null（不顯示名次）

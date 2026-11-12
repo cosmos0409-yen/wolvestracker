@@ -6,10 +6,17 @@
 // citeAsOf / citeNote：傳給 StatCell 組引用句（Splits 為期間、單場為場次）
 // rankCats：給了就到 window.RankCtx 查聯盟名次（快照類別名或陣列，見 window.leagueRank）；只限全隊當季快照／全季格
 // compareTags：[prev 標籤, current 標籤]（Splits 期間 vs 全季）→ 加入引用籃時存成前後比較「全季 → 近 5 場」
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote, rankCats = null, compareTags = null }) => {
+// cols：每列格數（群組 defs 的 cols，如最近防守者 3 層 × 3 格手機也排 3 欄）；不給依指標數（UI.ledgerCols）
+// gp：current 的場數（快照用 base GP、期間用 GameAgg 的 GP）→ 指標有 att 時以「場均出手 × gp」判斷 DEF_SHOT_RULES.seasonMin 小樣本
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote, rankCats = null, compareTags = null, cols = null, gp = null }) => {
     if (!current) return null;
     const UI = window.UI;
     const [zh, en] = UI.splitTitle(title);
+    const sampleOf = (m) => {
+        if (!m.att || !(gp > 0) || typeof current[m.att] !== 'number') return null;
+        const n = Math.round(current[m.att] * gp);
+        return n < (window.DEF_SHOT_RULES || {}).seasonMin ? n : null;
+    };
     return (
         <section onClick={clickable ? () => onClick({ type: 'tracking', id: category, source }) : undefined}
             className={`mb-6 last:mb-0 ${clickable ? 'group cursor-pointer' : ''}`}>
@@ -26,13 +33,14 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                     <span className="shrink-0 font-mono text-[10px] text-slate-500 group-hover:text-[#12A150] transition-colors">{actionLabel} →</span>
                 )}
             </header>
-            <UI.Ledger cols={UI.ledgerCols(metrics.length)}>
+            <UI.Ledger cols={cols === 3 ? 'grid-cols-3' : UI.ledgerCols(metrics.length)}>
                 {metrics.map((m, i) => (
-                    <UI.StatCell key={i} label={m.label} en={m.englishLabel}
+                    <UI.StatCell key={i} label={m.label} fullLabel={window.metricLabel(m)} en={m.englishLabel}
                         value={current[m.key]} prevValue={prev?.[m.key]}
                         unit={m.unit} betterIsLarger={m.betterIsLarger !== false}
                         naReason={naReason} gkey={m.key} citeAsOf={citeAsOf} citeNote={citeNote}
                         rank={rankCats ? window.leagueRank(rankCats, m.key) : null} neutral={!!m.neutral}
+                        sample={sampleOf(m)} signed={!!m.signed}
                         quote={compareTags && typeof prev?.[m.key] === 'number' && typeof current[m.key] === 'number'
                             ? { kind: 'compare', sep: '→', label: window.metricLabel(m), rank: null,
                                 values: [{ tag: compareTags[0], value: prev[m.key], unit: m.unit }, { tag: compareTags[1], value: current[m.key], unit: m.unit }] }

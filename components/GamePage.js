@@ -152,13 +152,17 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     };
     const metaOf = (k) => { if (ADV_META[k]) return ADV_META[k]; for (const d of ALL_DEFS) { const m = d.metrics.find(x => x.key === k); if (m) return m; } return { key: k, label: k }; };
     // 比率類的分母（判斷樣本少、顯示 命中/出手）
-    const RATIO = { ...GA.RATIO_DEFS, ...Object.fromEntries(Object.entries(GA.EFG_DEFS).map(([k, [fgm, , fga]]) => [k, [fgm, fga]])), PCT_PLUSMINUS: [null, 'D_FGA'], D_FG3_PLUSMINUS: [null, 'D_FG3A'] };
+    // 最近防守者 vs 平常（GA.NORMAL_DEFS）只取出手數當分母：判斷樣本少，不顯示 命中/出手
+    const RATIO = { ...GA.RATIO_DEFS, ...Object.fromEntries(Object.entries(GA.EFG_DEFS).map(([k, [fgm, , fga]]) => [k, [fgm, fga]])),
+        ...Object.fromEntries(Object.entries(GA.NORMAL_DEFS || {}).map(([k, [, fga]]) => [k, [null, fga]])) };
+    // 單場 vs 平常出手少於 DEF_SHOT_RULES.gameMin → 顯示「—」（1 投 1 中就變 +50 的噪音）
+    const tooFew = (k, ent) => !!((GA.NORMAL_DEFS || {})[k] && ent && typeof ent[RATIO[k][1]] === 'number' && ent[RATIO[k][1]] < (window.DEF_SHOT_RULES || {}).gameMin);
     const MIN_N = 5;
     const fmtV = (k, v) => {
         if (typeof v !== 'number') return '—';
         const m = metaOf(k);
         const s = m.unit === '%' || /_PCT$|PLUSMINUS$|_RATING$/.test(k) ? window.fix1(v) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
-        return ((k === 'PCT_PLUSMINUS' || /NET_RATING$/.test(k)) && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
+        return ((/PLUSMINUS$/.test(k) || /NET_RATING$/.test(k)) && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
     };
     // 本場 vs 季平均：中性→不判；樣本少→不判；否則依 betterIsLarger
     const judge = (k, v, avg, ent) => {
@@ -586,12 +590,13 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const EXP_GROUPS = [...(window.trackingDefs || []).filter(d => ['Touches', 'Drives', 'CatchShoot', 'PullUpShot', 'Passing', 'Rebounding'].includes(d.id)),
         ...(window.defenseDefs || []).filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))];
     const metricRow = (name, k, v, avg, ent, link = true, sub = null) => {
+        if (tooFew(k, ent)) v = null;   // 顯示「—」、不判好壞、不給引用
         const m = metaOf(k), j = judge(k, v, avg, ent), frac = fracOf(k, ent);
         return (
             <div key={k} title={((window.GLOSSARY || {})[k] || {}).def || undefined}
                 className={`-mx-1.5 flex items-baseline justify-between gap-2 border-b border-dotted border-white/10 px-1.5 py-1 text-[12px] ${j.good ? 'bg-[#12A150]/10 shadow-[inset_2px_0_0_#12A150]' : ''}`}>
                 <span className="min-w-0">
-                    {link ? <a href={metricHref(name, k)} className={`text-slate-200 ${linkCls}`}>{m.label}</a> : <span className="text-slate-200">{m.label}</span>}
+                    {link ? <a href={metricHref(name, k)} className={`text-slate-200 ${linkCls}`}>{window.metricLabel(m)}</a> : <span className="text-slate-200">{window.metricLabel(m)}</span>}
                     {typeof v === 'number' && <UI.Info k={k}
                         history={ADV_META[k] ? undefined : () => playerHistory(pidOf(name), k)}
                         quote={(h) => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
@@ -919,7 +924,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                         const d = typeof avg === 'number' ? v - avg : null;
                         return (
                             <a key={k} href={metricHref(vsPlayer.name, k)} className="group block border-b border-r border-white/[0.08] px-3 pb-3 pt-2.5 hover:bg-white/[0.03]">
-                                <div className="flex justify-between text-[11px] text-slate-300"><span>{m.label}</span><span className="font-mono text-[10px] text-slate-500">{m.englishLabel}</span></div>
+                                <div className="flex justify-between text-[11px] text-slate-300"><span>{window.metricLabel(m)}</span><span className="font-mono text-[10px] text-slate-500">{m.englishLabel}</span></div>
                                 <div className="mb-2 mt-1 flex items-baseline gap-2">
                                     <span className="font-display text-[26px] font-semibold leading-none tabular-nums text-slate-50">{fmtV(k, v)}</span>
                                     {d != null && <span className={`font-mono text-[11px] ${j.good ? 'text-[#12A150]' : j.bad ? 'text-[#EF4444]' : 'text-slate-500'}`}>{d >= 0 ? '+' : ''}{d.toFixed(1)}</span>}

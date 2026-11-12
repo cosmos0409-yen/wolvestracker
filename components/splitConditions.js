@@ -116,7 +116,7 @@ window.SplitCond = (function () {
         const who = c.who === 'T' ? '全隊' : `${abbr(nameOf(c.who))} `;
         if (c.kind === 'played') return `${who}有出賽`;
         if (c.kind === 'absent') return `${who}未出賽`;
-        return `${who}${metaOf(c.key).label}${OPS[c.op]}${fmtVal(c.key, c.value)}`;
+        return `${who}${window.metricLabel(metaOf(c.key))}${OPS[c.op]}${fmtVal(c.key, c.value)}`;
     };
     const label = (conds, nameOf) => (conds || []).filter(isComplete).map(c => condLabel(c, nameOf)).join('・');
 

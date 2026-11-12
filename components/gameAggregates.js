@@ -13,10 +13,20 @@ window.GameAgg = (function () {
         MID_FG_PCT: ['MID_FGM', 'MID_FGA'], C3_FG_PCT: ['C3_FGM', 'C3_FGA'],
         AB3_FG_PCT: ['AB3_FGM', 'AB3_FGA'],
         D_FG_PCT: ['D_FGM', 'D_FGA'], D_FG3_PCT: ['D_FG3M', 'D_FG3A'],
+        D_FG2_PCT: ['D_FG2M', 'D_FG2A'], D_RIM_PCT: ['D_RIM_FGM', 'D_RIM_FGA'],
         REB_COL_PCT: ['REB', 'REB_CHANCES'],
         PCT_BOX_OUTS_REB: ['BOX_OUT_REBS', 'BOX_OUTS'],   // 卡位後自己搶下比例（不以 _PCT 結尾，不加這行會被當次數相加）
         // 球員在場效率（每 100 回合得／失分）：逐場 bundle 的 ON_PTS／ON_OPP_PTS／ON_POSS 由進階 box 還原（2026-27 起）
         ON_OFF_RATING: ['ON_PTS', 'ON_POSS'], ON_DEF_RATING: ['ON_OPP_PTS', 'ON_POSS'],
+    };
+    // 最近防守者「vs 平常」：key → [命中欄, 出手欄, 平常命中率欄]
+    // 輸出 = 100*Σ命中/Σ出手 − Σ(平常命中率×出手)/Σ出手（預期命中數加權；只用三欄都有、出手 > 0 的場次）
+    // 舊做法是逐場百分點直接平均（1 投的場次和 10 投的場次一樣重），2026-11 改
+    const NORMAL_DEFS = {
+        PCT_PLUSMINUS: ['D_FGM', 'D_FGA', 'NORMAL_FG_PCT'],
+        D_FG2_PLUSMINUS: ['D_FG2M', 'D_FG2A', 'NORMAL_FG2_PCT'],
+        D_FG3_PLUSMINUS: ['D_FG3M', 'D_FG3A', 'NORMAL_FG3_PCT'],
+        D_RIM_PLUSMINUS: ['D_RIM_FGM', 'D_RIM_FGA', 'NORMAL_RIM_PCT'],
     };
     // 差值：輸出 = 兩個加權值相減（各自先依 RATIO_DEFS 重算）
     const DIFF_DEFS = { ON_NET_RATING: ['ON_OFF_RATING', 'ON_DEF_RATING'] };
@@ -55,6 +65,7 @@ window.GameAgg = (function () {
         Object.keys(RATIO_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[k][1])) keys.add(k); });
         Object.keys(EFG_DEFS).forEach(k => { if (keys.has(EFG_DEFS[k][2])) keys.add(k); });
         Object.keys(DIFF_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[DIFF_DEFS[k][0]][1])) keys.add(k); });
+        Object.keys(NORMAL_DEFS).forEach(k => { if (keys.has(NORMAL_DEFS[k][1])) keys.add(k); });
         for (const k of keys) {
             if (k === 'playerId') { out[k] = rows[0][k]; continue; }
             // GP/W/L 由場次計算，勿被單場 base 的 per-game 值（每場 GP=1）覆寫
@@ -72,6 +83,13 @@ window.GameAgg = (function () {
             return d ? round1(100 * sum(RATIO_DEFS[k][0]) / d) : 0;
         }
         if (DIFF_DEFS[k]) return round1(valueOf(rows, DIFF_DEFS[k][0]) - valueOf(rows, DIFF_DEFS[k][1]));
+        if (NORMAL_DEFS[k]) {
+            const [fgm, fga, nrm] = NORMAL_DEFS[k];
+            const ok = rows.filter(r => typeof r[fgm] === 'number' && typeof r[nrm] === 'number' && r[fga] > 0);
+            const att = ok.reduce((a, r) => a + r[fga], 0);
+            if (att) return round1((100 * ok.reduce((a, r) => a + r[fgm], 0) - ok.reduce((a, r) => a + r[nrm] * r[fga], 0)) / att);
+            // 舊資料沒有平常命中率（或命中數）→ 退回逐場平均（同 isAvgKey）
+        }
         if (EFG_DEFS[k]) {
             const [fgm, fg3m, fga] = EFG_DEFS[k];
             const d = sum(fga);
@@ -84,14 +102,22 @@ window.GameAgg = (function () {
         return round1(sum(k) / rows.length); // 場均
     }
 
+    // 最近防守者 vs 平常：這組比賽合計出手少於 DEF_SHOT_RULES.gameMin → 不給值（逐場走勢、比較頁逐場波動用；1 投 1 中就是 +50 的噪音）
+    function tooFewShots(rows, k) {
+        const d = NORMAL_DEFS[k], min = (window.DEF_SHOT_RULES || {}).gameMin;
+        if (!d || !min) return false;
+        return rows.reduce((a, r) => a + (typeof r[d[1]] === 'number' ? r[d[1]] : 0), 0) < min;
+    }
+
     // 只算一個指標（賽季軌跡疊圖要對每個前 N 場重算，整包 aggregate 會多算上百個欄位）。
     // 這組比賽完全沒有該欄位（或比率的分母）→ null，不當成 0
     function metricOf(games, entityKey, viewMode, k) {
         const rows = [];
         for (const g of games) { const e = entityOf(g, entityKey, viewMode); if (e) rows.push(e); }
         if (!rows.length) return null;
-        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : DIFF_DEFS[k] ? RATIO_DEFS[DIFF_DEFS[k][0]][1] : k;
+        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : DIFF_DEFS[k] ? RATIO_DEFS[DIFF_DEFS[k][0]][1] : NORMAL_DEFS[k] ? NORMAL_DEFS[k][1] : k;
         if (!rows.some(r => typeof r[need] === 'number')) return null;
+        if (tooFewShots(rows, k)) return null;
         return valueOf(rows, k);
     }
 
@@ -161,12 +187,14 @@ window.GameAgg = (function () {
         }
         return groups.map(gr => {
             const agg = aggregate(gr.games, entityKey, viewMode);
-            return { label: gr.label, value: agg[metricKey], gp: agg.GP, ...(gr.wl ? { wl: gr.wl } : {}) };
+            const rows = gr.games.map(g => entityOf(g, entityKey, viewMode)).filter(Boolean);
+            const value = tooFewShots(rows, metricKey) ? null : agg[metricKey];
+            return { label: gr.label, value, gp: agg.GP, ...(gr.wl ? { wl: gr.wl } : {}) };
         }).filter(p => typeof p.value === 'number');
     }
 
     return {
-        RATIO_DEFS, EFG_DEFS, aggregate, metricOf, seasonToDate,
+        RATIO_DEFS, EFG_DEFS, NORMAL_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,
     };

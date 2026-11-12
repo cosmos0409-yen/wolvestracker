@@ -77,7 +77,9 @@ window.Matchup = (function () {
         const zones = (window.shootingDefs || []).find(d => d.id === 'ShotZones');
         const defense = (window.defenseDefs || [])
             .filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id))
-            .map(d => (team ? { ...d, metrics: d.metrics.filter(m => !m.playerOnly) } : d));
+            // 2026-11 加的兩分／護框等（DEF_NEW_KEYS）只有本季有逐場，近三季範圍幾乎全空 → 對戰頁不列
+            .map(d => ({ ...d, metrics: d.metrics.filter(m => !(team && m.playerOnly) && !(window.DEF_NEW_KEYS || []).includes(m.key)) }))
+            .filter(d => d.metrics.length);
         return [
             { key: 'base', label: '基本', defs: [baseDef] },
             { key: 'zones', label: '投籃分區', defs: zones ? [zones] : [] },

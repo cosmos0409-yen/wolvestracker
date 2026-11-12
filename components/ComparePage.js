@@ -124,9 +124,9 @@ const ComparePage = ({ a = '', b = '', sa = '', sb = '', type = '', per = '', pd
         );
     };
 
-    const fmt = (m, v) => !Number.isFinite(v) ? '—' : (m.key === 'PLUS_MINUS' || m.key === 'PCT_PLUSMINUS' ? (v > 0 ? '+' : '') : '') + window.fix1(v) + (m.unit || '');
-    // 命中率類：小字附成對的出手數（A／B）
-    const attOf = (m) => { const r = (window.GameAgg.RATIO_DEFS[m.key] || window.GameAgg.EFG_DEFS[m.key]); return r ? r[r.length - 1] : null; };
+    const fmt = (m, v) => !Number.isFinite(v) ? '—' : (/PLUS_?MINUS$/.test(m.key) ? (v > 0 ? '+' : '') : '') + window.fix1(v) + (m.unit || '');
+    // 命中率類：小字附成對的出手數（A／B）；最近防守者的 vs 平常用 defs 的 att
+    const attOf = (m) => { const r = (window.GameAgg.RATIO_DEFS[m.key] || window.GameAgg.EFG_DEFS[m.key]); return r ? r[r.length - 1] : (m.att || null); };
     const row = (m) => {
         const va = aggA[m.key], vb = aggB[m.key];
         if (!Number.isFinite(va) && !Number.isFinite(vb)) return null;

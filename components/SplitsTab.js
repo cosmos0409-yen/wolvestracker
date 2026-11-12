@@ -152,7 +152,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                     <UI.ExportMenu title={`Splits：${periodLabel}（${periodAgg.GP} 場）vs 全季`} getNode={() => ledgerRef.current}
                         csv={() => ({ header: ['群組', '指標', '原文', periodLabel, '全季', '差'], rows: defs.flatMap(d => d.metrics.map(m => {
                             const a = periodAgg[m.key], b = seasonAgg[m.key];
-                            return [d.title, m.label, m.englishLabel || '', a == null ? '' : a, b == null ? '' : b, (typeof a === 'number' && typeof b === 'number') ? +(a - b).toFixed(1) : ''];
+                            return [d.title, window.metricLabel(m), m.englishLabel || '', a == null ? '' : a, b == null ? '' : b, (typeof a === 'number' && typeof b === 'number') ? +(a - b).toFixed(1) : ''];
                         })) })} />
                     <UI.Seg ariaLabel="欄位組" size="sm" value={group} onChange={(g) => { setGroup(g); setOpenGroup(null); if (onFocusChange) onFocusChange(null); }}
                         options={GROUPS.map(([v, l]) => ({ value: v, label: l }))} />
@@ -174,7 +174,7 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                                     <label className="sr-only" htmlFor={`trend-metric-${def.id}`}>趨勢指標</label>
                                     <select id={`trend-metric-${def.id}`} value={trendMetric || ''} onChange={e => pickTrendMetric(e.target.value)}
                                         className={UI.selectClass(true)}>
-                                        {def.metrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                                        {def.metrics.map(m => <option key={m.key} value={m.key}>{window.metricLabel(m)}</option>)}
                                     </select>
                                     <UI.Seg ariaLabel="趨勢粒度" size="sm" value={gran} onChange={setGran}
                                         options={[{ value: 'game', label: '逐場' }, { value: 'week', label: '每週' }, { value: 'month', label: '每月' }]} />
