@@ -140,6 +140,40 @@ ASSISTED_FIELDS = [
     ("PCT_UAST_FGM", "PCT_UAST_FGM", True),
 ]
 
+# leaguedashplayerstats?MeasureType=Advanced 球員整季進階（2026-11-12 起，總覽「個人效率」）
+# 比例欄 API 為 0～1 → ×100；**TM_TOV_PCT 例外，API 已是百分比（9.9）**，AST_TO 是比值。
+# 不抓 OFF/DEF/NET_RATING（＝在場效率，與 On/Off 重複）、PACE、POSS、E_* 估計值
+PLAYER_ADVANCED_FIELDS = [
+    ("USG_PCT", "USG_PCT", True),
+    ("TS_PCT", "TS_PCT", True),
+    ("EFG_PCT", "EFG_PCT", True),
+    ("AST_PCT", "AST_PCT", True),
+    ("AST_TO", "AST_TO", False),
+    ("TM_TOV_PCT", "TM_TOV_PCT", False),
+    ("OREB_PCT", "OREB_PCT", True),
+    ("DREB_PCT", "DREB_PCT", True),
+    ("REB_PCT", "REB_PCT", True),
+    ("PIE", "PIE", True),
+]
+# leaguedash{player|team}stats?MeasureType=Scoring 得分組成占比（2026-11-12 起，投籃「得分組成」；×100）。
+# 禁區＋中距離＋三分＋罰球＝100%；快攻、失誤後是另一個維度（和前四者重疊）。受助攻比例同一個回應，仍由每週 fetch_assisted_pct 抓
+SCORING_FIELDS = [
+    ("PCT_PTS_PAINT", "PCT_PTS_PAINT", True),
+    ("PCT_PTS_2PT_MR", "PCT_PTS_2PT_MR", True),
+    ("PCT_PTS_3PT", "PCT_PTS_3PT", True),
+    ("PCT_PTS_FT", "PCT_PTS_FT", True),
+    ("PCT_PTS_FB", "PCT_PTS_FB", True),
+    ("PCT_PTS_OFF_TOV", "PCT_PTS_OFF_TOV", True),
+]
+# leaguedash{player|team}stats?MeasureType=Misc 情境得分（場均）。PFD（造成犯規）只有球員版，全隊回應沒有這欄 → 不寫（不補 0）
+MISC_FIELDS = [
+    ("PTS_PAINT", "PTS_PAINT", False),
+    ("PTS_FB", "PTS_FB", False),
+    ("PTS_2ND_CHANCE", "PTS_2ND_CHANCE", False),
+    ("PTS_OFF_TOV", "PTS_OFF_TOV", False),
+    ("PFD", "PFD", False),
+]
+
 # teamplayeronoffdetails?MeasureType=Advanced 在場/不在場（球員專屬；非百分比，效率值原樣）
 # fetch_onoff 會為 On/Off 兩態各加前綴 ON_ / OFF_
 ONOFF_FIELDS = [
@@ -1212,6 +1246,53 @@ def fetch_assisted_pct(season, season_type_api, player_or_team="Player"):
             ident = "MIN"
             results[ident] = {}
         apply_fields(results[ident], row, headers_list, ASSISTED_FIELDS)
+    return results
+
+
+def fetch_player_advanced(season, season_type_api):
+    """球員整季進階（欄位見 PLAYER_ADVANCED_FIELDS），1 request 拿全聯盟（TeamID=0，季中轉隊也抓得到）。
+    回傳 {PlayerID字串: {playerName, ...}}，由呼叫端以名冊過濾"""
+    url = (f"https://stats.nba.com/stats/leaguedashplayerstats?{LEAGUE_DASH_COMMON}"
+           f"&MeasureType=Advanced&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+           f"&ShotClockRange=&GameSegment=&PlayerOrTeam=Player"
+           f"&Season={season}&SeasonType={season_type_api}&TeamID=0")
+    results = {}
+    data = fetch_with_retry(url, "Advanced [Player]")
+    if data is None:
+        return results
+    headers_list = data['resultSets'][0]['headers']
+    for row in data['resultSets'][0]['rowSet']:
+        ident = str(row[headers_list.index("PLAYER_ID")])
+        results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
+        apply_fields(results[ident], row, headers_list, PLAYER_ADVANCED_FIELDS)
+    return results
+
+
+def fetch_scoring(season, season_type_api, player_or_team="Player", team_id=TEAM_ID):
+    """得分組成：Scoring（占比，SCORING_FIELDS）＋ Misc（情境得分，MISC_FIELDS）合併，2 requests。
+    球員抓全聯盟（PlayerID 字串為 key，含 playerName）；球隊 key 'MIN'，team_id=0 時含 30 隊（其他隊 key 為 TEAM_ID 字串，排名用）。
+    只寫 endpoint 真的有的欄位（全隊 Misc 沒有 PFD，走 apply_fields 會被 safe_col 補成假的 0）。
+    任一支抓不到就整份回空（不寫半套：占比和次數要同一天的）"""
+    endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
+    team_id_param = 0 if player_or_team == "Player" else team_id
+    results = {}
+    for measure, fields in (("Scoring", SCORING_FIELDS), ("Misc", MISC_FIELDS)):
+        url = (f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
+               f"&MeasureType={measure}&PaceAdjust=N&PlusMinus=N&Rank=N&Period=0"
+               f"&ShotClockRange=&GameSegment=&PlayerOrTeam={player_or_team}"
+               f"&Season={season}&SeasonType={season_type_api}&TeamID={team_id_param}")
+        data = fetch_with_retry(url, f"{measure} [{player_or_team}]")
+        if data is None:
+            return {}
+        headers_list = data['resultSets'][0]['headers']
+        have = [f for f in fields if f[1] in headers_list]
+        for row in data['resultSets'][0]['rowSet']:
+            if player_or_team == "Player":
+                ident = str(row[headers_list.index("PLAYER_ID")])
+                rec = results.setdefault(ident, {"playerName": row[headers_list.index("PLAYER_NAME")]})
+            else:
+                rec = results.setdefault(_team_key(row[headers_list.index("TEAM_ID")]), {})
+            apply_fields(rec, row, headers_list, have)
     return results
 
 

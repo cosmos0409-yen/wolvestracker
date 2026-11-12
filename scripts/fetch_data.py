@@ -38,6 +38,8 @@ from nba_common import (
     fetch_defense_box,
     fetch_opp_shot_locations,
     fetch_team_advanced,
+    fetch_player_advanced,
+    fetch_scoring,
     split_league,
     fetch_base_box,
     fetch_onoff,
@@ -56,7 +58,7 @@ from fetch_shotchart import capture_game_shots
 SEASON = get_current_season()  # 10/20 起切換為新賽季；前端 constants.js 同規則
 
 # 每日快照文件中參與去重比對的資料欄位
-DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff", "advanced", "ranks"]
+DATA_KEYS = ["stats", "base", "tracking", "shooting", "clutch", "lineups", "defense", "onoff", "advanced", "scoring", "ranks"]
 
 # 執行結果狀態檔（本機產物、不進版控）：watchdog.py 讀它判斷 03:00 主排程有沒有完成。
 # 不能改看快照文件在不在——沒比賽的日子數據相同會被 dedup 跳過寫入
@@ -301,6 +303,8 @@ def main():
     ))
     league_advanced = fetch_team_advanced(SEASON, season_type_api, team_id=0)
     team_advanced, rank_advanced = split_league(league_advanced)
+    # 得分組成（Scoring 占比＋Misc 情境得分，2 requests），30 隊算名次
+    team_scoring, rank_scoring = split_league(fetch_scoring(SEASON, season_type_api, "Team", team_id=0))
 
     final_team_data = {
         "date": today,
@@ -315,10 +319,12 @@ def main():
         "lineups": team_lineups,    # Array
         "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區 + 全隊最近防守者）
         "advanced": team_advanced,  # Dict（全隊進階：OffRtg/DefRtg/Pace/TS% 等）
+        "scoring": team_scoring,    # Dict（得分組成占比＋情境得分，2026-11-12 起）
         # 聯盟名次 {類別: {欄位: 名次}}，方向見 nba_common.RANK_LOWER_BETTER／RANK_SKIP
         # 每類另記參與排名的隊數 _n（開季初 Clutch 可能只有 28 隊有資料）
         "ranks": {"base": rank_base, "tracking": rank_tracking, "shooting": rank_shooting,
-                  "clutch": rank_clutch, "defense": rank_defense, "advanced": rank_advanced},
+                  "clutch": rank_clutch, "defense": rank_defense, "advanced": rank_advanced,
+                  "scoring": rank_scoring},
     }
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
@@ -352,6 +358,9 @@ def main():
     id2name = {str(p["id"]): p["name"] for p in roster_full}
     id2name.update({pid: v["playerName"].strip() for pid, v in base_raw.items()
                     if pid in id2name and (v.get("playerName") or "").strip()})
+    # 球員整季進階（1 request）與得分組成（2 requests），2026-11-12 起
+    player_advanced = pid_to_name_keyed(fetch_player_advanced(SEASON, season_type_api), keep_ids=roster_ids)
+    player_scoring = pid_to_name_keyed(fetch_scoring(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
     onoff_raw = fetch_onoff(SEASON, season_type_api)
     player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
 
@@ -376,6 +385,8 @@ def main():
         "clutch": player_clutch,      # Dict of Dicts
         "defense": player_defense,    # Dict of Dicts（對位防守 + Hustle + 防守 box）
         "onoff": player_onoff,        # Dict of Dicts（在場/不在場效率，球員專屬）
+        "advanced": player_advanced,  # Dict of Dicts（整季進階：USG%/TS%/AST%/籃板率/PIE 等，2026-11-12 起）
+        "scoring": player_scoring,    # Dict of Dicts（得分組成占比＋情境得分，2026-11-12 起）
     }
 
     print("=== 資料整理完成，準備寫入 Firebase ===")
