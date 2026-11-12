@@ -1,5 +1,6 @@
 // 刊頭：Logo + 「Wolves Ledger」字標 + 期別行（賽季·賽別·截至日期·連線狀態）＋ 右側控制項
-// 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、賽程月曆（GameCalendar）、對戰、薪資、搜尋（/）
+// 控制項：賽季下拉（只列年份）、例行/季後（常駐，歷史賽季也能切）、賽程月曆（GameCalendar）、對戰、組合、薪資、搜尋（/）
+// 「組合」在手機放第二列（第一列已有對戰／薪資／搜尋，再多一顆 375px 放不下）
 // 時光機（截至日期）在身分列 IdentityBar：它影響所有章節，放每章都看得到的地方；期別行仍顯示「截至 日期」
 // 單場頁／薪資頁／對戰是獨立整頁：期別行改顯示頁名，並隱藏賽季／賽別／日期（避免刊頭寫的賽季和內容對不上）
 // 手機：控制項換到字標下方，放不下就換行（不橫捲，避免按鈕藏在畫面外）
@@ -7,10 +8,10 @@ const Masthead = ({
     yearOptions, viewYear, onYearChange, isHistoryMode, historyLoading, displayDate,
     viewType, onTypeChange, effectiveDate,
     issueSeason, issueType, status, onStatusClick, onSearch, onCopyLink,
-    schedule, scheduleSeason, onPickGame, inGame, gameDate, inCap, onCap, inVs, onVs, inSched, onFullSchedule, playoffsAvailable = true,
+    schedule, scheduleSeason, onPickGame, inGame, gameDate, inCap, onCap, inVs, onVs, inSched, onFullSchedule, inLineups, onLineups, playoffsAvailable = true,
 }) => {
     const UI = window.UI;
-    const ownPage = inCap || inGame || inVs || inSched;   // 獨立整頁：不顯示主畫面的賽季／賽別／日期
+    const ownPage = inCap || inGame || inVs || inSched || inLineups;   // 獨立整頁：不顯示主畫面的賽季／賽別／日期
     const pill = (on) => `shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${on ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30'}`;
     // 手機只留色點（文字給螢幕閱讀器），否則期別行被截斷、連線狀態整個看不到；點期別行可看完整狀態
     const statusEl = (cls, text) => <span className={cls}>●<span className="max-sm:sr-only"> {text}</span></span>;
@@ -30,7 +31,7 @@ const Masthead = ({
                         <button type="button" onClick={onStatusClick} title="查看連線狀態"
                             className="-mb-1 py-1 font-mono text-[11px] tracking-wide text-slate-400 hover:text-slate-200 truncate max-w-full text-left">
                             {/* 手機省掉英文副名與年份，色點才放得下 */}
-                            {inCap ? '薪資 · Cap Sheet' : inSched ? <>完整賽程<span className="max-sm:hidden"> · Schedule</span></> : inVs ? <>對戰分析<span className="max-sm:hidden"> · Matchups</span></>
+                            {inCap ? '薪資 · Cap Sheet' : inLineups ? <>組合數據<span className="max-sm:hidden"> · Lineups</span></> : inSched ? <>完整賽程<span className="max-sm:hidden"> · Schedule</span></> : inVs ? <>對戰分析<span className="max-sm:hidden"> · Matchups</span></>
                                 : inGame ? <>單場 · <span className="max-sm:hidden">{(gameDate || '').slice(0, 5)}</span>{(gameDate || '').slice(5)}</>
                                 : [issueSeason, issueType].filter(Boolean).join(' · ')}
                             {/* 截至日期在手機上隱藏：身分列的時光機已顯示，避免期別行被截斷 */}
@@ -74,6 +75,11 @@ const Masthead = ({
                     <button type="button" onClick={onVs} aria-pressed={!!inVs} title="灰狼對各隊的表現：勁敵、順手、棘手，與交手前瞻"
                         className={`hidden lg:inline-flex ${pill(inVs)}`}>
                         對戰
+                    </button>
+                    {/* 組合：開組合數據頁（#lineups）；手機也顯示（在第二列） */}
+                    <button type="button" onClick={onLineups} aria-pressed={!!inLineups} title="二人／三人／五人組合的上場時間與效率（Lineups）"
+                        className={pill(inLineups)}>
+                        組合
                     </button>
                     {/* 薪資：開薪資頁（#cap） */}
                     <button type="button" onClick={onCap} aria-pressed={!!inCap} title="薪資結構、奢侈稅與門檻（Cap Sheet）"

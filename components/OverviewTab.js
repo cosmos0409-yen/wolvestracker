@@ -2,7 +2,7 @@
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -215,7 +215,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             )}
 
             {viewMode === 'TEAM' && lineups && lineups.length > 0 && (
-                <UI.Section title="五人陣容" en="Lineups" accent="blue" sub="預設依總上場分鐘排序，點欄位標題可改排序（效率值為每 100 回合，整季快照）">
+                <UI.Section title="五人陣容" en="Lineups" accent="blue" sub="上場最久的 10 組，點欄位標題可改排序（效率值為每 100 回合，整季快照）"
+                    right={lineupsHref && <a href={lineupsHref} className="inline-flex min-h-[24px] items-center whitespace-nowrap text-[12px] text-slate-300 hover:text-slate-50">看全部組合 →</a>}>
                     <UI.DataTable caption="五人陣容進階數據" rows={lineups} exportTitle="五人陣容"
                         initialSort={{ key: 'MIN', dir: 'desc' }} rowKey={(r) => r.players} stackFirst
                         columns={[

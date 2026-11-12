@@ -417,8 +417,11 @@ window.UI = (function () {
     // columns: [{ key, label, en, align:'left'|'right', render(row), sortValue(row), cellClass(row) }]
     // exportTitle：給了就在表格右上加「匯出」（PNG 配圖＋CSV）；CSV 值取 c.csv(r)，否則取 r[c.key] 原始值
     // stackFirst：手機（< sm）把第一欄移到該列上方獨占一行、數字欄收窄，給第一欄很長的表（五人陣容）——否則名字在窄欄折成好幾行、右側欄位被擠到畫面外
-    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption, exportTitle, stackFirst = false }) => {
+    // limit：先排序全部列、只顯示前 limit 列，底下「顯示全部 N 列」（組合頁幾百組時用）；匯出 CSV 一律是全部列。unit：按鈕上的量詞
+    // exportSource：匯出的資料來源說明（預設 NBA.com）
+    const DataTable = ({ columns, rows, initialSort = null, rowKey = (r, i) => i, caption, exportTitle, exportSource, stackFirst = false, limit = 0, unit = '列' }) => {
         const [sort, setSort] = React.useState(initialSort);   // { key, dir: 'asc'|'desc' }
+        const [showAll, setShowAll] = React.useState(false);
         const wrapRef = React.useRef(null);
         const colOf = (k) => columns.find(c => c.key === k);
         const sorted = React.useMemo(() => {
@@ -444,7 +447,7 @@ window.UI = (function () {
         return (
             <div>
             {exportTitle && (
-                <div className="mb-2 flex justify-end"><ExportMenu title={exportTitle} getNode={() => wrapRef.current} csv={csv} /></div>
+                <div className="mb-2 flex justify-end"><ExportMenu title={exportTitle} getNode={() => wrapRef.current} csv={csv} source={exportSource} /></div>
             )}
             <div ref={wrapRef} className="overflow-x-auto border-t border-white/[0.08]" style={scrollHint}>
                 <table className="w-full text-sm border-collapse">
@@ -472,7 +475,7 @@ window.UI = (function () {
                         </tr>
                     </thead>
                     <tbody>
-                        {sorted.map((r, i) => {
+                        {(limit && !showAll ? sorted.slice(0, limit) : sorted).map((r, i) => {
                             // 條紋用列序（stackFirst 時一筆資料是兩個 <tr>，odd: 會錯位）
                             const zebra = i % 2 === 0 ? 'bg-white/[0.015]' : '';
                             const cellOf = (c) => (<>
@@ -502,6 +505,14 @@ window.UI = (function () {
                     </tbody>
                 </table>
             </div>
+            {limit > 0 && sorted.length > limit && (
+                <div className="mt-3 flex justify-center">
+                    <button type="button" onClick={() => setShowAll(v => !v)}
+                        className="min-h-[28px] rounded-full border border-white/15 px-4 text-[12px] text-slate-300 hover:border-white/30 hover:text-slate-50">
+                        {showAll ? '收合' : `顯示全部 ${sorted.length} ${unit}`}
+                    </button>
+                </div>
+            )}
             </div>
         );
     };

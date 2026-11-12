@@ -58,6 +58,7 @@ ORDER = [
     "GamePage.js",
     "CapPage.js",
     "SchedulePage.js",
+    "LineupsPage.js",
     "MatchupHome.js",
     "MatchupPage.js",
     "Highlights.js",

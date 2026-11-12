@@ -73,6 +73,10 @@ const App = () => {
         ? { team: urlInit.vsTeam || '', range: urlInit.vsRange || '', type: urlInit.vsType || '', metric: urlInit.vsMetric || '' } : null);
     // 完整賽程（網址 #schedule，只有當季）：month（m=，空＝今天所在月份）、filter（f=，''／home／away）
     const [sched, setSched] = useState(() => urlInit.schedView ? { month: urlInit.schedMonth || '', filter: urlInit.schedFilter || '' } : null);
+    // 組合數據（網址 #lineups）：n 人數、picks「ID-名字」陣列、min（null＝該人數預設）、view（''／'mx'）、season（''＝當季）、type（''＝依時節）
+    // 組合頁自己的賽季，與主畫面的賽季／賽別無關
+    const luOf = (st) => ({ n: st.luN || 2, picks: st.luPicks || [], min: st.luMin == null ? null : st.luMin, view: st.luView2 || '', season: st.luSeason || '', type: st.luType || '' });
+    const [lu, setLu] = useState(() => urlInit.luView ? luOf(urlInit) : null);
     const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
     // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
     const [curSnapReceived, setCurSnapReceived] = useState(false);
@@ -911,6 +915,8 @@ const App = () => {
             ? window.UrlState.serialize({ capView, capSeason, capTab })
             : sched
             ? window.UrlState.serialize({ schedView: true, schedMonth: sched.month, schedFilter: sched.filter })
+            : lu
+            ? window.UrlState.lineupsHref(lu).slice(1)
             : vs
             ? window.UrlState.serialize({ vsView: true, vsTeam: vs.team, vsRange: vs.range, vsType: vs.type, vsMetric: vs.metric })
             // 網址帶來的球員還在等名單比對時，原樣寫回（只寫 ID 或舊名字），不可配上前一位球員的名字
@@ -918,11 +924,27 @@ const App = () => {
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null,
                 splitCond: activeTab === 'splits' ? splitCond : '' }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
-    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, sched, homePending, wantPlayer, currentPlayerId, splitCond]);
+    }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, sched, lu, homePending, wantPlayer, currentPlayerId, splitCond]);
     // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
     const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
     const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
     const openSchedule = () => { window.location.hash = window.UrlState.schedHref().slice(1); };
+    // 組合頁：o＝{ n, season, type, picks }（從總覽五人陣容點進來時帶主畫面的賽季）
+    const openLineups = (o) => { window.location.hash = window.UrlState.lineupsHref(o).slice(1); };
+    // 組合頁的賽季與賽別：沒指定＝當季、依時節（季後賽期間預設季後賽）
+    const luSeason = (lu && lu.season) || window.CURRENT_SEASON;
+    const luDefType = (season) => season === window.CURRENT_SEASON && (window.getSeasonPhase() || {}).type === 'playoffs' ? 'playoffs' : 'regular';
+    const luType = (lu && lu.type) || luDefType(luSeason);
+    // 組合頁內的切換（同一頁的狀態變化，replaceState）：換人數時最少分鐘與檢視回到該人數預設；賽季、賽別是預設值時不寫進網址
+    const changeLu = (patch) => setLu(l => {
+        const x = { ...l, ...patch };
+        if ('n' in patch) { x.min = null; x.view = ''; x.picks = (l.picks || []).slice(0, patch.n); }
+        if ('season' in patch) x.season = patch.season === window.CURRENT_SEASON ? '' : patch.season;
+        const season = x.season || window.CURRENT_SEASON;
+        const type = 'type' in patch ? patch.type : (l.type || luDefType(l.season || window.CURRENT_SEASON));
+        x.type = type === luDefType(season) ? '' : type;
+        return x;
+    });
     // 完整賽程入口只在有當季預覽文件時出現（歷史賽季沒有開賽時間與對手 ID）
     const canSchedule = !!previewDoc;
     // 對戰：沿用目前的對戰範圍（從單隊頁回首頁、首頁點進單隊頁都不會把範圍重設）
@@ -943,6 +965,7 @@ const App = () => {
         if (capView) setCapView(false);
         if (vs) setVs(null);
         if (sched) setSched(null);
+        if (lu) setLu(null);
     };
 
     // 同一分頁貼上另一個連結時只有 hash 變（不會重新載入）→ 套用新狀態。replaceState 不會觸發 hashchange
@@ -954,14 +977,17 @@ const App = () => {
             const st = window.UrlState.parse(window.location.hash);
             setHomePending(false);   // 首頁還在找最新一場時使用者已經切走，以使用者的選擇為準
             // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
-            if (st.gameDate) { setCapView(false); setVs(null); setSched(null); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); setGameTab(st.gameTab || ''); setGameBox(st.gameBox || ''); window.scrollTo(0, 0); return; }
+            if (st.gameDate) { setCapView(false); setVs(null); setSched(null); setLu(null); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); setGameTab(st.gameTab || ''); setGameBox(st.gameBox || ''); window.scrollTo(0, 0); return; }
             setGameDate(null); setGamePlayer(''); setGameTab(''); setGameBox('');
             // 薪資頁：同單場頁，只切換薪資頁狀態
-            if (st.capView) { setVs(null); setSched(null); setCapView(true); setCapSeason(st.capSeason || ''); setCapTab(st.capTab || ''); window.scrollTo(0, 0); return; }
+            if (st.capView) { setVs(null); setSched(null); setLu(null); setCapView(true); setCapSeason(st.capSeason || ''); setCapTab(st.capTab || ''); window.scrollTo(0, 0); return; }
             setCapView(false);
             // 完整賽程：同單場頁，只切換賽程頁狀態
-            if (st.schedView) { setVs(null); setSched({ month: st.schedMonth || '', filter: st.schedFilter || '' }); window.scrollTo(0, 0); return; }
+            if (st.schedView) { setVs(null); setLu(null); setSched({ month: st.schedMonth || '', filter: st.schedFilter || '' }); window.scrollTo(0, 0); return; }
             setSched(null);
+            // 組合數據：同單場頁，只切換組合頁狀態
+            if (st.luView) { setVs(null); setLu(luOf(st)); window.scrollTo(0, 0); return; }
+            setLu(null);
             // 對戰：同單場頁，只切換對戰狀態
             if (st.vsView) {
                 setVs({ team: st.vsTeam || '', range: st.vsRange || '', type: st.vsType || '', metric: st.vsMetric || '' });
@@ -991,7 +1017,7 @@ const App = () => {
 
     // 獨立整頁（單場／薪資／對戰）的數字鍵由該頁自己的分頁列處理（UI.useTabKeys；對戰頁沒有分頁列＝不作用）
     const ownPageRef = useRef(false);
-    ownPageRef.current = !!(gameDate || capView || vs || sched || homePending);
+    ownPageRef.current = !!(gameDate || capView || vs || sched || lu || homePending);
     // 快捷鍵：/ 開搜尋、1–6 切章節（只在主畫面）。輸入框聚焦、搜尋面板或走勢 Modal 開著時不攔截
     useEffect(() => {
         const keys = TABS.map(t => t.key);
@@ -1088,6 +1114,7 @@ const App = () => {
         ...(canSchedule ? [{ id: 'schedule', group: '賽程', label: '完整賽程', hint: '對手、主客、開賽時間 · Schedule', run: openSchedule }] : []),
         { id: 'cap', group: '薪資', label: '薪資與奢侈稅', hint: 'Cap Sheet', run: openCap },
         { id: 'vs', group: '對戰', label: '對戰分析', hint: '對各隊表現、勁敵／順手／棘手', run: () => openVs() },
+        { id: 'lineups', group: '組合', label: '組合數據', hint: '二人／三人／五人組合 · Lineups', run: () => openLineups() },
         ...Object.keys(window.NBA_TEAM_NAMES || {}).filter(a => a !== window.TEAM_ABBR)
             .map(a => ({ id: 'vs_' + a, group: '對戰', label: `對戰 ${a} ${window.teamName(a)}`, run: () => openVs(a) })),
     ];
@@ -1115,7 +1142,8 @@ const App = () => {
                 schedule={calendarGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate || homePending} gameDate={gameDate}
                 playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 inCap={capView} onCap={openCap} inVs={!!vs} onVs={() => openVs()}
-                inSched={!!sched} onFullSchedule={canSchedule ? openSchedule : null} />
+                inSched={!!sched} onFullSchedule={canSchedule ? openSchedule : null}
+                inLineups={!!lu} onLineups={() => openLineups()} />
 
             {/* 休賽期 / 陳舊資料提示（細條） */}
             {seasonStatus && (
@@ -1159,6 +1187,13 @@ const App = () => {
                     {window.SchedulePage && isCloud
                         ? <window.SchedulePage month={sched.month} filter={sched.filter}
                             onMonth={(m) => setSched(s => ({ ...s, month: m }))} onFilter={(f) => setSched(s => ({ ...s, filter: f }))} />
+                        : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
+                </main>
+            ) : lu ? (
+                <main className="max-w-7xl mx-auto px-4 md:px-6 pt-4">
+                    {backBtn('← 回主畫面', leaveGame)}
+                    {window.LineupsPage && isCloud
+                        ? <window.LineupsPage season={luSeason} type={luType} n={lu.n} picks={lu.picks} min={lu.min} view={lu.view} onChange={changeLu} />
                         : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">連線中…</div>}
                 </main>
             ) : vs ? (
@@ -1228,7 +1263,8 @@ const App = () => {
                                 games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null)}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
-                                lineups={currentLineups} gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
+                                lineups={currentLineups} lineupsHref={window.UrlState.lineupsHref({ n: 5, season: isHistoryMode ? (curOpt?.season || '') : '', type: viewType })}
+                                gamesIndex={isHistoryMode ? [] : gamesIndex} viewSide={viewSide}
                                 radarSlot={radarSlot} stats={currentStats} playerId={currentPlayerId}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam}
                                 advanced={viewMode === 'TEAM' ? (teamSeq[teamIdx] || {}).advanced : null}

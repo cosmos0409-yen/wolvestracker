@@ -157,3 +157,31 @@ window.loadPreview = function (season) {
     }).catch(e => { console.warn('preview load fail', e); delete mem[season]; return null; });
     return (mem[season] = p);
 };
+
+// 組合數據 wolves_games_index/{season}_{type}_lineups（fetch_data.py 每日覆寫當季；歷史賽季由 backfill_history.py --only-lineups 寫入）：
+// { season, seasonType, asOf（當季＝快照日、歷史＝'final'）, gp, players: {PlayerID: 縮寫名}, groups: {'2'|'3'|'5': [{ids, gp, min, off, def, net, ts, poss}]}, trimmed }
+// 快取：同頁面共用一次讀取；已結束賽季另存 localStorage wt_lu_v1_{season}_{type}（{ savedAt, v }，7 天），當季不存（每天會變）。
+// 文件不存在回 null；讀取失敗往上拋（頁面顯示「重試」）
+const LINEUPS_TTL_MS = 7 * 24 * 3600 * 1000;
+window.loadLineups = function (season, type) {
+    if (!window.db || !window.firebaseModules) return Promise.resolve(null);
+    const id = `${season}_${type}_lineups`;
+    const mem = (window.__lineupsMem = window.__lineupsMem || {});
+    if (mem[id]) return mem[id];
+    const cacheable = season !== window.CURRENT_SEASON;
+    const lsKey = `wt_lu_v1_${season}_${type}`;
+    if (cacheable) {
+        try {
+            const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
+            if (c && c.v && Date.now() - (c.savedAt || 0) < LINEUPS_TTL_MS) return (mem[id] = Promise.resolve(c.v));
+        } catch (e) { /* ignore */ }
+    }
+    const { doc, getDoc } = window.firebaseModules;
+    const p = getDoc(doc(window.db, 'wolves_games_index', id)).then(snap => {
+        const v = snap.exists() ? snap.data() : null;
+        if (v && cacheable) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
+        return v;
+    });
+    p.catch(() => { if (mem[id] === p) delete mem[id]; });   // 失敗不留，重試時重讀
+    return (mem[id] = p);
+};
