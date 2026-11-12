@@ -13,6 +13,7 @@ window.GLOSSARY = (function () {
     const ADV = 'NBA.com 進階數據（Advanced）';
     const SYN = 'Synergy Playtype（NBA.com synergyplaytypes）';
     const SCOR = 'NBA.com 得分組成（leaguedash*stats，Scoring）';
+    const MISC = 'NBA.com 情境得分（leaguedash*stats，Misc）';
     const CAP = 'Spotrac、Hoops Rumors 等公開資料，人工整理於本站薪資 Google Sheet';
     const GAMES = '本站以逐場數據計算（NBA.com Stats 單場，wolves_games_bundle）';
 
@@ -115,8 +116,23 @@ window.GLOSSARY = (function () {
         NET_RATING: { def: '淨效率：進攻效率 − 防守效率，正值代表每 100 回合淨贏。', src: ADV },
         TS_PCT: { def: '真實命中率：把三分與罰球都算進去的得分效率。', calc: '得分 ÷ (2 × (出手 + 0.44 × 罰球出手))', src: ADV },
         PACE: { def: '節奏：每 48 分鐘的回合數，數字越大打得越快。', src: ADV },
-        AST_PCT: { def: '助攻率：球隊投進的球中，有助攻的比例。', calc: '助攻 ÷ 投籃命中', src: ADV },
-        TM_TOV_PCT: { def: '失誤率：每 100 回合發生的失誤次數，越低越好。', calc: '失誤 ÷ 回合數 × 100', src: ADV },
+        AST_PCT: { def: '助攻率。全隊：投進的球中有助攻的比例；球員：他在場時隊友投進的球中，由他助攻的比例。', calc: '全隊＝助攻 ÷ 投籃命中', src: ADV },
+        USG_PCT: { def: '使用率：他在場時，球隊的回合有多少比例由他結束（出手、罰球或失誤）。越高代表球越常在他手上終結，不分好壞。', src: ADV },
+        AST_TO: { def: '助攻失誤比：每 1 次失誤對應幾次助攻。', calc: '助攻 ÷ 失誤', src: ADV },
+        REB_PCT: { def: '籃板率：在場時所有可搶的籃板（攻守合計）中，他搶下的比例。', src: ADV },
+        PIE: { def: '球員影響力（Player Impact Estimate）：他的各項數據（得分、籃板、助攻、抄截等，扣掉投失、失誤、犯規）占他出賽場次兩隊合計總量的比例；聯盟平均約 10。', src: ADV, verify: true },
+        PCT_PTS_PAINT: { def: '得分組成：禁區（含合理衝撞區）兩分得分占總得分的比例。', src: SCOR },
+        PCT_PTS_2PT_MR: { def: '得分組成：中距離兩分得分占總得分的比例。', src: SCOR },
+        PCT_PTS_3PT: { def: '得分組成：三分得分占總得分的比例。', src: SCOR },
+        PCT_PTS_FT: { def: '得分組成：罰球得分占總得分的比例。禁區＋中距離＋三分＋罰球＝100%。', src: SCOR },
+        PCT_PTS_FB: { def: '快攻得分占總得分的比例（和禁區、三分等重疊）。', src: SCOR },
+        PCT_PTS_OFF_TOV: { def: '對手失誤後得分占總得分的比例（和禁區、三分等重疊）。', src: SCOR },
+        PTS_PAINT: { def: '禁區得分（場均）。', src: MISC },
+        PTS_FB: { def: '快攻得分（場均）。', src: MISC },
+        PTS_2ND_CHANCE: { def: '二波得分：搶下進攻籃板後同一回合的得分（場均）。', src: MISC },
+        PTS_OFF_TOV: { def: '失誤後得分：對手失誤後由自己取得的回合中的得分（場均）。', src: MISC },
+        PFD: { def: '造成犯規：被對手犯規的次數（場均），只有球員資料。', src: MISC },
+        TM_TOV_PCT: { def: '失誤率：每 100 回合（球員為每 100 次由他結束的回合）發生的失誤次數，越低越好。', calc: '失誤 ÷ 回合數 × 100', src: ADV },
         OREB_PCT: { def: '進攻籃板率：自己投失的球中，搶回進攻籃板的比例。', src: ADV },
         FT_RATE: { def: '罰球率（四因素之一）：每次投籃出手換到幾次罰進，衡量製造犯規、站上罰球線的能力。', calc: '罰球命中 ÷ 投籃出手', src: BASE },
         MIN: { def: '該五人陣容一起在場的總分鐘數（此 endpoint 一律回總計，不受 PerMode 影響）。', src: ADV },

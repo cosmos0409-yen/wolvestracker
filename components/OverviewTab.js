@@ -4,7 +4,7 @@
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
 // period／periodCtx：全域期間（periodFilter.js）。季平均與近期異動跟著期間；其他區塊（效率、Playtype 強弱項、雷達、On/Off、Clutch、陣容）
 // 是整季快照，篩選時包 UI.Locked（變淡、不能點）；單場面板本來就是單場，不受影響
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {} }) => {
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {}, playerAdvanced = null }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -23,7 +23,10 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         { key: 'FT_PCT', label: '罰球命中率', en: 'FT%', pct: true },
         { key: 'TOV', label: '失誤', en: 'TOV' },
         { key: 'PLUS_MINUS', label: '正負值', en: '+/-', plus: true },
-    ];
+        // 球員才有（全隊的在「全隊效率」）：逐場 PTS／FGA／FTA 等重算，跟著期間（GameAgg.TS_DEFS／EFG_DEFS）
+        { key: 'TS_PCT', label: '真實命中率', en: 'TS%', pct: true, playerOnly: true },
+        { key: 'EFG_PCT', label: '有效命中率', en: 'eFG%', pct: true, playerOnly: true },
+    ].filter(s => !(s.playerOnly && viewMode === 'TEAM'));
     // 期間：全域期間篩選（章節列／身分列的「期間」膠囊）。先套「數據截至」，再套期間。
     // 篩選時身分列（全季數字）不再重複，故顯示完整 10 項，箭頭＝vs 全季（截至同一天）
     const P = window.Period;
@@ -69,6 +72,10 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         { key: 'DREB_PCT', label: '防守籃板率', en: 'DREB%', pct: true },
     ];
     const hasAdvanced = isTeam && advanced && typeof advanced.OFF_RATING === 'number';
+    // 個人效率（球員整季進階快照，2026-11-12 起；時光機選到更早的日期沒有這欄 → 整區不顯示）
+    const PLAYER_ADV = window.playerAdvancedDefs || [];
+    const hasPlayerAdv = !isTeam && playerAdvanced && typeof playerAdvanced.USG_PCT === 'number';
+    const fmtAdv = (m, v) => typeof v !== 'number' ? null : (m.key === 'AST_TO' ? v.toFixed(2) : v.toFixed(1));
 
     // Playtype 強弱項（BBall Index 式）：只用 Synergy 百分位（真有聯盟排名的數字）。
     // 攻守兩面百分位皆「越高越好」（已用資料驗證：防守 PPP 越低 → 百分位越高）。
@@ -136,6 +143,19 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                     </UI.Ledger>
                 </>)}
             </UI.Section>
+
+            {hasPlayerAdv && (<UI.Locked on={periodOn}>
+                <UI.Section title="個人效率" en="Player Efficiency" accent="green"
+                    sub="比率類 · 整季快照（在場的進攻／防守效率見「在場／不在場」）">
+                    <UI.Ledger cols={UI.ledgerCols(PLAYER_ADV.length)}>
+                        {PLAYER_ADV.map(m => (
+                            <UI.StatCell key={m.key} label={m.label} fullLabel={window.metricLabel(m)} en={m.englishLabel}
+                                value={fmtAdv(m, playerAdvanced[m.key])} unit={m.unit || ''} neutral={!!m.neutral}
+                                betterIsLarger={m.betterIsLarger !== false} gkey={m.key} citeNote="整季快照" />
+                        ))}
+                    </UI.Ledger>
+                </UI.Section>
+            </UI.Locked>)}
 
             {hasAdvanced && (<UI.Locked on={periodOn}>
                 <UI.Section title="全隊效率" en="Advanced" accent="green"

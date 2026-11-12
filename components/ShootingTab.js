@@ -27,7 +27,7 @@ window.loadShotDoc = loadShotDoc;   // 對戰頁共用（同一份快取）
 // '2025-26' → '2024-25'
 const prevSeasonOf = (season) => { const y = parseInt(String(season).slice(0, 4), 10) - 1; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
 
-const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta, periodDates = null, periodLabel: pLabel = '全季', periodWaiting = false }) => {
+const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta, periodDates = null, periodLabel: pLabel = '全季', periodWaiting = false, scoring = null }) => {
     const { useState, useEffect } = React;
     const TrendChart = window.TrendChart;
     const ShotChart = window.ShotChart;
@@ -233,6 +233,11 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                 )}
             </UI.Section>
 
+            {/* 得分組成（整季快照 scoring，2026-11-12 起；篩選時停用） */}
+            {scoring && typeof scoring.PCT_PTS_PAINT === 'number' && (<UI.Locked on={filtered}>
+                <ScoringMix scoring={scoring} teamMode={teamMode} />
+            </UI.Locked>)}
+
             {/* 受助攻（全季快照，不隨篩選） */}
             {Object.keys(assisted).length > 0 && (<UI.Locked on={filtered}>
                 <UI.Section title="受助攻比例" en="Assisted FGM%" accent="blue" sub="命中球中由隊友助攻的比例 · 全季快照（期間篩選時停用）">
@@ -250,6 +255,56 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                 <ShotChart playerId={playerId} teamMode={teamMode} playerName={playerName} externalShots={periodShots} periodLabel={periodLabel} />
             )}
         </div>
+    );
+};
+
+// 得分組成：長條（禁區＋中距離＋三分＋罰球＝100%）＋圖例＋情境得分格子。全隊帶聯盟名次（window.RankCtx，只限當季最新快照）
+const ScoringMix = ({ scoring, teamMode }) => {
+    const UI = window.UI;
+    const SHARE = window.scoringShareDefs || [], SIT = (window.scoringSituationDefs || []).filter(m => !(teamMode && m.playerOnly));
+    const rk = (k) => teamMode ? window.leagueRank('scoring', k) : null;
+    const nOf = window.RankCtx && window.RankCtx.ranks && window.RankCtx.ranks.scoring ? window.RankCtx.ranks.scoring._n : null;
+    const line = SHARE.map(m => `${m.label} ${Number(scoring[m.key]).toFixed(1)}%`).join('、');
+    const addLine = () => {
+        const r = window.Quote.add(window.Quote.make({ kind: 'line', label: '得分組成', en: 'Scoring Breakdown', gkey: 'SCORING_MIX', values: [{ value: `得分組成：${line}` }], asOf: 'snap' }));
+        UI.toast(r.added ? `已加入引用籃（共 ${r.total} 項）` : '這一行已在引用籃裡');
+    };
+    return (
+        <UI.Section title="得分組成" en="Scoring Breakdown" accent="green"
+            sub={`得分從哪裡來 · 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 整季快照（期間篩選時停用）${teamMode && nOf ? ` · 小字為 ${nOf} 隊名次（占比依大小排，不是好壞）` : ''}`}
+            right={<button type="button" onClick={addLine}
+                className="inline-flex min-h-[28px] items-center whitespace-nowrap rounded-full border border-white/15 px-3 text-[12px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 整組加入</button>}>
+            <div className="mb-2.5 flex h-[30px] border border-white/[0.08]" role="img" aria-label={`得分組成：${line}`}>
+                {SHARE.map(m => {
+                    const w = Math.max(0, Number(scoring[m.key]) || 0);
+                    return <div key={m.key} style={{ width: `${w}%`, background: m.color }}
+                        className="flex min-w-0 items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[11.5px] font-medium text-[#0A1626]">{w >= 9 ? `${Math.round(w)}%` : ''}</div>;
+                })}
+            </div>
+            <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
+                {SHARE.map(m => {
+                    const r = rk(m.key);
+                    return (
+                        <div key={m.key} className="flex items-baseline gap-1.5 whitespace-nowrap text-[12px] text-slate-200">
+                            <i className="inline-block h-2.5 w-2.5 shrink-0 translate-y-px" style={{ background: m.color }}></i>{m.label}
+                            <span className="font-display text-[20px] font-semibold tabular-nums text-slate-50">{Number(scoring[m.key]).toFixed(1)}<span className="ml-0.5 text-[11px] text-slate-400">%</span></span>
+                            {r && <span className="font-mono text-[10.5px] text-slate-400">第{r.rank}</span>}
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="mb-2 flex items-baseline gap-2">
+                <h3 className="text-[13px] font-medium text-slate-100 whitespace-nowrap">情境得分</h3>
+                <span className="truncate font-mono text-[10px] text-slate-500">場均 · 禁區與快攻、二波、失誤後彼此重疊，不相加</span>
+            </div>
+            <UI.Ledger cols={SIT.length === 5 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}>
+                {SIT.map(m => (
+                    <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} citeNote="整季快照"
+                        value={typeof scoring[m.key] === 'number' ? scoring[m.key] : null} rank={rk(m.key)}
+                        sub={m.shareKey && typeof scoring[m.shareKey] === 'number' ? `占總得分 ${Number(scoring[m.shareKey]).toFixed(1)}%` : null} />
+                ))}
+            </UI.Ledger>
+        </UI.Section>
     );
 };
 

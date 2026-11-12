@@ -32,9 +32,12 @@ window.GameAgg = (function () {
     const DIFF_DEFS = { ON_NET_RATING: ['ON_OFF_RATING', 'ON_DEF_RATING'] };
     // eFG 特殊公式：100 * (Σ分子 + 0.5*Σ三分分子) / Σ分母
     const EFG_DEFS = {
+        EFG_PCT: ['FGM', 'FG3M', 'FGA'],
         CATCH_SHOOT_EFG_PCT: ['CATCH_SHOOT_FGM', 'CATCH_SHOOT_FG3M', 'CATCH_SHOOT_FGA'],
         PULL_UP_EFG_PCT: ['PULL_UP_FGM', 'PULL_UP_FG3M', 'PULL_UP_FGA'],
     };
+    // 真實命中率：100 * Σ得分 / (2 * (Σ出手 + 0.44 * Σ罰球出手))，key → [得分, 出手, 罰球出手]（與 NBA 整季值一致，2026-11-12 驗證）
+    const TS_DEFS = { TS_PCT: ['PTS', 'FGA', 'FTA'] };
     // 無法精確重算 → 退回逐場平均（比率/效率/頻率/距離類）
     const isAvgKey = k => /_PCT$|_FREQ$|_RATING$|PLUSMINUS$|PER_TOUCH$|REB_DIST$|TIME_OF_POSS$|PACE/.test(k);
 
@@ -64,6 +67,7 @@ window.GameAgg = (function () {
         // 只要分母資料在，就一定算出該比率欄（即使某場未存 _PCT 本身）
         Object.keys(RATIO_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[k][1])) keys.add(k); });
         Object.keys(EFG_DEFS).forEach(k => { if (keys.has(EFG_DEFS[k][2])) keys.add(k); });
+        Object.keys(TS_DEFS).forEach(k => { if (keys.has(TS_DEFS[k][1])) keys.add(k); });
         Object.keys(DIFF_DEFS).forEach(k => { if (keys.has(RATIO_DEFS[DIFF_DEFS[k][0]][1])) keys.add(k); });
         Object.keys(NORMAL_DEFS).forEach(k => { if (keys.has(NORMAL_DEFS[k][1])) keys.add(k); });
         for (const k of keys) {
@@ -95,6 +99,11 @@ window.GameAgg = (function () {
             const d = sum(fga);
             return d ? round1(100 * (sum(fgm) + 0.5 * sum(fg3m)) / d) : 0;
         }
+        if (TS_DEFS[k]) {
+            const [pts, fga, fta] = TS_DEFS[k];
+            const d = 2 * (sum(fga) + 0.44 * sum(fta));
+            return d ? round1(100 * sum(pts) / d) : 0;
+        }
         if (isAvgKey(k)) {
             const vals = rows.filter(r => typeof r[k] === 'number').map(r => r[k]);
             return round1(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
@@ -115,7 +124,7 @@ window.GameAgg = (function () {
         const rows = [];
         for (const g of games) { const e = entityOf(g, entityKey, viewMode); if (e) rows.push(e); }
         if (!rows.length) return null;
-        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : DIFF_DEFS[k] ? RATIO_DEFS[DIFF_DEFS[k][0]][1] : NORMAL_DEFS[k] ? NORMAL_DEFS[k][1] : k;
+        const need = RATIO_DEFS[k] ? RATIO_DEFS[k][1] : EFG_DEFS[k] ? EFG_DEFS[k][2] : TS_DEFS[k] ? TS_DEFS[k][1] : DIFF_DEFS[k] ? RATIO_DEFS[DIFF_DEFS[k][0]][1] : NORMAL_DEFS[k] ? NORMAL_DEFS[k][1] : k;
         if (!rows.some(r => typeof r[need] === 'number')) return null;
         if (tooFewShots(rows, k)) return null;
         return valueOf(rows, k);
@@ -194,7 +203,7 @@ window.GameAgg = (function () {
     }
 
     return {
-        RATIO_DEFS, EFG_DEFS, NORMAL_DEFS, aggregate, metricOf, seasonToDate,
+        RATIO_DEFS, EFG_DEFS, TS_DEFS, NORMAL_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,
     };

@@ -138,7 +138,7 @@ window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER
 // 不只「結構」變更要 +1，**每次重跑 backfill_history.py 也要 +1**：
 // 快取只以 docId 為 key，內容變了（例如回補後多出新援）而版本沒動，
 // 已開過頁面的使用者在 TTL 內完全看不到新資料。
-window.HISTORY_CACHE_VER = 5;                 // v5 = 各季歷史快照補齊 Hustle 欄位（2026-10-23）；v4 = 回補納入新援
+window.HISTORY_CACHE_VER = 6;                 // v6 = 歷史快照補最近防守者兩分／護框、球員進階、得分組成、全隊進階（2026-11-12）；v5 = 補齊 Hustle 欄位（2026-10-23）；v4 = 回補納入新援
 window.HISTORY_CACHE_TTL = 24 * 3600 * 1000;
 const _histKey = (docId) => `wt_history_v${window.HISTORY_CACHE_VER}_${docId}`;
 window.purgeHistoryCache = (all) => {
@@ -276,6 +276,9 @@ window.SPLITS_BASE_DEF = {
         { key: 'FG_PCT', label: '命中率', englishLabel: 'FG%', unit: '%' },
         { key: 'FG3_PCT', label: '三分%', englishLabel: '3P%', unit: '%' },
         { key: 'FT_PCT', label: '罰球%', englishLabel: 'FT%', unit: '%' },
+        // 2026-11-12 起：由逐場 PTS／FGA／FTA／FGM／FG3M 重算（GameAgg.TS_DEFS／EFG_DEFS），所有賽季都跟得上期間
+        { key: 'TS_PCT', label: '真實命中率', englishLabel: 'TS%', unit: '%' },
+        { key: 'EFG_PCT', label: '有效命中率', englishLabel: 'eFG%', unit: '%' },
         { key: 'STL', label: '抄截', englishLabel: 'STL' },
         { key: 'BLK', label: '阻攻', englishLabel: 'BLK' },
         { key: 'TOV', label: '失誤', englishLabel: 'TOV', betterIsLarger: false },
@@ -375,6 +378,35 @@ window.oppZonesDefs = [
             { key: 'AB3_OPP_FG_PCT', label: '非底角三分命中率', englishLabel: 'Above the Break 3', unit: '%', betterIsLarger: false },
         ]
     },
+];
+
+// 球員整季進階（總覽「個人效率」、跨季「效率」）：快照 advanced（nba_common.fetch_player_advanced），2026-11-12 起。
+// 只有整季快照（沒有逐場）→ 期間篩選時停用。真實／有效命中率不在這裡：季平均由逐場重算（SPLITS_BASE_DEF）
+window.playerAdvancedDefs = [
+    { key: 'USG_PCT', label: '使用率', englishLabel: 'USG%', unit: '%', neutral: true },
+    { key: 'AST_PCT', label: '助攻率', englishLabel: 'AST%', unit: '%' },
+    { key: 'AST_TO', label: '助攻失誤比', englishLabel: 'AST/TO' },
+    { key: 'TM_TOV_PCT', label: '失誤率', englishLabel: 'TOV%', unit: '%', betterIsLarger: false },
+    { key: 'OREB_PCT', label: '進攻籃板率', englishLabel: 'OREB%', unit: '%' },
+    { key: 'DREB_PCT', label: '防守籃板率', englishLabel: 'DREB%', unit: '%' },
+    { key: 'REB_PCT', label: '籃板率', englishLabel: 'REB%', unit: '%' },
+    { key: 'PIE', label: 'PIE', longLabel: '球員影響力 PIE', englishLabel: 'Player Impact Estimate' },
+];
+// 得分組成（投籃章節、跨季「得分組成」）：快照 scoring（nba_common.fetch_scoring），球員與全隊，2026-11-12 起，整季快照。
+// 長條四段（禁區＋中距離＋三分＋罰球＝100%），顏色不用紅（紅＝防守／負值）
+window.scoringShareDefs = [
+    { key: 'PCT_PTS_PAINT', label: '禁區', longLabel: '禁區得分占比', englishLabel: '%PTS Paint', unit: '%', color: '#12A150', neutral: true },
+    { key: 'PCT_PTS_2PT_MR', label: '中距離', longLabel: '中距離得分占比', englishLabel: '%PTS Mid-Range', unit: '%', color: '#C4CED2', neutral: true },
+    { key: 'PCT_PTS_3PT', label: '三分', longLabel: '三分得分占比', englishLabel: '%PTS 3PT', unit: '%', color: '#4A8BC2', neutral: true },
+    { key: 'PCT_PTS_FT', label: '罰球', longLabel: '罰球得分占比', englishLabel: '%PTS FT', unit: '%', color: '#FBBF24', neutral: true },
+];
+// 情境得分（場均；彼此與上面四段重疊，不相加）。shareKey：格子下方補「占總得分 X%」；PFD 只有球員版
+window.scoringSituationDefs = [
+    { key: 'PTS_PAINT', label: '禁區得分', englishLabel: 'PTS in Paint' },
+    { key: 'PTS_FB', label: '快攻得分', englishLabel: 'Fast Break PTS', shareKey: 'PCT_PTS_FB' },
+    { key: 'PTS_2ND_CHANCE', label: '二波得分', englishLabel: '2nd Chance PTS' },
+    { key: 'PTS_OFF_TOV', label: '失誤後得分', englishLabel: 'PTS off TOV', shareKey: 'PCT_PTS_OFF_TOV' },
+    { key: 'PFD', label: '造成犯規', englishLabel: 'Fouls Drawn', playerOnly: true },
 ];
 
 // 有逐場資料的防守群組（單場頁展開列、Splits、跨季疊圖用）；新增 Hustle 類群組要加進來

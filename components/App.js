@@ -120,7 +120,7 @@ const App = () => {
 
     // 將歷史 player doc（PlayerID-keyed）轉成與 daily 同構（playerName-keyed）
     // 各類別（tracking/base/shooting/clutch/defense/onoff）皆以球員名展開
-    const HISTORY_CATS = ['tracking', 'base', 'shooting', 'clutch', 'defense', 'onoff'];
+    const HISTORY_CATS = ['tracking', 'base', 'shooting', 'clutch', 'defense', 'onoff', 'advanced', 'scoring'];
     const normalizeHistoryPlayer = (doc) => {
         if (!doc) return doc;
         const out = { stats: {}, meta: {} };
@@ -1367,6 +1367,7 @@ const App = () => {
                                 radarSlot={radarSlot} stats={currentStats} playerId={currentPlayerId}
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam} period={period} periodCtx={periodCtx}
                                 advanced={viewMode === 'TEAM' ? (teamSeq[teamIdx] || {}).advanced : null}
+                                playerAdvanced={viewMode === 'PLAYER' ? (((playerSeq[playerIdx] || {}).advanced || {})[selectedPlayer] || null) : null}
                             />
                         )}
 
@@ -1392,6 +1393,7 @@ const App = () => {
                                     playerId={viewMode === 'TEAM' ? 0 : currentPlayerId} teamMode={viewMode === 'TEAM'}
                                     season={shootSeason} typeKey={shootType}
                                     playerName={viewMode === 'TEAM' ? '灰狼全隊' : selectedPlayer + selTag}
+                                    scoring={viewMode === 'TEAM' ? ((teamSeq[teamIdx] || {}).scoring || null) : (((playerSeq[playerIdx] || {}).scoring || {})[selectedPlayer] || null)}
                                     seasonLabel={primaryLabel} gameMeta={gameMeta}
                                     periodDates={periodDates} periodLabel={periodLabel} periodWaiting={periodWaiting}
                                 />

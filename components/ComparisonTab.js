@@ -58,6 +58,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         tracking: { label: '進階', metrics: flat(trackingDefs) },
         shooting: { label: '投籃', metrics: ((shootingDefs.find(d => d.id === 'ShotZones') || {}).metrics || []).map(m => ({ k: m.key, l: m.label, e: m.englishLabel, pct: true })) },
         defense: { label: '防守', metrics: flat(defenseDefs) },
+        // 2026-11-12 起：快照 advanced（球員整季進階／全隊進階）與 scoring（得分組成）；歷史快照已回補 2022-23 起
+        advanced: { label: '效率', metrics: viewMode === 'TEAM'
+            ? [{ k: 'OFF_RATING', l: '進攻效率', e: 'OffRtg' }, { k: 'DEF_RATING', l: '防守效率', e: 'DefRtg' }, { k: 'NET_RATING', l: '淨效率', e: 'NetRtg', signed: true },
+               { k: 'PACE', l: '節奏', e: 'Pace' }, { k: 'TS_PCT', l: '真實命中率', e: 'TS%', pct: true }, { k: 'EFG_PCT', l: '有效命中率', e: 'eFG%', pct: true },
+               { k: 'AST_PCT', l: '助攻率', e: 'AST%', pct: true }, { k: 'TM_TOV_PCT', l: '失誤率', e: 'TOV%', pct: true },
+               { k: 'OREB_PCT', l: '進攻籃板率', e: 'OREB%', pct: true }, { k: 'DREB_PCT', l: '防守籃板率', e: 'DREB%', pct: true }]
+            : [{ k: 'TS_PCT', l: '真實命中率', e: 'TS%', pct: true }, { k: 'EFG_PCT', l: '有效命中率', e: 'eFG%', pct: true },
+               ...flat([{ metrics: window.playerAdvancedDefs || [] }])] },
+        scoring: { label: '得分組成', metrics: flat([{ metrics: window.scoringShareDefs || [] }, { metrics: window.scoringSituationDefs || [] }]) },
         onoff: { label: 'On/Off', playerOnly: true, metrics: [
             { k: 'ON_NET_RATING', l: '在場淨效率', e: 'On NetRtg' }, { k: 'OFF_NET_RATING', l: '不在場淨效率', e: 'Off NetRtg' },
             { k: 'ON_OFF_RATING', l: '在場進攻效率', e: 'On OffRtg' }, { k: 'ON_DEF_RATING', l: '在場防守效率', e: 'On DefRtg' },
@@ -102,7 +111,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         : m.signed ? (v > 0 ? '+' : '') + window.fix1(v)
         : m.pct ? v.toFixed(1) + '%'
         : m.playtype ? v.toFixed(2)
-        : activeCat === 'base' || activeCat === 'onoff' ? v.toFixed(1) : v;
+        : activeCat === 'base' || activeCat === 'onoff' || activeCat === 'scoring' ? v.toFixed(1) : v;
 
     // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
     const metaOf = (key, who) => (who === TEAM || (!who && viewMode !== 'PLAYER')) ? null : (data[key]?.player?.meta?.[who || selectedPlayer] || null);
@@ -272,8 +281,11 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
 
             <UI.Section title={viewMode === 'PLAYER' ? selectedPlayer : '全隊'} en="Season by Season" accent="blue"
                 sub={`${catSub}${cols.some(c => c.isCurrent) ? '（當季取最新一份快照）' : ''} · 點指標列看逐季折線（可多選，同一指標可疊加其他球員）· 「—」表示該季無此類別資料`}
-                right={<UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenKeys([]); }}
-                    options={catKeys.map(c => ({ value: c, label: CATS[c].label }))} />}>
+                right={/* 類別 8 顆（2026-11-12 加效率、得分組成）手機放不下：可橫捲＋右緣捲動陰影，不換行 */
+                    <div className="max-w-full overflow-x-auto" style={UI.scrollHint}>
+                        <UI.Seg ariaLabel="比較類別" size="sm" value={activeCat} onChange={(c) => { setCat(c); setOpenKeys([]); }}
+                            options={catKeys.map(c => ({ value: c, label: CATS[c].label }))} />
+                    </div>}>
                 {cols.length === 0 ? (
                     <UI.Note>請至少選一個賽季</UI.Note>
                 ) : (

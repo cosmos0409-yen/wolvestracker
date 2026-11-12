@@ -356,11 +356,12 @@ window.UI = (function () {
     // sample：樣本次數（如合計防守出手 N 次），有給就在數值下方加「樣本小 · N 次」（呼叫端判斷門檻；引用不帶這行）
     // signed：正值顯示「+」（vs 平常這類差值）；引用與複製也帶正負號，箭頭仍以數值計算
     // fullLabel：格子顯示縮寫標籤時的完整名稱（引用、複製用）
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel }) => {
+    // sub：數值下方的一般補充文字（灰色，如「占總得分 18.4%」；引用不帶）
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null }) => {
         const citeLabel = fullLabel || label;   // 格子標籤是縮寫時（手機 3 欄），引用與複製用完整名稱
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
-        if (missing) { rank = null; sample = null; }
+        if (missing) { rank = null; sample = null; sub = null; }
         const shown = signed && typeof value === 'number' && value > 0 ? `+${value}` : value;
         const quoteFn = missing || quote === null ? undefined : () => window.Quote.make(Object.assign({
             label: citeLabel, en, gkey, values: [{ value: shown, unit }], rank: rank ? { rank: rank.rank, n: rank.n } : null,
@@ -393,6 +394,7 @@ window.UI = (function () {
                     {!isNA && !missing && <span className="ml-auto"><Delta value={value} prevValue={prevValue} unit={unit} betterIsLarger={betterIsLarger} /></span>}
                 </div>
                 {rank && <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-400">聯盟第{rank.rank}</div>}
+                {sub && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-slate-400">{sub}</div>}
                 {sample != null && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-amber-300" title="樣本少，數值波動大">樣本小 · {sample} 次</div>}
                 {pct != null && <PctBar value={pct} label={pctLabel} />}
             </div>
