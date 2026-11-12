@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-12（**組合數據、全域期間篩選、球員比較**：每日抓二人／三人／五人全部組合、新頁 `#lineups`；Splits 的期間列升級成主畫面共用控制（桌機在章節列、手機在身分列，網址 `pd=`／`c=`），跟不上期間的整季快照區塊篩選時停用；新頁 `#cmp` 兩位球員並排對照。另修「未出賽」傷停算不到、刊頭 1024～1280 px 按鈕被藏，見「2026-11-12 組合數據、全域期間篩選、球員比較」）
+> 最後更新：2026-11-12（**護框與兩分／三分防守**：最近防守者多抓 `2 Pointers` 與 `Less Than 6Ft`（護框），防守章節的最近防守者改成總體／兩分／三分 3 × 3、新增「護框」群組，全隊帶聯盟名次；期間的 vs 平常改以出手數加權；小樣本標示「樣本小 · N 次」，見「2026-11-12 護框與兩分／三分防守」）
+> 同日稍早：**組合數據、全域期間篩選、球員比較**：每日抓二人／三人／五人全部組合、新頁 `#lineups`；Splits 的期間列升級成主畫面共用控制（桌機在章節列、手機在身分列，網址 `pd=`／`c=`），跟不上期間的整季快照區塊篩選時停用；新頁 `#cmp` 兩位球員並排對照。另修「未出賽」傷停算不到、刊頭 1024～1280 px 按鈕被藏，見「2026-11-12 組合數據、全域期間篩選、球員比較」）
 > 前次：2026-11-05（**戰報引用**：單場「球隊對比」可加入引用籃（每列「?」只在桌面、分組「整組加入」）、新增四因素與投籃分區兩組；Box Score 展開列「加入本場數據」一行；引用籃新增標頭「單場比分」（客場 @、主場 vs.、城市全名、可附每節）與「排列」（加入順序／依球員／依指標）；「名次」開關改為也控制歷史定位等補充，見「2026-11-05 戰報引用」）
 > 前次：2026-11-04（**賽前預覽與完整賽程**：未開打的比賽也能開單場頁（預覽模式：雙方對照＋聯盟名次、交手、近況），賽程條有「下一場」卡、小月曆有未開打格子；新頁 `#schedule` 列出本季全部賽程（對手、主客、台北開賽時間、隊徽）。日期全站維持美東，開賽時間寫「台北隔日 09:30」，見「2026-11-04 賽前預覽與完整賽程」）
 > 同日稍早：**條件戰績**：Splits 期間列多「條件」——球員數據／全隊數據／有出賽／未出賽，最多 2 個（且），看符合場次的戰績、勝率、場均分差與平均，網址 `c=` 可分享，見「2026-11-04 條件戰績」）
@@ -54,6 +55,7 @@
 | 40 | **組合數據** | ✅ | 每日抓二人／三人／五人全部組合 → `wolves_games_index/{season}_{type}_lineups`（每日 +2 requests）；2022-23 起各季已回補；組合頁 `LineupsPage.js`（`#lineups`） |
 | 41 | **全域期間篩選** | ✅ | `periodFilter.js`（`window.Period`）＋`PeriodControl.js`：期間與條件從 Splits 升級成主畫面共用（網址 `pd=`／`c=`）；總覽、Splits、投籃、防守跟著期間，整季快照區塊 `UI.Locked` 停用 |
 | 42 | **球員比較** | ✅ | `compareData.js`（`window.Compare`）＋`ComparePage.js`（`#cmp`）：兩位灰狼球員並排（可各選賽季），差距最大、逐項對照、兩人同場、逐場走勢、Playtype |
+| 43 | **護框與兩分／三分防守** | ✅ | 最近防守者加 `2 Pointers`、`Less Than 6Ft`（`MATCHUP_CATEGORIES`，每日 +4、每場 +2 requests）；防守章節 3 × 3＋「護框」群組、全隊名次、期間 vs 平常加權、小樣本標示；2022-23 起歷史快照與本季逐場已回補 |
 
 ---
 
@@ -500,7 +502,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 期間篩選做成全域：**桌機膠囊在章節列右側、手機在身分列**（同一控制只放一處的例外：每種裝置仍只有一處）；平常只是一顆膠囊，點了才展開面板。
 - 跟不上期間的區塊：變淡＋標「整季數據 · 篩選時停用」＋完全不能點；Playtype、跨季章節仍可進入，最上方說明為整季數據。
 - 比較頁只比兩人，可各選賽季；「差距最大」沿用對戰頁算法。
-- 不做（之後另案）：球員聯盟名次、跨隊球員比較、四人組合、Playtype 單場還原、護框／進階／得分來源等新資料。
+- 不做（之後另案）：球員聯盟名次、跨隊球員比較、四人組合、Playtype 單場還原、進階／得分來源等新資料（護框同日另案完成，見「2026-11-12 護框與兩分／三分防守」）。
 
 **組合後端（Phase 1，`98bac2a`）**
 - `nba_common`：`fetch_lineup_rows(season, type, group_quantity)` 抓某種人數的全部組合（抓取失敗回 `None`、沒有組合回 `[]`，前者不覆寫）；`top_lineups()` 取五人前 10 組給每日快照（快照 `lineups` 形狀不變，總覽不受影響）；`LINEUP_GROUPS`＝(2, 3, 5)、`LINEUP_DOC_FIELDS`（短欄名）、`LINEUP_DOC_MAX_BYTES`（900 KB，超過從分鐘最少的列開始砍、記 `trimmed`）。
@@ -553,6 +555,78 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - Playtype 單場還原仍沒做：本季 11 場只有 5 場拆得出來（背靠背兩場之間沒有快照、開季頭兩場 Synergy 未釋出），要做得先在背靠背之間補抓 Synergy。
 - 比較頁逐項對照仍沿用全站好壞上色（次數類標綠），要改得在 defs 加 `neutral: true`，所有頁面一起變。
 
+### 2026-11-12 護框與兩分／三分防守
+
+起因：比對「NBA API 抓得到、本站還沒有」的資料時列出了「護框」，使用者接著問有沒有護三分、護兩分。Defense Dashboard（`leaguedashptdefend`／`leaguedashptteamdefend`）的 `DefenseCategory` 有六類：Overall、3 Pointers、2 Pointers、Less Than 6Ft、Less Than 10Ft、Greater Than 15Ft，每類都有防守出手、對手命中率、對手平常命中率、vs 平常。計畫 `_mockup/plan-rim-protection.md`、版型 `_mockup/rim-protection.html`（皆不進版控）。
+
+**決定（使用者）**
+- 用 Defense Dashboard（有 vs 平常），不用 Player Tracking 的 `DEF_RIM_*`（只有命中率）。
+- 加 2 Pointers、Less Than 6Ft；三分補顯示 vs 平常（資料早就有）；不加 < 10 Ft、> 15 Ft（和護框、三分大半重疊）。
+- 球員＋全隊（全隊算名次）；單場只有灰狼球員（沒有全隊單場版，和原本一樣）。歷史賽季只補快照、不補逐場。
+- 最近防守者 3 × 3（手機也 3 欄），護框獨立一組放在正下方；小樣本門檻交給 Claude 定（見下）。
+- 「平常」會漂移（見限制）：只在說明寫清楚，不另外重抓。
+
+**後端（`5e600d0`、`83e7f27`）**
+- `nba_common` 新增兩張欄位表和一張類別表：
+  - `MATCHUP_2PT_FIELDS`：`D_FG2M／D_FG2A／D_FG2_PCT／NORMAL_FG2_PCT／D_FG2_PLUSMINUS`
+  - `MATCHUP_RIM_FIELDS`：`D_RIM_FGM／D_RIM_FGA／D_RIM_PCT／NORMAL_RIM_PCT／D_RIM_PLUSMINUS`
+  - 類別表 `MATCHUP_CATEGORIES`：每列是 `(DefenseCategory, 欄位表, 標籤)`，球員、全隊、單場共用，**加類別只要加一列**。
+- 兩分的出手數和命中率可以由「總體減三分」算出，但「平常兩分命中率」推不準（實測最多差 21 個百分點），所以要真的抓。每場平均是除以 `GP`（不是 `G`）。
+- 單場擷取：
+  - 灰狼球員抓 4 類；對手球員只抓 `MATCHUP_OPP_CATEGORIES`（Overall＋3PT），所以每場從 26 → 28 requests。
+  - `fetch_matchup_defense(failed=list)` 會記下抓失敗的類別，單場據此標 `partial`。以前某一類失敗會被默默略過，那場就永遠少那幾欄。
+- 某類沒有出手的球員，不會出現在那一類的回應裡 → 該類欄位就不存在（不補 0）；前端當作沒有樣本。
+- 名次方向：`D_FG2_PCT`／`D_FG2_PLUSMINUS`／`D_RIM_PCT`／`D_RIM_PLUSMINUS` 越低越好；出手、命中次數與 `NORMAL_*` 不排名。
+- 回補：
+  - `backfill_history.py --only-matchup [--matchup-cats 2PT,Rim]`：球員＋全隊，每類 2 requests，只動 `defense` 裡的這些欄位。2022-23～2025-26 例行賽＋季後賽 8 份已補。
+  - `backfill_games.py --matchup-only [--matchup-cats …]`：已存在的單場只補灰狼球員，用 `playerId` 對應；某類抓失敗就整場不寫。2026-27 例行賽 11 場已補，bundle 已重建。
+  - 本季 2026-11-11 的每日快照手動補過（4 requests），之後每日抓取會自己帶。
+
+**前端（`b2cab09`）**
+- `constants.js`：
+  - `MatchupDefense` 改成 9 格（`cols: 3`）。`att` 是那格的出手欄位，`signed` 讓正值帶 +；格子用短標籤，完整名稱放 `longLabel`。
+  - 新群組 `RimProtection`，加進 `GAME_DEFENSE_IDS`。
+  - `DEF_SHOT_RULES = { seasonMin: 20, gameMin: 3 }`。
+  - `DEF_NEW_KEYS`：對戰頁不列這些新格子，維持原本的 4 格。
+- `GameAgg`：
+  - 新增 `NORMAL_DEFS`：vs 平常＝100×Σ命中／Σ出手 − Σ(平常命中率×出手)／Σ出手。只用三欄都有、出手 > 0 的場次；舊資料沒有平常命中率時才退回逐場平均。
+  - `PCT_PLUSMINUS`／`D_FG3_PLUSMINUS` 原本是逐場直接平均，**期間數字因此會小幅改變**。
+  - `RATIO_DEFS` 加 `D_FG2_PCT`、`D_RIM_PCT`。
+  - `metricOf`／`trendSeries` 遇到 vs 平常出手 < `gameMin` 時回 `null`；逐場走勢、比較頁的逐場波動、對戰頁的逐場值都適用。
+- `UI.StatCell` 加三個參數：`sample`（數值下方顯示「樣本小 · N 次」）、`signed`、`fullLabel`（格子用短標籤時，引用與複製用完整名稱）。
+- `TrackingCardRow` 加 `cols`、`gp`：整季用 base 的 `GP`、期間用 GameAgg 的 `GP`；次數＝場均出手 × gp。
+- 單場頁展開列：vs 平常出手 < 3 時顯示「—」，不判好壞、也不給引用。標籤改用 `metricLabel`（完整名稱）。
+- Splits 的 CSV 與指標選單、條件選單、條件描述也都改用 `metricLabel`。
+- 防守章節全隊順序：防守 Box → 最近防守者 → 護框 → 對手分區 → 拼勁 → 掩護與卡位。
+- 其他：跨季的「跨隊不適用」標記涵蓋護框；`glossary` 補 7 個新 key；單場快取 `wt_gc_v5_` → `v6`。
+
+**驗證**
+- 實打 API：
+  - Gobert 整季籃下 4.3／48.8％／−14.0、兩分 −12.2。
+  - 全隊籃下名次第 18、兩分 vs 平常第 4。
+  - 11/08 單場剛好 28 requests，對手球員沒有新欄位，也沒有誤標 partial。
+  - 模擬某類抓失敗，確認會被記錄。
+- 讀回 Firestore：
+  - 8 份歷史快照：原本的其他欄位都還在；缺新欄位的球員，本來就沒有總體資料。
+  - 3 場單場文件抽查正確。
+  - Gobert bundle 10 場加總：籃下 43 投 21 中＝48.8%，等於 NBA 整季值。
+- 期間加權：用逐場加權反推全季，總體 −9.4、兩分 −12.2、籃下 −14.0 都等於 NBA 整季值。
+- 介面（桌面 1280／手機 375）：
+  - 12 格都沒有溢出，標籤和英文小標都在同一行。
+  - A. Edwards 顯示「樣本小 · 8 次／16 次」。
+  - McDaniels 11/08 三分 0/2 → vs 平常「—」，Splits 走勢也不畫那一點。
+  - 比較頁、對戰頁、Splits 的主控台都沒有錯誤。
+
+**限制**
+- **「平常命中率」會漂移**：NBA 單場查詢回傳的「平常」，是射手在**擷取當下**的本季命中率，不是比賽當時的。
+  - 每日排程賽後隔天就抓，所以開季頭幾場的「平常」樣本很小（10/21 那場三分的「平常」只有 15%）。
+  - 實例：Gobert 三分 vs 平常用逐場加權反推是 −2.6，NBA 整季是 −3.9。兩分和護框是 11/12 才回補的，全部用當天的命中率，所以剛好對得上；之後的新場次也會開始漂移。
+  - **只影響期間篩選、Splits、比較頁裡的 vs 平常**；整季數字讀 NBA 快照，不受影響。「?」說明已寫明。
+  - 要修可以每週重抓本季逐場的最近防守者（約 4 × 場數個 requests），使用者先選擇不做。
+- 2026-11-11 以前的每日快照沒有新欄位：時光機選到更早的日期，這幾格會顯示「—」。
+- 歷史賽季沒有兩分／護框的逐場資料：歷史賽季開期間篩選時，護框群組會被停用，兩分格也沒有值。
+- 2024-25 的 Jesse Edwards（2 場、被投 2 球）不在 NBA 的兩分和籃下回應裡，快照少這幾欄。
+
 ---
 
 ## 專案檔案結構
@@ -600,9 +674,9 @@ wolvestracker/
 │   ├── nba_common.py                ← 共用模組：SESSION/重試/欄位設定表/所有抓取函式
 │   ├── fetch_data.py                ← 每日當季數據爬蟲（含寫入前去重；--games-only 只抓單場；執行結果寫 fetch_status.json）
 │   ├── watchdog.py                  ← 每日抓取看門狗（15:00 檢查、分級補抓、桌面通知；--dry-run／--test-notify）
-│   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common；--only-hustle／--only-team-matchup／--only-lineups 只補單項）
+│   ├── backfill_history.py          ← 歷史賽季回補腳本（import nba_common；--only-hustle／--only-team-matchup／--only-matchup／--only-lineups 只補單項）
 │   ├── fetch_shotchart.py           ← 投籃熱圖爬蟲（每週，逐球員 + 全隊）
-│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--adv-only 已有 box 的場次只補進階＋單場 On/Off；--clean-players 對帳剔除非當時隊員）
+│   ├── backfill_games.py            ← 單場數據回補（DateFrom=DateTo 逐場；--index-only 產索引；--box-only 只補 box score；--adv-only 已有 box 的場次只補進階＋單場 On/Off；--matchup-only 只補灰狼球員的最近防守者指定類別；--clean-players 對帳剔除非當時隊員）
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── build_preview.py             ← 賽前預覽：賽程檔＋30 隊數據 → wolves_games_index/{season}_preview（每日由 fetch_data 呼叫；--dry-run）
 │   ├── build_insights.py            ← 單場題材：逐場 bundle＋box → wolves_team_games/{date}.insights（每日由 fetch_data 呼叫；--date／--season／--dry-run）
@@ -669,7 +743,7 @@ wolvestracker/
 - 有逐場資料的防守群組集中在 `window.GAME_DEFENSE_IDS`（單場頁展開列、Splits、跨季疊圖讀它）；新增 Hustle 類群組要加進來
 - `GameAgg.RATIO_DEFS` 加 `PCT_BOX_OUTS_REB`（不以 `_PCT` 結尾，不加會被當次數相加）
 - **球隊版 endpoint 沒有 `BOX_OUT_PLAYER_REBS`／`PCT_BOX_OUTS_REB`**：`fetch_hustle` 只寫 headers 裡真的有的欄位（舊版被 `safe_col` 補成 0，2026-10-23 前寫入的球隊文件仍存著假 0）；前端這兩項標 `playerOnly`，全隊的防守分頁、跨季比較、疊圖一律不顯示
-- **全隊最近防守者**（2026-11-12）：`fetch_team_matchup_defense()` 打 `leaguedashptteamdefend`（NBA.com Teams > Defense Dashboard，Overall＋3 Pointers 共 2 requests），欄位名與球員版相同、共用 `MATCHUP_OVERALL_FIELDS`／`MATCHUP_3PT_FIELDS`，併入球隊 `defense`。每日抓取用 `team_id=0` 經 `split_league` 算名次（`D_FG_PCT`／`PCT_PLUSMINUS`／`D_FG3_PCT`／`D_FG3_PLUSMINUS` 越低越好；出手／命中次數與 `NORMAL_*` 不排）。全隊的 DFG% 等同對手整體命中率，真正多的資訊是 DIFF%（比對手平常低多少）。歷史快照用 `backfill_history.py --season X --type Y --only-team-matchup`（每份 2 requests，只動球隊 `defense`）補，2022-23～2025-26 例行賽／季後賽 8 份已補；當季 2026-11-11 每日快照手動補過，之後每日抓取自帶。單場（逐場 bundle／單場頁／Splits）沒有全隊版
+- **全隊最近防守者**（2026-11-12）：`fetch_team_matchup_defense()` 打 `leaguedashptteamdefend`（NBA.com Teams > Defense Dashboard，原本 Overall＋3 Pointers 共 2 requests，2026-11-12 起跟著 `MATCHUP_CATEGORIES` 加 2 Pointers、Less Than 6Ft 共 4），欄位名與球員版相同、共用 `MATCHUP_*_FIELDS`，併入球隊 `defense`。每日抓取用 `team_id=0` 經 `split_league` 算名次（`D_FG_PCT`／`PCT_PLUSMINUS`／`D_FG3_PCT`／`D_FG3_PLUSMINUS` 越低越好；出手／命中次數與 `NORMAL_*` 不排）。全隊的 DFG% 等同對手整體命中率，真正多的資訊是 DIFF%（比對手平常低多少）。歷史快照用 `backfill_history.py --season X --type Y --only-team-matchup`（當時每份 2 requests，現在跟著類別表是 4；只動球隊 `defense`）補，2022-23～2025-26 例行賽／季後賽 8 份已補；當季 2026-11-11 每日快照手動補過，之後每日抓取自帶。單場（逐場 bundle／單場頁／Splits）沒有全隊版
 - 歷史快照補齊：`backfill_history.py --season X --type Y --only-hustle`（每份 2 requests，只把 Hustle 併入既有 `defense`，其他類別不動；只更新 doc 裡已有的球員）。2023-24～2025-26 例行賽／季後賽與 2022-23 例行賽共 7 份已補；**2022-23 季後賽未補**（使用者決定放棄，該季新欄位顯示「—」）。注意：腳本寫入完成後 Python 程序可能卡住不退出（推測是 Firestore 連線收尾），看到 ✅ 就代表已寫入。**逐場資料（單場頁／Splits／疊圖）的新欄位只從 2026-10-24 之後的比賽開始有**，過去場次未回補（約 800 requests，需另外分批）
 
 - **起因**：開季 NBA 未釋出 Synergy → 舊守門整次不寫入 → 線上舊前端名單取 `stats` 為空，點球員全被當「本季無數據」自動探測到 2025-26。修法見「每日快照」的寫入守門，以及下列 UI 規則
@@ -869,7 +943,7 @@ wolves_player_stats/{YYYY-MM-DD}
 
 球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` / `defense` 皆為 `{playerName: {...}}` 同構。
 - **灰狼球員以名冊 PlayerID 過濾，不比名字**（`pid_to_name_keyed(..., keep_ids=roster_ids)`；Synergy 比 `playerId`）。名冊 API（commonteamroster）與數據 API（leaguedash*／synergyplaytypes）的寫法可能不同——2025-26 名冊 `Terrence Shannon Jr.`、數據 `Terrence Shannon Jr`，舊版比名字時他整個從快照消失（2026-10-19 修）。key 一律取**數據 API 的寫法**；`onoff` 的名字（endpoint 本身是 `Last, First`）也取 base 的寫法、沒有才退回名冊，確保 `current.onoff[球員名]` 對得上。前端跨季比對另有 `nameKey`（去句點/重音）兜底。
-- `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）+ 全隊最近防守者（`D_FG_PCT` 等，2026-11-12 起）。
+- `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）+ 全隊最近防守者（`D_FG_PCT` 等，2026-11-12 起）。最近防守者（球員與全隊）2026-11-12 起另有兩分 `D_FG2*`／`NORMAL_FG2_PCT` 與護框 `D_RIM*`／`NORMAL_RIM_PCT`（見「2026-11-12 護框與兩分／三分防守」）。
 
 ### 投籃熱圖（`fetch_shotchart.py` 每週整季覆寫＋`fetch_data.py` 每日增量）
 - **每日增量**（`fetch_data.capture_recent_shots` → `fetch_shotchart.capture_game_shots`）：最近 5 場中「已定稿（`is_final_capture`）且全隊文件 `gameDates` 還沒有」的場次，打一次 `shotchartdetail?GameID=…&PlayerID=0&TeamID=MIN`（拿到該場全隊出手，每球帶 `PLAYER_ID`），依球員拆開併入各文件；同日期舊出手先移除（重抓不重複）；受助攻比例沿用舊值；**全隊文件最後寫**，它的 `gameDates` 就是「已併入」記號，中途失敗下次自動重來
@@ -901,7 +975,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
 - **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取
 - **2022-23～2024-25 清理（2026-10-23，`backfill_games.py --clean-players`）**：這三季沒有 box，改用**多欄位對帳**（0 request）。每場把 `players` 加總比 `wolves_team_games.stats`：PTS／FGM／FGA／FG3M／FTM／FTA／OREB／DREB／AST／STL／BLK／PF 必須全等，TOV 只要求不超過球隊（球隊失誤含 24 秒違例等團隊失誤），上場時間加總 ≈ 5 × 球隊 MIN（容差 1.5 分鐘）。對不上時找「剔除後全部對得上」的最少人數組合（1～4 人），**該人數下唯一一組才剔除**，否則只列出不動。先用已清理的 2025-26 校準：94 場零誤刪（唯一對不上的 2026-03-01 是 NBA 球員 DREB 加總比球隊少 1，全員都在 box，屬資料落差）。三季例行賽剔除 76 場、105 人次（2022-23：Conley 26、Alexander-Walker 23、Russell 9、Matt Ryan 7、A.J. Lawson 3；2023-24：Troy Brown Jr. 13、Monte Morris 5、Shake Milton 4、Wendell Moore Jr. 1；2024-25：Hyland 13、Tristen Newton 1），剔除日期與真實交易時間吻合；季後賽三季本來就對得上。重建三季 bundle 後，得分加總、對帳腳本、bundle 端反推三種核對全部歸零。用法：先 `--dry-run` 看名單，再拿掉 `--dry-run` 寫入，接著 `build_bundles.py --season X --type Y`
-- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v5_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4、同日改存 `{ savedAt, v }` 加有效期限換 v5——本季 1 天、舊季 7 天後重讀；舊 `wt_gc_{date}`／`wt_gc_v2_`～`wt_gc_v4_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
+- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v3_`（2026-10-23 再換版）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v6_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4、同日改存 `{ savedAt, v }` 加有效期限換 v5——本季 1 天、舊季 7 天後重讀；2026-11-12 灰狼球員加最近防守者兩分／護框換 v6；舊 `wt_gc_{date}`／`wt_gc_v2_`～`wt_gc_v5_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
 - **灰狼單場球員以 box score 上場名單的 PlayerID 過濾，不用名字**：名冊 API 與數據 API 的名字寫法可能不同（2025-26 實例：`Terrence Shannon Jr.` vs `Terrence Shannon Jr`），用名字過濾會整個人漏掉。名字清單只在 box score 抓不到時當後備（`keep_is_fallback`）；`backfill_games.py --min-gp > 0` 時才另外套輪換門檻。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
@@ -1076,7 +1150,8 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 | 合理衝撞區命中率 | Restricted Area | `*shotlocations` 區域 `Restricted Area` | 不是整個禁區 |
 | 禁區（非 RA）命中率 | In The Paint (Non-RA) | 同上 `In The Paint (Non-RA)` | 不含合理衝撞區 |
 | 底角三分 / 非底角三分 | Corner 3 / Above the Break 3 | 同上 | 非底角含兩翼，不只弧頂 |
-| 最近防守者 (Defense Dashboard) | DFGA / DFG% / DIFF% | 球員 `leaguedashptdefend`、全隊 `leaguedashptteamdefend`（共用 `MATCHUP_*_FIELDS`） | 是「最近防守者」資料，**不是** `leagueseasonmatchups` 的對位資料；DIFF% 負=守得好 |
+| 最近防守者 (Defense Dashboard) | DFGA / DFG% / DIFF%（總體、2PT、3PT） | 球員 `leaguedashptdefend`、全隊 `leaguedashptteamdefend`（`MATCHUP_CATEGORIES`） | 是「最近防守者」資料，**不是** `leagueseasonmatchups` 的對位資料；DIFF% 負=守得好 |
+| 護框 (Rim Protection) | DFGA / DFG% / DIFF% · < 6 Ft | 同上，`DefenseCategory=Less Than 6Ft` | 籃框 6 呎內、該球員是最近防守者的出手；不是 Player Tracking 的 `DEF_RIM_*`（那個沒有 vs 平常） |
 | 干擾球 | Deflections | `leaguehustlestats{player|team}` `DEFLECTIONS` | 不是抄截 |
 | 地板球 | Loose Balls Recovered | `LOOSE_BALLS_RECOVERED`（進攻端／防守端 `OFF_`/`DEF_LOOSE_BALLS_RECOVERED`） | Loose Ball 譯「地板球」（2026-10-23 使用者指定，舊名「搶回散球」） |
 | 掩護助攻得分 | Screen AST PTS | Hustle `SCREEN_AST_PTS` | 掩護直接幫隊友投進的分數；與「掩護助攻」(次數) 同組 |
@@ -1118,7 +1193,8 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: 想新增數據（三種情境，皆只需改一處後端）
 1. **既有 API 的新欄位**（如籃板再加一欄）：`nba_common.py` 對應的 `*_FIELDS` 設定表加一行 `(輸出欄名, API 欄名, 是否百分比)`
 2. **`leaguedashptstats` 新類型**（如 SpeedDistance）：`TRACKING_TYPES` 加名稱 + `TRACKING_FIELDS` 加對應欄位列表
-3. **全新 endpoint**（如 Hustle）：`nba_common.py` 仿照 `fetch_clutch()` 寫一支新函式（用 `fetch_with_retry`），`fetch_data.py` 主流程呼叫並掛進文件欄位與 `DATA_KEYS`
+3. **最近防守者多一類**（如 `Less Than 10Ft`）：`nba_common.py` 加欄位表＋`MATCHUP_CATEGORIES` 加一列（每日球員＋全隊各 +1、每場 +1 request）＋`RANK_LOWER_BETTER`／`RANK_SKIP`；舊資料用 `backfill_history.py --only-matchup --matchup-cats 標籤`、`backfill_games.py --matchup-only --matchup-cats 標籤` 補；前端 `defenseDefs` 加格子（vs 平常要加進 `GameAgg.NORMAL_DEFS`，並給 `att`／`signed`）
+4. **全新 endpoint**（如 Hustle）：`nba_common.py` 仿照 `fetch_clutch()` 寫一支新函式（用 `fetch_with_retry`），`fetch_data.py` 主流程呼叫並掛進文件欄位與 `DATA_KEYS`
 
 前端同步：`components/constants.js` 加 defs（含 `englishLabel`）→ `App.js` 對應區塊 → `python scripts/bundle.py` 重新打包。每日與歷史回補會自動同步生效（共用 nba_common）。
 
@@ -1245,7 +1321,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
-- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（目前 `wt_gc_v5_`，單場頁／對戰頁；2026-11-04 起有 1～7 天期限）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
+- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v3_`）與 `loadGameDocs`（目前 `wt_gc_v6_`，單場頁／對戰頁；2026-11-04 起有 1～7 天期限）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
 - **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
 - **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 
@@ -1253,7 +1329,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 - **讀取配額是唯一會隨流量成長的**：2026-10 起開站只讀近期快照（見「效能與無障礙」），整季只在需要時才讀。寫入極寬鬆；儲存在 2026-10-19 設索引豁免後也寬鬆（見「Firestore 方案與用量」）。
 - **中文字型約 1 MB**（Noto Sans TC 切片，首次造訪下載、之後快取）：使用者 2026-10 決定先不換；若要再省，可改用系統中文字（微軟正黑體／蘋方），英數字型不受影響。
-- **每日請求預算**：目前約 75/天（快照 73＋賽程 1＋賽前預覽的 CDN 賽程檔 1；2026-11-12 加二人／三人組合 +2；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 26（含對手、box score、進階 box 與單場 On/Off）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 28（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
+- **每日請求預算**：目前約 79/天（快照 77＋賽程 1＋賽前預覽的 CDN 賽程檔 1；2026-11-12 加最近防守者兩分／護框 +4、二人／三人組合 +2；2026-10-28 加全隊進階 +1，全隊類別改拿 30 隊不增加請求），比賽隔天另加單場每場約 28（含對手、box score、進階 box 與單場 On/Off；2026-11-12 灰狼球員最近防守者 +2）。看門狗（2026-10-26 起）正常日只加 1（讀賽程）；比賽隔天下午先抓暫定版再加約 30（隔天 03:00 定稿時同一場會再抓一次）；主排程失敗的日子補一次完整抓取約 95。加新 endpoint 會同步升高 + 被擋風險。原則：**優先用「全聯盟單次請求」的 leaguedash 系列**（一次拿全隊）；逐球員的 `shotchartdetail` 才降為每週；每日只另加「單場全隊」投籃查詢（比賽隔天 +1）。真要加逐球員數據，比照 `fetch_shotchart.py` 走每週排程。
 - **單場資料是累積欄位的子集**：`nba_common.fetch_single_game()`（回補與每日共用）只抓基本數據 + tracking + 對位防守 + Hustle + 分區投籃（＋對手同樣欄位與 box score）。想讓單場也有投籃拆分 / 防守 box / 對手分區，在這個函式加對應 `fetch_*`，再重跑回補（`--start/--limit` 分批）。`SingleGamePanel` 會自動顯示新增的群組（它只渲染「有資料」的 def）。
 - **配色未抽變數**：色值以 hex 直接寫在各元件（Tailwind arbitrary values）。改配色目前靠 `sed` 全域替換 + CLAUDE.md 色票表。若之後配色常改，值得抽成 CSS 變數或 Tailwind theme extend（一次性重構所有 `[#...]` 類名）。
 - **`SingleGamePanel` 的日期選單靠索引文件**：`wolves_games_index/{season}_{type}`。當季由每日 `fetch_data.py` 自動重建；歷史賽季回補後跑 `backfill_games.py --index-only`。
@@ -1267,6 +1343,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-12 — 護框與兩分／三分防守（Phase 1–5）：`nba_common` 加 `MATCHUP_2PT_FIELDS`／`MATCHUP_RIM_FIELDS`／`MATCHUP_CATEGORIES`／`MATCHUP_OPP_CATEGORIES`、`fetch_matchup_defense(categories, failed)`，每日 75 → 79、每場 26 → 28 requests；`backfill_history.py --only-matchup`、`backfill_games.py --matchup-only`（`--matchup-cats`），回補 8 份歷史快照與本季 11 場；前端 `MatchupDefense` 3 × 3＋`RimProtection`、`DEF_SHOT_RULES`／`DEF_NEW_KEYS`、`GameAgg.NORMAL_DEFS`（期間 vs 平常改加權）、`StatCell` 的 `sample`／`signed`／`fullLabel`、`TrackingCardRow` 的 `cols`／`gp`，單場快取 `wt_gc_v6_`。使用者決定：用 Defense Dashboard、加兩分與 < 6 Ft、不加 < 10／> 15 Ft、歷史只補快照、「平常」漂移只寫說明
 - 2026-11-12 — 組合數據、全域期間篩選、球員比較（Phase 1–6）：`nba_common` 加 `fetch_lineup_rows`／`top_lineups`／`lineups_consistent`／`lineups_doc`／`write_lineups` 與 `LINEUP_GROUPS`／`LINEUP_DOC_FIELDS`，每日 +2 requests，寫 `wolves_games_index/{season}_{type}_lineups`，`backfill_history.py --only-lineups` 回補 2022-23 起 8 份；前端 `LineupsPage.js`（`#lineups`）、`loadLineups`、`UI.DataTable` 的 `limit`／`exportSource`；`periodFilter.js`（`window.Period`）、`PeriodControl.js`、`UI.TabBar` 的 `below`、`UI.Locked`，總覽／Splits／投籃／防守跟著全域期間（網址 `pd=`／`c=`），整季快照區塊停用、引用附期間；`compareData.js`／`ComparePage.js`（`#cmp`），身分列「比較」。另修：未出賽在隊期間（當季仍在名冊算到最新一場）、刊頭 1024～1280 px 按鈕被藏。使用者決定：只做二／三／五人、組合文件只留最新、桌機 B 手機 A、停用區塊不能點、Playtype 單場還原另案
 - 2026-11-04 — 賽前預覽與完整賽程（Phase 1–4）：新增 `scripts/build_preview.py`（`wolves_games_index/{season}_preview`，每日 +1 CDN request）與 `nba_common` 的 `PREVIEW_*`／`fetch_league_schedule`／`rank_all`；前端 `loadPreview`、`kickoffTPE`／`kickoffET`／`etToday`／`ordinal`／`teamLogo`、`PreviewPanel.js`（預覽模式）、賽程條下一場卡、小月曆未開打場次、`SchedulePage.js`（`#schedule`）與三個入口。使用者決定：預覽放單場頁、名次用英文序數、日期維持美東＋台北隔日開賽時間、只做當季
 - 2026-11-04 — 條件戰績（Phase 1–3）：新增 `components/splitConditions.js`（`window.SplitCond`）與 `CONDITION_RULES`；`SplitsTab` 期間列「條件」、條件編輯器（單顆 ≥／≤ 鈕、名字縮寫、單行）、戰績摘要、符合場次；網址 `c=`（`urlState`／App `splitCond`）；`glossary` 加 `SPLIT_COND`；`UI.Section` 標題可截斷。使用者決定：三種條件、最多 2 個、跟著所選賽季、未出賽採交易截止日後算到季末、名字縮寫與不換行原則
