@@ -1,6 +1,7 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-13（**資料品質小修**：看門狗 15:00 最後一步「逐場對帳」——全隊逐場加總 vs 整季快照，0 request，有落差才通知並附重抓指令（`--check-data` 可手動跑）；最近防守者另存出賽場數 `D_GP`，「樣本小 · N 次」不再多算，見「2026-11-13 資料品質小修」）
+> 最後更新：2026-11-13（**球員聯盟名次**：灰狼球員在全聯盟合格球員（出賽 ≥ 70%、每場 ≥ 15 分鐘，247 人）中排名，命中率類另有場均出手門檻；身分列、總覽、Splits 全季、防守、投籃都顯示「聯盟第 N」，前 30 名綠字，「?」小卡說明門檻或沒有名次的原因，見「2026-11-13 球員聯盟名次」）
+> 同日稍早：**資料品質小修**：看門狗 15:00 最後一步「逐場對帳」——全隊逐場加總 vs 整季快照，0 request，有落差才通知並附重抓指令（`--check-data` 可手動跑）；最近防守者另存出賽場數 `D_GP`，「樣本小 · N 次」不再多算，見「2026-11-13 資料品質小修」）
 > 前次：2026-11-12（**個人效率、得分組成與抓取對帳**：球員總覽加「個人效率」（USG%／AST%／籃板率／PIE 等）與季平均 TS%／eFG%，投籃章節加「得分組成」（禁區／中距離／三分／罰球占比＋情境得分），跨季多「效率」「得分組成」；對帳後停抓投籃拆分（每日實測 84 requests）、補露出三分出手占比等 5 項，並重抓開季頭 4 場少抓的 Tracking，見「2026-11-12 個人效率、得分組成與抓取對帳」）
 > 同日稍早：**護框與兩分／三分防守**：最近防守者多抓 `2 Pointers` 與 `Less Than 6Ft`（護框），防守章節的最近防守者改成總體／兩分／三分 3 × 3、新增「護框」群組，全隊帶聯盟名次；期間的 vs 平常改以出手數加權；小樣本標示「樣本小 · N 次」，見「2026-11-12 護框與兩分／三分防守」）
 > 同日稍早：**組合數據、全域期間篩選、球員比較**：每日抓二人／三人／五人全部組合、新頁 `#lineups`；Splits 的期間列升級成主畫面共用控制（桌機在章節列、手機在身分列，網址 `pd=`／`c=`），跟不上期間的整季快照區塊篩選時停用；新頁 `#cmp` 兩位球員並排對照。另修「未出賽」傷停算不到、刊頭 1024～1280 px 按鈕被藏，見「2026-11-12 組合數據、全域期間篩選、球員比較」）
@@ -61,6 +62,7 @@
 | 44 | **個人效率與得分組成** | ✅ | 球員整季進階（`advanced`）與得分組成（`scoring`，球員＋全隊、全隊名次），每日 +5；總覽「個人效率」、季平均 TS%／eFG%、投籃「得分組成」、跨季「效率」「得分組成」；2022-23 起歷史快照已補（含全隊進階） |
 | 45 | **抓取與前端露出對帳** | ✅ | 停抓投籃拆分（每日 −2；2026-11-13 實測每日共 84）；補露出三分出手占比、接球跳投／急停跳投得分、切入助攻率、對手二波得分；重抓開季頭 4 場少抓的 Tracking |
 | 46 | **資料品質小修** | ✅ | 看門狗每日逐場對帳（全隊逐場加總 vs 整季快照，0 request，有落差才通知）；最近防守者出賽場數 `D_GP` 修正「樣本小」次數 |
+| 47 | **球員聯盟名次** | ✅ | `player_league_ranks()` 每日算灰狼球員在全聯盟合格球員中的名次（0 額外 request），存球員文件 `ranks`；前端前 30 名綠字、「?」小卡說明門檻與沒有名次的原因 |
 
 ---
 
@@ -507,7 +509,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 期間篩選做成全域：**桌機膠囊在章節列右側、手機在身分列**（同一控制只放一處的例外：每種裝置仍只有一處）；平常只是一顆膠囊，點了才展開面板。
 - 跟不上期間的區塊：變淡＋標「整季數據 · 篩選時停用」＋完全不能點；Playtype、跨季章節仍可進入，最上方說明為整季數據。
 - 比較頁只比兩人，可各選賽季；「差距最大」沿用對戰頁算法。
-- 不做（之後另案）：球員聯盟名次、跨隊球員比較、四人組合、Playtype 單場還原（護框、進階、得分來源同日另案完成，見「2026-11-12 護框與兩分／三分防守」「2026-11-12 個人效率、得分組成與抓取對帳」）。
+- 不做（之後另案）：跨隊球員比較、四人組合、Playtype 單場還原（護框、進階、得分來源、球員聯盟名次另案完成，見「2026-11-12 護框與兩分／三分防守」「2026-11-12 個人效率、得分組成與抓取對帳」「2026-11-13 球員聯盟名次」）。
 
 **組合後端（Phase 1，`98bac2a`）**
 - `nba_common`：`fetch_lineup_rows(season, type, group_quantity)` 抓某種人數的全部組合（抓取失敗回 `None`、沒有組合回 `[]`，前者不覆寫）；`top_lineups()` 取五人前 10 組給每日快照（快照 `lineups` 形狀不變，總覽不受影響）；`LINEUP_GROUPS`＝(2, 3, 5)、`LINEUP_DOC_FIELDS`（短欄名）、`LINEUP_DOC_MAX_BYTES`（900 KB，超過從分鐘最少的列開始砍、記 `trimmed`）。
@@ -762,6 +764,76 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 只比全隊：如果只有某位球員的單場數字少抓、全隊加總沒有超過門檻，抓不到。
 - 只抓得到「已定稿後又被 NBA 補正」的落差；整季快照本身如果錯了，這裡比不出來。
 - 11/12 以前的每日快照與歷史快照沒有 `D_GP`，「樣本小」次數照舊用 base 出賽場數，少數球員會多算。
+
+### 2026-11-13 球員聯盟名次
+
+起因：使用者的貼文固定寫「（聯盟第 N）」，原本只有全隊有名次（30 隊）。這次讓灰狼球員在全聯盟合格球員中排名，寫法和全隊一致。計畫 `_mockup/plan-player-ranks.md`、版型 `_mockup/player-ranks.html`（皆不進版控）。
+
+**決定（使用者）**
+- 排名對象：出賽 ≥ 所屬球隊場數 70%（各隊自己的場數）且每場 ≥ 15 分鐘（2026-11-13 實算：合格 247 人，灰狼 8 人）。
+- 沒達門檻的球員（例如 Edwards 4／12 場）：格子不顯示名次；「?」小卡寫原因＋「若列入約第 N（僅供參考）」，不進引用。
+- 命中率類的出手門檻用**場均出手**（不用 NBA 官方的命中數，官方門檻會把 Gobert 的投籃命中率排除）：
+  - 投籃、真實命中率、有效命中率 ≥ 5 次；三分 ≥ 3 次；罰球 ≥ 2 次。
+  - 用全聯盟資料校準：投籃 5 留 87%、三分 3 留 70%、罰球 2 留 55%；前幾名不再是出手很少的人，人數也和 NBA 官方門檻接近。
+  - 其他有對應出手欄的比率（最近防守者、護框、切入、接球跳投、分區等）：出手要達合格名單的 **P25**。原本提案是中位數，太嚴，後衛的對手命中率幾乎都沒有名次。
+- 要排的類別：基本、Tracking、投籃分區、防守、個人效率、得分組成。不排 Clutch（樣本太小）、On/Off。方向沿用全隊的 `RANK_LOWER_BETTER`／`RANK_SKIP`。
+- 顯示：
+  - 格子下方「聯盟第 N」，人數與門檻寫在「?」小卡。
+  - **前 30 名用主色綠**（只有球員）。失誤、犯規照樣排名但不上綠：越少越好，排名主要反映球權多寡，例如 Ball 失誤第 244。
+- 只有當季、每天更新；時光機跟著那天的快照；歷史賽季沒有。
+
+**後端（`5a1e283`）**
+- `nba_common`：
+  - `PLAYER_RANK_RULES`：`gp_ratio`、`min_mpg`、`att_fixed`、`att_quantile`、`top`、`no_highlight`。
+  - `PLAYER_RANK_ATT_PAIRS`：25 個比率欄 → 出手欄。
+  - `PLAYER_RANK_CATS`。
+  - `player_league_ranks()`：純函式，0 request；同分取最小名次。
+  - `fetch_base_box(team_of=)`：另外記錄 `{PlayerID: TEAM_ID}`，不寫進文件。
+- `fetch_data.py`：
+  - 最近防守者（4 支）與防守 Box（1 支）改抓全聯盟（`team_id=0`），支數不變、回傳變大。
+  - 全聯盟原始資料算完名次才用名冊過濾，快照的其他內容不變。
+  - 名次算失敗只印 ⚠️，不影響其他資料寫入。
+- 球員文件的 `ranks`，約 36 KB：
+  ```
+  {類別: {球員名: {欄位: 名次}},
+   _n: {類別: {欄位: 參與人數}},                          # 各欄不同（命中率類有出手門檻）
+   _meta: {球員名: {qualified, gp, teamGp, mpg}},
+   _ref: {類別: {球員名: {欄位: 若列入名次}}},             # 只有未合格者
+   _rules: {gp_ratio, min_mpg, att_fixed, att_pairs, att_thresholds（P25 實際值）, n_qualified, top, no_highlight}}
+  ```
+- 2026-11-12 的球員快照手動寫過名次（用驗證時抓的資料，0 額外 request）；之後每日抓取自帶。
+
+**前端（`58da65d`）**
+- `window.RankCtx`：
+  - 全隊 `{kind: 'team', …}` 不變。
+  - 球員 `{kind: 'player', name, ranks, vals（該員各類別快照值合併）, date, latest}`；只在當季每日快照有 `ranks._meta[球員]` 時設定。
+- `window.leagueRank(cats, key)`：全隊與球員通用。球員另回 `top`（要不要上綠字）、`gate`（出手門檻文字）。
+- `window.rankWhy(cats, key)`：沒有名次時的原因。未合格附「若列入約第 N」；單項出手未達門檻時寫實際場均出手與門檻。沒有名次、也不在排名範圍的欄位（例如 Clutch）回 `null`。
+- `UI.StatCell`／`UI.Info` 加 `rankWhy`；名次 `top` 時用主色綠。小卡寫法：
+  - 球員：「聯盟第 N（M 人）：出賽 ≥ 70% 球隊場數、每場 ≥ 15 分鐘［、出手門檻］的球員中排名」。
+  - 全隊：維持「（30 隊）」。
+- 接上名次的位置：
+  - 身分列；總覽季平均（全季時，找 `base` 再找 `advanced`）與個人效率。
+  - Splits 全季：`RANK_CATS.base` 加 `advanced`，讓真實／有效命中率也有名次。
+  - 防守章節；投籃得分組成（標題寫「小字為聯盟名次（247 人）」）。
+
+**驗證**
+- 實算：
+  - Gobert 籃板率第 6、進攻籃板率第 9、正負值第 10、阻攻第 28；投籃命中率第 39（出手 5.6 次有列入），三分沒有名次（0.3 次）。
+  - Dosunmu 三分、罰球命中率都是第 10。
+  - McDaniels 罰球 1.9 次，沒有名次。
+  - Edwards 未合格，若列入得分約第 2。
+- 前端：
+  - 「?」小卡三種文字都正確（有名次、出手不夠、沒達出賽門檻）。
+  - 全隊畫面不變；時光機 11/11、歷史賽季 2025-26 都不顯示球員名次，沒有出錯。
+  - 手機 375 沒有溢出，「聯盟第 N」沒有折行。
+  - 引用籃「※籃板率：18.7%（第6）」。
+
+**限制**
+- 名次以 NBA 整季合併數字排（季中轉隊含前東家），和逐場重算的「只算灰狼」季平均可能差一點小數。
+- 季初門檻用場數比例，各隊場數不同、球員剛復出時，可能今天合格、明天又不合格。
+- 球員 Playtype 仍只有百分位，不換算名次（球員百分位的母體人數不固定）。
+- 待驗：2026-11-14 起每日抓取自帶 `ranks`，每日 request 數應維持 84。
 
 ---
 
@@ -1080,6 +1152,7 @@ wolves_player_stats/{YYYY-MM-DD}
 球員以 **playerName** 為 key（每日快照沿用舊結構）；`tracking` / `shooting` / `clutch` / `defense` 皆為 `{playerName: {...}}` 同構。
 - **灰狼球員以名冊 PlayerID 過濾，不比名字**（`pid_to_name_keyed(..., keep_ids=roster_ids)`；Synergy 比 `playerId`）。名冊 API（commonteamroster）與數據 API（leaguedash*／synergyplaytypes）的寫法可能不同——2025-26 名冊 `Terrence Shannon Jr.`、數據 `Terrence Shannon Jr`，舊版比名字時他整個從快照消失（2026-10-19 修）。key 一律取**數據 API 的寫法**；`onoff` 的名字（endpoint 本身是 `Last, First`）也取 base 的寫法、沒有才退回名冊，確保 `current.onoff[球員名]` 對得上。前端跨季比對另有 `nameKey`（去句點/重音）兜底。
 - `shooting` 2026-11-13 起只剩分區命中（`fetch_shot_locations`）；之前的快照另有投籃拆分的 `FG2A_FREQ／FG3A_FREQ／FG2_PCT／EFG_PCT` 等（停抓，前端不讀）。
+- 球員文件 2026-11-13 起另有 `ranks`（球員聯盟名次，結構見「2026-11-13 球員聯盟名次」）；最近防守者與防守 box 改抓全聯盟後才用名冊過濾，快照內容不變。
 - `defense`（球員）= 對位防守 + Hustle + 防守 box 合併；`defense`（球隊）= Hustle + 防守 box + 對手分區（`*_OPP_FG_PCT` 等扁平欄位）+ 全隊最近防守者（`D_FG_PCT` 等，2026-11-12 起）。最近防守者（球員與全隊）2026-11-12 起另有兩分 `D_FG2*`／`NORMAL_FG2_PCT` 與護框 `D_RIM*`／`NORMAL_RIM_PCT`（見「2026-11-12 護框與兩分／三分防守」）。
 
 ### 投籃熱圖（`fetch_shotchart.py` 每週整季覆寫＋`fetch_data.py` 每日增量）
@@ -1339,6 +1412,8 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 
 不確定 API 欄名時，先抓一次 response 印 `resultSets[0]['headers']` 對照（欄名錯誤會被 `safe_col` 靜默吞成 0）。
 
+**球員聯盟名次**（2026-11-13 起）：球員新欄位只要在 `PLAYER_RANK_CATS` 的類別裡就會自動排名，方向一樣看 `RANK_LOWER_BETTER`／`RANK_SKIP`；新的命中率類欄位要在 `PLAYER_RANK_ATT_PAIRS` 加「比率欄 → 出手欄」（不加就沒有出手門檻，1 投 1 中會排第一）；門檻改 `PLAYER_RANK_RULES`。前端格子傳 `rank={window.leagueRank(類別, 欄位)}`＋`rankWhy={window.rankWhy(類別, 欄位)}`。
+
 **全隊欄位的聯盟名次**（2026-10-28 起）：全隊新欄位會自動算名次（預設數值大＝第 1）。越低越好的（失誤、對手命中率等）加進 `nba_common.RANK_LOWER_BETTER`、排名沒有意義的加進 `RANK_SKIP`；前端那一格傳 `rank={window.leagueRank('類別', '欄位')}`（或 `TrackingCardRow rankCats`）才會顯示。新類別若要排名，抓取時傳 `team_id=0` 並經 `split_league()`，名次寫進 `ranks.{類別}`。
 
 ### Q: 逐場加總和整季快照對不上（例如 Splits 全季切入次數比 NBA 少）
@@ -1485,6 +1560,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-13 — 球員聯盟名次（Phase 1–4）：`nba_common` 加 `PLAYER_RANK_RULES`／`PLAYER_RANK_ATT_PAIRS`／`PLAYER_RANK_CATS`、`player_league_ranks()`、`fetch_base_box(team_of=)`；`fetch_data.py` 最近防守者與防守 box 改抓全聯盟、球員文件加 `ranks`；前端 `RankCtx` 支援球員、`leagueRank` 回 `top`／`gate`、`rankGateText`／`rankWhy`、`StatCell`／`Info` 的 `rankWhy` 與綠字，身分列／總覽／Splits／防守／投籃接上名次。使用者決定：出賽 ≥ 70%＋每場 ≥ 15 分鐘、場均出手門檻（投籃 5／三分 3／罰球 2、其他 P25）、未合格不顯示（小卡附參考名次）、前 30 名綠字、失誤犯規不上綠
 - 2026-11-13 — 資料品質小修（Phase 1–4）：`MATCHUP_OVERALL_FIELDS` 加 `D_GP`（最近防守者出賽場數），防守章節「樣本小」次數改用場均 × `D_GP`；`nba_common` 加 `CONSISTENCY_RULES`／`CONSISTENCY_SKIP`／`CONSISTENCY_LABELS`、`consistency_fields()`／`consistency_issues()`；`watchdog.py` 拆出 `watch()`、15:00 最後一步 `check_data()`、新增 `--check-data`。另把交接手冊的每日 request 改為實測 84。使用者決定：放看門狗、只比全隊、只通知不自動重抓、舊快照不補 `D_GP`
 - 2026-11-12 — 個人效率、得分組成與抓取對帳（Phase 1–6）：`nba_common` 加 `PLAYER_ADVANCED_FIELDS`／`SCORING_FIELDS`／`MISC_FIELDS`、`fetch_player_advanced`／`fetch_scoring`；快照球員 `advanced`／`scoring`、全隊 `scoring`／`ranks.scoring`；`backfill_history.py --only-adv-scoring` 補 8 份（含全隊進階）；停抓投籃拆分，每日實測 84；前端 `playerAdvancedDefs`／`scoringShareDefs`／`scoringSituationDefs`、總覽個人效率、投籃 `ScoringMix`、跨季「效率」「得分組成」、`GameAgg.TS_DEFS`／`WAVG_DEFS`／`FG3A_FREQ`、`StatCell` 的 `sub`、`HISTORY_CACHE_VER` 6；Splits 加 TS%／eFG%／三分出手占比，Tracking 加接球跳投／急停得分與切入助攻率，防守 Box 加對手二波得分；重抓 10/21～10/26（Tracking 少抓），單場快取 `wt_gc_v7_`／`wt_game_v4_`。使用者決定：進階 10 欄、Scoring＋Misc 都抓、只有 TS／eFG 跟期間、歷史只補快照、對帳 4 項＋切入助攻率都做、重抓 4 場
 - 2026-11-12 — 護框與兩分／三分防守（Phase 1–5）：`nba_common` 加 `MATCHUP_2PT_FIELDS`／`MATCHUP_RIM_FIELDS`／`MATCHUP_CATEGORIES`／`MATCHUP_OPP_CATEGORIES`、`fetch_matchup_defense(categories, failed)`，每日 75 → 79、每場 26 → 28 requests；`backfill_history.py --only-matchup`、`backfill_games.py --matchup-only`（`--matchup-cats`），回補 8 份歷史快照與本季 11 場；前端 `MatchupDefense` 3 × 3＋`RimProtection`、`DEF_SHOT_RULES`／`DEF_NEW_KEYS`、`GameAgg.NORMAL_DEFS`（期間 vs 平常改加權）、`StatCell` 的 `sample`／`signed`／`fullLabel`、`TrackingCardRow` 的 `cols`／`gp`，單場快取 `wt_gc_v6_`。使用者決定：用 Defense Dashboard、加兩分與 < 6 Ft、不加 < 10／> 15 Ft、歷史只補快照、「平常」漂移只寫說明
