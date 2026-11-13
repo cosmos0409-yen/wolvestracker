@@ -39,6 +39,7 @@ from nba_common import (
     fetch_team_advanced,
     fetch_player_advanced,
     fetch_scoring,
+    player_league_ranks,
     split_league,
     fetch_base_box,
     fetch_onoff,
@@ -335,18 +336,22 @@ def main():
 
     # 3. 抓取球員資料（全聯盟後以現役名單 PlayerID 過濾）
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
-    player_tracking = pid_to_name_keyed(
-        fetch_tracking_data(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
-    player_shooting = pid_to_name_keyed(
-        fetch_shot_locations(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
+    # 全聯盟原始資料先留著（球員聯盟名次要用），存檔前才用名冊過濾
+    tracking_raw = fetch_tracking_data(SEASON, season_type_api, "Player")
+    shooting_raw = fetch_shot_locations(SEASON, season_type_api, "Player")
+    player_tracking = pid_to_name_keyed(tracking_raw, keep_ids=roster_ids)
+    player_shooting = pid_to_name_keyed(shooting_raw, keep_ids=roster_ids)
     player_clutch = pid_to_name_keyed(
         fetch_clutch(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
-    player_defense = pid_to_name_keyed(merge_maps(
-        fetch_matchup_defense(SEASON, season_type_api),
+    # 最近防守者、防守 box 2026-11-13 起抓全聯盟（team_id=0，支數不變）：球員聯盟名次要全聯盟才排得出來
+    defense_raw = merge_maps(
+        fetch_matchup_defense(SEASON, season_type_api, team_id=0),
         fetch_hustle(SEASON, season_type_api, "Player"),
-        fetch_defense_box(SEASON, season_type_api, "Player"),
-    ), keep_ids=roster_ids)
-    base_raw = fetch_base_box(SEASON, season_type_api, "Player")
+        fetch_defense_box(SEASON, season_type_api, "Player", team_id=0),
+    )
+    player_defense = pid_to_name_keyed(defense_raw, keep_ids=roster_ids)
+    player_team = {}   # {PlayerID: TEAM_ID}（不寫進文件，名次對各隊場數用）
+    base_raw = fetch_base_box(SEASON, season_type_api, "Player", team_of=player_team)
     player_base = pid_to_name_keyed(base_raw, keep_ids=roster_ids)
     # On/Off（在場/不在場效率）：endpoint 的球員名為 'Last, First'，改以 PlayerID 取名。
     # 優先用 base 的寫法（與其他類別 key 一致，前端 current.onoff[球員名] 直接查），沒有才退回名冊
@@ -354,8 +359,22 @@ def main():
     id2name.update({pid: v["playerName"].strip() for pid, v in base_raw.items()
                     if pid in id2name and (v.get("playerName") or "").strip()})
     # 球員整季進階（1 request）與得分組成（2 requests），2026-11-12 起
-    player_advanced = pid_to_name_keyed(fetch_player_advanced(SEASON, season_type_api), keep_ids=roster_ids)
-    player_scoring = pid_to_name_keyed(fetch_scoring(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
+    advanced_raw = fetch_player_advanced(SEASON, season_type_api)
+    scoring_raw = fetch_scoring(SEASON, season_type_api, "Player")
+    player_advanced = pid_to_name_keyed(advanced_raw, keep_ids=roster_ids)
+    player_scoring = pid_to_name_keyed(scoring_raw, keep_ids=roster_ids)
+    # 球員聯盟名次（2026-11-13 起，0 額外 request；規則 nba_common.PLAYER_RANK_RULES）。算失敗不影響其他資料寫入
+    try:
+        team_gp = {(str(TEAM_ID) if k == "MIN" else k): v.get("GP") for k, v in league_base.items()}
+        player_ranks = player_league_ranks(
+            {"tracking": tracking_raw, "shooting": shooting_raw, "defense": defense_raw,
+             "advanced": advanced_raw, "scoring": scoring_raw},
+            base_raw, player_team, team_gp, roster_ids)
+        print(f"🏅 球員聯盟名次：合格 {player_ranks['_rules']['n_qualified']} 人，"
+              f"灰狼合格 {sum(1 for m in player_ranks['_meta'].values() if m['qualified'])}／{len(player_ranks['_meta'])} 人")
+    except Exception as e:
+        print(f"⚠️ 球員聯盟名次計算失敗（其他資料照常寫入）：{type(e).__name__}: {e}")
+        player_ranks = {}
     onoff_raw = fetch_onoff(SEASON, season_type_api)
     player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
 
@@ -382,6 +401,7 @@ def main():
         "onoff": player_onoff,        # Dict of Dicts（在場/不在場效率，球員專屬）
         "advanced": player_advanced,  # Dict of Dicts（整季進階：USG%/TS%/AST%/籃板率/PIE 等，2026-11-12 起）
         "scoring": player_scoring,    # Dict of Dicts（得分組成占比＋情境得分，2026-11-12 起）
+        "ranks": player_ranks,        # 球員聯盟名次（2026-11-13 起，結構見 nba_common.player_league_ranks）
     }
 
     print("=== 資料整理完成，準備寫入 Firebase ===")

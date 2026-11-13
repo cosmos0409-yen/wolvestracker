@@ -1231,14 +1231,15 @@ def fetch_team_advanced(season, season_type_api, team_id=TEAM_ID):
 # 傳統基本數據（leaguedash{player|team}stats?MeasureType=Base）
 # ==========================================
 def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=None,
-                   with_team_abbr=False, team_id=TEAM_ID):
+                   with_team_abbr=False, team_id=TEAM_ID, team_of=None):
     """傳統基本數據（PTS/REB/AST/FG% 等，欄位見 BASE_FIELDS）。
     球員以 PlayerID 字串為 key（含 playerName），球隊為 'MIN'。
     game_date（MM/DD/YYYY）指定時抓該單場（單場回補用）。
 
     with_team_abbr=True 時額外輸出 teamAbbr（歷史回補標示新援的舊東家用）。
     預設關閉：每日快照與單場文件的 to_name_keyed / pid_to_name 只 pop playerName，
-    多出來的 key 會流進文件汙染 schema，並讓 fetch_data 的去重比對永遠不相等。"""
+    多出來的 key 會流進文件汙染 schema，並讓 fetch_data 的去重比對永遠不相等。
+    team_of：給 dict 時（球員模式）另外填 {PlayerID: TEAM_ID}，不寫進結果（球員聯盟名次對各隊場數用）。"""
     endpoint = "leaguedashplayerstats" if player_or_team == "Player" else "leaguedashteamstats"
     team_id_param = team_id if player_or_team == "Team" else 0
     url = _with_date((f"https://stats.nba.com/stats/{endpoint}?{LEAGUE_DASH_COMMON}"
@@ -1258,6 +1259,8 @@ def fetch_base_box(season, season_type_api, player_or_team="Player", game_date=N
             results[ident] = {"playerName": row[headers_list.index("PLAYER_NAME")]}
             if with_team_abbr:
                 results[ident]["teamAbbr"] = row[headers_list.index("TEAM_ABBREVIATION")]
+            if team_of is not None:
+                team_of[ident] = row[headers_list.index("TEAM_ID")]
         else:
             ident = _team_key(row[headers_list.index("TEAM_ID")])
             results[ident] = {}
@@ -1473,6 +1476,112 @@ def league_ranks(team_map):
 def split_league(team_map):
     """全聯盟球隊 dict → (灰狼那份 dict, 灰狼的聯盟名次 dict)"""
     return team_map.get("MIN", {}), league_ranks(team_map)
+
+
+# ── 球員聯盟名次（每日球員快照的 ranks，2026-11-13 起；0 額外 request）──
+# 合格名單：出賽 ≥ 所屬球隊場數 × gp_ratio 且場均上場 ≥ min_mpg 分鐘（NBA 官方排行榜「出賽 70%」的精神）。
+# 命中率類另有出手門檻：att_fixed（場均出手，2026-11-13 用全聯盟資料校準：投籃 5 留 87%、三分 3 留 70%、罰球 2 留 55%）；
+# 其他有對應出手欄的比率（PLAYER_RANK_ATT_PAIRS）→ 出手要達合格名單該欄的 att_quantile 分位數（P25）。
+# no_highlight：照樣排名，但前端不上前 30 名綠字（越少越好卻主要反映球權多寡）
+PLAYER_RANK_RULES = {
+    "gp_ratio": 0.7,
+    "min_mpg": 15,
+    "att_fixed": {"FG_PCT": ("FGA", 5), "TS_PCT": ("FGA", 5), "EFG_PCT": ("FGA", 5),
+                  "FG3_PCT": ("FG3A", 3), "FT_PCT": ("FTA", 2)},
+    "att_quantile": 0.25,
+    "top": 30,
+    "no_highlight": ["TOV", "PF"],
+}
+# 比率欄 → 出手（分母）欄；沒列的比率（使用率、助攻率、籃板率、PIE、得分占比）不設出手門檻
+PLAYER_RANK_ATT_PAIRS = {
+    "DRIVE_FG_PCT": "DRIVE_FGA", "DRIVE_PTS_PCT": "DRIVES", "DRIVE_AST_PCT": "DRIVES", "DRIVE_TOV_PCT": "DRIVES",
+    "CATCH_SHOOT_FG3_PCT": "CATCH_SHOOT_FG3A", "CATCH_SHOOT_EFG_PCT": "CATCH_SHOOT_FGA",
+    "PULL_UP_FG3_PCT": "PULL_UP_FG3A", "PULL_UP_EFG_PCT": "PULL_UP_FGA",
+    "REB_COL_PCT": "REB_CHANCES", "REB_CONTEST_PCT": "REB",
+    "RA_FG_PCT": "RA_FGA", "PAINT_FG_PCT": "PAINT_FGA", "MID_FG_PCT": "MID_FGA", "C3_FG_PCT": "C3_FGA", "AB3_FG_PCT": "AB3_FGA",
+    "D_FG_PCT": "D_FGA", "PCT_PLUSMINUS": "D_FGA", "D_FG2_PCT": "D_FG2A", "D_FG2_PLUSMINUS": "D_FG2A",
+    "D_FG3_PCT": "D_FG3A", "D_FG3_PLUSMINUS": "D_FG3A", "D_RIM_PCT": "D_RIM_FGA", "D_RIM_PLUSMINUS": "D_RIM_FGA",
+    "PCT_BOX_OUTS_REB": "BOX_OUTS",
+}
+# 要排名的快照類別（Clutch 樣本太小、On/Off 是球隊在場差，不排）
+PLAYER_RANK_CATS = ["base", "tracking", "shooting", "defense", "advanced", "scoring"]
+
+
+def player_league_ranks(league_by_cat, base_league, player_team, team_gp, roster_ids, rules=None):
+    """灰狼球員在全聯盟合格球員中的名次（純函式，0 request）。
+    league_by_cat：{類別: {PlayerID字串: {欄位: 值}}}（全聯盟，未過濾）；base_league：全聯盟 base（取 GP、MIN、playerName）；
+    player_team：{PlayerID: TEAM_ID}；team_gp：{TEAM_ID字串: 球隊已賽場數}；roster_ids：灰狼名冊 PlayerID 字串集合。
+    回傳（名字 key 同 pid_to_name_keyed）：
+      {類別: {球員名: {欄位: 名次}}, "_n": {類別: {欄位: 參與人數}},
+       "_meta": {球員名: {qualified, gp, teamGp, mpg}}, "_ref": {類別: {球員名: {欄位: 若列入名次}}}（只有未合格者）,
+       "_rules": {gp_ratio, min_mpg, att_fixed, att_thresholds, n_qualified, top, no_highlight}}
+    同分取最小名次；方向照 RANK_LOWER_BETTER；RANK_SKIP 不排；命中率類先過出手門檻（沒過就沒有名次也沒有 _ref）"""
+    r = dict(PLAYER_RANK_RULES, **(rules or {}))
+    name_of = {pid: (d.get("playerName") or "").strip() for pid, d in base_league.items()}
+
+    def att_val(pid, key):   # 出手欄可能在別的類別（真實命中率的 FGA 在 base）
+        for cat in ["base"] + list(league_by_cat):
+            v = ((league_by_cat.get(cat) if cat != "base" else base_league) or {}).get(pid, {}).get(key)
+            if isinstance(v, (int, float)):
+                return v
+        return None
+
+    def qualifies(pid):
+        b = base_league.get(pid) or {}
+        tgp = team_gp.get(str(player_team.get(pid))) or 0
+        return bool(tgp) and (b.get("GP") or 0) >= r["gp_ratio"] * tgp and (b.get("MIN") or 0) >= r["min_mpg"]
+
+    qualified = {pid for pid in base_league if qualifies(pid)}
+    # 分位數門檻：合格名單中各出手欄的 P25
+    att_thr = {}
+    for att in set(PLAYER_RANK_ATT_PAIRS.values()):
+        xs = sorted(v for v in (att_val(pid, att) for pid in qualified) if isinstance(v, (int, float)))
+        if xs:
+            att_thr[att] = xs[int(r["att_quantile"] * (len(xs) - 1))]
+
+    def passes(pid, field):
+        if field in r["att_fixed"]:
+            a, t = r["att_fixed"][field]
+            return (att_val(pid, a) or 0) >= t
+        if field in PLAYER_RANK_ATT_PAIRS:
+            a = PLAYER_RANK_ATT_PAIRS[field]
+            return a in att_thr and (att_val(pid, a) or 0) >= att_thr[a]
+        return True
+
+    out = {"_n": {}, "_meta": {}, "_ref": {}}
+    wolves = [pid for pid in roster_ids if pid in base_league and name_of.get(pid)]
+    for pid in wolves:
+        b = base_league[pid]
+        out["_meta"][name_of[pid]] = {"qualified": pid in qualified, "gp": b.get("GP"),
+                                      "teamGp": team_gp.get(str(player_team.get(pid))), "mpg": b.get("MIN")}
+    for cat in PLAYER_RANK_CATS:
+        src = base_league if cat == "base" else (league_by_cat.get(cat) or {})
+        fields = set()
+        for pid in wolves:
+            fields.update(k for k, v in (src.get(pid) or {}).items()
+                          if isinstance(v, (int, float)) and not isinstance(v, bool) and k not in ("playerId",))
+        for field in sorted(fields):
+            if _rank_rule_match(field, RANK_SKIP):
+                continue
+            pool = [src[p][field] for p in qualified
+                    if isinstance((src.get(p) or {}).get(field), (int, float)) and passes(p, field)]
+            if not pool:
+                continue
+            lower = _rank_rule_match(field, RANK_LOWER_BETTER)
+            out["_n"].setdefault(cat, {})[field] = len(pool)
+            for pid in wolves:
+                v = (src.get(pid) or {}).get(field)
+                if not isinstance(v, (int, float)) or not passes(pid, field):
+                    continue
+                rank = 1 + sum(1 for x in pool if (x < v if lower else x > v))
+                if pid in qualified:
+                    out.setdefault(cat, {}).setdefault(name_of[pid], {})[field] = rank
+                else:
+                    out["_ref"].setdefault(cat, {}).setdefault(name_of[pid], {})[field] = rank
+    out["_rules"] = {"gp_ratio": r["gp_ratio"], "min_mpg": r["min_mpg"], "att_fixed": {k: list(v) for k, v in r["att_fixed"].items()},
+                     "att_pairs": PLAYER_RANK_ATT_PAIRS, "att_thresholds": att_thr, "n_qualified": len(qualified),
+                     "top": r["top"], "no_highlight": r["no_highlight"]}
+    return out
 
 
 def rank_all(values, lower=False):
