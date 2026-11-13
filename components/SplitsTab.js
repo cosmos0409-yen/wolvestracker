@@ -33,7 +33,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     const DEF_DEFS = defenseDefs.filter(d => (window.GAME_DEFENSE_IDS || []).includes(d.id));
     const GROUP_DEFS = { base: [BASE_DEF], tracking: trackingDefs, zones: ZONES_DEF ? [ZONES_DEF] : [], defense: DEF_DEFS };
     // 欄位組 → 快照名次類別（tracking 的籃板三項在 tracking 也有，找不到再退 base）
-    const RANK_CATS = { base: 'base', tracking: ['tracking', 'base'], zones: 'shooting', defense: 'defense' };
+    // 真實／有效命中率的名次在 advanced（全隊與球員都是）
+    const RANK_CATS = { base: ['base', 'advanced'], tracking: ['tracking', 'base'], zones: 'shooting', defense: 'defense' };
 
     // 網址帶指標 → 找所屬欄位組與群組（由 defs 反查，不另建對照表；新增指標自動適用）
     useEffect(() => {

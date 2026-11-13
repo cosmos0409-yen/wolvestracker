@@ -118,7 +118,8 @@ window.UI = (function () {
     //        沒有 glossary 定義也照樣開小卡（只放按鈕），不讓加入引用籃的入口消失
     // history：非同步取得的補充段落（單場頁「歷史定位」）——點開小卡才呼叫一次，回傳 { title, main, sub, note } 或 null；
     //   載入結果會傳給 cite(hist)／quote(hist)，讓引用帶上名次（不需要的呼叫端忽略參數即可）
-    const Info = ({ k, align = 'left', cite, rank, quote, history }) => {
+    // rankWhy：球員格子沒有名次時的原因（window.rankWhy），小卡另起一行說明
+    const Info = ({ k, align = 'left', cite, rank, quote, history, rankWhy }) => {
         const g = (window.GLOSSARY || {})[k];
         const [open, setOpen] = React.useState(false);
         const [pos, setPos] = React.useState(null);
@@ -191,11 +192,16 @@ window.UI = (function () {
                                     </>)}
                             </span>
                         )}
-                        {rank && (
+                        {rank && rank.kind === 'player' ? (
+                            <span className="mt-1.5 block text-[11px] text-slate-400">
+                                聯盟第 {rank.rank}（{rank.n} 人）：出賽 ≥ 70% 球隊場數、每場 ≥ 15 分鐘{rank.gate ? `、${rank.gate}` : ''}的球員中排名；依 NBA 官方整季數值{rank.date ? `，快照 ${rank.date}` : ''}，同值同名次
+                            </span>
+                        ) : rank ? (
                             <span className="mt-1.5 block text-[11px] text-slate-400">
                                 聯盟第 {rank.rank}（{rank.n} 隊）：依 NBA 官方全季數值排序{rank.date ? `，快照 ${rank.date}` : ''}；與逐場重算的數字可能差一點小數，同值同名次
                             </span>
-                        )}
+                        ) : null}
+                        {!rank && rankWhy && <span className="mt-1.5 block text-[11px] text-slate-400">{rankWhy}</span>}
                         {(cite || quote) && (
                             <span className="mt-2.5 flex flex-wrap gap-2">
                                 {cite && (
@@ -357,7 +363,7 @@ window.UI = (function () {
     // signed：正值顯示「+」（vs 平常這類差值）；引用與複製也帶正負號，箭頭仍以數值計算
     // fullLabel：格子顯示縮寫標籤時的完整名稱（引用、複製用）
     // sub：數值下方的一般補充文字（灰色，如「占總得分 18.4%」；引用不帶）
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null }) => {
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null, rankWhy = null }) => {
         const citeLabel = fullLabel || label;   // 格子標籤是縮寫時（手機 3 欄），引用與複製用完整名稱
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
@@ -378,7 +384,7 @@ window.UI = (function () {
                 <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
                     {/* 手機 3 欄時每格只剩約 60px：標籤換行而不截斷（「急停三分命中率」會被切成「急停三分…」） */}
                     <span className="min-w-0 break-words">{label}</span>
-                    {gkey && <Info k={gkey} rank={rank} quote={quoteFn} cite={missing ? undefined : () => citeLine({ label: citeLabel, en, value: shown, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
+                    {gkey && <Info k={gkey} rank={rank} rankWhy={missing ? null : rankWhy} quote={quoteFn} cite={missing ? undefined : () => citeLine({ label: citeLabel, en, value: shown, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
                 </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 break-words">{en}</div>}
                 <div className="mt-2 flex items-baseline gap-1.5 min-w-0">
@@ -393,7 +399,7 @@ window.UI = (function () {
                     )}
                     {!isNA && !missing && <span className="ml-auto"><Delta value={value} prevValue={prevValue} unit={unit} betterIsLarger={betterIsLarger} /></span>}
                 </div>
-                {rank && <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-400">聯盟第{rank.rank}</div>}
+                {rank && <div className={`mt-1.5 font-mono text-[11px] tabular-nums ${rank.top ? 'text-[#12A150]' : 'text-slate-400'}`}>聯盟第{rank.rank}</div>}
                 {sub && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-slate-400">{sub}</div>}
                 {sample != null && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-amber-300" title="樣本少，數值波動大">樣本小 · {sample} 次</div>}
                 {pct != null && <PctBar value={pct} label={pctLabel} />}

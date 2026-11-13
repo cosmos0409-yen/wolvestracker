@@ -54,9 +54,11 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
         if (s.plus) return (v > 0 ? '+' : '') + v.toFixed(1);
         return v.toFixed(1);
     };
-    // 聯盟名次只給全隊（window.RankCtx 已限當季快照）；季平均只在「全季」時有名次
+    // 聯盟名次：全隊與球員（window.RankCtx 已限當季快照）；季平均只在「全季」時有名次。
+    // 球員的真實／有效命中率名次在 advanced 類別，所以季平均找 base 再找 advanced
     const isTeam = viewMode === 'TEAM';
-    const rankOf = (cat, key) => isTeam ? window.leagueRank(cat, key) : null;
+    const rankOf = (cat, key) => window.leagueRank(cat, key);
+    const whyOf = (cat, key) => window.rankWhy(cat, key);
 
     // 全隊效率（Advanced 快照，每 100 回合／百分比）
     const ADVANCED = [
@@ -138,7 +140,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         {summary.map(s => (
                             <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
                                 prevValue={isRecent && seasonAgg ? seasonAgg[s.key] : undefined} betterIsLarger={s.key !== 'TOV'}
-                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} rank={isRecent ? null : rankOf('base', s.key)} />
+                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} rank={isRecent ? null : rankOf(['base', 'advanced'], s.key)}
+                                rankWhy={isRecent ? null : whyOf(['base', 'advanced'], s.key)} />
                         ))}
                     </UI.Ledger>
                 </>)}
@@ -151,7 +154,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         {PLAYER_ADV.map(m => (
                             <UI.StatCell key={m.key} label={m.label} fullLabel={window.metricLabel(m)} en={m.englishLabel}
                                 value={fmtAdv(m, playerAdvanced[m.key])} unit={m.unit || ''} neutral={!!m.neutral}
-                                betterIsLarger={m.betterIsLarger !== false} gkey={m.key} citeNote="整季快照" />
+                                betterIsLarger={m.betterIsLarger !== false} gkey={m.key} citeNote="整季快照"
+                                rank={rankOf('advanced', m.key)} rankWhy={whyOf('advanced', m.key)} />
                         ))}
                     </UI.Ledger>
                 </UI.Section>

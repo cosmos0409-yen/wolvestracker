@@ -262,8 +262,11 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 const ScoringMix = ({ scoring, teamMode }) => {
     const UI = window.UI;
     const SHARE = window.scoringShareDefs || [], SIT = (window.scoringSituationDefs || []).filter(m => !(teamMode && m.playerOnly));
-    const rk = (k) => teamMode ? window.leagueRank('scoring', k) : null;
-    const nOf = window.RankCtx && window.RankCtx.ranks && window.RankCtx.ranks.scoring ? window.RankCtx.ranks.scoring._n : null;
+    // 名次：全隊 30 隊、球員全聯盟合格球員（window.RankCtx 已限當季快照）
+    const rk = (k) => window.leagueRank('scoring', k);
+    const ctx = window.RankCtx;
+    const nOf = !ctx || !ctx.ranks ? null : ctx.kind === 'player' ? (ctx.ranks._rules || {}).n_qualified
+        : (ctx.ranks.scoring ? ctx.ranks.scoring._n : null);
     const line = SHARE.map(m => `${m.label} ${Number(scoring[m.key]).toFixed(1)}%`).join('、');
     const addLine = () => {
         const r = window.Quote.add(window.Quote.make({ kind: 'line', label: '得分組成', en: 'Scoring Breakdown', gkey: 'SCORING_MIX', values: [{ value: `得分組成：${line}` }], asOf: 'snap' }));
@@ -271,7 +274,7 @@ const ScoringMix = ({ scoring, teamMode }) => {
     };
     return (
         <UI.Section title="得分組成" en="Scoring Breakdown" accent="green"
-            sub={`得分從哪裡來 · 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 整季快照（期間篩選時停用）${teamMode && nOf ? ` · 小字為 ${nOf} 隊名次（占比依大小排，不是好壞）` : ''}`}
+            sub={`得分從哪裡來 · 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 整季快照（期間篩選時停用）${nOf ? ` · 小字為${teamMode ? ` ${nOf} 隊名次` : `聯盟名次（${nOf} 人）`}（占比依大小排，不是好壞）` : ''}`}
             right={<button type="button" onClick={addLine}
                 className="inline-flex min-h-[28px] items-center whitespace-nowrap rounded-full border border-white/15 px-3 text-[12px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 整組加入</button>}>
             <div className="mb-2.5 flex h-[30px] border border-white/[0.08]" role="img" aria-label={`得分組成：${line}`}>
@@ -288,7 +291,7 @@ const ScoringMix = ({ scoring, teamMode }) => {
                         <div key={m.key} className="flex items-baseline gap-1.5 whitespace-nowrap text-[12px] text-slate-200">
                             <i className="inline-block h-2.5 w-2.5 shrink-0 translate-y-px" style={{ background: m.color }}></i>{m.label}
                             <span className="font-display text-[20px] font-semibold tabular-nums text-slate-50">{Number(scoring[m.key]).toFixed(1)}<span className="ml-0.5 text-[11px] text-slate-400">%</span></span>
-                            {r && <span className="font-mono text-[10.5px] text-slate-400">第{r.rank}</span>}
+                            {r && <span className={`font-mono text-[10.5px] ${r.top ? 'text-[#12A150]' : 'text-slate-400'}`}>第{r.rank}</span>}
                         </div>
                     );
                 })}
@@ -300,7 +303,7 @@ const ScoringMix = ({ scoring, teamMode }) => {
             <UI.Ledger cols={SIT.length === 5 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}>
                 {SIT.map(m => (
                     <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} citeNote="整季快照"
-                        value={typeof scoring[m.key] === 'number' ? scoring[m.key] : null} rank={rk(m.key)}
+                        value={typeof scoring[m.key] === 'number' ? scoring[m.key] : null} rank={rk(m.key)} rankWhy={window.rankWhy('scoring', m.key)}
                         sub={m.shareKey && typeof scoring[m.shareKey] === 'number' ? `占總得分 ${Number(scoring[m.shareKey]).toFixed(1)}%` : null} />
                 ))}
             </UI.Ledger>

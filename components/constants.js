@@ -423,19 +423,66 @@ window.DEF_SHOT_RULES = { seasonMin: 20, gameMin: 3 };
 window.DEF_NEW_KEYS = ['D_FG2A', 'D_FG2_PCT', 'D_FG2_PLUSMINUS', 'D_FG3A', 'D_FG3_PLUSMINUS', 'D_RIM_FGA', 'D_RIM_PCT', 'D_RIM_PLUSMINUS'];
 
 // ── 聯盟名次（全隊每日快照的 ranks 欄位，fetch_data.py 以 30 隊算好）──
-// App 每次 render 設 window.RankCtx：只在全隊視角、當季每日快照、該快照有 ranks 時有值，其他情況為 null（不顯示名次）
-// RankCtx = { ranks: {類別: {欄位: 名次, _n: 隊數}}, date: 快照日, latest: 是否為最新一份 }
+// App 每次 render 設 window.RankCtx：當季每日快照有 ranks 時有值（歷史賽季、舊快照為 null，不顯示名次）
+// 全隊：{ kind: 'team', ranks: {類別: {欄位: 名次, _n: 隊數}}, date, latest }
+// 球員（2026-11-13 起）：{ kind: 'player', name, ranks: 球員文件的 ranks（{類別: {球員名: {欄位: 名次}}, _n, _meta, _ref, _rules}，
+//   見 nba_common.player_league_ranks）, vals: 該員各類別快照值合併（說明「出手未達門檻」用）, date, latest }
 window.LEAGUE_TEAMS = 30;
 window.RankCtx = null;
 // cats：類別字串或陣列（依序找第一個有名次的類別）→ { rank, n, date } 或 null
+// 球員回傳另有 kind: 'player'、top（前 rules.top 名且不在 no_highlight → 綠字）、gate（該項的出手門檻文字）
 window.leagueRank = (cats, key) => {
     const ctx = window.RankCtx;
     if (!ctx || !ctx.ranks || !cats) return null;
+    if (ctx.kind === 'player') {
+        const R = ctx.ranks, rules = R._rules || {};
+        for (const c of [].concat(cats)) {
+            const v = ((R[c] || {})[ctx.name] || {})[key];
+            if (typeof v === 'number') return {
+                rank: v, n: ((R._n || {})[c] || {})[key], date: ctx.date, kind: 'player',
+                top: v <= (rules.top || 30) && !(rules.no_highlight || []).includes(key), gate: window.rankGateText(key, rules),
+            };
+        }
+        return null;
+    }
     for (const c of [].concat(cats)) {
         const m = ctx.ranks[c];
-        if (m && typeof m[key] === 'number') return { rank: m[key], n: m._n || window.LEAGUE_TEAMS, date: ctx.date };
+        if (m && typeof m[key] === 'number') return { rank: m[key], n: m._n || window.LEAGUE_TEAMS, date: ctx.date, kind: 'team' };
     }
     return null;
+};
+// 球員名次的出手門檻欄位中文名（「?」小卡用）
+const RANK_ATT_LABELS = {
+    FGA: '投籃出手', FG3A: '三分出手', FTA: '罰球出手', D_FGA: '被投', D_FG2A: '兩分被投', D_FG3A: '三分被投', D_RIM_FGA: '籃下被投',
+    DRIVES: '切入', DRIVE_FGA: '切入出手', CATCH_SHOOT_FGA: '接球跳投出手', CATCH_SHOOT_FG3A: '接球跳投三分出手',
+    PULL_UP_FGA: '急停出手', PULL_UP_FG3A: '急停三分出手', REB_CHANCES: '籃板機會', REB: '籃板', BOX_OUTS: '卡位',
+    RA_FGA: '合理衝撞區出手', PAINT_FGA: '禁區出手', MID_FGA: '中距離出手', C3_FGA: '底角三分出手', AB3_FGA: '非底角三分出手',
+};
+const rankAttRule = (key, rules) => {
+    const f = (rules.att_fixed || {})[key];
+    if (f) return { att: f[0], thr: f[1], fixed: true };
+    const a = (rules.att_pairs || {})[key];
+    if (a && typeof (rules.att_thresholds || {})[a] === 'number') return { att: a, thr: rules.att_thresholds[a], fixed: false };
+    return null;
+};
+window.rankGateText = (key, rules) => {
+    const r = rankAttRule(key, rules || {});
+    return r ? `${RANK_ATT_LABELS[r.att] || r.att}場均 ≥ ${+r.thr.toFixed(2)} 次${r.fixed ? '' : '（合格名單 P25）'}` : '';
+};
+// 球員格子沒有名次時的原因（「?」小卡用）：未達出賽門檻（附若列入名次）／這項出手未達門檻。沒有名次也沒有原因（如 Clutch）回 null
+window.rankWhy = (cats, key) => {
+    const ctx = window.RankCtx;
+    if (!ctx || ctx.kind !== 'player' || !ctx.ranks || !cats || window.leagueRank(cats, key)) return null;
+    const R = ctx.ranks, rules = R._rules || {}, meta = (R._meta || {})[ctx.name];
+    const cs = [].concat(cats).filter(c => typeof ((R._n || {})[c] || {})[key] === 'number');
+    if (!meta || !cs.length) return null;
+    if (!meta.qualified) {
+        const ref = cs.map(c => (((R._ref || {})[c] || {})[ctx.name] || {})[key]).find(v => typeof v === 'number');
+        return `出賽 ${meta.gp}／${meta.teamGp} 場、每場 ${meta.mpg} 分鐘，未達排名門檻（出賽 ≥ ${Math.round(rules.gp_ratio * 100)}% 球隊場數、每場 ≥ ${rules.min_mpg} 分鐘），不列入排名`
+            + (typeof ref === 'number' ? `；若列入約第 ${ref}（僅供參考）` : '');
+    }
+    const r = rankAttRule(key, rules), v = r ? (ctx.vals || {})[r.att] : null;
+    return r ? `${RANK_ATT_LABELS[r.att] || r.att}場均 ${typeof v === 'number' ? +v.toFixed(2) : '—'} 次，未達 ${+r.thr.toFixed(2)} 次門檻${r.fixed ? '' : '（合格名單 P25）'}，這項不列入排名` : null;
 };
 // 球隊 Synergy 百分位 → 30 隊名次（NBA 以名次換算百分位：PR = (30 − 名次) / 29，2025-26 實測驗證）
 // 只適用球隊；球員百分位是跟達門檻的球員比，人數不固定，不可換算

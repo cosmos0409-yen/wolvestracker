@@ -40,6 +40,7 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                         unit={m.unit} betterIsLarger={m.betterIsLarger !== false}
                         naReason={naReason} gkey={m.key} citeAsOf={citeAsOf} citeNote={citeNote}
                         rank={rankCats ? window.leagueRank(rankCats, m.key) : null} neutral={!!m.neutral}
+                        rankWhy={rankCats ? window.rankWhy(rankCats, m.key) : null}
                         sample={sampleOf(m)} signed={!!m.signed}
                         quote={compareTags && typeof prev?.[m.key] === 'number' && typeof current[m.key] === 'number'
                             ? { kind: 'compare', sep: '→', label: window.metricLabel(m), rank: null,

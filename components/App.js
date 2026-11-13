@@ -1162,9 +1162,15 @@ const App = () => {
         // 全域期間（篩選時）：citeLine／Quote.make 對「截至日」類（逐場加總）的數字附上，避免貼出去被當成季平均
         period: periodOn && periodRes && !periodWaiting ? `${periodLabel}（${periodRes.games.length} 場）` : null,
     };
-    // 聯盟名次情境（window.leagueRank 讀取）：只在全隊視角的當季每日快照；時光機選日期時跟著用那天的快照
-    const rankDoc = (viewMode === 'TEAM' && !isHistoryMode) ? teamSeq[teamIdx] : null;
-    window.RankCtx = rankDoc && rankDoc.ranks ? { ranks: rankDoc.ranks, date: rankDoc.date, latest: teamIdx === 0 } : null;
+    // 聯盟名次情境（window.leagueRank 讀取）：當季每日快照（時光機選日期時跟著用那天的快照）；歷史賽季沒有名次
+    // 球員（2026-11-13 起）：球員文件的 ranks＋該員各類別快照值（「出手未達門檻」的說明要用）
+    const rankDoc = isHistoryMode ? null : (viewMode === 'TEAM' ? teamSeq[teamIdx] : playerSeq[playerIdx]);
+    window.RankCtx = !(rankDoc && rankDoc.ranks) ? null
+        : viewMode === 'TEAM' ? { kind: 'team', ranks: rankDoc.ranks, date: rankDoc.date, latest: teamIdx === 0 }
+        : (rankDoc.ranks._meta || {})[selectedPlayer] ? {
+            kind: 'player', name: selectedPlayer, ranks: rankDoc.ranks, date: rankDoc.date, latest: playerIdx === 0,
+            vals: Object.assign({}, ...['base', 'tracking', 'shooting', 'defense', 'advanced', 'scoring'].map(c => ((rankDoc[c] || {})[selectedPlayer]) || {})),
+        } : null;
 
     // 搜尋面板項目（依群組排列，群組名也可被搜尋）
     const paletteBase = [
@@ -1379,7 +1385,7 @@ const App = () => {
                                 focusMetric={activeFocus ? activeFocus.m : null} highlightDate={activeFocus ? activeFocus.hl : null}
                                 onFocusChange={onSplitsFocus}
                                 onGameClick={(d) => openGame(d, viewMode === 'PLAYER' ? selectedPlayer : '')}
-                                rankable={viewMode === 'TEAM' && !!window.RankCtx && window.RankCtx.latest}
+                                rankable={!!window.RankCtx && window.RankCtx.latest}
                                 season={splitsBundle[0]} seasonType={splitsBundle[1]} isTeam={viewMode === 'TEAM'}
                                 period={period} periodCtx={periodCtx}
                             />
@@ -1425,7 +1431,7 @@ const App = () => {
                                                         metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
                                                         cols={def.cols} gp={currentDefense.D_GP || currentBase.GP}
                                                         naReason={def.id === 'MatchupDefense' || def.id === 'RimProtection' ? naCrossTeam : null}
-                                                        rankCats={viewMode === 'TEAM' ? 'defense' : null} />
+                                                        rankCats="defense" />
                                                 </window.UI.Locked>
                                             );
                                         })}
