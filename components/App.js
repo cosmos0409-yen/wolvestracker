@@ -1423,7 +1423,7 @@ const App = () => {
                                                 <window.UI.Locked key={def.id} on={periodOn}>
                                                     <TrackingCardRow title={def.title} category={def.id} source="defense"
                                                         metrics={def.metrics} current={currentDefense} prev={prevDefense} onClick={setSelectedCard}
-                                                        cols={def.cols} gp={currentBase.GP}
+                                                        cols={def.cols} gp={currentDefense.D_GP || currentBase.GP}
                                                         naReason={def.id === 'MatchupDefense' || def.id === 'RimProtection' ? naCrossTeam : null}
                                                         rankCats={viewMode === 'TEAM' ? 'defense' : null} />
                                                 </window.UI.Locked>

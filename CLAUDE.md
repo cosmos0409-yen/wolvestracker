@@ -10,7 +10,7 @@
 - 歷史回補：`python scripts/backfill_history.py --season 2024-25 --type regular`（完整類別終點快照；只補 Hustle 欄位加 `--only-hustle`、只補全隊最近防守者加 `--only-team-matchup`（4 requests）；只補最近防守者指定類別（球員＋全隊）加 `--only-matchup [--matchup-cats 2PT,Rim]`，每類每份 2 requests，2022-23 起兩分／護框已補；只補球員進階＋得分組成（含全隊進階）加 `--only-adv-scoring`，每份 6 requests，2022-23 起已補；只補組合頁文件加 `--only-lineups`，每份 3 requests，2022-23 起已補）
 - 組合數據：每日抓取順抓二人／三人／五人全部組合 → `wolves_games_index/{season}_{type}_lineups`（每天覆寫、只留最新；+2 requests；`nba_common.lineups_consistent` 檢查分鐘加總，沒過不覆寫）；欄位／人數改 `LINEUP_DOC_FIELDS`／`LINEUP_GROUPS`
 - **逐場打包**：回補 games 後跑 `python scripts/build_bundles.py --all`（前端 Splits/總覽讀 bundle）
-- 單場題材：`python scripts/build_insights.py`（逐場 bundle＋box → `wolves_team_games/{date}.insights`，0 request，全部場次約 20 秒、只寫有變的；每日抓取有新場次自動跑；也算歷史定位標籤 `insights.marks`；改 `nba_common.INSIGHT_*` 門檻後先 `--dry-run --date …` 再重算，並把 `wt_gc_v5_` 換版）
+- 單場題材：`python scripts/build_insights.py`（逐場 bundle＋box → `wolves_team_games/{date}.insights`，0 request，全部場次約 20 秒、只寫有變的；每日抓取有新場次自動跑；也算歷史定位標籤 `insights.marks`；改 `nba_common.INSIGHT_*` 門檻後先 `--dry-run --date …` 再重算，並把 `wt_gc_` 換版（目前 v7））
 - 賽前預覽：`python scripts/build_preview.py`（賽程檔＋30 隊數據 → `wolves_games_index/{season}_preview`，每日抓取已順跑、只多 1 個 CDN request；單獨跑 3 requests，先 `--dry-run`；對照表欄位改 `nba_common.PREVIEW_TEAM_FIELDS`＋前端 `PREVIEW_LABELS`）
 - 薪資同步：`python scripts/sync_salary.py`（Google Sheet 發佈 CSV → `wolves_salary/main`；先 `--dry-run`；每日排程已順跑；Sheet 欄位見 doc/handover.md「薪資資料」）
 - 前端打包：改 `components/*.js` 後必跑 `python scripts/bundle.py`（esbuild 編 JSX＋Tailwind 產 CSS＋index.html 蓋版本號；勿手改 dist/；新電腦先 `npm ci`）

@@ -250,6 +250,9 @@ LINEUP_MIN_TOLERANCE = 0.03
 # ── 防守數據欄位設定表 ──
 # leaguedashptdefend 最近防守者（NBA.com Defense Dashboard，非 leagueseasonmatchups 的對位資料）：Overall（D_FG_PCT = 被此人防守時對手命中率；PCT_PLUSMINUS 負=守得好）
 MATCHUP_OVERALL_FIELDS = [
+    # 最近防守者自己的出賽場數（4 類都相同，2026-11-13 驗證）：場均的分母只算有防守到出手的場次，可能少於 base GP
+    # （Cody Williams 出賽 6 場、這裡 2 場）→ 前端「樣本小 · N 次」用場均 × D_GP 才對。單場文件此值恆為 1，無用但無害
+    ("D_GP", "GP", False),
     ("D_FGM", "D_FGM", False),        # 分子（供區間加權重算 D_FG_PCT）
     ("D_FGA", "D_FGA", False),
     ("D_FG_PCT", "D_FG_PCT", True),
@@ -350,7 +353,7 @@ RANK_LOWER_BETTER = {
 # 全隊最近防守者的出手／命中次數（量，非好壞）與對手平常命中率（對手強弱，非防守表現）不排
 RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA",
              "D_FGM", "D_FGA", "D_FG3M", "D_FG3A", "NORMAL_FG_PCT", "NORMAL_FG3_PCT",
-             "D_FG2M", "D_FG2A", "NORMAL_FG2_PCT", "D_RIM_FGM", "D_RIM_FGA", "NORMAL_RIM_PCT"}
+             "D_FG2M", "D_FG2A", "NORMAL_FG2_PCT", "D_RIM_FGM", "D_RIM_FGA", "NORMAL_RIM_PCT", "D_GP"}
 
 # ── 單場題材（build_insights.py → wolves_team_games/{date}.insights，前端單場頁「本場題材」）──
 # 只讀既有逐場 bundle 與單場 box，0 個 NBA request。改這裡之後：
