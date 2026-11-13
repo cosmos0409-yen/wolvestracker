@@ -355,6 +355,75 @@ RANK_SKIP = {"GP", "MIN", "AVG_REB_DIST", "*_OPP_FGA",
              "D_FGM", "D_FGA", "D_FG3M", "D_FG3A", "NORMAL_FG_PCT", "NORMAL_FG3_PCT",
              "D_FG2M", "D_FG2A", "NORMAL_FG2_PCT", "D_RIM_FGM", "D_RIM_FGA", "NORMAL_RIM_PCT", "D_GP"}
 
+# ── 逐場對帳（看門狗 15:00 最後一步，0 NBA request；2026-11-13 起）──
+# 單場 Tracking 是賽後 12 小時內擷取，NBA 之後可能補正，而單場文件定稿後不再重抓（2026-11-12 發現開季頭 4 場切入少一半）。
+# 每天拿全隊逐場 bundle 加總，和整季快照「場均 × 場數」比；只比全隊（球員有季中轉隊、場數定義不同等雜訊）。
+# rel／abs：落差比例與總數差同時超過才算異常（快照場均四捨五入，總數差至少 abs 才不誤報）
+# suspect_ratio：異常欄位裡低於本季中位數這個比例的場次列為可疑；min_games：本季少於幾場不比（中位數不穩）
+CONSISTENCY_RULES = {"rel": 0.03, "abs": 3, "suspect_ratio": 0.7, "min_games": 5}
+# 不能加總比對的欄位（平均型、場數、勝負）
+CONSISTENCY_SKIP = {"GP", "W", "L", "MIN", "AVG_REB_DIST", "PTS_PER_TOUCH", "D_GP"}
+# 通知用的中文名（沒列的直接用欄名）
+CONSISTENCY_LABELS = {
+    "DRIVES": "切入次數", "DRIVE_FGA": "切入出手", "DRIVE_PTS": "切入得分", "TOUCHES": "觸球",
+    "PASSES_MADE": "傳球", "PULL_UP_FGA": "急停出手", "CATCH_SHOOT_FGA": "接球跳投出手",
+    "REB_CHANCES": "籃板機會", "CONTESTED_SHOTS": "干擾投籃", "DEFLECTIONS": "干擾球", "PTS": "得分",
+}
+
+
+def consistency_fields():
+    """要比對的 (快照類別, 欄位)：各設定表中不是百分比、也不在 CONSISTENCY_SKIP 的欄位（加欄位自動納入）"""
+    out = []
+    tables = [("base", BASE_FIELDS)] + [("tracking", f) for f in TRACKING_FIELDS.values()] + [("defense", HUSTLE_FIELDS)] \
+        + [("defense", fields) for _, fields, _ in MATCHUP_CATEGORIES]
+    for cat, fields in tables:
+        for name, _api, is_pct in fields:
+            if not is_pct and name not in CONSISTENCY_SKIP and (cat, name) not in out:
+                out.append((cat, name))
+    return out
+
+
+def consistency_issues(team_snapshot, bundle_games, rules=None):
+    """全隊逐場加總 vs 整季快照（純函式，0 request）。
+    team_snapshot：每日全隊快照文件（含 base／tracking／defense）；bundle_games：wolves_games_bundle 的 games[]。
+    只比快照已涵蓋的場次＝依日期排序的前 base.GP 場（昨晚剛抓、快照還沒算進去的場次不比）。
+    回傳 (issues, info)：issues＝[{cat, key, label, bundle_sum, snap_total, pct, suspects[(date, value)]}]（落差大的在前）；
+    info＝{n_games, n_fields, skipped（逐場沒有這欄或缺場）, reason（沒比的原因）}"""
+    r = dict(CONSISTENCY_RULES, **(rules or {}))
+    base = (team_snapshot or {}).get("base") or {}
+    n = int(base.get("GP") or 0)
+    games = sorted(bundle_games or [], key=lambda g: g.get("date", ""))
+    info = {"n_games": n, "n_fields": 0, "skipped": [], "reason": ""}
+    if n < r["min_games"]:
+        info["reason"] = f"本季只有 {n} 場，少於 {r['min_games']} 場不比"
+        return [], info
+    if len(games) < n:
+        info["reason"] = f"逐場只有 {len(games)} 場，比快照的 {n} 場少（bundle 還沒更新？）"
+        return [], info
+    games = games[:n]
+    issues = []
+    for cat, key in consistency_fields():
+        snap = ((team_snapshot.get(cat) or {}).get(key))
+        vals = [((g.get("stats") or {}).get(key)) for g in games]
+        if not isinstance(snap, (int, float)):
+            continue
+        if any(not isinstance(v, (int, float)) for v in vals):
+            info["skipped"].append(key)   # 逐場沒有這欄（全隊最近防守者、防守 box 等只有快照）或有缺場
+            continue
+        info["n_fields"] += 1
+        total, expect = sum(vals), snap * n
+        diff = total - expect
+        if abs(diff) < r["abs"] or not expect or abs(diff) / abs(expect) < r["rel"]:
+            continue
+        med = sorted(vals)[len(vals) // 2]
+        suspects = [(g["date"], v) for g, v in zip(games, vals) if diff < 0 and v < med * r["suspect_ratio"]]
+        issues.append({"cat": cat, "key": key, "label": CONSISTENCY_LABELS.get(key, key),
+                       "bundle_sum": round(total, 1), "snap_total": round(expect, 1),
+                       "pct": round(100 * diff / expect, 1), "suspects": suspects})
+    issues.sort(key=lambda x: -abs(x["pct"]))
+    return issues, info
+
+
 # ── 單場題材（build_insights.py → wolves_team_games/{date}.insights，前端單場頁「本場題材」）──
 # 只讀既有逐場 bundle 與單場 box，0 個 NBA request。改這裡之後：
 #   python scripts/build_insights.py --all --dry-run 看差異 → 拿掉 --dry-run 寫入 → 前端單場快取鍵換版

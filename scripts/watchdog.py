@@ -20,6 +20,7 @@ Wolves Tracker - 每日抓取看門狗（排程 WolvesWatchdog，台北 15:00 �
   python scripts/watchdog.py --morning     # 早上模式（只補主排程）
   python scripts/watchdog.py --dry-run     # 只檢查並印出判斷，不補抓、不通知（可與 --morning 併用）
   python scripts/watchdog.py --test-notify # 只跳一則測試通知
+  python scripts/watchdog.py --check-data  # 只跑逐場對帳（全隊逐場加總 vs 整季快照，0 NBA request；可加 --dry-run 不通知）
 """
 
 import argparse
@@ -32,7 +33,7 @@ from datetime import datetime, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from nba_common import get_season_type, get_current_season, fetch_team_game_log, init_firebase, fingerprint_info
+from nba_common import get_season_type, get_current_season, fetch_team_game_log, init_firebase, fingerprint_info, consistency_issues
 
 STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
@@ -222,11 +223,59 @@ def label(game):
     return f"{d[5:].replace('-', '/')} {m.replace('MIN ', '').replace('.', '')}（{w}）"
 
 
+def check_data(dry_run=False):
+    """逐場對帳（0 NBA request）：全隊逐場 bundle 加總 vs 最新全隊快照，有落差才通知（見 nba_common.CONSISTENCY_RULES）。
+    出錯只記 log，不影響看門狗的補抓結果"""
+    try:
+        season_type_api, season_type_label = get_season_type()
+        if season_type_api is None:
+            return
+        season = get_current_season()
+        type_key = "regular" if season_type_label == "例行賽" else "playoffs"
+        db = init_firebase()
+        if not db:
+            log("⚠️ 逐場對帳：Firebase 初始化失敗，略過")
+            return
+        snap, snap_id = None, None
+        for back in range(0, 10):   # 最新一份同賽別的全隊快照（快照 doc id 是美東日期，往前找 10 天）
+            d = (datetime.now() - timedelta(days=back)).strftime("%Y-%m-%d")
+            doc = db.collection("wolves_team_stats").document(d).get()
+            if doc.exists and (doc.to_dict() or {}).get("seasonType") == season_type_label:
+                snap, snap_id = doc.to_dict(), d
+                break
+        bundle = db.collection("wolves_games_bundle").document(f"{season}_{type_key}").get()
+        if not snap or not bundle.exists:
+            log(f"⚠️ 逐場對帳：找不到{'全隊快照' if not snap else ''}{'、' if not snap and not bundle.exists else ''}{'逐場 bundle' if not bundle.exists else ''}，略過")
+            return
+        issues, info = consistency_issues(snap, (bundle.to_dict() or {}).get("games") or [])
+        if info["reason"]:
+            log(f"逐場對帳：{info['reason']}")
+            return
+        if not issues:
+            log(f"逐場對帳正常（快照 {snap_id}，比了 {info['n_fields']} 欄 × {info['n_games']} 場）")
+            return
+        dates = sorted({d for it in issues for d, _ in it["suspects"]})
+        for it in issues:
+            sus = "、".join(f"{d[5:]}（{v:g}）" for d, v in it["suspects"]) or "無明顯偏低場次"
+            log(f"⚠️ 逐場對帳：{it['label']}（{it['cat']}.{it['key']}）逐場加總 {it['bundle_sum']:g} vs 快照推算 {it['snap_total']:g}"
+                f"（{it['pct']:+g}%）；可疑：{sus}")
+        if dates:
+            log(f"   重抓：python scripts/backfill_games.py --type {type_key} --dates {','.join(dates)}"
+                f" → build_bundles.py --season {season} --type {type_key} → build_insights.py → 前端 wt_gc_／wt_game_ 換版")
+        body = "；".join(f"{it['label']} {it['pct']:+g}%" for it in issues[:3]) + (f" 等 {len(issues)} 項" if len(issues) > 3 else "")
+        body += f"。可疑日期：{'、'.join(d[5:] for d in dates)}" if dates else "。沒有明顯偏低的場次，請看 watchdog_log.txt"
+        if not dry_run:
+            notify("Wolves Tracker：逐場資料可能少抓", body + "（重抓指令在 watchdog_log.txt）")
+    except Exception as e:
+        log(f"⚠️ 逐場對帳出錯（不影響補抓）：{type(e).__name__}: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 每日抓取看門狗")
     parser.add_argument("--dry-run", action="store_true", help="只檢查並印出判斷，不補抓、不通知")
     parser.add_argument("--morning", action="store_true", help="早上模式：只在主排程今天該跑卻沒完成時完整補抓")
     parser.add_argument("--test-notify", action="store_true", help="只跳一則測試通知")
+    parser.add_argument("--check-data", action="store_true", help="只跑逐場對帳（全隊逐場加總 vs 整季快照，0 NBA request）")
     args = parser.parse_args()
     os.chdir(ROOT)  # init_firebase 以相對路徑找 firebase-key.json
 
@@ -234,7 +283,21 @@ def main():
         notify("Wolves Tracker 看門狗", "測試通知：看得到這則就代表通知正常。")
         log("測試通知已送出")
         return
+    if args.check_data:
+        check_data(args.dry_run)
+        return
+    if args.morning:
+        watch(args)
+        return
+    # 一般模式（15:00）：補抓判斷跑完（含提早 return 或補抓失敗 sys.exit）後，最後一步逐場對帳
+    try:
+        watch(args)
+    finally:
+        check_data(args.dry_run)
 
+
+def watch(args):
+    """原本的看門狗流程：判斷主排程／昨晚那場要不要補抓、補抓、通知"""
     season_type_api, season_type_label = get_season_type()
     if season_type_api is None:
         log("休賽期，不檢查")
