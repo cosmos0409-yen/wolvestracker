@@ -102,9 +102,11 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
             <div className="whitespace-nowrap font-mono text-[10px] text-slate-500 sm:text-[11px]">分差 {pmTxt(r)}</div>
         </div>
     );
-    const condQuote = () => cond && window.Quote.make({ subject: '灰狼全隊', context: seasonLabel, label: `${cond.label} 戰績`, gkey: 'SPLIT_COND',
+    // 情境用 CiteCtx 的賽季（「2026-27 例行賽」，和其他引用項目同字才會併段）；seasonLabel 在當季是「當季例行賽」
+    const condSeason = () => (window.CiteCtx || {}).season || seasonLabel;
+    const condQuote = () => cond && window.Quote.make({ subject: '灰狼全隊', context: condSeason(), label: `${cond.label} 戰績`, gkey: 'SPLIT_COND',
         values: [{ value: `${cond.sum.match.w}-${cond.sum.match.l}（勝率 ${pctTxt(cond.sum.match)}，其他 ${cond.sum.rest.w}-${cond.sum.rest.l}）` }], asOf: 'none' });
-    const condCite = () => cond && ['灰狼全隊', seasonLabel, `${cond.label}：${cond.sum.match.w}-${cond.sum.match.l}（${cond.sum.match.n} 場，勝率 ${pctTxt(cond.sum.match)}，場均分差 ${pmTxt(cond.sum.match)}）；其他 ${cond.sum.rest.w}-${cond.sum.rest.l}`,
+    const condCite = () => cond && ['灰狼全隊', condSeason(), `${cond.label}：${cond.sum.match.w}-${cond.sum.match.l}（${cond.sum.match.n} 場，勝率 ${pctTxt(cond.sum.match)}，場均分差 ${pmTxt(cond.sum.match)}）；其他 ${cond.sum.rest.w}-${cond.sum.rest.l}`,
         '資料：NBA.com Stats', `${location.origin}${location.pathname}${location.hash}`].join('｜');
     const shortMu = (m) => String(m || '').replace(/^MIN\s*/, '').replace(/^vs\.\s*/, 'vs ').replace(/^@\s*/, '@');
     const condResult = condOn && (

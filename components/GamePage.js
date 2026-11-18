@@ -158,10 +158,11 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     // 單場 vs 平常出手少於 DEF_SHOT_RULES.gameMin → 顯示「—」（1 投 1 中就變 +50 的噪音）
     const tooFew = (k, ent) => !!((GA.NORMAL_DEFS || {})[k] && ent && typeof ent[RATIO[k][1]] === 'number' && ent[RATIO[k][1]] < (window.DEF_SHOT_RULES || {}).gameMin);
     const MIN_N = 5;
-    const fmtV = (k, v) => {
+    // isAvg：季均一律一位小數（季均 10.0，不寫成 10）；本場的次數是整數照原樣
+    const fmtV = (k, v, isAvg = false) => {
         if (typeof v !== 'number') return '—';
         const m = metaOf(k);
-        const s = m.unit === '%' || /_PCT$|PLUSMINUS$|_RATING$/.test(k) ? window.fix1(v) : (Number.isInteger(v) ? String(v) : v.toFixed(1));
+        const s = m.unit === '%' || /_PCT$|PLUSMINUS$|_RATING$/.test(k) ? window.fix1(v) : (Number.isInteger(v) && !isAvg ? String(v) : v.toFixed(1));
         return ((/PLUSMINUS$/.test(k) || /NET_RATING$/.test(k)) && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
     };
     // 本場 vs 季平均：中性→不判；樣本少→不判；否則依 betterIsLarger
@@ -187,11 +188,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         `${String(meta.matchup || '').includes('@') ? '@' : 'vs.'} ${window.teamName(oppAbbr)}`,
         box && minTeam && oppTeam ? `${minTeam.score}:${oppTeam.score}` : '',
         meta.wl === 'W' ? '勝' : meta.wl === 'L' ? '敗' : ''].filter(Boolean).join(' ');
-    // game：引用籃「單場比分」標頭用（季後賽 gameId 末碼＝第幾戰）
+    // game：引用籃「單場比分」標頭用（季後賽 gameId 末碼＝系列賽第幾戰；例行賽＝本季第幾場，取賽季場次索引的順序）
     const quoteGame = box && minTeam && oppTeam ? {
         date, home: !!minTeam.home, opp: oppAbbr, ms: minTeam.score, os: oppTeam.score, wl: meta.wl || null,
         periods: (minTeam.periods || []).map((p, i) => [p.pts, ((oppTeam.periods || [])[i] || {}).pts]),
-        gameNo: /^004/.test(meta.gameId || '') ? Number(String(meta.gameId).slice(-1)) : null,
+        gameNo: /^004/.test(meta.gameId || '') ? Number(String(meta.gameId).slice(-1))
+            : (index.some(g => g.date === date) ? index.filter(g => g.date <= date).length : null),
     } : null;
     window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false, game: quoteGame };
 
@@ -599,7 +601,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                     {link ? <a href={metricHref(name, k)} className={`text-slate-200 ${linkCls}`}>{window.metricLabel(m)}</a> : <span className="text-slate-200">{window.metricLabel(m)}</span>}
                     {typeof v === 'number' && <UI.Info k={k}
                         history={ADV_META[k] ? undefined : () => playerHistory(pidOf(name), k)}
-                        quote={(h) => window.Quote.make({ subject: name, label: window.metricLabel(m), en: m.englishLabel, gkey: k,
+                        quote={(h) => window.Quote.make({ subject: name, label: ADV_META[k] ? `在場${m.label}` : window.metricLabel(m), en: m.englishLabel, gkey: k,
                             values: [{ value: fmtV(k, v) }], note: (h && h.note) || null, better: m.neutral ? null : (m.betterIsLarger === false ? 'low' : 'high'), asOf: 'none' })} />}
                     {m.englishLabel && <span className="block font-mono text-[9px] text-slate-500">{m.englishLabel}</span>}
                 </span>
@@ -607,7 +609,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                     <b className={`font-mono font-semibold ${j.good ? 'text-[#12A150]' : 'text-slate-100'}`}>{fmtV(k, v)}</b>
                     {frac && <span className="ml-1 font-mono text-[10px] text-slate-500">{frac}</span>}
                     {j.small && <span className="ml-1 text-[10px] text-amber-300/80">樣本少</span>}
-                    <span className="block font-mono text-[10px] text-slate-500">季均 {avg === undefined ? '…' : fmtV(k, avg)}</span>
+                    <span className="block font-mono text-[10px] text-slate-500">季均 {avg === undefined ? '…' : fmtV(k, avg, true)}</span>
                     {sub && <span className="block font-mono text-[10px] text-slate-500">{sub}</span>}
                 </span>
             </div>
@@ -935,7 +937,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                                     <i className={`absolute inset-y-0.5 left-0 block ${color}`} style={{ width: `${Math.max(0, v) / hi * 100}%` }}></i>
                                     {typeof avg === 'number' && avg >= 0 && <u className="absolute -inset-y-1 block w-0.5 bg-[#C4CED2]" style={{ left: `${avg / hi * 100}%` }}></u>}
                                 </div>
-                                <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500"><span>本場</span><span>季均 {avg === undefined ? '…' : fmtV(k, avg)}</span></div>
+                                <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500"><span>本場</span><span>季均 {avg === undefined ? '…' : fmtV(k, avg, true)}</span></div>
                             </a>
                         );
                     })}

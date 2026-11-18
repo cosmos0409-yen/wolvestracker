@@ -12,6 +12,8 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
     if (!current) return null;
     const UI = window.UI;
     const [zh, en] = UI.splitTitle(title);
+    // 引用籃比較值：兩邊小數位對齊、vs 平常這類差值帶正號
+    const cmpVal = (m, v, ref) => { const s = UI.cellNum(v, m.unit, ref); return m.signed && v > 0 ? `+${s}` : s; };
     const sampleOf = (m) => {
         if (!m.att || !(gp > 0) || typeof current[m.att] !== 'number') return null;
         const n = Math.round(current[m.att] * gp);
@@ -44,7 +46,8 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                         sample={sampleOf(m)} signed={!!m.signed}
                         quote={compareTags && typeof prev?.[m.key] === 'number' && typeof current[m.key] === 'number'
                             ? { kind: 'compare', sep: '→', label: window.metricLabel(m), rank: null,
-                                values: [{ tag: compareTags[0], value: prev[m.key], unit: m.unit }, { tag: compareTags[1], value: current[m.key], unit: m.unit }] }
+                                values: [{ tag: compareTags[0], value: cmpVal(m, prev[m.key], current[m.key]), unit: m.unit },
+                                    { tag: compareTags[1], value: cmpVal(m, current[m.key], prev[m.key]), unit: m.unit }] }
                             : { label: window.metricLabel(m) }} />
                 ))}
             </UI.Ledger>

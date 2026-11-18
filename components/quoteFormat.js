@@ -6,9 +6,11 @@
 //   kind 'line'：球員本場數據一行（values[0].value 是整行文字）
 //   合併後的項目：{ id, kind, subject, context, sep, parts: [項目A, 項目B] }（成對指標寫成一行「A／B」）
 // 排版規則（使用者確認的格式）：「：」分隔名稱與數值、「／」成對指標、「→」時間先後、「vs.」並列
-//   單值 1A：●主體｜情境（括號為聯盟排名）＋ ※指標：值（第8）
-//   前後 2A：●主體｜情境：A → B ＋ ※指標：x → y（2B 差值、2C 加 📈📉 為選項）
-//   並列 3A：（以下為 主體｜情境，A vs. B）＋ ※指標：x vs. y；三個以上值 3C：●主體｜指標 ＋ 每個對象一行
+//   段標頭前的「●」是選項 opts.bullet（2026-11-18 起預設不加：使用者文章用「●」當小節標題）
+//   單值 1A：主體｜情境（括號為聯盟排名）＋ ※指標：值（第8）
+//   前後 2A：主體｜情境：A → B ＋ ※指標：x → y（2B 差值、2C 加 📈📉 為選項）
+//   並列 3A：（以下為 主體｜情境，A vs. B）＋ ※指標：x vs. y；三個以上值 3C：主體｜指標 ＋ 每個對象一行
+//   依指標：指標｜情境（括號為聯盟排名）＋ ※主體：值；同段有球員也有全隊時球員寫「（球員第15）」
 (function () {
     const KEY = 'wt_quote_v1';
     const OPTS_KEY = 'wt_quote_opts_v1';
@@ -32,6 +34,7 @@
         header: 'none',      // 整段標頭：none／key（●關鍵數據：）／game（單場比分，取第一個帶 game 的項目）／custom（headerText）
         headerText: '',
         prefix: '※',         // 行首：※／•／''
+        bullet: '',          // 各段標頭前的符號：''（預設，使用者文章的「●」是小節標題）／'●'
         names: 'zh',         // 指標名稱：zh／en／both（中文（原文））
         rank: true,          // 帶名次
         ptStyle: 'league',   // Playtype 名次寫法：league（第11）／pr（PR66）
@@ -56,10 +59,11 @@
         const nameOf = (it) => it.parts ? pairName(it.parts[0], it.parts[1]) : nm(it);
         // Playtype：選 PR 寫法，或沒有名次（球員百分位不能換算名次）時寫 PR
         const usesPr = (it) => typeof it.pr === 'number' && (o.ptStyle === 'pr' || !it.rank);
-        const rk = (it) => {
+        // who：'player' 時名次寫「球員第N」（依指標段同時有球員與全隊時，區分「球員中的名次」與「30 隊中的名次」）
+        const rk = (it, who) => {
             if (!o.rank) return '';
             if (usesPr(it)) return `（PR${Math.round(it.pr)}）`;
-            return it.rank ? `（第${it.rank.rank}）` : '';
+            return it.rank ? `（${who === 'player' ? '球員' : ''}第${it.rank.rank}）` : '';
         };
         // note：歷史定位、本場焦點標籤等補充說明，和名次共用「名次」開關
         const nt = (it) => o.rank && it.note ? `（${it.note}）` : '';
@@ -82,7 +86,11 @@
         };
         const tagsOf = (it) => (it.parts ? it.parts[0] : it).values.map(v => v.tag || '');
         const valsAt = (it, i) => it.parts ? it.parts.map(p => val(p.values[i])).join('／') : val(it.values[i]);
-        const oneVal = (it) => it.parts ? it.parts.map(p => `${val(p.values[0])}${rk(p)}${nt(p)}`).join('／') : `${val(it.values[0])}${rk(it)}${nt(it)}`;
+        const oneVal = (it, who) => it.parts ? it.parts.map(p => `${val(p.values[0])}${rk(p, who)}${nt(p)}`).join('／') : `${val(it.values[0])}${rk(it, who)}${nt(it)}`;
+        const isTeam = (it) => it.subject === '灰狼全隊';
+        const B = o.bullet || '';
+        // 段標頭：前面加符號（預設無）；內容是空字串時整行省略
+        const headLine = (s) => s ? `${B}${s}` : null;
         const flat = [].concat(...(items || []).map(it => it.parts || [it]));
 
         // 標頭「單場比分」：取籃子裡第一個帶 game 的項目；同一場的項目省略情境（比分已寫在最上面）
@@ -131,32 +139,36 @@
         const blocks = groups.map(g => {
             if (g.metric) {
                 const c = ctxOf(g.metric[0]);
-                return [`●${nm(g.metric[0])}${c ? `｜${c}` : ''}`, ...g.metric.map(it => `${P}${it.subject}：${oneVal(it)}`)];
+                const note = o.rank && g.metric.some(hasLeague) ? '（括號為聯盟排名）' : '';
+                // 同段有球員也有全隊：球員名次寫「球員第N」
+                const mixed = g.metric.some(isTeam) && g.metric.some(it => !isTeam(it));
+                return [headLine(`${nm(g.metric[0])}${c ? `｜${c}` : ''}${note}`),
+                    ...g.metric.map(it => `${P}${it.subject}：${oneVal(it, mixed && !isTeam(it) ? 'player' : null)}`)];
             }
             const first = g.items[0], w = who(first);
             if (g.wide) {
                 const tags = tagsOf(first);
-                return [`●${[w, nameOf(first)].filter(Boolean).join('｜')}`, ...tags.map((t, i) => `${t}：${valsAt(first, i)}`)];
+                return [headLine([w, nameOf(first)].filter(Boolean).join('｜')), ...tags.map((t, i) => `${t}：${valsAt(first, i)}`)];
             }
             if (first.kind === 'compare') {
-                const [A, B] = tagsOf(first);
+                const [A, Bt] = tagsOf(first);
                 if (first.sep === 'vs.') {
-                    return [`（以下為 ${w ? `${w}，` : ''}${A} vs. ${B}）`,
+                    return [`（以下為 ${w ? `${w}，` : ''}${A} vs. ${Bt}）`,
                         ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} vs. ${valsAt(it, 1)}`)];
                 }
                 if (o.cmpStyle === 'delta') {
-                    return [`●${w ? `${w}：` : ''}${B}（括號為與${A}差距）`,
+                    return [headLine(`${w ? `${w}：` : ''}${Bt}（括號為與${A}差距）`),
                         ...g.items.map(it => `${P}${nameOf(it)}：${it.parts
                             ? it.parts.map(p => `${val(p.values[1])}（${delta(p.values[0], p.values[1])}）`).join('／')
                             : `${val(it.values[1])}（${delta(it.values[0], it.values[1])}）`}`)];
                 }
-                return [`●${w ? `${w}：` : ''}${A} → ${B}`,
+                return [headLine(`${w ? `${w}：` : ''}${A} → ${Bt}`),
                     ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} → ${valsAt(it, 1)}${o.cmpStyle === 'trend' ? trend(it) : ''}`)];
             }
             const note = o.rank && g.items.some(hasLeague) ? '（括號為聯盟排名）' : '';
-            return [`●${w}${note}`,
+            return [headLine(`${w}${note}`),
                 ...g.items.map(it => it.kind === 'line' ? `${P}${val(it.values[0])}` : `${P}${nameOf(it)}：${oneVal(it)}`)];
-        });
+        }).map(b => b.filter(l => l != null));
 
         const out = [];
         const full = (abbr) => (typeof window !== 'undefined' && window.teamFullName) ? window.teamFullName(abbr) : abbr;

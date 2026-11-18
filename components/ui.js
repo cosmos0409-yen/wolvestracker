@@ -28,6 +28,16 @@ window.UI = (function () {
 
     const isBlank = (v) => v == null || v === '';
 
+    // 格子數值的小數位：存檔時四捨五入過的數字會掉尾零（-14.0 → -14、54.0 → 54），和同段的 -0.4、54.7 對不齊。
+    // 百分比至少一位；其餘取「本值與比較值」較多的小數位（失誤 15 vs 前值 15.7 → 15.0）。只補零、不四捨五入
+    const decimalsOf = (v) => { const m = String(v).match(/\.(\d+)$/); return m ? m[1].length : 0; };
+    const cellNum = (value, unit, ref) => {
+        if (typeof value !== 'number' || !isFinite(value)) return value;
+        const dp = Math.max(unit === '%' ? 1 : 0, decimalsOf(value), typeof ref === 'number' && isFinite(ref) ? Math.min(3, decimalsOf(ref)) : 0);
+        const s = value.toFixed(dp);
+        return /^-0(\.0+)?$/.test(s) ? s.slice(1) : s;
+    };
+
     // 漲跌：betterIsLarger=false 時（失誤、對手命中率…）下降才是好
     const Delta = ({ value, prevValue, unit = '', betterIsLarger = true, digits = 1 }) => {
         if (isBlank(value) || isBlank(prevValue)) return null;
@@ -368,7 +378,7 @@ window.UI = (function () {
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
         if (missing) { rank = null; sample = null; sub = null; }
-        const shown = signed && typeof value === 'number' && value > 0 ? `+${value}` : value;
+        const shown = signed && typeof value === 'number' && value > 0 ? `+${cellNum(value, unit, prevValue)}` : cellNum(value, unit, prevValue);
         const quoteFn = missing || quote === null ? undefined : () => window.Quote.make(Object.assign({
             label: citeLabel, en, gkey, values: [{ value: shown, unit }], rank: rank ? { rank: rank.rank, n: rank.n } : null,
             better: neutral ? null : (betterIsLarger ? 'high' : 'low'), asOf: citeAsOf,
@@ -697,5 +707,5 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
+    return { splitTitle, pctColor, cellNum, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
 })();
