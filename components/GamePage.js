@@ -17,6 +17,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const [loadErr, setLoadErr] = useState(null);
     const [index, setIndex] = useState([]);
     const [boxSide, setBoxSide] = useState('MIN');
+    const [oppOpen, setOppOpen] = useState(null);   // 對手 Box Score 展開的球員 personId（只有本場數據一行，不寫網址）
     const [avgCache, setAvgCache] = useState({});     // {playerId: aggregate|null}（null=無 bundle）
     const [vsWho, setVsWho] = useState(null);
     const [shotWho, setShotWho] = useState('TEAM');
@@ -721,23 +722,48 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         if (parts.length < 2) return n;
         return (<><span className="sm:hidden">{parts[0][0]}. {parts.slice(1).join(' ')}</span><span className="hidden sm:inline">{n}</span></>);
     };
+    // 對手球員展開：只有本場數據一行可加入引用籃（對手沒有逐場季資料，不做進階與季平均）；主體寫「名字（拓荒者）」
+    const oppExpand = (p) => {
+        const line = statLine(p.stats);
+        if (!line) return <UI.Note>這位球員本場沒有數據</UI.Note>;
+        const addLine = () => {
+            const r = window.Quote.add(window.Quote.make({ kind: 'line', subject: `${p.name}（${window.teamName(oppAbbr)}）`, label: '本場數據', en: 'Box Score', gkey: 'BOX_LINE', values: [{ value: line }], asOf: 'none' }));
+            UI.toast(r.added ? `已加入引用籃（共 ${r.total} 項）` : '這一行已在引用籃裡');
+        };
+        return (
+            <div className="px-3 pb-3 pt-2 sm:pl-10">
+                <div className="flex flex-wrap items-center justify-between gap-2 border border-dashed border-white/15 px-2.5 py-2">
+                    <p className="min-w-0 text-[12px] leading-relaxed text-slate-300">
+                        <span className="block font-mono text-[10px] text-slate-500">本場數據 · 加入引用籃會寫成這一行</span>{line}</p>
+                    <button type="button" onClick={addLine}
+                        className="inline-flex min-h-[28px] shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-3 text-[12px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 加入本場數據</button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-500">對手球員只有本場 box，沒有進階與季平均</p>
+            </div>
+        );
+    };
     const boxRow = (p) => {
         const mine = sideTri === 'MIN';
         const mp = mine ? minPlayers.find(x => x.pid === p.personId) : null;
-        const open = mine && mp && expanded && expanded.pid === p.personId;
         const dnp = !p.stats || !Object.keys(p.stats).length;
-        const toggle = () => { if (mine && mp) onExpand(open ? '' : tokenOf(mp)); };
+        const canOpen = !dnp && (mine ? !!mp : true);
+        const open = mine ? !!(mp && expanded && expanded.pid === p.personId) : oppOpen === p.personId;
+        const toggle = () => {
+            if (!canOpen) return;
+            if (mine) onExpand(open ? '' : tokenOf(mp));
+            else setOppOpen(open ? null : p.personId);
+        };
         const nameEl = mine && mp
             ? <a href={playerHref(mp.name)} onClick={e => e.stopPropagation()} className={linkCls}>{shortName(p.name)}</a>
             : <span title={mine ? undefined : '對手球員沒有個人頁（只抓灰狼的季資料）'}>{shortName(p.name)}</span>;
         return (
             <React.Fragment key={p.personId}>
-                <tr onClick={dnp ? undefined : toggle} className={`border-b border-white/[0.05] ${mine && mp && !dnp ? 'cursor-pointer hover:bg-white/[0.03]' : ''} ${open ? 'bg-[#12A150]/[0.07]' : ''}`}>
+                <tr onClick={canOpen ? toggle : undefined} className={`border-b border-white/[0.05] ${canOpen ? 'cursor-pointer hover:bg-white/[0.03]' : ''} ${open ? 'bg-[#12A150]/[0.07]' : ''}`}>
                     <th scope="row" className="sticky left-0 bg-[#0A1626] px-2 py-1.5 text-left font-normal whitespace-nowrap">
                         <span className="inline-block w-6 font-mono text-[10px] text-slate-500">{p.jersey}</span>
                         {nameEl}
                         {p.position && <span className="ml-1.5 font-mono text-[10px] text-slate-500 max-sm:hidden">{p.position}</span>}
-                        {mine && mp && !dnp && <span className="ml-2 font-mono text-[10px] text-slate-500">{open ? '▴' : '▾'}<span className="max-sm:hidden">{open ? ' 收合' : ' 進階'}</span></span>}
+                        {canOpen && <span className="ml-2 font-mono text-[10px] text-slate-500">{open ? '▴' : '▾'}<span className="max-sm:hidden">{open ? ' 收合' : mine ? ' 進階' : ' 本場'}</span></span>}
                     </th>
                     {dnp ? (
                         <td colSpan={cols.length} className="px-2 py-1.5 text-left text-[12px] text-slate-500">{p.comment || 'DNP'}</td>
@@ -745,7 +771,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
                         <td key={k} className={`px-2 py-1.5 text-right font-mono tabular-nums whitespace-nowrap ${tdCls(p.stats, k)}`}>{cell(p.stats, k)}</td>
                     ))}
                 </tr>
-                {open && <UI.ExpandRow colSpan={cols.length + 1} className="bg-[#12A150]/[0.04]">{expandRow(mp)}</UI.ExpandRow>}
+                {open && <UI.ExpandRow colSpan={cols.length + 1} className="bg-[#12A150]/[0.04]">{mine ? expandRow(mp) : oppExpand(p)}</UI.ExpandRow>}
             </React.Fragment>
         );
     };
@@ -759,7 +785,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         <UI.Section title="Box Score" en={advView ? 'Advanced' : 'Traditional'} accent="silver"
             sub={advView
                 ? '效率＝在場時球隊每 100 回合得失分（NetRtg 綠正紅負）；「不在場」＝他坐板凳時，只有灰狼 · 點灰狼球員那一列展開本場進階'
-                : '點灰狼球員那一列展開本場進階（網址會記住，可分享）；點名字到球員頁 · 綠字＝該欄全隊最高'}
+                : '點灰狼球員那一列展開本場進階（網址會記住，可分享）、點對手球員那一列可把本場數據加入引用籃；點名字到球員頁 · 綠字＝該欄全隊最高'}
             right={<>
                 {hasAdvBox && <UI.Seg ariaLabel="Box Score 欄組" size="sm" value={advView ? 'adv' : 'trad'} onChange={v => onGameBox(v === 'adv' ? 'adv' : '')}
                     options={[{ value: 'trad', label: '傳統' }, { value: 'adv', label: '進階' }]} />}

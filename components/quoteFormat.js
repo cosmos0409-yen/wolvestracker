@@ -46,7 +46,9 @@
     };
 
     // ── 排版（純函式）──
-    const render = (items, opts) => {
+    // renderBlocks：回傳分段 [{ text, head }]（head＝整段標頭或文末「統計至／來源」），抽屜每段單獨複製用；
+    // render：各段以空行接起來的整段文字（＝複製全部，與改版前輸出相同）
+    const renderBlocks = (items, opts) => {
         const o = Object.assign({}, DEFAULT_OPTS, opts || {});
         const P = o.prefix || '';
         const nm = (it) => o.names === 'en' ? (it.en || it.label)
@@ -170,14 +172,14 @@
                 ...g.items.map(it => it.kind === 'line' ? `${P}${val(it.values[0])}` : `${P}${nameOf(it)}：${oneVal(it)}`)];
         }).map(b => b.filter(l => l != null));
 
-        const out = [];
+        const secs = [];
         const full = (abbr) => (typeof window !== 'undefined' && window.teamFullName) ? window.teamFullName(abbr) : abbr;
         const head = hg
             ? [`${hg.gameNo ? `G${hg.gameNo} ` : ''}${hg.home ? 'vs.' : '@'} ${full(hg.opp)} ${hg.ms}:${hg.os} 灰狼${hg.wl === 'W' ? '勝' : hg.wl === 'L' ? '敗' : ''}`,
                 o.periods && hg.periods && hg.periods.length ? `每節：${hg.periods.map(([a, b]) => `${a}:${b}`).join('｜')}` : ''].filter(Boolean).join('\n')
             : o.header === 'key' ? '●關鍵數據：' : o.header === 'custom' ? String(o.headerText || '').trim() : '';
-        if (head) out.push(head);
-        blocks.forEach((b, i) => { if (i > 0 || head) out.push(''); out.push(...b); });
+        if (head) secs.push({ text: head, head: true });
+        blocks.forEach(b => { if (b.length) secs.push({ text: b.join('\n'), head: false }); });
         const tail = [];
         if (o.asOfNote) {
             const d = flat.map(it => it.asOf).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x || '')).sort().pop();
@@ -188,9 +190,10 @@
             const url = flat.map(it => it.url).find(Boolean);
             if (url) tail.push(url);
         }
-        if (tail.length && out.length) out.push('');
-        return out.concat(tail).join('\n');
+        if (tail.length) secs.push({ text: tail.join('\n'), head: true });
+        return secs;
     };
+    const render = (items, opts) => renderBlocks(items, opts).map(x => x.text).join('\n\n');
 
     // ── 儲存（localStorage 不可用時退回記憶體，頁面照常運作）──
     let mem = [];
@@ -264,5 +267,5 @@
         return it;
     };
 
-    window.Quote = { render, items, add, remove, move, merge, split, canMerge, clear, opts, setOpts, subscribe, make, EVENT, DEFAULT_OPTS, PAIRS };
+    window.Quote = { render, renderBlocks, items, add, remove, move, merge, split, canMerge, clear, opts, setOpts, subscribe, make, EVENT, DEFAULT_OPTS, PAIRS };
 })();
