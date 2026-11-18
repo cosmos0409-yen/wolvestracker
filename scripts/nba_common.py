@@ -387,13 +387,15 @@ def consistency_issues(team_snapshot, bundle_games, rules=None):
     """全隊逐場加總 vs 整季快照（純函式，0 request）。
     team_snapshot：每日全隊快照文件（含 base／tracking／defense）；bundle_games：wolves_games_bundle 的 games[]。
     只比快照已涵蓋的場次＝依日期排序的前 base.GP 場（昨晚剛抓、快照還沒算進去的場次不比）。
+    **只把「逐場比快照少」（少抓）當異常**；逐場比快照多的放 info.over 只記 log——2026-11-15～16 卡位逐場多 3 次（+4.8%）
+    連報兩天，那是 NBA 整季與單場兜不攏，不是少抓，看了也沒得處理。
     回傳 (issues, info)：issues＝[{cat, key, label, bundle_sum, snap_total, pct, suspects[(date, value)]}]（落差大的在前）；
-    info＝{n_games, n_fields, skipped（逐場沒有這欄或缺場）, reason（沒比的原因）}"""
+    info＝{n_games, n_fields, skipped（逐場沒有這欄或缺場）, over（逐場多出來的，格式同 issues、沒有 suspects）, reason（沒比的原因）}"""
     r = dict(CONSISTENCY_RULES, **(rules or {}))
     base = (team_snapshot or {}).get("base") or {}
     n = int(base.get("GP") or 0)
     games = sorted(bundle_games or [], key=lambda g: g.get("date", ""))
-    info = {"n_games": n, "n_fields": 0, "skipped": [], "reason": ""}
+    info = {"n_games": n, "n_fields": 0, "skipped": [], "over": [], "reason": ""}
     if n < r["min_games"]:
         info["reason"] = f"本季只有 {n} 場，少於 {r['min_games']} 場不比"
         return [], info
@@ -414,6 +416,10 @@ def consistency_issues(team_snapshot, bundle_games, rules=None):
         total, expect = sum(vals), snap * n
         diff = total - expect
         if abs(diff) < r["abs"] or not expect or abs(diff) / abs(expect) < r["rel"]:
+            continue
+        if diff > 0:   # 逐場比快照多：不是少抓，只記下來
+            info["over"].append({"cat": cat, "key": key, "label": CONSISTENCY_LABELS.get(key, key),
+                                 "bundle_sum": round(total, 1), "snap_total": round(expect, 1), "pct": round(100 * diff / expect, 1)})
             continue
         med = sorted(vals)[len(vals) // 2]
         suspects = [(g["date"], v) for g, v in zip(games, vals) if diff < 0 and v < med * r["suspect_ratio"]]

@@ -742,6 +742,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - 比法：
   1. 快照 `base.GP`＝N，取 bundle 依日期排序的前 N 場（昨晚剛抓、快照還沒算進去的暫定版不比）。
   2. 每欄比「逐場加總」和「快照場均 × N」，落差 ≥ 3% **且**總數差 ≥ 3 才算異常。
+     **2026-11-18 起只有「逐場比快照少」（少抓）才通知**；逐場比快照多的只在 log 記一行「逐場比快照多（不通知）」。原因：11/15、11/16 卡位逐場比快照多 3 次（+3.6%～+4.8%，卡位一場只有 4～6 次，差 3 次就過門檻）連續誤報兩天，那是 NBA 整季與單場兜不攏，不是少抓、也沒得處理。
   3. 異常欄位裡低於本季中位數 70% 的場次，列為可疑日期。
   4. 逐場沒有的欄位（全隊最近防守者、防守 box 等只有快照）自動略過。
 - `watchdog.py`：
@@ -1560,6 +1561,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ## 更新紀錄
 
+- 2026-11-18 — 逐場對帳只報少抓：`consistency_issues()` 逐場比快照多的不算異常，改放 `info.over`，看門狗只記 log、不通知（11/15、11/16 卡位 +3 次誤報）。同日確認 11/13～11/18 排程正常：每日快照約 83 requests、球員名次每天寫入（合格 246～248 人）、11/12～11/16 三場定稿且灰狼球員有兩分／護框／`D_GP`
 - 2026-11-13 — 球員聯盟名次（Phase 1–4）：`nba_common` 加 `PLAYER_RANK_RULES`／`PLAYER_RANK_ATT_PAIRS`／`PLAYER_RANK_CATS`、`player_league_ranks()`、`fetch_base_box(team_of=)`；`fetch_data.py` 最近防守者與防守 box 改抓全聯盟、球員文件加 `ranks`；前端 `RankCtx` 支援球員、`leagueRank` 回 `top`／`gate`、`rankGateText`／`rankWhy`、`StatCell`／`Info` 的 `rankWhy` 與綠字，身分列／總覽／Splits／防守／投籃接上名次。使用者決定：出賽 ≥ 70%＋每場 ≥ 15 分鐘、場均出手門檻（投籃 5／三分 3／罰球 2、其他 P25）、未合格不顯示（小卡附參考名次）、前 30 名綠字、失誤犯規不上綠
 - 2026-11-13 — 資料品質小修（Phase 1–4）：`MATCHUP_OVERALL_FIELDS` 加 `D_GP`（最近防守者出賽場數），防守章節「樣本小」次數改用場均 × `D_GP`；`nba_common` 加 `CONSISTENCY_RULES`／`CONSISTENCY_SKIP`／`CONSISTENCY_LABELS`、`consistency_fields()`／`consistency_issues()`；`watchdog.py` 拆出 `watch()`、15:00 最後一步 `check_data()`、新增 `--check-data`。另把交接手冊的每日 request 改為實測 84。使用者決定：放看門狗、只比全隊、只通知不自動重抓、舊快照不補 `D_GP`
 - 2026-11-12 — 個人效率、得分組成與抓取對帳（Phase 1–6）：`nba_common` 加 `PLAYER_ADVANCED_FIELDS`／`SCORING_FIELDS`／`MISC_FIELDS`、`fetch_player_advanced`／`fetch_scoring`；快照球員 `advanced`／`scoring`、全隊 `scoring`／`ranks.scoring`；`backfill_history.py --only-adv-scoring` 補 8 份（含全隊進階）；停抓投籃拆分，每日實測 84；前端 `playerAdvancedDefs`／`scoringShareDefs`／`scoringSituationDefs`、總覽個人效率、投籃 `ScoringMix`、跨季「效率」「得分組成」、`GameAgg.TS_DEFS`／`WAVG_DEFS`／`FG3A_FREQ`、`StatCell` 的 `sub`、`HISTORY_CACHE_VER` 6；Splits 加 TS%／eFG%／三分出手占比，Tracking 加接球跳投／急停得分與切入助攻率，防守 Box 加對手二波得分；重抓 10/21～10/26（Tracking 少抓），單場快取 `wt_gc_v7_`／`wt_game_v4_`。使用者決定：進階 10 欄、Scoring＋Misc 都抓、只有 TS／eFG 跟期間、歷史只補快照、對帳 4 項＋切入助攻率都做、重抓 4 場

@@ -251,9 +251,13 @@ def check_data(dry_run=False):
         if info["reason"]:
             log(f"逐場對帳：{info['reason']}")
             return
+        over = "；".join(f"{it['label']} {it['bundle_sum']:g} vs {it['snap_total']:g}（{it['pct']:+g}%）" for it in info.get("over") or [])
+        over_note = f"；逐場比快照多（不通知）：{over}" if over else ""
         if not issues:
-            log(f"逐場對帳正常（快照 {snap_id}，比了 {info['n_fields']} 欄 × {info['n_games']} 場）")
+            log(f"逐場對帳正常（快照 {snap_id}，比了 {info['n_fields']} 欄 × {info['n_games']} 場）{over_note}")
             return
+        if over:
+            log(f"逐場對帳：逐場比快照多（不通知）：{over}")
         dates = sorted({d for it in issues for d, _ in it["suspects"]})
         for it in issues:
             sus = "、".join(f"{d[5:]}（{v:g}）" for d, v in it["suspects"]) or "無明顯偏低場次"
