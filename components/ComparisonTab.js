@@ -107,11 +107,16 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     };
 
     // 基本數據與百分比統一一位小數（避免同列出現「1」與「0.7」）；Playtype PPP 兩位；Tracking 等保留原始精度（如 PTS/Touch 0.338）
-    const fmt = (v, m) => v == null ? '—'
+    // 其餘類別保留原始精度，但同一列各季補成相同小數位：存檔掉尾零的值（Pace 101.50 → 101.5、AST/TO 1.40 → 1.4）
+    // 和其他季對不齊（2026-11-18）。who：疊加球員（逐季折線複製用），同一人同一列對齊
+    const decimalsOf = (x) => { const mt = typeof x === 'number' ? String(x).match(/\.(\d+)$/) : null; return mt ? mt[1].length : 0; };
+    const rowDp = (m, who) => Math.min(3, Math.max(0, ...cols.map(c => decimalsOf(getVal(c.key, m, who)))));
+    const fmt = (v, m, who) => v == null ? '—'
         : m.signed ? (v > 0 ? '+' : '') + window.fix1(v)
         : m.pct ? v.toFixed(1) + '%'
         : m.playtype ? v.toFixed(2)
-        : activeCat === 'base' || activeCat === 'onoff' || activeCat === 'scoring' ? v.toFixed(1) : v;
+        : activeCat === 'base' || activeCat === 'onoff' || activeCat === 'scoring' ? v.toFixed(1)
+        : typeof v === 'number' ? v.toFixed(Math.max(decimalsOf(v), rowDp(m, who))) : v;
 
     // 該欄（賽季）此球員的 metadata：球隊標示與「跨隊不適用」共用同一份來源
     const metaOf = (key, who) => (who === TEAM || (!who && viewMode !== 'PLAYER')) ? null : (data[key]?.player?.meta?.[who || selectedPlayer] || null);
@@ -227,7 +232,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
             openMetrics.forEach(m => {
                 [null, ...extras].forEach(who => {
                     const vals = cols.map(c => {
-                        const v = fmt(getVal(c.key, m, who), m);
+                        const v = fmt(getVal(c.key, m, who), m, who);
                         // 疊加球員的他隊季別：表頭只標得出主角，其他人的 @隊名 接在數值後
                         const t = who && who !== TEAM && v !== '—' ? window.tagOfMeta(metaOf(c.key, who)) : '';
                         if (t) extraTag = true;
