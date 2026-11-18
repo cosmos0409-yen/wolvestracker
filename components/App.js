@@ -831,7 +831,8 @@ const App = () => {
         const latestOf = (arr) => (arr || []).filter(d => d.seasonType === label).sort((a, b) => (a.date < b.date ? 1 : -1))[0] || null;
         let team = null, player = null;
         if (selectedSeasonKey === 'current') { team = latestOf(teamHistory); player = latestOf(playerHistory); }
-        if (!team && !player) {
+        // 兩邊都要有才用記憶體裡的序列：剛進頁時全隊快照先到、球員快照還沒到，只拿一邊會把「球員欄全 —」快取起來
+        if (!team || !player) {
             if (!window.db || !window.firebaseModules) throw new Error('Firestore 未就緒');
             const { collection, getDocs, query, where, documentId } = window.firebaseModules;
             const read = async (name, since) => {
@@ -850,7 +851,7 @@ const App = () => {
             player = { ...player, meta: Object.fromEntries(names.map(n => [n, {}])) };
         }
         const v = { team, player };
-        if (team || player) setCompareCache(prev => ({ ...prev, [key]: v }));
+        if (team && player) setCompareCache(prev => ({ ...prev, [key]: v }));
         return v;
     };
 

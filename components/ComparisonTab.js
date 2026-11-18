@@ -134,10 +134,15 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         // Playtype 列的 l/e 是表格用（英文 key／「進攻 PPP」），引用改成與 Playtype 章節同名：中文名每球權得分（防守端：防守…每球權失分）／Cut PPP
         const label = m.playtype ? (ptDef ? `防守${window.ptName(m.k)}每球權失分` : `${window.ptName(m.k)}每球權得分`) : m.l;
         const en = m.playtype ? `${m.k} PPP` : m.e;
-        return window.Quote.make({
+        const it = window.Quote.make({
             kind: 'compare', sep: '→', label, en, gkey: m.playtype ? 'PPP' : m.k, context: sameType || '', asOf: 'none',
             values: cols.map(c => ({ tag: (sameType && c.season ? c.season.slice(2) : (c.short || c.label)) + window.tagOfMeta(metaOf(c.key)), value: fmt(getVal(c.key, m), m) })),
         });
+        // 含當季欄時記下那份快照的日期（當季值每天在變），引用籃「統計至」才附得上；全是歷史賽季就不附
+        const cur = cols.find(c => c.isCurrent), d = cur && data[cur.key];
+        const snapDate = d && ((d.team && d.team.date) || (d.player && d.player.date));
+        it.asOf = /^\d{4}-\d{2}-\d{2}$/.test(snapDate || '') ? snapDate : null;
+        return it;
     };
 
     // 臉書用純文字：臉書不吃表格、字是比例字寬對不齊，改成「指標｜各季值」一行一項，第一行是賽季表頭。
@@ -263,7 +268,9 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
         shooting: '分區命中率，各季終點快照',
         defense: '最近防守者／Hustle／防守 box，各季終點快照',
         onoff: '球隊在該球員上場／下場時的每 100 回合效率',
-    }[activeCat];
+        advanced: viewMode === 'TEAM' ? '全隊進階效率，各季終點快照' : '個人效率（使用率、助攻率、籃板率、PIE 等），各季終點快照',
+        scoring: '得分組成（各區得分占比、情境得分），各季終點快照',
+    }[activeCat] || '各季終點快照';
 
     return (
         <div className="space-y-8">
