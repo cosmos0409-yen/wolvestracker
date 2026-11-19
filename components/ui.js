@@ -563,7 +563,7 @@ window.UI = (function () {
     // numbered：分頁前標 01 02…（＝數字快捷鍵，手機無鍵盤隱藏）；right：右側附加控制項（攻守切換、賽季選單）
     // bleed：放在 <main> 內時用負邊距撐滿版寬；不帶時自己置中（章節列在 main 外）
     // below：分頁列底下、同在吸頂範圍內的內容（章節列的期間面板與手機篩選提示）
-    const TabBar = ({ tabs, value, onChange, ariaLabel, right, numbered, bleed, below, className = '' }) => {
+    const TabBar = ({ tabs, value, onChange, ariaLabel, left, right, numbered, bleed, below, className = '' }) => {
         // 手機上分頁放不下時：右緣漸層＋「›」按鈕提示還有分頁（例：主畫面章節列只露出前四章，Playtype／跨季要往右滑）
         const scroller = React.useRef(null);
         const [more, setMore] = React.useState(false);
@@ -581,6 +581,7 @@ window.UI = (function () {
         }, [value]);
         const row = (
             <div className="flex items-center gap-3">
+                {left}
                 <div className="relative flex min-w-0 flex-1 items-center">
                 <div ref={scroller} className={`flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] ${more ? '[mask-image:linear-gradient(to_right,#000_75%,transparent)]' : ''}`}>
                     {tabs.map((t, i) => {

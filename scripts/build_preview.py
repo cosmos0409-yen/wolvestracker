@@ -151,7 +151,8 @@ def main():
     args = ap.parse_args()
     season = nc.get_current_season()
     type_api, _ = nc.get_season_type()
-    type_api = type_api or "Regular+Season"
+    if type_api != nc.season_type("playoffs")[0]:   # 休賽期、附加賽（沒有整季數據）都用例行賽數據
+        type_api = nc.season_type("regular")[0]
     base_map = nc.fetch_base_box(season, type_api, "Team", team_id=0)
     adv_map = nc.fetch_team_advanced(season, type_api, team_id=0)
     db = None if args.dry_run else nc.init_firebase()

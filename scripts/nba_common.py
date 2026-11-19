@@ -710,13 +710,21 @@ def get_today_str():
     return east_time.strftime('%Y-%m-%d')
 
 
-# 賽別鍵 → (NBA API 的 SeasonType, 中文標籤)；各腳本的 --type／--force-type 一律經 season_type() 轉換
-SEASON_TYPES = {"regular": ("Regular+Season", "例行賽"), "playoffs": ("Playoffs", "季後賽")}
+# 賽別鍵 → (NBA API 的 SeasonType, 中文標籤)；各腳本的 --type／--force-type 一律經 season_type() 轉換。
+# playin（附加賽，2026-11-19 起）：只有單場（索引／bundle／投籃點 {season}_playin），不寫累積快照、不進例行／季後平均
+SEASON_TYPES = {"regular": ("Regular+Season", "例行賽"), "playoffs": ("Playoffs", "季後賽"),
+                "playin": ("PlayIn", "附加賽")}
+SNAPSHOT_TYPE_KEYS = ("regular", "playoffs")   # 有累積快照（每日／歷史）的賽別
 
 
 def season_type(type_key):
-    """'regular'／'playoffs' → (API SeasonType, 中文標籤)"""
+    """'regular'／'playoffs'／'playin' → (API SeasonType, 中文標籤)"""
     return SEASON_TYPES[type_key]
+
+
+def type_key_of(season_type_api):
+    """API SeasonType → 賽別鍵（文件 id 的 {season}_{type} 用）"""
+    return next(k for k, (api, _) in SEASON_TYPES.items() if api == season_type_api)
 
 
 # 賽別判斷（2026-11-19 起）：先看全聯盟賽程檔，抓不到才退回日期規則。
@@ -730,7 +738,8 @@ def season_type_from_schedule(sched, today, current_season=None):
     - 例行賽：第一場 ～ 最後一場＋寬限
     - 季後賽：第一場起，直到總冠軍賽（gameId 第 8 碼＝4）有一隊拿到 4 勝、且過了那場＋寬限。
       輪與輪之間賽程還沒排出下一輪也算季後賽
-    - 其餘（開季前、例行賽結束到季後賽開打的附加賽空檔、季後賽結束）＝休賽期，不抓（避免抓還沒開始的賽別而誤判被擋）
+    - 附加賽：賽程上有灰狼的附加賽（gameId 005、對手確定後才有球隊 ID）→ 第一場 ～ 最後一場＋寬限（只擷取單場）
+    - 其餘（開季前、灰狼沒打的附加賽空檔、季後賽結束）＝休賽期，不抓（避免抓還沒開始的賽別而誤判被擋）
     current_season：資料賽季（get_current_season）；賽程檔是別季（休賽期 NBA 換成下一季賽程）就當休賽期"""
     reg = sorted(g["date"] for g in sched if str(g.get("id", "")).startswith("002") and g.get("date"))
     if not reg:
@@ -756,12 +765,33 @@ def season_type_from_schedule(sched, today, current_season=None):
         done = max(wins.values(), default=0) >= 4
         if day(po_first) <= t and not (done and t > day(finals_last) + grace):
             return SEASON_TYPES["playoffs"], f"季後賽 {po_first} 起" + (f"，總冠軍賽 {finals_last} 結束" if done else "")
+    pi = wolves_playin_dates(sched)
+    if pi and day(pi[0]) <= t <= day(pi[-1]) + grace:
+        return SEASON_TYPES["playin"], f"灰狼附加賽 {'、'.join(pi)}"
+    if po:
         if done:
             return (None, None), f"季後賽已結束（總冠軍賽 {finals_last}）"
         return (None, None), f"例行賽已結束（{reg[-1]}），季後賽 {po_first} 開打"
     if t < day(reg[0]):
         return (None, None), f"例行賽 {reg[0]} 才開打"
     return (None, None), f"例行賽已結束（{reg[-1]}），賽程上還沒有季後賽"
+
+
+def wolves_playin_dates(sched):
+    """賽程上灰狼的附加賽日期（gameId 005；對手還沒確定的場次沒有球隊 ID，不會列入）"""
+    return sorted(g["date"] for g in sched if str(g.get("id", "")).startswith("005") and g.get("date")
+                  and TEAM_ID in ((g.get("home") or {}).get("id"), (g.get("away") or {}).get("id")))
+
+
+def pending_playin(sched=None, today=None):
+    """灰狼附加賽剛打完、還在寬限內（主賽別已切成季後賽時，仍要補定稿那場附加賽）→ True。
+    賽程檔抓不到回 False（附加賽擷取就交給下一次）"""
+    sched = fetch_league_schedule() if sched is None else sched
+    if not sched:
+        return False
+    t = datetime.strptime(today or get_today_str(), "%Y-%m-%d")
+    return any(t - timedelta(days=SEASON_TYPE_GRACE_DAYS) <= datetime.strptime(d, "%Y-%m-%d") <= t
+               for d in wolves_playin_dates(sched))
 
 
 def get_season_type(sched=None, today=None):
@@ -1173,7 +1203,7 @@ def write_lineups(db, season, season_type_api, season_type_label, groups, as_of,
     """組合頁文件 wolves_games_index/{season}_{type}_lineups（每天覆寫）。
     任一人數沒抓到、全部都沒有組合（開季前）或完整性檢查沒過 → 不覆寫，舊文件保留、隔天再試。
     backfill_history.py --only-lineups 也走這裡"""
-    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    type_key = type_key_of(season_type_api)
     doc_id = f"{season}_{type_key}_lineups"
     missing = [k for k, rows in groups.items() if rows is None]
     if missing:

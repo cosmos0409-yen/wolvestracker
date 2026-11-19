@@ -37,7 +37,11 @@ from nba_common import (
     NBABlockedError,
     fingerprint_info,
     season_type,
+    type_key_of,
+    pending_playin,
     fetch_team_snapshot,
+    fetch_base_box,
+    fetch_team_advanced,
     fetch_player_snapshot,
 )
 from build_bundles import upsert_game
@@ -151,7 +155,7 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
     if not game_log:
         print("（賽程為空或抓取失敗，本次不擷取單場）")
         return False
-    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    type_key = type_key_of(season_type_api)
     index_id = f"{season}_{type_key}"
     db.collection("wolves_games_index").document(index_id).set({
         "season": season, "seasonType": season_type_label,
@@ -213,7 +217,7 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
 def capture_recent_shots(db, season, season_type_api, season_type_label, recent_games):
     """投籃點每日增量：最近幾場中「已定稿、但全隊投籃文件 gameDates 還沒有」的場次，每場 1 個 request 併入。
     每週 fetch_shotchart.py 仍整季重抓（對帳、更新受助攻比例），這裡只負責讓賽後隔天就有點位。"""
-    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    type_key = type_key_of(season_type_api)
     snap = db.collection("wolves_shotcharts").document(f"TEAM_{season}_{type_key}").get(field_paths=["gameDates"])
     have = set((snap.to_dict() or {}).get("gameDates") or []) if snap.exists else set()
     todo = [(d, gid) for d, _api, _m, _w, gid in recent_games if d not in have and is_final_capture(d)]
@@ -223,6 +227,15 @@ def capture_recent_shots(db, season, season_type_api, season_type_label, recent_
     for d, gid in todo:
         print(f"--- 併入投籃點 {d} [{gid}] ---")
         capture_game_shots(db, season, season_type_api, season_type_label, d, gid)
+
+
+def capture_all(db, season_type_api, season_type_label, normalized_active):
+    """單場擷取：主賽別＋（主賽別已切成季後賽、但灰狼附加賽剛打完還沒定稿時）附加賽。全部成功才回 True"""
+    ok = capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+    if season_type_api != season_type("playin")[0] and pending_playin():
+        print("=== 灰狼附加賽剛打完，另外擷取附加賽單場 ===")
+        ok = capture_recent_games(db, SEASON, *season_type("playin"), normalized_active) and ok
+    return ok
 
 
 # ==========================================
@@ -254,14 +267,24 @@ def main():
             return
         today = get_today_str()
 
-    if args.games_only:
-        # 下午先抓暫定版（未過定稿門檻 final=False），隔天 03:00 主排程照定稿規則重抓
+    playin_only = not force and season_type_api == season_type("playin")[0]
+    if args.games_only or playin_only:
+        # --games-only：下午先抓暫定版（未過定稿門檻 final=False），隔天 03:00 主排程照定稿規則重抓
+        # 附加賽期間的主排程：附加賽沒有累積快照，只擷取單場＋更新賽前預覽
         print(f"=== 只擷取單場（{season_type_label}）===")
         roster_full = fetch_roster_with_ids(SEASON)
         normalized_active = [p["name"].strip().lower() for p in roster_full]
         db = init_firebase()
-        ok = bool(db) and capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
-        write_status("games", ok)
+        ok = bool(db) and capture_all(db, season_type_api, season_type_label, normalized_active)
+        if db and playin_only and not args.games_only:
+            # 預覽對照表用例行賽數據（附加賽沒有整季數據）；2 個 request＋賽程檔（已快取）
+            try:
+                rs = season_type("regular")[0]
+                build_preview.build(db, SEASON, fetch_base_box(SEASON, rs, "Team", team_id=0),
+                                    fetch_team_advanced(SEASON, rs, team_id=0), today)
+            except Exception as e:
+                print(f"⚠️ 賽前預覽更新失敗（不影響抓取）：{e}")
+        write_status("games" if args.games_only else "full", ok, "" if ok else "單場擷取未成功")
         if not ok:
             sys.exit(1)
         return
@@ -393,7 +416,7 @@ def main():
         # G2：每次都對賽程補抓缺漏單場（無缺漏時只花 1 個 request 讀賽程）
         # 強制模式為補期末整季快照，不擷取單場（該場已由 backfill_games 回補）
         if not force:
-            games_ok = capture_recent_games(db, SEASON, season_type_api, season_type_label, normalized_active)
+            games_ok = capture_all(db, season_type_api, season_type_label, normalized_active)
             # 賽前預覽：賽程檔 1 個 request（cdn.nba.com）＋上面已抓的 30 隊資料；失敗不影響抓取結果
             try:
                 build_preview.build(db, SEASON, league_base, league_advanced, today)

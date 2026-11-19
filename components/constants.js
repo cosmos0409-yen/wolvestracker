@@ -23,13 +23,22 @@ window.nameKey = (n) => String(n || '')
 // 只給人看（網址 p=ID-名字），對人一律用前面的 ID，見 urlState.js
 window.nameSlug = (n) => window.nameKey(n).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-// 賽季階段判斷（前端版本，對應 fetch_data.py 的 get_season_type()）
-// 使用美東時間 UTC-5（不處理 DST，誤差可忍）
-window.getSeasonPhase = function (date) {
+// 美東日期（含夏令；2026-11-19 起與後端 nba_common.now_east() 同規則）→ { y, m, d }。Intl 不可用時退回 UTC−5
+window.etParts = function (date) {
     const d = date || new Date();
-    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
-    const m = eastTime.getUTCMonth() + 1;
-    const day = eastTime.getUTCDate();
+    try {
+        const p = {};
+        new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+            .formatToParts(d).forEach(x => { p[x.type] = x.value; });
+        return { y: Number(p.year), m: Number(p.month), d: Number(p.day) };
+    } catch (e) {
+        const t = new Date(d.getTime() - 5 * 3600 * 1000);
+        return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() };
+    }
+};
+// 賽季階段判斷（前端版本，用日期決定預設顯示例行／季後；後端 get_season_type() 改看賽程，這裡只管畫面預設）
+window.getSeasonPhase = function (date) {
+    const { m, d: day } = window.etParts(date);
     if ((m === 10 && day >= 20) || m === 11 || m === 12 || m === 1 || m === 2 || m === 3 || (m === 4 && day <= 15)) {
         return { type: 'regular', label: '例行賽', inSeason: true };
     } else if ((m === 4 && day >= 16) || m === 5 || (m === 6 && day <= 20)) {
@@ -42,9 +51,7 @@ window.getSeasonPhase = function (date) {
 // 休賽期仍指向剛打完的那季。必須與 scripts/nba_common.py 的 get_current_season() 同規則
 // （每日快照、投籃熱圖 doc id、bundle id 都靠它對上），改界線要兩邊一起改。
 window.seasonForDate = function (date) {
-    const d = date || new Date();
-    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
-    const y = eastTime.getUTCFullYear(), m = eastTime.getUTCMonth() + 1, day = eastTime.getUTCDate();
+    const { y, m, d: day } = window.etParts(date);
     const start = (m > 10 || (m === 10 && day >= 20)) ? y : y - 1;
     return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 };
@@ -52,9 +59,7 @@ window.CURRENT_SEASON = window.seasonForDate();
 // 薪資賽季（聯盟年度）：美東 7/1 切換（休賽期就看下一季的合約與門檻）。
 // 必須與 scripts/nba_common.py 的 get_roster_season() 同規則（sync_salary.py 用它判斷哪些賽季必須有門檻）
 window.capSeasonForDate = function (date) {
-    const d = date || new Date();
-    const eastTime = new Date(d.getTime() - 5 * 3600 * 1000);
-    const y = eastTime.getUTCFullYear(), m = eastTime.getUTCMonth() + 1;
+    const { y, m } = window.etParts(date);
     const start = m >= 7 ? y : y - 1;
     return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 };
@@ -577,8 +582,13 @@ window.kickoffTPE = (g) => {
 };
 // 美東當地開賽時間「20:30」（含夏令時間）
 window.kickoffET = (g) => { if (!g || !g.utc) return ''; try { return zoned(g.utc, 'America/New_York').time; } catch (e) { return ''; } };
-// 美東今天（與 nba_common.get_today_str() 同為 UTC−5，每日快照 id 也是這個）
-window.etToday = () => new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+// 美東今天（含夏令，與 nba_common.get_today_str() 同規則；每日快照 id 也是這個）
+window.etToday = () => { const { y, m, d } = window.etParts(); return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
+// 賽別（與 nba_common.SEASON_TYPES 同鍵）：gameId 前三碼 004＝季後賽、005＝附加賽，其餘例行賽。
+// 附加賽只有單場（索引／bundle／投籃點 {season}_playin），不算進例行或季後的任何平均
+window.SEASON_TYPE_LABEL = { regular: '例行賽', playoffs: '季後賽', playin: '附加賽' };
+window.gameTypeOfId = (id) => (/^004/.test(id || '') ? 'playoffs' : /^005/.test(id || '') ? 'playin' : 'regular');
+window.typeKeyOfLabel = (label) => ({ '季後賽': 'playoffs', '附加賽': 'playin' })[label] || 'regular';
 // 賽前預覽「雙方對照」的列名（列順序與方向在預覽文件 fields，來自 nba_common.PREVIEW_TEAM_FIELDS；加欄位時這裡補名稱，沒補就顯示原文）
 window.PREVIEW_LABELS = {
     PTS: ['得分', 'PTS'], OPP_PTS: ['失分', 'OPP PTS'], OFF_RATING: ['進攻效率', 'OffRtg'], DEF_RATING: ['防守效率', 'DefRtg'],

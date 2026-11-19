@@ -66,9 +66,12 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         return () => { cancelled = true; };
     }, [season]);
     const pvGame = preview ? (preview.games || []).find(g => g.date === date) || null : null;
-    // 賽別：有單場文件看文件；預覽模式看 GameID（004＝季後賽）
-    const pvType = (g) => /^004/.test(g.id || '') ? 'playoffs' : 'regular';
-    const typeKey = meta.seasonType ? (meta.seasonType === '季後賽' ? 'playoffs' : 'regular') : pvGame ? pvType(pvGame) : 'regular';
+    // 賽別：有單場文件看文件；預覽模式看 GameID（004＝季後賽、005＝附加賽）
+    const pvType = (g) => window.gameTypeOfId(g.id);
+    const typeKey = meta.seasonType ? window.typeKeyOfLabel(meta.seasonType) : pvGame ? pvType(pvGame) : 'regular';
+    // 附加賽本身最多兩場、沒有「季平均」：季平均與主畫面連結一律改用例行賽
+    const isPlayin = typeKey === 'playin';
+    const avgType = isPlayin ? 'regular' : typeKey;
     const box = docs && docs.team && docs.team.box && (docs.team.box.teams || []).length === 2 ? docs.team.box : null;
 
     // 賽程條：同季同賽別的比賽索引（預覽模式 docs=null 也要）
@@ -97,10 +100,10 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
 
     // 季平均（此場之前）：lazily 讀該員 bundle
     const ensureAvg = (pid) => {
-        if (!pid || avgCache[pid] !== undefined || avgInflight.current[`${season}_${typeKey}_${pid}`] || !window.loadSeasonGames) return;
-        avgInflight.current[`${season}_${typeKey}_${pid}`] = true;   // 同一人只讀一次（多個區塊會同時要）
+        if (!pid || avgCache[pid] !== undefined || avgInflight.current[`${season}_${avgType}_${pid}`] || !window.loadSeasonGames) return;
+        avgInflight.current[`${season}_${avgType}_${pid}`] = true;   // 同一人只讀一次（多個區塊會同時要）
         const forDate = date;
-        window.loadSeasonGames(season, typeKey, 'PLAYER', pid).then(({ games }) => {
+        window.loadSeasonGames(season, avgType, 'PLAYER', pid).then(({ games }) => {
             if (dateRef.current !== forDate) return;   // 已換到別場，丟掉舊結果
             const prior = (games || []).filter(g => g.date < date);
             setAvgCache(c => ({ ...c, [pid]: prior.length ? GA.aggregate(prior, null, 'TEAM') : null }));
@@ -178,7 +181,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const fracOf = (k, ent) => { const r = RATIO[k]; if (!r || !r[0] || !ent || typeof ent[r[1]] !== 'number') return null; return `${ent[r[0]]}/${ent[r[1]]}`; };
 
     // 連結：球員頁／Splits 指標走勢（帶 hl 圈出這場）
-    const seasonState = season === window.CURRENT_SEASON ? { selectedSeasonKey: 'current', seasonTypeView: typeKey } : { selectedSeasonKey: `${season}_${typeKey}` };
+    const seasonState = season === window.CURRENT_SEASON ? { selectedSeasonKey: 'current', seasonTypeView: avgType } : { selectedSeasonKey: `${season}_${avgType}` };
     const pidOf = (name) => (minPlayers.find(p => p.name === name) || {}).pid;
     const playerHref = (name) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pidOf(name), activeTab: 'overview', ...seasonState });
     const metricHref = (name, k) => '#' + window.UrlState.serialize({ viewMode: 'PLAYER', selectedPlayer: name, playerId: pidOf(name), activeTab: 'splits', ...seasonState, focusMetric: k, highlightDate: date });
@@ -193,8 +196,9 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     const quoteGame = box && minTeam && oppTeam ? {
         date, home: !!minTeam.home, opp: oppAbbr, ms: minTeam.score, os: oppTeam.score, wl: meta.wl || null,
         periods: (minTeam.periods || []).map((p, i) => [p.pts, ((oppTeam.periods || [])[i] || {}).pts]),
-        gameNo: /^004/.test(meta.gameId || '') ? Number(String(meta.gameId).slice(-1))
+        gameNo: isPlayin ? null : /^004/.test(meta.gameId || '') ? Number(String(meta.gameId).slice(-1))
             : (index.some(g => g.date === date) ? index.filter(g => g.date <= date).length : null),
+        stage: isPlayin ? '附加賽' : null,
     } : null;
     window.CiteCtx = { subject: expanded ? expanded.name : 'Minnesota Timberwolves', season: `${season} ${meta.seasonType || ''}`.trim(), context: gameCtx, asOfSnap: null, asOfAgg: null, isHistory: false, game: quoteGame };
 
@@ -295,6 +299,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
     ) : null;
     const margin = box ? minTeam.score - oppTeam.score : null;
     const nOT = box ? Math.max(0, away.periods.length - 4) : 0;   // 延長節數（舊場次沒有每節比分 → 0，只顯示 FINAL）
+    const stageTag = isPlayin ? <span className="ml-2 inline-block whitespace-nowrap rounded-full border border-sky-300/50 px-2 py-px align-middle text-[11px] text-sky-300">附加賽</span> : null;
     const finalTag = <span className="inline-block bg-[#C4CED2] px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#0A1626]">FINAL{nOT > 0 ? `/${nOT > 1 ? nOT : ''}OT` : ''}</span>;
     const lineScore = box && away.periods.length > 0 && (
         <table className="mx-auto mt-3 border-collapse font-mono text-[12px]" aria-label="每節比分">
@@ -339,7 +344,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
             </div>
             <div className="mt-3 text-center">
                 <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                    {finalTag}
+                    {finalTag}{stageTag}
                     {!final && <span className="inline-block border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">數據可能更新</span>}
                     <span className="text-[13px] text-slate-200">{date}</span>
                     <span className={`font-mono text-[11px] ${margin > 0 ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>灰狼{margin > 0 ? '勝' : '敗'} {margin > 0 ? '+' : ''}{margin}</span>
@@ -354,7 +359,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         <div className="hidden sm:grid grid-cols-2 gap-4 border-b border-white/10 py-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:gap-6">
             <div className="order-2 lg:order-1">{teamBlock(away, 'away')}</div>
             <div className="order-1 col-span-2 text-center lg:order-2 lg:col-span-1">
-                {finalTag}
+                {finalTag}{stageTag}
                 {!final && <span className="ml-2 inline-block border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">數據可能更新</span>}
                 <div className="mt-2 text-[13px] text-slate-200">{date}</div>
                 {box.arena && <div className="text-[11px] text-slate-400">{box.arena}{box.attendance ? ` · ${box.attendance.toLocaleString()} 人` : ''}</div>}
@@ -934,8 +939,8 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         const ent = vsPlayer.adv, avgAgg = avgCache[vsPlayer.pid];
         const keys = VS_KEYS.filter(k => typeof ent[k] === 'number');
         return (
-            <UI.Section title="本場 vs 季平均" en="Game vs Season" accent="green"
-                sub="銀色刻度＝賽前季平均（不含本場）；條＝本場值，綠＝優於平均、紅＝低於平均，次數類（觸球、切入）為中性灰色">
+            <UI.Section title={isPlayin ? '本場 vs 例行賽平均' : '本場 vs 季平均'} en={isPlayin ? 'Game vs Regular Season' : 'Game vs Season'} accent="green"
+                sub={`銀色刻度＝${isPlayin ? `${season} 例行賽平均（附加賽不算進任何平均）` : '賽前季平均（不含本場）'}；條＝本場值，綠＝優於平均、紅＝低於平均，次數類（觸球、切入）為中性灰色`}>
                 {/* 球員選擇放內容第一行（可換行）：Section 標題右側不換行，十幾個人會把手機版面撐寬 */}
                 <div className="mb-3 flex flex-wrap gap-1.5">{minPlayers.filter(p => p.adv).map(p => (
                     <UI.Chip key={p.pid || p.name} active={p.pid === vsPlayer.pid} onClick={() => setVsWho(p.name)}>{p.boxName}</UI.Chip>

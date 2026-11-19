@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from nba_common import get_season_type, get_current_season, fetch_team_game_log, init_firebase, fingerprint_info, consistency_issues
+from nba_common import season_type, type_key_of, pending_playin, SNAPSHOT_TYPE_KEYS
 
 STATUS_PATH = os.path.join(ROOT, "fetch_status.json")  # fetch_data.py 寫入
 LOG_PATH = os.path.join(ROOT, "watchdog_log.txt")
@@ -163,6 +164,17 @@ def latest_game(season, season_type_api):
     return d, m, w
 
 
+def latest_watched_game(season, season_type_api):
+    """要確認已進資料庫的最新一場：主賽別最新一場；灰狼附加賽剛打完（主賽別已切成季後賽）時兩邊取較新的。
+    都抓不到回 None"""
+    games = [latest_game(season, season_type_api)]
+    playin_api = season_type("playin")[0]
+    if season_type_api != playin_api and pending_playin():
+        games.append(latest_game(season, playin_api))
+    games = [g for g in games if g]
+    return max(games, key=lambda g: g[0]) if games else None
+
+
 def game_captured(db, d):
     return db.collection("wolves_player_games").document(d).get(field_paths=["date"]).exists
 
@@ -230,8 +242,11 @@ def check_data(dry_run=False):
         season_type_api, season_type_label = get_season_type()
         if season_type_api is None:
             return
+        type_key = type_key_of(season_type_api)
+        if type_key not in SNAPSHOT_TYPE_KEYS:
+            log(f"逐場對帳：{season_type_label}沒有累積快照，不對帳")
+            return
         season = get_current_season()
-        type_key = "regular" if season_type_label == "例行賽" else "playoffs"
         db = init_firebase()
         if not db:
             log("⚠️ 逐場對帳：Firebase 初始化失敗，略過")
@@ -346,7 +361,7 @@ def watch(args):
         mode, fetch_args = "full", []
         reason = f"{'[早上] ' if args.morning else ''}今天主排程沒完成（{why}）"
     else:
-        game = latest_game(season, season_type_api)
+        game = latest_watched_game(season, season_type_api)
         if game is None:
             log("⚠️ 主排程已完成，但賽程抓不到，無法確認昨晚比賽（不補抓）")
             return
@@ -370,7 +385,7 @@ def watch(args):
     rc, err, log_name = run_fetch(fetch_args)
 
     # 補抓後再檢查一次：狀態檔要是這次成功，且最新一場要在
-    game = latest_game(season, season_type_api)
+    game = latest_watched_game(season, season_type_api)
     ok = rc == 0 and ran_today(mode, start) and game is not None and game_captured(db, game[0])
     kind = "完整抓取" if mode == "full" else "單場"
     # 這次補抓的指紋：子程序寫進狀態檔才算數（被逾時中止的沒寫，就不報）

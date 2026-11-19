@@ -131,9 +131,10 @@ window.loadGamesIndex = async function (season, type) {
 // 整季賽程（例行賽＋季後賽合併、由舊到新，每場帶 type）：刊頭賽程月曆、搜尋「最近比賽」用。
 // 季後賽索引不存在（沒打進／還沒開打）時只回例行賽
 window.loadSeasonSchedule = async function (season) {
-    const [reg, po] = await Promise.all(['regular', 'playoffs'].map(t =>
+    // 例行＋季後＋附加賽（2026-11-19 起）；不存在的索引回空陣列
+    const lists = await Promise.all(['regular', 'playoffs', 'playin'].map(t =>
         window.loadGamesIndex(season, t).then(gs => gs.map(g => ({ ...g, type: t })))));
-    return [...reg, ...po].sort((a, b) => a.date.localeCompare(b.date));
+    return [].concat(...lists).sort((a, b) => a.date.localeCompare(b.date));
 };
 
 // 賽前預覽 wolves_games_index/{season}_preview（build_preview.py 每日覆寫）：灰狼本季全部賽程（含未開打、開賽時間、oppId）、

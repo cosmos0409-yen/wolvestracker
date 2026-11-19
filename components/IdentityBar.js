@@ -6,7 +6,9 @@
 // periodSlot：期間膠囊（只在手機顯示，放「數據截至」下一行；桌機在章節列右側，見 PeriodControl.js）
 // 身分列的 4 個主數字一律是「整季（截至該日）」，不跟期間篩選
 // onCompare：球員視角的「比較」（開 #cmp，帶入目前球員；另一位自動挑上場時間最接近的隊友）
-const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, salary, onSalary, asOf, periodSlot, onCompare }) => {
+// seasonLabel：季別標籤「2026-27 例行賽」（純標示；切換在刊頭「資料」群組，2026-11-19 起手機也顯示）
+// playin：{ w, l, onOpen }｜null——該季灰狼有打附加賽才給（全隊檢視），點了開最近一場附加賽
+const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, base, seasonLabel, playin, salary, onSalary, asOf, periodSlot, onCompare }) => {
     const GA = window.GameAgg;
     const FIELDS = viewMode === 'TEAM'
         ? [{ key: 'PTS', en: 'PTS', label: '得分' }, { key: 'REB', en: 'REB', label: '籃板' },
@@ -42,10 +44,14 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
                             {name}{tag && <span className="ml-2 align-middle font-mono text-[12px] font-normal normal-case text-amber-400/80">{tag}</span>}
                         </h1>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            {/* 手機省略賽季（刊頭選單已顯示），讓「數據截至」能併在同一行、省一列高度 */}
-                            <p className="text-[12px] text-slate-400 truncate">
-                                {seasonLabel && <span className={record ? 'hidden sm:inline' : ''}>{seasonLabel}{record ? ' · ' : ''}</span>}{record}
-                            </p>
+                            {seasonLabel && <span className="inline-flex items-center whitespace-nowrap rounded-[4px] border border-white/15 bg-[#C4CED2]/[0.08] px-2 py-px font-mono text-[11px] text-slate-200">{seasonLabel}</span>}
+                            {record && <p className="text-[12px] text-slate-400 truncate">{record}</p>}
+                            {playin && (
+                                <button type="button" onClick={playin.onOpen} title="附加賽不算進例行賽與季後賽的數據；點一下看最近一場附加賽"
+                                    className="inline-flex min-h-[24px] items-center whitespace-nowrap rounded-full border border-sky-300/45 px-2.5 text-[12px] text-sky-300 hover:border-sky-300/80">
+                                    附加賽 {playin.w} 勝 {playin.l} 敗<span aria-hidden="true" className="ml-1">↗</span>
+                                </button>
+                            )}
                             {asOf && (<span className="inline-flex items-center gap-1.5">
                                 <label htmlFor="asof-date" className="font-mono text-[10px] text-slate-500">數據截至</label>
                                 {/* 只有一天快照時（min＝max）停用，避免看起來能選卻只有一個選項 */}

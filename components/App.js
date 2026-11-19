@@ -186,7 +186,7 @@ const App = () => {
         if (!previewDoc || previewDoc.season !== scheduleSeason) return [];
         const last = scheduleGames.length ? scheduleGames[scheduleGames.length - 1].date : '';
         return (previewDoc.games || []).filter(g => g.date > last).map(g => ({
-            date: g.date, matchup: `MIN ${g.home ? 'vs.' : '@'} ${g.opp}`, wl: '', type: /^004/.test(g.id || '') ? 'playoffs' : 'regular',
+            date: g.date, matchup: `MIN ${g.home ? 'vs.' : '@'} ${g.opp}`, wl: '', type: window.gameTypeOfId(g.id),
             future: true, kickoff: window.kickoffTPE(g),
         }));
     }, [previewDoc, scheduleGames, scheduleSeason]);
@@ -200,8 +200,14 @@ const App = () => {
             // 上一季用推算的，不讀手動維護的 HISTORY_SEASONS（開季時那份清單可能還沒加上剛打完的賽季）
             // 例行賽期間最新一場一定在例行賽索引：先只讀它，不等季後賽索引（那份文件還不存在，查不存在的文件也要近 1 秒）
             if ((window.getSeasonPhase() || {}).type === 'regular') {
-                const reg = await window.loadGamesIndex(window.CURRENT_SEASON, 'regular');
-                if (reg.length) { if (!cancelled) setGameDate(reg[reg.length - 1].date); return; }
+                // 附加賽（4 月中）也在這段日期內：賽前預覽文件有灰狼已開打的附加賽（gameId 005）才多讀附加賽索引，平常不多讀
+                const [reg, pv] = await Promise.all([window.loadGamesIndex(window.CURRENT_SEASON, 'regular'),
+                    window.loadPreview ? window.loadPreview(window.CURRENT_SEASON).catch(() => null) : null]);
+                const today = window.etToday();
+                const hasPi = !!pv && (pv.games || []).some(g => window.gameTypeOfId(g.id) === 'playin' && g.date <= today);
+                const pi = hasPi ? await window.loadGamesIndex(window.CURRENT_SEASON, 'playin') : [];
+                const all = [...reg, ...pi].sort((a, b) => a.date.localeCompare(b.date));
+                if (all.length) { if (!cancelled) setGameDate(all[all.length - 1].date); return; }
             }
             const y = parseInt(window.CURRENT_SEASON.slice(0, 4), 10);
             const seasons = [window.CURRENT_SEASON, `${y - 1}-${String(y % 100).padStart(2, '0')}`];
@@ -1125,6 +1131,16 @@ const App = () => {
         ? (curOpt?.label || '')
         : `${window.CURRENT_SEASON} ${stTypeLabel}`;
     const untilDateForAvg = isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null);
+    // 身分列的附加賽膠囊（只有全隊檢視、該季有附加賽才出現；時光機選的日期之後的不算）：點了開最近一場附加賽
+    const playinSummary = (() => {
+        if (viewMode !== 'TEAM') return null;
+        const gs = scheduleGames.filter(g => g.type === 'playin' && (!untilDateForAvg || g.date <= untilDateForAvg));
+        if (!gs.length) return null;
+        const last = gs[gs.length - 1];
+        return { w: gs.filter(g => g.wl === 'W').length, l: gs.filter(g => g.wl === 'L').length, onOpen: () => openGame(last.date) };
+    })();
+    // 章節列黏頂時左側的季別標籤（「26-27 例行」）：捲到下面也看得到正在看哪一季
+    const chapterSeasonTag = `${String((isHistoryMode ? curOpt?.season : window.CURRENT_SEASON) || '').slice(2)} ${viewType === 'playoffs' ? '季後' : '例行'}`;
 
     // ── 全域期間：各章節共用的 ctx 與膠囊顯示（計算在 window.Period）──
     const periodOn = !!(window.Period && window.Period.isActive(period));
@@ -1213,14 +1229,11 @@ const App = () => {
         <div className="min-h-screen text-slate-200 font-sans pb-20">
             <window.Masthead
                 yearOptions={window.SEASON_YEAR_OPTIONS || []} viewYear={viewYear} onYearChange={changeYear}
-                isHistoryMode={isHistoryMode} historyLoading={historyLoading} displayDate={displayDate}
+                isHistoryMode={isHistoryMode} historyLoading={historyLoading}
                 viewType={viewType} onTypeChange={changeType}
-                effectiveDate={effectiveDate}
                 issueSeason={isHistoryMode ? curOpt?.season : window.CURRENT_SEASON}
-                issueType={isHistoryMode ? (curOpt?.type === 'playoffs' ? '季後賽' : '例行賽') : stTypeLabel}
                 status={!isCloud ? 'offline' : seasonStatus?.kind === 'offseason' ? 'offseason' : 'live'}
                 onStatusClick={handleStatusClick} onSearch={() => setPaletteOpen(true)}
-                onCopyLink={() => window.UI.doCopy(window.location.href)}
                 schedule={calendarGames} scheduleSeason={scheduleSeason} onPickGame={(d) => openGame(d)} inGame={!!gameDate || homePending} gameDate={gameDate}
                 playoffsAvailable={isHistoryMode || !teamHistory.length || teamHistory.some(d => d.seasonType === '季後賽')}
                 inCap={capView} onCap={openCap} inVs={!!vs} onVs={() => openVs()}
@@ -1306,7 +1319,7 @@ const App = () => {
 
             {!noCurrentSnapshots && (
                 <window.IdentityBar viewMode={viewMode} playerName={selectedPlayer} playerId={currentPlayerId} tag={selTag}
-                    games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay}
+                    games={seasonGames} untilDate={untilDateForAvg} base={currentBase} seasonLabel={seasonDisplay} playin={playinSummary}
                     salary={identitySalary} onSalary={openSalary} periodSlot={periodPill(false)}
                     onCompare={viewMode === 'PLAYER' && currentPlayerId ? () => openCompare({ a: window.UrlState.playerToken(currentPlayerId, selectedPlayer), sa: isHistoryMode ? (curOpt?.season || '') : '', type: viewType }) : null}
                     asOf={isHistoryMode ? null : {
@@ -1315,7 +1328,7 @@ const App = () => {
                     }} />
             )}
 
-            <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide}
+            <window.ChapterNav tabs={TABS} activeTab={activeTab} onTab={setActiveTab} viewSide={viewSide} onSide={setViewSide} seasonTag={chapterSeasonTag}
                 periodPill={periodPill(true)} periodOn={periodOn}
                 below={<>
                     {periodOpen && window.PeriodPanel && (

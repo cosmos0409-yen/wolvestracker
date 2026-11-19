@@ -1,10 +1,11 @@
 // 刊頭「賽程」月曆：取代原本的「最新一場」按鈕
-// 一季（例行賽＋季後賽）的比賽畫在月曆格子上：對手縮寫＋勝綠／敗紅，季後賽另標「季後」；點有比賽的日子進該場單場頁
+// 一季（例行賽＋季後賽＋附加賽）的比賽畫在月曆格子上：對手縮寫＋勝綠／敗紅，季後賽另標「季後」、附加賽標「附加」；點有比賽的日子進該場單場頁
+// navStyle：刊頭導覽用（手機是一排四格的格子、lg 以上是膠囊；1024～1279 省略對手縮寫）
 // 刊頭控制列是橫向捲動容器（overflow-x-auto），彈出層若放在裡面會被裁掉 → 用 portal 掛到 body、fixed 定位在按鈕下方
 // 未開打場次（App 從賽前預覽文件併進來，future: true、kickoff「台北隔日 09:30」，只有當季）：虛框＋灰字，點了進單場頁預覽模式
 // props：games（[{date, matchup, wl, type, future?, kickoff?}]，由舊到新）、season（顯示用）、activeDate（目前單場頁日期，有則高亮並預設翻到該月）、
 //        inGame（單場頁中，按鈕呈選中樣式）、onPick(date)、onFull（有給才在底部顯示「完整賽程 →」，只有當季）
-const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull }) => {
+const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull, navStyle = false }) => {
     const { useState, useEffect, useRef, useMemo } = React;
     const [open, setOpen] = useState(false);
     const [month, setMonth] = useState(null);   // 'YYYY-MM'；null＝依 activeDate／最新一場
@@ -114,7 +115,7 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull }) => 
                     if (!d) return <div key={'b' + i} />;
                     const g = byDate[d], day = Number(d.slice(8));
                     if (!g) return <div key={d} className="flex h-11 items-start justify-center pt-1 font-mono text-[11px] text-slate-600">{day}</div>;
-                    const win = g.wl === 'W', sel = d === activeDate, po = g.type === 'playoffs';
+                    const win = g.wl === 'W', sel = d === activeDate, po = g.type === 'playoffs', pi = g.type === 'playin';
                     if (g.future) return (
                         <button key={d} type="button" data-focus={d === focusDate ? '1' : undefined}
                             aria-current={sel ? 'date' : undefined}
@@ -128,13 +129,14 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull }) => 
                     return (
                         <button key={d} type="button" data-focus={d === focusDate ? '1' : undefined}
                             aria-current={sel ? 'date' : undefined}
-                            aria-label={`${d} ${g.matchup} ${win ? '勝' : g.wl === 'L' ? '敗' : ''}${po ? '（季後賽）' : ''}`}
-                            title={`${d} ${g.matchup} ${win ? '勝' : g.wl === 'L' ? '敗' : ''}${po ? ' · 季後賽' : ''}`}
+                            aria-label={`${d} ${g.matchup} ${win ? '勝' : g.wl === 'L' ? '敗' : ''}${po ? '（季後賽）' : pi ? '（附加賽）' : ''}`}
+                            title={`${d} ${g.matchup} ${win ? '勝' : g.wl === 'L' ? '敗' : ''}${po ? ' · 季後賽' : pi ? ' · 附加賽' : ''}`}
                             onClick={() => { setOpen(false); onPick(d); }}
                             className={`flex h-11 flex-col items-center justify-start gap-0.5 border pt-1 leading-none ${sel ? 'border-[#12A150] bg-[#12A150]/15' : 'border-white/10 hover:border-white/30'}`}>
                             <span className="font-mono text-[11px] text-slate-300">{day}</span>
                             <span className={`text-[10px] font-semibold ${win ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>{oppOf(g.matchup)}</span>
                             {po && <span className="text-[8px] text-amber-300/90">季後</span>}
+                            {pi && <span className="text-[8px] text-sky-300/90">附加</span>}
                         </button>
                     );
                 })}
@@ -159,9 +161,9 @@ const GameCalendar = ({ games, season, activeDate, inGame, onPick, onFull }) => 
             <button ref={btnRef} type="button" onClick={() => setOpen(o => !o)} disabled={noGames}
                 aria-haspopup="dialog" aria-expanded={open}
                 title={noGames ? `${season || '此賽季'} 沒有單場資料（單場資料從 2022-23 起）` : `${season} 賽程：點日期看該場 Box Score`}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] ${inGame || open ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : !noGames ? 'border-white/15 text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
+                className={`${navStyle ? 'flex flex-col items-center justify-center whitespace-nowrap border text-[13px] leading-tight max-lg:min-h-[44px] max-lg:rounded-[10px] max-lg:px-1 lg:flex-row lg:shrink-0 lg:rounded-full lg:px-3.5 lg:py-1.5' : 'shrink-0 rounded-full border px-3.5 py-1.5 text-[13px]'} ${inGame || open ? 'border-[#12A150] bg-[#12A150]/10 text-slate-50' : !noGames ? 'border-white/15 text-slate-300 lg:text-slate-400 hover:text-slate-100 hover:border-white/30' : 'border-white/10 text-slate-600 cursor-not-allowed'}`}>
                 賽程
-                {latest && <span className="ml-1.5 font-mono text-[11px] text-slate-500">{(inGame && activeDate ? activeDate : latest.date).slice(5).replace('-', '/')} {oppOf((inGame && byDate[activeDate] ? byDate[activeDate] : latest).matchup)}</span>}
+                {latest && <span className={`font-mono text-slate-500 ${navStyle ? 'text-[10px] lg:ml-1.5 lg:text-[11px]' : 'ml-1.5 text-[11px]'}`}>{(inGame && activeDate ? activeDate : latest.date).slice(5).replace('-', '/')}<span className={navStyle ? 'max-xl:hidden' : ''}> {oppOf((inGame && byDate[activeDate] ? byDate[activeDate] : latest).matchup)}</span></span>}
             </button>
             {pop}
         </>

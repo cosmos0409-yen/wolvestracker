@@ -960,7 +960,7 @@ wolvestracker/
 
 ### 版面骨架與網址狀態（2026-10 Phase 3）
 - **開站首頁＝最新一場單場頁**（2026-10-23）：網址沒帶畫面時 App `homePending` → `loadSeasonSchedule(CURRENT_SEASON)` 取最後一場開單場頁；當季未開打就推算上一季（不讀手動維護的 `HISTORY_SEASONS`）；找的期間不寫網址、主區顯示「載入最新一場…」；連不上雲端 8 秒後退回總覽；`hashchange` 會取消 pending。分享連結（`v=`/`game=`/`cap`）不受影響
-- 由上而下：`Masthead`（Wolves Ledger 字標、期別行、賽季下拉（只列年份）／例行·季後（常駐）／賽程月曆 `GameCalendar`／薪資／複製連結／搜尋）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（`UI.TabBar`，sticky，01–06 章節＋攻守視角「進攻端／防守端」；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容。單場／薪資／對戰是獨立整頁，**不掛章節列**，左上「← 回主畫面」（App `backBtn`）
+- 由上而下：`Masthead`（2026-11-19 改版：左＝字標、期別行（主畫面只寫「灰狼數據帳本 · 連線狀態」）、「資料」群組＝賽季下拉（只列年份）＋例行·季後（常駐，只在主畫面）；右＝頁面入口 賽程月曆 `GameCalendar`（`navStyle`）・對戰・組合・薪資｜搜尋。手機三列：字標＋搜尋／資料群組占滿一列／入口一排四格；lg 以上單列，1024～1279 賽程膠囊省對手縮寫。「複製連結」已移除）→ 休賽/陳舊細條 → `RosterRail`（全隊＋球員頭像 chips，尾端「本季無數據」淡色 chips：當季只提示＋「查看最近一季」按鈕，歷史賽季才直接 `jumpToPlayerHistory` 探測）→ `IdentityBar`（4 個主數字，與總覽同源 `GameAgg.seasonToDate`；時光機「數據截至」日期＋「回最新」，僅當季，2026-10-23 從刊頭搬來——它影響所有章節，放每章都看得到的地方）→ `ChapterNav`（`UI.TabBar`，sticky，01–06 章節＋攻守視角「進攻端／防守端」；攻守只在 `TABS` 標 `sided` 的章節顯示）→ 內容。單場／薪資／對戰是獨立整頁，**不掛章節列**，左上「← 回主畫面」（App `backBtn`）
 - 舊左側欄已移除；雷達＋疊加比較由 App 組成 `radarSlot` 傳入 `OverviewTab`
 - 網址 hash（`components/urlState.js`）：`#v=player&p=1630183-jaden-mcdaniels&tab=shooting&s=2024-25&t=playoffs&d=2026-06-15&side=def`，只寫非預設值；**有 `v=` 時完全以網址為準**，沒寫的項目＝預設（當季/總覽/進攻/最新日），不退回 localStorage——否則同一條連結會因電腦不同而開出不同畫面
 - **2026-10-19 新增**：
@@ -1002,7 +1002,7 @@ wolvestracker/
 - **引用籃**（2026-10-28）：跨頁收集數值、排成貼文用純文字（不附來源網址為預設），見「2026-10-28 聯盟名次與引用籃」
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
 - **近期異動**：`components/Highlights.js`，近 N 場 vs 全季（截至 untilDate；N 由 `OverviewTab` 依「平均期間」傳入，近 5／近 10，全季時用 5，本區不另放切換），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
-- 刊頭「複製連結」＝複製含 hash 的目前網址
+- （2026-11-19 起沒有「複製連結」按鈕：網址列本來就是含 hash 的目前網址，引用籃的引用也會附網址）
 - **匯出**（`UI.ExportMenu`／`exportCSV`／`exportPNG`）：表格（Playtype、陣容、跨季比較、Splits、投籃分區）可匯出 CSV（第一列為出處、UTF-8 BOM 供 Excel）；投籃分布、雷達、趨勢圖與表格可匯出 PNG 配圖（16:9＝1600×900、1:1＝1080×1080，含字標／標題／主體·賽季·日期／來源）
   - `html-to-image@1.11.13`（jsDelivr）只在第一次匯出時載入
   - 配圖不放 NBA Logo／頭像：跨網域圖片會讓畫布無法輸出，也避免在配圖上用官方商標
@@ -1592,6 +1592,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 ---
 
 ## 更新紀錄
+
+- 2026-11-19 — 附加賽與刊頭改版（Phase 1–3）：① 後端：`SEASON_TYPES` 加 `playin`（PlayIn／附加賽），`type_key_of()`、`SNAPSHOT_TYPE_KEYS`；`season_type_from_schedule` 依賽程判斷灰狼附加賽（gameId 005 且有灰狼球隊 ID）→ 主排程只擷取單場＋用例行賽數據更新預覽、不寫快照；附加賽最後一場隔天若已是季後賽首日，`capture_all()`／`pending_playin()` 另外補定稿附加賽，看門狗 `latest_watched_game()` 一起檢查；附加賽期間逐場對帳與每週熱圖跳過；`backfill_games.py`／`build_bundles.py`／`fetch_shotchart.py` 支援 `--type playin`。② 回補 2022-23 兩場附加賽（58 requests，各來源完整），`wolves_games_index`／`wolves_games_bundle`／`wolves_pgames_bundle` 的 `2022-23_playin`；投籃點未補。③ 前端：整季賽程含附加賽、月曆標「附加」、未開打的 005 場次標附加賽、首頁最新一場算進附加賽、單場頁附加賽膠囊與「本場 vs 例行賽平均」、引用標頭寫「附加賽」；身分列附加賽膠囊。④ 刊頭方案 A＋B：刊頭左右分區（「資料」群組／頁面入口＋搜尋）、移除複製連結、身分列季別標籤一律顯示、章節列黏頂時顯示季別。⑤ 前端美東時間改 `window.etParts()`（Intl，含夏令），與後端 `now_east()` 一致（B 批時交接手冊誤寫前端已是 Intl，這次才真的改）。未做：附加賽的本場題材（`build_insights` 只看例行／季後）
 
 - 2026-11-19 — 技術債 B 批（Phase 1–3）：① 時區：新增 `nc.now_east()`（zoneinfo America/New_York，含夏令；Windows 需 `tzdata`，已列入 requirements；沒裝時退回手寫美國夏令規則），取代 5 處 `utcnow() - 5h`，定稿門檻、今天日期、賽季界線都改用它。② 快照類別表化：`TEAM_SNAPSHOT_CATEGORIES`／`PLAYER_SNAPSHOT_CATEGORIES`＋`fetch_team_snapshot()`／`fetch_player_snapshot()`，`fetch_data.py` 與 `backfill_history.py` 共用；賽別鍵轉換收成 `nc.season_type()`。用假資料對照新舊程式（5 種情境，0 request）：寫入內容、request 集合、結束碼完全相同，只有發出順序不同。③ 賽別改由賽程推導：`get_season_type()` 先讀全聯盟賽程（`season_type_from_schedule`，例行賽／季後賽最後一場＋1 天寬限，總冠軍賽有隊拿 4 勝才算季後賽結束），開季前、附加賽空檔、季後賽結束當休賽期；賽程檔與資料賽季不符也當休賽期；抓不到才退回舊日期規則 `_season_type_by_date`。賽程檔同一次執行快取 30 分鐘（`SCHEDULE_CACHE_SECONDS`），與賽前預覽共用，每日排程不多發 request；看門狗與每週熱圖各多 1 個 cdn.nba.com request。已知未處理：灰狼若打附加賽（gameId 005），單場仍不會擷取（舊規則也沒有）
 

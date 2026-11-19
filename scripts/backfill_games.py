@@ -215,7 +215,8 @@ def clean_players(db, season, type_key, dry_run):
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 單場數據回補")
     parser.add_argument("--season", default=nc.get_current_season())
-    parser.add_argument("--type", required=True, choices=["regular", "playoffs"])
+    parser.add_argument("--type", required=True, choices=list(nc.SEASON_TYPES),
+                        help="regular／playoffs／playin（附加賽）")
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 場（0=全部）")
     parser.add_argument("--start", type=int, default=0, help="從第幾場開始（分批用）")
     parser.add_argument("--min-gp", type=int, default=DEFAULT_MIN_GP, help="輪換門檻出賽數")

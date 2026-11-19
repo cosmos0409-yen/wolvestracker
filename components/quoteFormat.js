@@ -175,7 +175,7 @@
         const secs = [];
         const full = (abbr) => (typeof window !== 'undefined' && window.teamFullName) ? window.teamFullName(abbr) : abbr;
         const head = hg
-            ? [`${hg.gameNo ? `G${hg.gameNo} ` : ''}${hg.home ? 'vs.' : '@'} ${full(hg.opp)} ${hg.ms}:${hg.os} 灰狼${hg.wl === 'W' ? '勝' : hg.wl === 'L' ? '敗' : ''}`,
+            ? [`${hg.stage ? `${hg.stage} ` : hg.gameNo ? `G${hg.gameNo} ` : ''}${hg.home ? 'vs.' : '@'} ${full(hg.opp)} ${hg.ms}:${hg.os} 灰狼${hg.wl === 'W' ? '勝' : hg.wl === 'L' ? '敗' : ''}`,
                 o.periods && hg.periods && hg.periods.length ? `每節：${hg.periods.map(([a, b]) => `${a}:${b}`).join('｜')}` : ''].filter(Boolean).join('\n')
             : o.header === 'key' ? '●關鍵數據：' : o.header === 'custom' ? String(o.headerText || '').trim() : '';
         if (head) secs.push({ text: head, head: true });

@@ -139,7 +139,7 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 逐場打包")
     parser.add_argument("--season", help="例：2025-26")
-    parser.add_argument("--type", choices=["regular", "playoffs"])
+    parser.add_argument("--type", choices=list(nc.SEASON_TYPES))
     parser.add_argument("--all", action="store_true", help="依索引現有的所有 season_type 全部打包")
     args = parser.parse_args()
 
@@ -149,10 +149,11 @@ def main():
         sys.exit(1)
 
     if args.all:
-        # 同集合還有 {season}_preview（賽前預覽）等非索引文件，只處理 {season}_{regular|playoffs}
+        # 同集合還有 {season}_preview（賽前預覽）、{season}_{type}_lineups 等非索引文件，只處理 {season}_{賽別鍵}
         import re
+        type_re = "|".join(nc.SEASON_TYPES)
         for doc in db.collection("wolves_games_index").stream():
-            if re.fullmatch(r"\d{4}-\d{2}_(regular|playoffs)", doc.id):
+            if re.fullmatch(rf"\d{{4}}-\d{{2}}_({type_re})", doc.id):
                 build_one(db, doc.id)
     elif args.season and args.type:
         build_one(db, f"{args.season}_{args.type}")

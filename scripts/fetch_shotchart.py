@@ -20,6 +20,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nba_common import (
     season_type as nc_season_type,
+    type_key_of as nc_type_key_of,
+    SEASON_TYPES as nc_SEASON_TYPES,
     TEAM_ID,
     get_season_type,
     get_current_season,
@@ -132,7 +134,7 @@ def capture_game_shots(db, season, season_type_api, season_type_label, gdate, ga
     if not shots:
         print(f"[FAILED] {gdate} 單場出手{'抓取失敗' if shots is None else '為空（NBA 尚未釋出？）'}，下次再試")
         return False
-    type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+    type_key = nc_type_key_of(season_type_api)
     by_pid = {}
     for s in shots:
         by_pid.setdefault(s["pid"], []).append(s)
@@ -153,8 +155,8 @@ def capture_game_shots(db, season, season_type_api, season_type_label, gdate, ga
 def main():
     parser = argparse.ArgumentParser(description="Wolves Tracker 投籃熱圖抓取")
     parser.add_argument("--season", default=None, help="例：2024-25（省略=當季）")
-    parser.add_argument("--type", choices=["regular", "playoffs"], default=None,
-                        help="regular 或 playoffs（省略=依當前日期）")
+    parser.add_argument("--type", choices=list(nc_SEASON_TYPES), default=None,
+                        help="regular／playoffs／playin（省略=依賽程判斷）")
     args = parser.parse_args()
 
     if args.season or args.type:
@@ -167,7 +169,11 @@ def main():
             print("目前為休賽期，不需要抓取投籃熱圖，結束執行。")
             return
         season = SEASON
-        type_key = "regular" if season_type_api == "Regular+Season" else "playoffs"
+        type_key = nc_type_key_of(season_type_api)
+        if type_key == "playin":
+            # 附加賽只有一兩場：投籃點由每日單場擷取併入，整季逐球員重抓不跑
+            print("附加賽期間不跑整季投籃熱圖（附加賽投籃點由每日單場擷取併入），結束執行。")
+            return
 
     print(f"=== 開始抓取灰狼隊投籃熱圖（{season} {season_type_label}）===")
 
