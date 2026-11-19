@@ -35,7 +35,7 @@
 - **聯盟名次**：全隊類別抓取一律 `team_id=0` 拿 30 隊再經 `split_league()` 拆灰狼＋名次（請求數不變）；新增全隊欄位要判斷方向，越低越好加進 `nba_common.RANK_LOWER_BETTER`、不該排名加進 `RANK_SKIP`。球隊 Playtype 名次由百分位換算（`window.ptRank`），球員百分位不可換算。**球員名次**由 `nba_common.player_league_ranks()` 在每日抓取時用全聯盟原始資料算（0 額外 request，最近防守者與防守 box 因此抓全聯盟）；門檻在 `PLAYER_RANK_RULES`（出賽 ≥ 70%、每場 ≥ 15 分鐘；投籃／真實／有效 ≥ 5、三分 ≥ 3、罰球 ≥ 2 次出手），新增命中率類欄位要在 `PLAYER_RANK_ATT_PAIRS` 加出手欄
 - **新 Firestore 集合必加安全規則 read 白名單**（Firebase Console，見 doc/handover.md）——已踩過多次，症狀是前端 `Missing or insufficient permissions`
 - **新 Firestore 集合必加 `*` 索引豁免**（Console → 索引 → 自動 → 豁免項目）；所有集合都已豁免，**只能用文件 ID 範圍／getDoc／整集合讀取**，依欄位查詢會回 `requires an index`。專案是 Blaze 方案（超過免費額度會計費，不會停擺）
-- .bat 檔必須 CRLF、`chcp 65001`、無中文註解；排程用 Python 絕對路徑（`Python312`，裸 `python` 會解析到沒套件的版本）
+- .bat 檔必須 CRLF（`.gitattributes` 固定，三支 `run_*.bat` 已進版控）、`chcp 65001`、無中文註解；排程用 Python 絕對路徑（`Python312`，裸 `python` 會解析到沒套件的版本）；`run_fetch.bat` 會把超過 2 MB 的 `fetch_log.txt` 封存到 `_local/logs/`；本機雜物（回補驗證檔、舊 log、除錯腳本）一律放 `_local/`，不堆在根目錄；`dist/*.map` 不進版控
 - 不用 GitHub Actions（機房 IP 被 NBA 擋）；正式排程為 Windows Task Scheduler
 - 逐球員 endpoint（shotchartdetail）整季逐球員只能低頻執行（每週）；每日只准用「單場全隊」查詢（`GameID`＋`PlayerID=0`，每場 1 request）；games 回補分批、每場約 20 requests，避免被 NBA 封鎖（症狀是 403/429；零星 500/503 是伺服器抖動非封鎖；**全部逾時多半是瀏覽器指紋被 Akamai 擋**，`nba_common.FINGERPRINTS` 會自動換、記在 `nba_fingerprint.json`，log 看 `🔁`，見 doc/handover.md FAQ「NBA API 跑失敗」）
 - Pages 部署偶發 `Deployment failed, try again later`（GitHub 暫時性）→ `gh run rerun <id>` 重跑即可

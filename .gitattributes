@@ -1,0 +1,2 @@
+# 排程批次檔必須是 CRLF（cmd 對 LF 的標籤／call 解析不可靠）
+*.bat text eol=crlf

@@ -21,21 +21,11 @@ backfill_*.json
 backfill_*log*.txt
 scripts/backfill_queue.txt
 
-### Local-only helpers ###
-*.bat
+### Local-only helpers（排程用 run_*.bat 進版控，見 .gitattributes）###
 debug_*.py
 test_*.py
+_local/
 
-### AL template leftovers (unused in this project) ###
-.alcache/
-.alpackages/
-.snapshots/
-.output/
-*.app
-rad.json
-*.g.xlf
-*.flf
-TestResults.xml
 backfill_games_log*.txt
 
 # 產物與本機環境（勿進版控）
@@ -49,6 +39,8 @@ AGENTS.md
 ### Frontend build ###
 node_modules/
 .build/
+# source map 只留本機除錯，不部署
+dist/*.map
 
 ### Claude Code 個人設定（launch.json 進版控，個人權限設定不進）###
 .claude/settings.local.json
@@ -56,7 +48,7 @@ node_modules/
 ### 看門狗本機產物 ###
 fetch_status.json
 watchdog_log.txt
-fetch_log_watchdog.txt
+fetch_log_*.txt
 nba_fingerprint.json
 
 ### Local references (not versioned) ###

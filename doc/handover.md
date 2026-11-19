@@ -103,7 +103,7 @@
 
 ## 進行中優化計畫
 
-詳見 `doc/plan.md`。
+（早期 4 階段計畫書 `doc/plan.md` 已於 2026-11-19 移除，內容見 git 歷史。）
 
 | Phase | 內容 | 狀態 |
 |-------|------|------|
@@ -911,7 +911,7 @@ wolvestracker/
 ├── manifest.webmanifest             ← PWA 設定（名稱、standalone、圖示清單）
 ├── icons/                           ← 網站圖示：icon.svg／icon-maskable.svg 原稿＋build_icons.py 產的 PNG
 ├── dist/
-│   ├── components-bundle.js(.map)   ← 自動產生，勿手改
+│   ├── components-bundle.js         ← 自動產生，勿手改（同目錄的 .map 只留本機除錯，不進版控）
 │   └── app.css                      ← 自動產生，勿手改
 ├── scripts/
 │   ├── nba_common.py                ← 共用模組：SESSION/重試/欄位設定表/所有抓取函式
@@ -923,20 +923,18 @@ wolvestracker/
 │   ├── sync_salary.py               ← 薪資同步：Google Sheet 發佈的 CSV → wolves_salary/main（每日排程順跑）
 │   ├── build_preview.py             ← 賽前預覽：賽程檔＋30 隊數據 → wolves_games_index/{season}_preview（每日由 fetch_data 呼叫；--dry-run）
 │   ├── build_insights.py            ← 單場題材：逐場 bundle＋box → wolves_team_games/{date}.insights（每日由 fetch_data 呼叫；--date／--season／--dry-run）
-│   ├── backfill_queue.txt           ← 回補佇列（已清空）
-│   ├── cleanup_and_tag.py           ← 一次性：補貼舊文件 seasonType、刪除完全相同的後續日期
 │   ├── build_icons.py               ← 網站圖示：icons/*.svg → apple-touch-icon／manifest 用 PNG
 │   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
-├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步（*.bat 被 .gitignore 排除，不進版控）
+├── .gitattributes                   ← *.bat 固定 CRLF（git 取出時自動轉）
+├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步；fetch_log.txt 超過 2 MB 先封存到 _local/logs/（2026-11-19 起進版控）
 ├── run_watchdog.bat                 ← Windows 排程：看門狗（參數原樣傳給 watchdog.py，可手動 `run_watchdog.bat --dry-run`）
 ├── fetch_status.json                ← fetch_data.py 執行結果（看門狗讀；本機產物，不進版控）
 ├── watchdog_log.txt                 ← 看門狗每日一行結論（watchdog_err.log 收未捕捉例外；皆不進版控）
 ├── _salary_seed/                    ← 薪資 Sheet 的本地參考副本（未進版控；Sheet 才是資料來源）
 ├── run_shotchart.bat                ← Windows 排程：每週投籃熱圖
-├── run_backfill_next.bat            ← Windows 排程：回補 queue 第一行（已可刪）
+├── _local/                          ← 本機雜物（不進版控）：backfill/ 回補驗證檔（backfill_history.py 寫這裡）、logs/ 舊 log 與封存的 fetch_log、debug/ 早期除錯腳本
 └── doc/
-    ├── handover.md                  ← 本文件
-    └── plan.md                      ← 4 階段執行計畫
+    └── handover.md                  ← 本文件
 ```
 
 ---
@@ -950,12 +948,12 @@ wolvestracker/
 2. `python scripts/bundle.py` 重新打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS → 蓋版本號）
 3. `python -m http.server 8000` 啟動本地伺服器
 4. 瀏覽器開 `http://localhost:8000`，Ctrl+F5 強制重整
-5. 確認無誤後 commit `components/`、`dist/`（`components-bundle.js`、`.map`、`app.css`）與 `index.html`，推送 GitHub Pages
+5. 確認無誤後 commit `components/`、`dist/`（`components-bundle.js`、`app.css`；`.map` 已被 .gitignore 排除）與 `index.html`，推送 GitHub Pages
    - `bundle.py` 每次會把產物內容雜湊寫進 `index.html` 的 `components-bundle.js?v=…`、`app.css?v=…`（Pages 一律快取 10 分鐘，不加版本號會出現「新 HTML＋舊檔」）——所以 `index.html` 也會有 diff，記得一起提交
 
 ### 前端建置（2026-10 起預先編譯）
 - 以前：瀏覽器載入 Babel Standalone（約 2.3 MB）即時編譯 JSX、Tailwind CDN（約 400 KB）即時產 CSS。現在兩者都在 `bundle.py` 事先做完，首次造訪少下載約 667 KB（壓縮後），掛載時間約 740ms → 約 100ms
-- `dist/components-bundle.js`：esbuild `--target=es2018`（`?.`／`??` 會降級，舊手機也能跑），只壓空白與語法、**不改名識別字**（元件靠頂層名稱與 `window.*` 互相引用）；`.map` 供除錯對照原始碼
+- `dist/components-bundle.js`：esbuild `--target=es2018`（`?.`／`??` 會降級，舊手機也能跑），只壓空白與語法、**不改名識別字**（元件靠頂層名稱與 `window.*` 互相引用）；`.map` 以 `--sourcemap=external` 產在 `dist/` 供本機除錯對照原始碼（bundle 不帶 `sourceMappingURL`、不進版控，線上不提供）
 - `dist/app.css`：Tailwind 3 CLI 掃 `components/**/*.js` 與 `index.html`，只輸出用到的 class。**class 必須完整寫在原始碼**，不可字串拼接（`text-${c}-400` 會掃不到）
 - `index.html` 的 bundle 用 `<script defer>`：與 `type="module"` 的 Firebase 初始化同屬「解析完依序執行」，保證元件在 Firebase 之後執行
 - 合併後未編譯的 JSX 暫存在 `.build/`（不進版控）
@@ -1119,7 +1117,7 @@ $m = Get-ScheduledTask -TaskName WolvesTracker
 $m.Settings.DisallowStartIfOnBatteries = $false; $m.Settings.StopIfGoingOnBatteries = $false
 Set-ScheduledTask -InputObject $m
 ```
-`run_watchdog.bat` 內容（換電腦時重建；CRLF、無中文註解）：`chcp 65001`、`PYTHONIOENCODING=utf-8`、`PYTHONWARNINGS=ignore::DeprecationWarning`、`cd /d C:\wolvestracker`，再以 Python312 絕對路徑跑 `scripts\watchdog.py %* >nul 2>> C:\wolvestracker\watchdog_err.log`，最後 `exit /b %ERRORLEVEL%`。**stderr 不可導到 `watchdog_log.txt`**：bat 開著它時 Python 再寫會 `PermissionError`（Windows 檔案鎖，2026-10-26 踩過）。
+`run_watchdog.bat` 內容（2026-11-19 起三支 `run_*.bat` 都進版控，`.gitattributes` 固定 CRLF；無中文註解）：`chcp 65001`、`PYTHONIOENCODING=utf-8`、`PYTHONWARNINGS=ignore::DeprecationWarning`、`cd /d C:\wolvestracker`，再以 Python312 絕對路徑跑 `scripts\watchdog.py %* >nul 2>> C:\wolvestracker\watchdog_err.log`，最後 `exit /b %ERRORLEVEL%`。**stderr 不可導到 `watchdog_log.txt`**：bat 開著它時 Python 再寫會 `PermissionError`（Windows 檔案鎖，2026-10-26 踩過）。
 
 **失敗排查**：log 內搜尋 `[FAILED]`——重試 3 次耗盡的項目會印此標記並帶著部分資料繼續，缺哪一項一目了然。
 
@@ -1588,13 +1586,14 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 
 ### E. 可清理 / 待整理（低優先）
 
-- 專案根目錄有早期開發遺留的 `debug_*.py` / `test_*.py`（約 10 個），可清。
-- `scripts/backfill_queue.txt`、`run_backfill_next.bat`、`cleanup_and_tag.py` 是 Phase 1 一次性產物，queue 已空、`WolvesBackfill` 排程已刪，可視需要移除。
+- 2026-11-19 已清：早期 `debug_*.py`／`test_*.py`、`run_backfill_next.bat`、`scripts/backfill_queue.txt`、舊回補驗證檔與 log 都搬到 `_local/`（未刪除）。
+- 技術債 B～F 批（時區、快照類別表化、前端快取模組、格式化統一、測試、文件瘦身、App.js 拆分）與 Firestore 規則進版控尚未處理。
 
 ---
 
 ## 更新紀錄
 
+- 2026-11-19 — 技術債 A 批：`run_fetch.bat`／`run_watchdog.bat`／`run_shotchart.bat` 進版控（`.gitattributes` 固定 CRLF），`run_fetch.bat` 加 `fetch_log.txt` 超過 2 MB 封存到 `_local/logs/fetch_log_YYYYMMDD.txt`；根目錄舊檔搬到 `_local/`，`backfill_history.py` 驗證檔改寫 `_local/backfill/`；source map 不進版控（`--sourcemap=external`）；移除 `.agent/`、`doc/plan.md`、`doc/test/`、`.gitignore` 的 AL 範本段、舊 worktree 與已併入分支
 - 2026-11-18 — 跨季同列小數位對齊（Pace 101.5 → 101.50）
 - 2026-11-18 — 引用籃分段複製與對手球員：`Quote.renderBlocks`、抽屜預覽置頂＋每段複製＋項目／格式摺疊、對手 Box Score 點列加入本場數據（`名字（拓荒者）`）
 - 2026-11-18 — 跨季修正：說明列 undefined、直開球員跨季當季欄全「—」（`loadComparisonSeason` 只拿到一邊快照就快取）、跨季引用帶當季快照日

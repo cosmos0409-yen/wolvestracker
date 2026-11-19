@@ -91,12 +91,12 @@ wolvestracker/
 │   ├── sync_salary.py       # 薪資同步（Google Sheet 發佈的 CSV → Firestore，每日排程順跑）
 │   ├── build_icons.py       # 網站圖示：icons/*.svg → 各尺寸 PNG（改圖示才需要跑）
 │   └── bundle.py            # 前端打包（合併 → esbuild 編譯 JSX → Tailwind 產 CSS）
-├── run_fetch.bat            # Windows 排程入口（每日）
+├── run_fetch.bat            # Windows 排程入口（每日；fetch_log.txt 超過 2 MB 自動封存到 _local/logs/）
 ├── run_watchdog.bat         # Windows 排程入口（每日看門狗）
 ├── run_shotchart.bat        # Windows 排程入口（每週）
 ├── requirements.txt         # Python 依賴
+├── _local/                  # 本機雜物（回補驗證檔、舊 log，不進版控）
 └── doc/
-    ├── test/test_cases.md   # 測試案例清單
     └── handover.md          # 交接手冊
 ```
 

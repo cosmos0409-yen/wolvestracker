@@ -124,7 +124,8 @@ def build_js(node):
          "--jsx-factory=React.createElement", "--jsx-fragment=React.Fragment",
          "--target=es2018", "--charset=utf8",
          "--minify-whitespace", "--minify-syntax", "--legal-comments=none",
-         "--sourcemap", f"--outfile={OUT_JS}"])
+         # external：map 照樣產在 dist/（本機除錯用、.gitignore 排除），bundle 不帶 sourceMappingURL，線上不會去要不存在的 map
+         "--sourcemap=external", f"--outfile={OUT_JS}"])
     print(f"[OK] {OUT_JS.relative_to(ROOT)}（{OUT_JS.stat().st_size / 1024:.1f} KB，{len(ORDER)} 個元件）")
 
 
