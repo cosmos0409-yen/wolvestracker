@@ -382,7 +382,9 @@ def main():
 
     # 本地驗證輸出（寫到 _local/backfill/，不進版控、不堆在根目錄）
     # dry-run 另存檔名，避免覆寫既有的基準驗證檔（比對前後差異時要用）
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_local", "backfill")
+    # WOLVES_LOCAL_DIR：測試用，把本地輸出導到暫存資料夾（2026-11-19 測試曾覆蓋掉真的驗證檔）
+    local_dir = os.environ.get("WOLVES_LOCAL_DIR") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_local")
+    out_dir = os.path.join(local_dir, "backfill")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"backfill_{doc_id}.dryrun.json" if args.dry_run else f"backfill_{doc_id}.json")
     with open(out_path, "w", encoding="utf-8") as f:

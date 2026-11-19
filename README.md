@@ -119,6 +119,13 @@ python scripts/fetch_data.py
 # 無 Firebase 環境時會輸出 local_test_data.json
 ```
 
+### 自動化測試
+
+```bash
+# 後端（unittest）＋前端（node:test），零新依賴、0 個 NBA／Firestore request
+python scripts/run_tests.py
+```
+
 ### 本地預覽前端
 
 ```bash

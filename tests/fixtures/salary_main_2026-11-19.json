@@ -1,0 +1,992 @@
+{
+ "contracts": [
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 43827586,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 203497,
+   "player": "Rudy Gobert"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 42176400,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1630162,
+   "player": "Anthony Edwards"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 33073920,
+   "unlikely": 1378080,
+   "note": "cap hit 含 likely incentives；base 27561600",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 203944,
+   "player": "Julius Randle"
+  },
+  {
+   "type": "RK-EXT",
+   "guaranteed_amt": null,
+   "salary": 22586207,
+   "unlikely": 862070,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1630183,
+   "player": "Jaden McDaniels"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 13986432,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1629675,
+   "player": "Naz Reid"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 11445000,
+   "unlikely": 750000,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1628978,
+   "player": "Donte DiVincenzo"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 9975962,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 201144,
+   "player": "Mike Conley"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 6262920,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1642265,
+   "player": "Rob Dillingham"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 4312500,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1629638,
+   "player": "Nickeil Alexander-Walker"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 2546640,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1630545,
+   "player": "Terrence Shannon Jr."
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 2162606,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1630568,
+   "player": "Luka Garza"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 2087519,
+   "unlikely": 0,
+   "note": "底薪老將：cap hit 2087519、實付 3303771",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 204060,
+   "player": "Joe Ingles"
+  },
+  {
+   "type": "RK",
+   "guaranteed_amt": null,
+   "salary": 2019699,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1631169,
+   "player": "Josh Minott"
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 1891857,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1631159,
+   "player": "Leonard Miller"
+  },
+  {
+   "type": "ROS",
+   "guaranteed_amt": null,
+   "salary": 492323,
+   "unlikely": 0,
+   "note": "季中簽約（rest of season）",
+   "option": "",
+   "season": "2024-25",
+   "guarantee": "full",
+   "playerId": 1641740,
+   "player": "Jaylen Clark"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 45550512,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1630162,
+   "player": "Anthony Edwards"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 35000000,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 203497,
+   "player": "Rudy Gobert"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 30864198,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 203944,
+   "player": "Julius Randle"
+  },
+  {
+   "type": "RK-EXT",
+   "guaranteed_amt": null,
+   "salary": 24393103,
+   "unlikely": 931036,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1630183,
+   "player": "Jaden McDaniels"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 21551724,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1629675,
+   "player": "Naz Reid"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 11990000,
+   "unlikely": 750000,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1628978,
+   "player": "Donte DiVincenzo"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 7518518,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 4201080,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1642866,
+   "player": "Joan Beringer"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 2674080,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1630545,
+   "player": "Terrence Shannon Jr."
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": 425000,
+   "salary": 2296274,
+   "unlikely": 0,
+   "note": "cap hit 2296274、base 2461463",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "partial",
+   "playerId": 1630538,
+   "player": "Nah'Shon Hyland"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 2296274,
+   "unlikely": 0,
+   "note": "底薪老將：實付 3634153",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 204060,
+   "player": "Joe Ingles"
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 2221677,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1641763,
+   "player": "Julian Phillips"
+  },
+  {
+   "type": "ROS",
+   "guaranteed_amt": null,
+   "salary": 2191897,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 1641740,
+   "player": "Jaylen Clark"
+  },
+  {
+   "type": "ROS",
+   "guaranteed_amt": null,
+   "salary": 725834,
+   "unlikely": 0,
+   "note": "季中重簽（rest of season）：實付 1148727",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 201144,
+   "player": "Mike Conley"
+  },
+  {
+   "type": "ROS",
+   "guaranteed_amt": null,
+   "salary": 567470,
+   "unlikely": 0,
+   "note": "季中簽約（rest of season）：實付 898095",
+   "option": "",
+   "season": "2025-26",
+   "guarantee": "full",
+   "playerId": 203937,
+   "player": "Kyle Anderson"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 48924624,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630162,
+   "player": "Anthony Edwards"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 40770520,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630163,
+   "player": "LaMelo Ball"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 36500000,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 203497,
+   "player": "Rudy Gobert"
+  },
+  {
+   "type": "RK-EXT",
+   "guaranteed_amt": null,
+   "salary": 26200000,
+   "unlikely": 1000000,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630183,
+   "player": "Jaden McDaniels"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 19310345,
+   "unlikely": 0,
+   "note": "Bird rights 續約",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 12535000,
+   "unlikely": 750000,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1628978,
+   "player": "Donte DiVincenzo"
+  },
+  {
+   "type": "MLE-TP",
+   "guaranteed_amt": null,
+   "salary": 6064000,
+   "unlikely": 0,
+   "note": "taxpayer MLE（觸發鎖死在第二 apron）",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630228,
+   "player": "Jonathan Kuminga"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 6015600,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1642262,
+   "player": "Cody Williams"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 4411200,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1642866,
+   "player": "Joan Beringer"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 3086420,
+   "unlikely": 0,
+   "note": "Bird rights 續約",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1641740,
+   "player": "Jaylen Clark"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 2801640,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1630545,
+   "player": "Terrence Shannon Jr."
+  },
+  {
+   "type": "MIN",
+   "guaranteed_amt": 2449421,
+   "salary": 2449421,
+   "unlikely": 0,
+   "note": "Spotrac：保障 $2,449,421（實付 base $2,845,883）",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "partial",
+   "playerId": 1630538,
+   "player": "Nah'Shon Hyland"
+  },
+  {
+   "type": "MIN",
+   "guaranteed_amt": 1500000,
+   "salary": 2449421,
+   "unlikely": 0,
+   "note": "Spotrac：保障 $1,500,000（實付 base $3,876,529）",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "partial",
+   "playerId": 1626168,
+   "player": "Trey Lyles"
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 1357763,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1642912,
+   "player": "Isaiah Evans"
+  },
+  {
+   "type": "TWO-WAY",
+   "guaranteed_amt": null,
+   "salary": 0,
+   "unlikely": 0,
+   "note": "雙向合約不計入薪資總額",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1642911,
+   "player": "Rocco Zikarsky"
+  },
+  {
+   "type": "TWO-WAY",
+   "guaranteed_amt": null,
+   "salary": 0,
+   "unlikely": 0,
+   "note": "雙向合約不計入薪資總額",
+   "option": "",
+   "season": "2026-27",
+   "guarantee": "full",
+   "playerId": 1642389,
+   "player": "Zyon Pullin"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 52298736,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630162,
+   "player": "Anthony Edwards"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 43582280,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630163,
+   "player": "LaMelo Ball"
+  },
+  {
+   "type": "VET-EXT",
+   "guaranteed_amt": null,
+   "salary": 38000000,
+   "unlikely": 0,
+   "note": "",
+   "option": "PO",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 203497,
+   "player": "Rudy Gobert"
+  },
+  {
+   "type": "RK-EXT",
+   "guaranteed_amt": null,
+   "salary": 28006898,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630183,
+   "player": "Jaden McDaniels"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 20855173,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  },
+  {
+   "type": "MLE-TP",
+   "guaranteed_amt": null,
+   "salary": 6367200,
+   "unlikely": 0,
+   "note": "",
+   "option": "PO",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630228,
+   "player": "Jonathan Kuminga"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 7669890,
+   "unlikely": 0,
+   "note": "",
+   "option": "TO",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1642262,
+   "player": "Cody Williams"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 4621200,
+   "unlikely": 0,
+   "note": "",
+   "option": "TO",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1642866,
+   "player": "Joan Beringer"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 3333334,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1641740,
+   "player": "Jaylen Clark"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 5054159,
+   "unlikely": 0,
+   "note": "",
+   "option": "TO",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1630545,
+   "player": "Terrence Shannon Jr."
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 2294370,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2027-28",
+   "guarantee": "full",
+   "playerId": 1642912,
+   "player": "Isaiah Evans"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 55672848,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1630162,
+   "player": "Anthony Edwards"
+  },
+  {
+   "type": "DRK-EXT",
+   "guaranteed_amt": null,
+   "salary": 46394040,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1630163,
+   "player": "LaMelo Ball"
+  },
+  {
+   "type": "RK-EXT",
+   "guaranteed_amt": null,
+   "salary": 29813790,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1630183,
+   "player": "Jaden McDaniels"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 22400001,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  },
+  {
+   "type": "RK-1ST",
+   "guaranteed_amt": null,
+   "salary": 7098163,
+   "unlikely": 0,
+   "note": "",
+   "option": "TO",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1642866,
+   "player": "Joan Beringer"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 3580246,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1641740,
+   "player": "Jaylen Clark"
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 2694363,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2028-29",
+   "guarantee": "full",
+   "playerId": 1642912,
+   "player": "Isaiah Evans"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 23944829,
+   "unlikely": 0,
+   "note": "",
+   "option": "",
+   "season": "2029-30",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  },
+  {
+   "type": "RK-2ND",
+   "guaranteed_amt": null,
+   "salary": 2918152,
+   "unlikely": 0,
+   "note": "",
+   "option": "TO",
+   "season": "2029-30",
+   "guarantee": "full",
+   "playerId": 1642912,
+   "player": "Isaiah Evans"
+  },
+  {
+   "type": "FA",
+   "guaranteed_amt": null,
+   "salary": 25489652,
+   "unlikely": 0,
+   "note": "",
+   "option": "PO",
+   "season": "2030-31",
+   "guarantee": "full",
+   "playerId": 1630245,
+   "player": "Ayo Dosunmu"
+  }
+ ],
+ "dead": [
+  {
+   "season": "2024-25",
+   "player": "Keita Bates-Diop",
+   "reason": "waived",
+   "amount": 2654644
+  },
+  {
+   "season": "2024-25",
+   "player": "P.J. Dozier",
+   "reason": "waived",
+   "amount": 1051255
+  },
+  {
+   "season": "2026-27",
+   "player": "John Konchar",
+   "reason": "stretch",
+   "amount": 2055000
+  },
+  {
+   "season": "2027-28",
+   "player": "John Konchar",
+   "reason": "stretch",
+   "amount": 2055000
+  },
+  {
+   "season": "2028-29",
+   "player": "John Konchar",
+   "reason": "stretch",
+   "amount": 2055000
+  }
+ ],
+ "thresholds": {
+  "2024-25": {
+   "apron_final": "apron2",
+   "tax": 170814000,
+   "verify": "bae 為推算；ref_apron_total 由 Spotrac 1st/2nd apron space 換算（兩格一致），＝cap hit 合計＋死錢＋unlikely incentives，完全相符；超過第二 apron 16612620；hard_cap 待確認",
+   "tax_bracket": 5168000,
+   "hard_cap_reason": "",
+   "min_team": 126529000,
+   "tmle": 5168000,
+   "ref_apron_total": 205543620,
+   "hard_cap": "",
+   "bae": 4668000,
+   "cap": 140588000,
+   "ntmle": 12822000,
+   "apron1": 178132000,
+   "ref_tax_total": null,
+   "apron2": 188931000
+  },
+  "2025-26": {
+   "apron_final": "tax",
+   "tax": 187895000,
+   "verify": "bae 為推算；無死錢（使用者確認）；ref_apron_total＝cap hit 合計＋unlikely incentives，完全相符；季末低於第一 apron 221323",
+   "tax_bracket": 5685000,
+   "hard_cap_reason": "",
+   "min_team": 139182000,
+   "tmle": 5685000,
+   "ref_apron_total": 195723677,
+   "hard_cap": "",
+   "bae": 5134000,
+   "cap": 154647000,
+   "ntmle": 14104000,
+   "apron1": 195945000,
+   "ref_tax_total": null,
+   "apron2": 207824000
+  },
+  "2026-27": {
+   "apron_final": "",
+   "tax": 200428000,
+   "verify": "ref 由 Spotrac 2026-27 tax space／apron space 換算；兩種總額皆與逐人加總完全相符（unlikely：McDaniels 1,000,000、DiVincenzo 750,000）",
+   "tax_bracket": 6064000,
+   "hard_cap_reason": "用 taxpayer MLE 簽 Jonathan Kuminga",
+   "min_team": 148465000,
+   "tmle": 6064000,
+   "ref_apron_total": 216680954,
+   "hard_cap": "apron2",
+   "bae": 5477000,
+   "cap": 164961000,
+   "ntmle": 15044000,
+   "apron1": 209015000,
+   "ref_tax_total": 214930954,
+   "apron2": 221686000
+  }
+ },
+ "tax_rates": {
+  "2024-25": [
+   {
+    "repeater_rate": 2.5,
+    "bracket": 1,
+    "rate": 1.5
+   },
+   {
+    "repeater_rate": 2.75,
+    "bracket": 2,
+    "rate": 1.75
+   },
+   {
+    "repeater_rate": 3.5,
+    "bracket": 3,
+    "rate": 2.5
+   },
+   {
+    "repeater_rate": 4.25,
+    "bracket": 4,
+    "rate": 3.25
+   }
+  ],
+  "2025-26": [
+   {
+    "repeater_rate": 3.0,
+    "bracket": 1,
+    "rate": 1.0
+   },
+   {
+    "repeater_rate": 3.25,
+    "bracket": 2,
+    "rate": 1.25
+   },
+   {
+    "repeater_rate": 5.5,
+    "bracket": 3,
+    "rate": 3.5
+   },
+   {
+    "repeater_rate": 6.75,
+    "bracket": 4,
+    "rate": 4.75
+   }
+  ],
+  "2026-27": [
+   {
+    "repeater_rate": 3.0,
+    "bracket": 1,
+    "rate": 1.0
+   },
+   {
+    "repeater_rate": 3.25,
+    "bracket": 2,
+    "rate": 1.25
+   },
+   {
+    "repeater_rate": 5.5,
+    "bracket": 3,
+    "rate": 3.5
+   },
+   {
+    "repeater_rate": 6.75,
+    "bracket": 4,
+    "rate": 4.75
+   }
+  ]
+ },
+ "tax_history": [
+  {
+   "season": "2022-23",
+   "source_url": "https://sportsbusinessclassroom.com/nba-2022-23-luxury-tax-tracker/",
+   "tax_payroll": 143294647,
+   "paid": false,
+   "note": "低於奢侈稅線（150,267,000）約 697 萬"
+  },
+  {
+   "season": "2023-24",
+   "source_url": "https://sportsbusinessclassroom.com/nba-2023-24-luxury-tax-tracker/",
+   "tax_payroll": 164528789,
+   "paid": false,
+   "note": "低於奢侈稅線（165,294,000）約 76.5 萬"
+  },
+  {
+   "season": "2024-25",
+   "source_url": "https://hoopsrumors.com/2024/11/nba-repeater-taxpayer-tracker.html",
+   "tax_payroll": 202553470,
+   "paid": true,
+   "note": "季末超過第二 apron（逐人加總）"
+  },
+  {
+   "season": "2025-26",
+   "source_url": "https://hoopsrumors.com/2024/11/nba-repeater-taxpayer-tracker.html",
+   "tax_payroll": 194042641,
+   "paid": true,
+   "note": "季末超過奢侈稅線、低於第一 apron（逐人加總）"
+  }
+ ],
+ "_note": "wolves_salary/main 的快照（2026-11-19 從 Firestore 讀出，只留計算用的欄位）。capcalc.test.js 用：兩種總額要與 Sheet 的 Spotrac 參考值逐元相符。Sheet 更新後不必跟著改，這份只當回歸基準"
+}

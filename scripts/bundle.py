@@ -150,12 +150,28 @@ def stamp_versions():
         INDEX_HTML.write_text(new_html, encoding="utf-8")
 
 
+def run_js_tests(node):
+    """打包完跑前端測試（tests/js，測剛產生的 dist 打包檔）。失敗只提示、不擋打包；--no-test 可略過"""
+    tests = ROOT / "tests" / "js"
+    files = sorted(str(p) for p in tests.glob("*.test.js")) if tests.exists() else []
+    if not files:
+        return
+    r = subprocess.run([node, "--test", "--test-reporter=dot", *files], capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
+    if r.returncode == 0:
+        print(f"[OK] 前端測試通過（{len(files)} 個檔案）")
+    else:
+        print("[警告] 前端測試有失敗——打包照樣完成，但請先修好再提交（詳細：python scripts/run_tests.py --js）")
+        print((r.stdout or "")[-3000:] + (r.stderr or "")[-1500:])
+
+
 def main():
     node = check_tools()
     DIST_DIR.mkdir(exist_ok=True)
     build_js(node)
     build_css(node)
     stamp_versions()
+    if "--no-test" not in sys.argv:
+        run_js_tests(node)
 
 
 if __name__ == "__main__":

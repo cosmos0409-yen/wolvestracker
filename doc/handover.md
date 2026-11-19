@@ -924,7 +924,9 @@ wolvestracker/
 │   ├── build_preview.py             ← 賽前預覽：賽程檔＋30 隊數據 → wolves_games_index/{season}_preview（每日由 fetch_data 呼叫；--dry-run）
 │   ├── build_insights.py            ← 單場題材：逐場 bundle＋box → wolves_team_games/{date}.insights（每日由 fetch_data 呼叫；--date／--season／--dry-run）
 │   ├── build_icons.py               ← 網站圖示：icons/*.svg → apple-touch-icon／manifest 用 PNG
-│   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號）
+│   ├── run_tests.py                 ← 自動化測試入口（tests/py＋tests/js）
+│   └── bundle.py                    ← 前端打包（合併＋esbuild＋Tailwind＋版本號；打包完自動跑前端測試）
+├── tests/                           ← py/（unittest，含 fake_nba.py 假資料抓取、test_contracts.py 前後端契約）、js/（node:test，load_bundle.js 載入打包檔）、fixtures/（薪資快照）
 ├── .gitattributes                   ← *.bat 固定 CRLF（git 取出時自動轉）
 ├── run_fetch.bat                    ← Windows 排程：當日數據＋薪資同步；fetch_log.txt 超過 2 MB 先封存到 _local/logs/（2026-11-19 起進版控）
 ├── run_watchdog.bat                 ← Windows 排程：看門狗（參數原樣傳給 watchdog.py，可手動 `run_watchdog.bat --dry-run`）
@@ -940,6 +942,21 @@ wolvestracker/
 ---
 
 ## 開發工作流程
+
+### 自動化測試（2026-11-19 起）
+- 執行：`python scripts/run_tests.py`（用排程的 Python312；`--py` 只跑後端與契約、`--js` 只跑前端）。全部 0 個 NBA／Firestore request，約 25 秒
+- 零新依賴：後端 Python 標準庫 `unittest`、前端 Node 內建 `node:test`
+- **前端測的是打包檔**：`tests/js/load_bundle.js` 在 Node 沙盒載入 `dist/components-bundle.js`（React／ReactDOM／document 換空殼、localStorage 換假的，可設 `quotaChars` 模擬存滿），所有 `window.*` 純邏輯都能直接呼叫。改了 `components/*.js` 要先 `bundle.py`；`bundle.py` 打包完自動跑前端測試（失敗只印警告、不擋打包，`--no-test` 略過）
+- 後端 `tests/py/`：
+  - `test_season_type.py` 賽別判斷（合成賽程：例行／季後寬限、總冠軍封王、附加賽、賽程檔換季、日期後備）
+  - `test_now_east.py` 美東時間（zoneinfo vs 手寫夏令規則逐時比對 2024–2030、夏令切換、賽季界線）
+  - `test_ranks.py` 全隊／球員聯盟名次（方向、並列、RANK_SKIP、合格門檻、出手門檻、參考名次）
+  - `test_consistency.py` 逐場對帳（少抓才算異常、多的只記 over、快照未涵蓋的場次不比）
+  - `test_fetch_flow.py`＋`fake_nba.py` 抓取流程假資料（每日、只抓單場、強制快照、附加賽期間、季後賽首日補附加賽、歷史回補）：寫入哪些文件與結構、request 清單、旁路呼叫；**新增快照類別沒加進 `DATA_KEYS` 會失敗**；本地輸出經 `WOLVES_LOCAL_DIR` 導到暫存
+  - `test_contracts.py` 前後端成對規則（同一組時間點兩邊算出的資料賽季／名冊賽季／美東日期、賽別標籤與 gameId 前綴、`INSIGHT_MARK_RULES`＝`HISTORY_RULES`、`tracking_zero_filled`⇔`cleanGameStats`）；`tests/js/eval_bundle.js` 讓 Python 在 Node 沙盒裡呼叫前端函式
+- 前端 `tests/js/*.test.js`：`gameagg`（Σ分子/Σ分母、eFG、TS、加權、在場效率、vs 平常）、`cache`（到期、開站清理、存滿刪最舊、私密模式）、`format`（fix1／fixSigned／Num／cellNum）、`dates`（含夏令的賽季界線、賽別小工具）、`quote`（貼文格式）、`capcalc`（合成資料手算＋`tests/fixtures/salary_main_2026-11-19.json` 真實快照：兩種總額與 Sheet 的 Spotrac 參考值逐元相符、層級與繳稅紀錄一致、2024-25 稅額手算核對）
+- 每批都做過「故意改壞」檢查（拿掉 `DATA_KEYS` 一欄、寬限天數改 0、季平均改逐場平均），測試都會失敗
+- 加測試：後端照 `test_*.py` 放 `tests/py/`（開頭 `import _common` 取得 scripts 路徑）；前端放 `tests/js/*.test.js`。沙盒建立的陣列／物件原型和 Node 主環境不同，`deepEqual` 前先 `JSON.parse(JSON.stringify(x))`
 
 ### 編輯前端
 0. 新電腦第一次：專案根目錄跑 `npm ci`（依 `package-lock.json` 安裝鎖定版本的 esbuild / tailwindcss / resvg 到 `node_modules/`，不進版控）
@@ -1593,6 +1610,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 ---
 
 ## 更新紀錄
+
+- 2026-11-19 — 技術債 D 批（自動化測試，Phase 1–6）：新增 `scripts/run_tests.py`、`tests/py`（36 個）、`tests/js`（38 個）、`tests/fixtures`；`bundle.py` 打包完自動跑前端測試；`.gitignore` 的 `debug_*.py`／`test_*.py` 改成只忽略根目錄；`backfill_history.py` 本地輸出可用 `WOLVES_LOCAL_DIR` 改目錄。過程中發現 B 批對照測試把 `_local/backfill/backfill_2024-25_{regular,playoffs}.json` 覆蓋成假資料，已由 Firestore 同名歷史快照重建（內容為 2026-11-19 的 Firestore 版本，含之後補的欄位；說明在 `_local/backfill/README_2024-25.txt`）。另發現 Sheet 的 2025-26、2026-27 奢侈稅率（1.0／1.25／3.5／4.75，累犯 3.0～6.75）與 2024-25（1.5／1.75／2.5／3.25）不同，待使用者核對
 
 - 2026-11-19 — 技術債 C 批（Phase 1–3）：① 新增 `components/cache.js`（`window.Cache`／`CACHE_NS`），單場文件、舊賽季索引、賽前預覽、舊賽季組合、歷史快照五種快取改走它；總覽 `SingleGamePanel` 改用共用 `loadGameDocs`（拿掉永不過期的 `wt_game_v4_`）；`HISTORY_CACHE_VER`、各檔清舊版快取的程式碼、`wt_pref_selectedSeasonKey` 清理改由 `Cache.purge()` 統一處理。驗證：開站清掉 11 種舊鍵且保留偏好／引用籃、快取命中 0 次讀取、模擬存滿時刪最舊 3 筆後寫入成功。② 引用籃讀取丟掉格式不對的項目（`quoteFormat` `validItem`）：之前一筆壞資料就讓整站白屏。③ `window.fixSigned`、`window.Num`（`isNum`／`round1`／`sd`）取代 13 處各寫各的寫法；新舊對照 300 組只有「±0.0 → 0.0」不同（修掉「+0.0」「-0.0」）；8 個頁面實測無錯誤
 

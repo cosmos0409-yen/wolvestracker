@@ -22,8 +22,8 @@ backfill_*log*.txt
 scripts/backfill_queue.txt
 
 ### Local-only helpers（排程用 run_*.bat 進版控，見 .gitattributes）###
-debug_*.py
-test_*.py
+/debug_*.py
+/test_*.py
 _local/
 
 backfill_games_log*.txt

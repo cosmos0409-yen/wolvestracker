@@ -16,6 +16,7 @@
 - 前端打包：改 `components/*.js` 後必跑 `python scripts/bundle.py`（esbuild 編 JSX＋Tailwind 產 CSS＋index.html 蓋版本號；勿手改 dist/；新電腦先 `npm ci`）
 - 網站圖示：改 `icons/icon.svg`／`icon-maskable.svg`／`og-image.svg`（分享預覽圖）後跑 `python scripts/build_icons.py`（resvg 產 apple-touch-icon、manifest PNG 與 `og-image.png`，一起提交）；刊頭站徽同一張，favicon 仍是 index.html 內嵌的 W
 - 本地預覽：`python -m http.server 8000`（Firestore lite 走 REST，localhost 可讀）
+- **自動化測試**：`python scripts/run_tests.py`（`--py`／`--js` 只跑一邊；用 Python312 跑；0 個 NBA／Firestore request）。後端 `tests/py`（unittest：賽別、時區、名次、逐場對帳、抓取流程假資料 `fake_nba.py`、前後端契約）、前端 `tests/js`（node:test，載入 `dist/components-bundle.js` 測上線程式：GameAgg、Cache、格式化、日期、引用籃、CapCalc）；`bundle.py` 打包完自動跑前端測試（失敗只警告，`--no-test` 略過）。改抓取流程、季平均規則、快取、薪資計算、前後端成對規則後必跑；新增「兩邊一起改」的規則要在 `tests/py/test_contracts.py` 加一條；測試的本地輸出一律導到暫存（`WOLVES_LOCAL_DIR`），不可寫進 `_local/`
 
 ## 色票（灰狼新品牌，hex 直接寫在元件；改色用 sed 全域替換）
 - 主色（進攻/選中/圖表主線/命中）：`#12A150`  · 結構藍（切換/連結）：`#236192`
