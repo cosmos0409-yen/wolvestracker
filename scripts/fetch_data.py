@@ -15,40 +15,30 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nba_common import (
-    merge_maps,
     pid_to_name_keyed,
     TEAM_ID,
     get_today_str,
+    now_east as nc_now_east,
     get_season_type,
     init_firebase,
     fetch_roster_with_ids,
     fetch_team_game_log,
     fetch_synergy_data,
-    fetch_tracking_data,
-    fetch_shot_locations,
-    fetch_clutch,
     fetch_lineup_rows,
     top_lineups,
     write_lineups,
     LINEUP_GROUPS,
-    fetch_matchup_defense,
-    fetch_team_matchup_defense,
-    fetch_hustle,
-    fetch_defense_box,
-    fetch_opp_shot_locations,
-    fetch_team_advanced,
-    fetch_player_advanced,
-    fetch_scoring,
     player_league_ranks,
     split_league,
-    fetch_base_box,
-    fetch_onoff,
     fetch_single_game,
     game_docs,
     get_current_season,
     enable_block_guard,
     NBABlockedError,
     fingerprint_info,
+    season_type,
+    fetch_team_snapshot,
+    fetch_player_snapshot,
 )
 from build_bundles import upsert_game
 import build_insights
@@ -134,16 +124,16 @@ def should_skip_write(db, collection, today_str, new_data):
 CAPTURE_LOOKBACK_GAMES = 5
 # partial 場次最多擷取幾次就放棄（避免某來源永久沒資料時每天白打 ~20 個 request）；只計「定稿」後的擷取
 CAPTURE_MAX_TRIES = 3
-# 定稿門檻：比賽隔天美東（UTC-5 計）13:00。NBA 賽後最多約 12 小時才把數據補齊，
+# 定稿門檻：比賽隔天美東 13:00（nc.now_east，含夏令）。NBA 賽後最多約 12 小時才把數據補齊，
 # 最晚的西岸場約美東 01:00 結束 → +12h ≈ 13:00。早於此時擷取的單場標 final=False，下次一定重抓，
 # 避免把「各來源都有值但還沒更新完」的半成品鎖死（partial 只抓得到「某來源整個空」的情況）。
-# 正式排程在台北 03:00（≈ UTC-5 14:00），一次即可定稿。
+# 正式排程在台北 03:00（≈ 美東 13:00 夏令／14:00 冬令），一次即可定稿。
 FINAL_AFTER_HOURS = 24 + 13
 
 
 def is_final_capture(game_date, now_east=None):
-    """game_date 'YYYY-MM-DD'；now_east 預設為現在的 UTC-5 時間"""
-    now_east = now_east or (datetime.utcnow() - timedelta(hours=5))
+    """game_date 'YYYY-MM-DD'；now_east 預設為現在的美東時間（nc.now_east）"""
+    now_east = now_east or nc_now_east()
     return now_east >= datetime.strptime(game_date, "%Y-%m-%d") + timedelta(hours=FINAL_AFTER_HOURS)
 
 
@@ -254,8 +244,7 @@ def main():
     STATUS_MODE = None if force else ("games" if args.games_only else "full")
     enable_block_guard()
     if force:
-        season_type_api = "Regular+Season" if args.force_type == "regular" else "Playoffs"
-        season_type_label = "例行賽" if args.force_type == "regular" else "季後賽"
+        season_type_api, season_type_label = season_type(args.force_type)
         today = args.date or get_today_str()
         print(f"=== 強制模式：補寫 {season_type_label} 期末完整快照 doc={today} ===")
     else:
@@ -281,28 +270,19 @@ def main():
         print(f"=== 開始抓取灰狼隊數據（{season_type_label}）===")
 
     # 1. 抓取球隊資料
-    # 各類別以 TeamID=0 一次拿全聯盟 30 隊（請求數不變），拆出灰狼那份與聯盟名次（split_league）
+    # 類別在 nba_common.TEAM_SNAPSHOT_CATEGORIES（與歷史回補共用）；以 TeamID=0 一次拿全聯盟 30 隊（請求數不變），
+    # 拆出灰狼那份與聯盟名次（split_league）
     team_synergy = fetch_synergy_data(SEASON, season_type_api, "T")
+    league = fetch_team_snapshot(SEASON, season_type_api, team_id=0)
+    team_cats, team_ranks = {}, {}
+    for cat, team_map in league.items():
+        team_cats[cat], team_ranks[cat] = split_league(team_map)
     # base／advanced 的 30 隊原始資料留著給賽前預覽（build_preview 的聯盟表，0 額外 request）
-    league_base = fetch_base_box(SEASON, season_type_api, "Team", team_id=0)
-    team_base, rank_base = split_league(league_base)
-    team_tracking, rank_tracking = split_league(fetch_tracking_data(SEASON, season_type_api, "Team", team_id=0))
-    # 投籃拆分（fetch_pt_shots）2026-11-12 停抓：欄位全可由逐場 base 算出、前端沒有讀快照值（見 doc/handover.md）
-    team_shooting, rank_shooting = split_league(fetch_shot_locations(SEASON, season_type_api, "Team", team_id=0))
-    team_clutch, rank_clutch = split_league(fetch_clutch(SEASON, season_type_api, "Team", team_id=0))
+    league_base, league_advanced = league["base"], league["advanced"]
+    team_base = team_cats["base"]
     # 組合：二人／三人／五人全部組合（組合頁用，另寫一份文件）；快照的 lineups 仍只取五人前 10 組（總覽用，形狀不變）
     lineup_groups = {k: fetch_lineup_rows(SEASON, season_type_api, k) for k in LINEUP_GROUPS}
     team_lineups = top_lineups(lineup_groups.get(5))
-    team_defense, rank_defense = split_league(merge_maps(
-        fetch_hustle(SEASON, season_type_api, "Team", team_id=0),
-        fetch_defense_box(SEASON, season_type_api, "Team", team_id=0),
-        fetch_opp_shot_locations(SEASON, season_type_api, team_id=0),
-        fetch_team_matchup_defense(SEASON, season_type_api, team_id=0),
-    ))
-    league_advanced = fetch_team_advanced(SEASON, season_type_api, team_id=0)
-    team_advanced, rank_advanced = split_league(league_advanced)
-    # 得分組成（Scoring 占比＋Misc 情境得分，2 requests），30 隊算名次
-    team_scoring, rank_scoring = split_league(fetch_scoring(SEASON, season_type_api, "Team", team_id=0))
 
     final_team_data = {
         "date": today,
@@ -310,19 +290,11 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,      # Array
-        "base": team_base,          # Dict（整季 base，PerMode=PerGame 每場平均）
-        "tracking": team_tracking,  # Dict
-        "shooting": team_shooting,  # Dict
-        "clutch": team_clutch,      # Dict
+        **team_cats,                # 各類別 Dict（TEAM_SNAPSHOT_CATEGORIES；base 為 PerMode=PerGame 每場平均）
         "lineups": team_lineups,    # Array
-        "defense": team_defense,    # Dict（Hustle + 防守 box + 對手分區 + 全隊最近防守者）
-        "advanced": team_advanced,  # Dict（全隊進階：OffRtg/DefRtg/Pace/TS% 等）
-        "scoring": team_scoring,    # Dict（得分組成占比＋情境得分，2026-11-12 起）
         # 聯盟名次 {類別: {欄位: 名次}}，方向見 nba_common.RANK_LOWER_BETTER／RANK_SKIP
         # 每類另記參與排名的隊數 _n（開季初 Clutch 可能只有 28 隊有資料）
-        "ranks": {"base": rank_base, "tracking": rank_tracking, "shooting": rank_shooting,
-                  "clutch": rank_clutch, "defense": rank_defense, "advanced": rank_advanced,
-                  "scoring": rank_scoring},
+        "ranks": team_ranks,
     }
 
     # 2. 先抓取目前的現役球員名單，用來過濾已經離隊的球員
@@ -334,49 +306,32 @@ def main():
     # 小寫名字清單只留給單場擷取當後備（box score 抓不到時）
     normalized_active = [p["name"].strip().lower() for p in roster_full]
 
-    # 3. 抓取球員資料（全聯盟後以現役名單 PlayerID 過濾）
+    # 3. 抓取球員資料（類別在 nba_common.PLAYER_SNAPSHOT_CATEGORIES；全聯盟後以現役名單 PlayerID 過濾）
     player_synergy = fetch_synergy_data(SEASON, season_type_api, "P")
-    # 全聯盟原始資料先留著（球員聯盟名次要用），存檔前才用名冊過濾
-    tracking_raw = fetch_tracking_data(SEASON, season_type_api, "Player")
-    shooting_raw = fetch_shot_locations(SEASON, season_type_api, "Player")
-    player_tracking = pid_to_name_keyed(tracking_raw, keep_ids=roster_ids)
-    player_shooting = pid_to_name_keyed(shooting_raw, keep_ids=roster_ids)
-    player_clutch = pid_to_name_keyed(
-        fetch_clutch(SEASON, season_type_api, "Player"), keep_ids=roster_ids)
+    # 全聯盟原始資料先留著（球員聯盟名次要用），存檔前才用名冊過濾。
     # 最近防守者、防守 box 2026-11-13 起抓全聯盟（team_id=0，支數不變）：球員聯盟名次要全聯盟才排得出來
-    defense_raw = merge_maps(
-        fetch_matchup_defense(SEASON, season_type_api, team_id=0),
-        fetch_hustle(SEASON, season_type_api, "Player"),
-        fetch_defense_box(SEASON, season_type_api, "Player", team_id=0),
-    )
-    player_defense = pid_to_name_keyed(defense_raw, keep_ids=roster_ids)
     player_team = {}   # {PlayerID: TEAM_ID}（不寫進文件，名次對各隊場數用）
-    base_raw = fetch_base_box(SEASON, season_type_api, "Player", team_of=player_team)
-    player_base = pid_to_name_keyed(base_raw, keep_ids=roster_ids)
+    raw = fetch_player_snapshot(SEASON, season_type_api, team_id=0, base_kw={"team_of": player_team})
+    base_raw = raw["base"]
+    player_cats = {cat: pid_to_name_keyed(m, keep_ids=roster_ids) for cat, m in raw.items() if cat != "onoff"}
+    player_base = player_cats["base"]
     # On/Off（在場/不在場效率）：endpoint 的球員名為 'Last, First'，改以 PlayerID 取名。
     # 優先用 base 的寫法（與其他類別 key 一致，前端 current.onoff[球員名] 直接查），沒有才退回名冊
     id2name = {str(p["id"]): p["name"] for p in roster_full}
     id2name.update({pid: v["playerName"].strip() for pid, v in base_raw.items()
                     if pid in id2name and (v.get("playerName") or "").strip()})
-    # 球員整季進階（1 request）與得分組成（2 requests），2026-11-12 起
-    advanced_raw = fetch_player_advanced(SEASON, season_type_api)
-    scoring_raw = fetch_scoring(SEASON, season_type_api, "Player")
-    player_advanced = pid_to_name_keyed(advanced_raw, keep_ids=roster_ids)
-    player_scoring = pid_to_name_keyed(scoring_raw, keep_ids=roster_ids)
     # 球員聯盟名次（2026-11-13 起，0 額外 request；規則 nba_common.PLAYER_RANK_RULES）。算失敗不影響其他資料寫入
     try:
         team_gp = {(str(TEAM_ID) if k == "MIN" else k): v.get("GP") for k, v in league_base.items()}
         player_ranks = player_league_ranks(
-            {"tracking": tracking_raw, "shooting": shooting_raw, "defense": defense_raw,
-             "advanced": advanced_raw, "scoring": scoring_raw},
+            {cat: raw[cat] for cat in ("tracking", "shooting", "defense", "advanced", "scoring")},
             base_raw, player_team, team_gp, roster_ids)
         print(f"🏅 球員聯盟名次：合格 {player_ranks['_rules']['n_qualified']} 人，"
               f"灰狼合格 {sum(1 for m in player_ranks['_meta'].values() if m['qualified'])}／{len(player_ranks['_meta'])} 人")
     except Exception as e:
         print(f"⚠️ 球員聯盟名次計算失敗（其他資料照常寫入）：{type(e).__name__}: {e}")
         player_ranks = {}
-    onoff_raw = fetch_onoff(SEASON, season_type_api)
-    player_onoff = {id2name[pid]: v for pid, v in onoff_raw.items() if pid in id2name}
+    player_cats["onoff"] = {id2name[pid]: v for pid, v in raw["onoff"].items() if pid in id2name}
 
     # 將 Synergy 資料轉換以球員名稱為 key 的 dict（同樣以 PlayerID 過濾）
     player_stats_map = {}
@@ -393,14 +348,7 @@ def main():
         "seasonType": season_type_label,
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": player_stats_map,    # Dict of Arrays
-        "base": player_base,          # Dict of Dicts（整季 base，PerMode=PerGame 每場平均）
-        "tracking": player_tracking,  # Dict of Dicts
-        "shooting": player_shooting,  # Dict of Dicts
-        "clutch": player_clutch,      # Dict of Dicts
-        "defense": player_defense,    # Dict of Dicts（對位防守 + Hustle + 防守 box）
-        "onoff": player_onoff,        # Dict of Dicts（在場/不在場效率，球員專屬）
-        "advanced": player_advanced,  # Dict of Dicts（整季進階：USG%/TS%/AST%/籃板率/PIE 等，2026-11-12 起）
-        "scoring": player_scoring,    # Dict of Dicts（得分組成占比＋情境得分，2026-11-12 起）
+        **player_cats,                # 各類別 Dict of Dicts（PLAYER_SNAPSHOT_CATEGORIES，以球員名為 key）
         "ranks": player_ranks,        # 球員聯盟名次（2026-11-13 起，結構見 nba_common.player_league_ranks）
     }
 

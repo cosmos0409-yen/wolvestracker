@@ -17,7 +17,13 @@ import os
 import time
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+try:  # Windows 沒有系統時區資料庫，要裝 tzdata 套件（requirements.txt）
+    from zoneinfo import ZoneInfo
+    _ET_ZONE = ZoneInfo("America/New_York")
+except Exception:  # 新電腦忘了裝 tzdata：退回下面手寫的美國夏令規則，排程照跑
+    _ET_ZONE = None
 
 # ==========================================
 # 常數
@@ -680,14 +686,103 @@ def apply_fields(target, row, headers_list, fields):
 # ==========================================
 # 日期與賽別（以 UTC-5 美東時間為基準）
 # ==========================================
+def _us_eastern_offset_hours(utc_naive):
+    """tzdata 不在時的後備：美國夏令（3 月第二個週日 02:00 ～ 11 月第一個週日 02:00，當地時間）為 −4，其餘 −5"""
+    y = utc_naive.year
+    mar1, nov1 = datetime(y, 3, 1), datetime(y, 11, 1)
+    dst_start = mar1 + timedelta(days=(6 - mar1.weekday()) % 7 + 7, hours=7)   # 02:00 EST ＝ 07:00 UTC
+    dst_end = nov1 + timedelta(days=(6 - nov1.weekday()) % 7, hours=6)          # 02:00 EDT ＝ 06:00 UTC
+    return -4 if dst_start <= utc_naive < dst_end else -5
+
+
+def now_east(utc=None):
+    """美東現在時間（不帶 tzinfo 的牆上時鐘，含夏令）。資料日期、賽季界線、定稿門檻一律用它，
+    與前端 window.etToday()（Intl America/New_York）同規則。utc：測試用，給 aware UTC datetime"""
+    utc = utc or datetime.now(timezone.utc)
+    if _ET_ZONE is not None:
+        return utc.astimezone(_ET_ZONE).replace(tzinfo=None)
+    u = utc.astimezone(timezone.utc).replace(tzinfo=None)
+    return u + timedelta(hours=_us_eastern_offset_hours(u))
+
+
 def get_today_str():
-    east_time = datetime.utcnow() - timedelta(hours=5)
+    east_time = now_east()
     return east_time.strftime('%Y-%m-%d')
 
 
-# 例行賽: 10/20 ~ 4/15，季後賽: 4/16 ~ 6/20
-def get_season_type():
-    east_time = datetime.utcnow() - timedelta(hours=5)
+# 賽別鍵 → (NBA API 的 SeasonType, 中文標籤)；各腳本的 --type／--force-type 一律經 season_type() 轉換
+SEASON_TYPES = {"regular": ("Regular+Season", "例行賽"), "playoffs": ("Playoffs", "季後賽")}
+
+
+def season_type(type_key):
+    """'regular'／'playoffs' → (API SeasonType, 中文標籤)"""
+    return SEASON_TYPES[type_key]
+
+
+# 賽別判斷（2026-11-19 起）：先看全聯盟賽程檔，抓不到才退回日期規則。
+# 最後一場的隔天仍算該賽別：正式排程台北 03:00 ≈ 美東前一天下午，要抓最後一晚比賽的定稿快照
+SEASON_TYPE_GRACE_DAYS = 1
+
+
+def season_type_from_schedule(sched, today, current_season=None):
+    """全聯盟賽程（fetch_league_schedule）→ ((SeasonType, 標籤) 或休賽期 (None, None), 說明)；
+    賽程沒有例行賽場次（判斷不了）回 None，呼叫端退回日期規則。
+    - 例行賽：第一場 ～ 最後一場＋寬限
+    - 季後賽：第一場起，直到總冠軍賽（gameId 第 8 碼＝4）有一隊拿到 4 勝、且過了那場＋寬限。
+      輪與輪之間賽程還沒排出下一輪也算季後賽
+    - 其餘（開季前、例行賽結束到季後賽開打的附加賽空檔、季後賽結束）＝休賽期，不抓（避免抓還沒開始的賽別而誤判被擋）
+    current_season：資料賽季（get_current_season）；賽程檔是別季（休賽期 NBA 換成下一季賽程）就當休賽期"""
+    reg = sorted(g["date"] for g in sched if str(g.get("id", "")).startswith("002") and g.get("date"))
+    if not reg:
+        return None
+    sched_season = _season_str(int(reg[0][:4]))
+    if current_season and sched_season != current_season:
+        return (None, None), f"賽程檔是 {sched_season}、資料賽季是 {current_season}"
+    day = lambda x: datetime.strptime(x, "%Y-%m-%d")
+    t, grace = day(today), timedelta(days=SEASON_TYPE_GRACE_DAYS)
+    if day(reg[0]) <= t <= day(reg[-1]) + grace:
+        return SEASON_TYPES["regular"], f"例行賽 {reg[0]}～{reg[-1]}"
+    po = [g for g in sched if str(g.get("id", "")).startswith("004") and g.get("date")]
+    if po:
+        po_first = min(g["date"] for g in po)
+        finals = [g for g in po if str(g["id"])[7:8] == "4" and g.get("status") == 3]
+        wins = {}
+        for g in finals:
+            hs, vs = g["home"].get("score"), g["away"].get("score")
+            if isinstance(hs, (int, float)) and isinstance(vs, (int, float)) and hs != vs:
+                w = g["home"]["id"] if hs > vs else g["away"]["id"]
+                wins[w] = wins.get(w, 0) + 1
+        finals_last = max((g["date"] for g in finals), default=None)
+        done = max(wins.values(), default=0) >= 4
+        if day(po_first) <= t and not (done and t > day(finals_last) + grace):
+            return SEASON_TYPES["playoffs"], f"季後賽 {po_first} 起" + (f"，總冠軍賽 {finals_last} 結束" if done else "")
+        if done:
+            return (None, None), f"季後賽已結束（總冠軍賽 {finals_last}）"
+        return (None, None), f"例行賽已結束（{reg[-1]}），季後賽 {po_first} 開打"
+    if t < day(reg[0]):
+        return (None, None), f"例行賽 {reg[0]} 才開打"
+    return (None, None), f"例行賽已結束（{reg[-1]}），賽程上還沒有季後賽"
+
+
+def get_season_type(sched=None, today=None):
+    """今天（美東）的賽別 → (SeasonType, 中文標籤)；休賽期回 (None, None)。
+    先看全聯盟賽程（cdn.nba.com 靜態檔，同一次執行與賽前預覽共用快取），抓不到才退回日期規則"""
+    today = today or get_today_str()
+    if sched is None:
+        sched = fetch_league_schedule()
+    if sched:
+        r = season_type_from_schedule(sched, today, get_current_season())
+        if r is not None:
+            (api, label), why = r
+            print(f"📅 賽別（依賽程）：{label or '休賽期'}｜{why}")
+            return api, label
+    api, label = _season_type_by_date(datetime.strptime(today, "%Y-%m-%d"))
+    print(f"📅 賽別（賽程檔抓不到，依日期規則）：{label or '休賽期'}")
+    return api, label
+
+
+# 後備日期規則（賽程檔抓不到時）：例行賽 10/20 ~ 4/15，季後賽 4/16 ~ 6/20
+def _season_type_by_date(east_time):
     m, d = east_time.month, east_time.day
     if (m == 10 and d >= 20) or m in [11, 12, 1, 2, 3] or (m == 4 and d <= 15):
         return "Regular+Season", "例行賽"
@@ -704,7 +799,7 @@ def _season_str(start_year):
 def get_current_season():
     """資料賽季（每日快照/投籃熱圖/前端「當季」）：10/20 例行賽起點切換，與 get_season_type 同界。
     休賽期仍指向剛打完的那季（前端顯示「最終」）。前端 constants.js 的 seasonForDate 為同一規則，改界線要兩邊一起改。"""
-    east_time = datetime.utcnow() - timedelta(hours=5)
+    east_time = now_east()
     y, m, d = east_time.year, east_time.month, east_time.day
     return _season_str(y if (m, d) >= (10, 20) else y - 1)
 
@@ -712,7 +807,7 @@ def get_current_season():
 def get_roster_season():
     """名冊賽季（新援判定/isCurrentRoster、薪資當季）：7/1 切換，休賽期即看下一季的新名冊。
     前端 constants.js 的 capSeasonForDate 為同一規則，改界線要兩邊一起改。"""
-    east_time = datetime.utcnow() - timedelta(hours=5)
+    east_time = now_east()
     return _season_str(east_time.year if east_time.month >= 7 else east_time.year - 1)
 
 
@@ -1453,6 +1548,57 @@ def merge_maps(*maps):
     return merged
 
 
+# ── 快照類別表（每日 fetch_data.py 與歷史 backfill_history.py 共用，2026-11-19 起）──
+# 新增快照類別：在這裡加一列，兩支腳本都會抓、都會寫進文件（球員的聯盟名次另看 PLAYER_RANK_CATS）。
+# 每列 (文件欄位, 抓取函式(season, season_type_api, team_id))；lambda 執行時才查函式名，測試可替換。
+# team_id：每日傳 0 拿 30 隊／全聯盟（拆灰狼＋名次）；歷史傳 TEAM_ID 只拿灰狼（文件不存名次）。
+TEAM_SNAPSHOT_CATEGORIES = [
+    ("base", lambda s, t, tid: fetch_base_box(s, t, "Team", team_id=tid)),
+    ("tracking", lambda s, t, tid: fetch_tracking_data(s, t, "Team", team_id=tid)),
+    # 投籃拆分（fetch_pt_shots）2026-11-12 起不抓：欄位可由逐場 base 算出、前端不讀快照值
+    ("shooting", lambda s, t, tid: fetch_shot_locations(s, t, "Team", team_id=tid)),
+    ("clutch", lambda s, t, tid: fetch_clutch(s, t, "Team", team_id=tid)),
+    # Hustle＋防守 box＋對手分區＋全隊最近防守者
+    ("defense", lambda s, t, tid: merge_maps(
+        fetch_hustle(s, t, "Team", team_id=tid),
+        fetch_defense_box(s, t, "Team", team_id=tid),
+        fetch_opp_shot_locations(s, t, team_id=tid),
+        fetch_team_matchup_defense(s, t, team_id=tid))),
+    ("advanced", lambda s, t, tid: fetch_team_advanced(s, t, team_id=tid)),
+    # 得分組成（Scoring 占比＋Misc 情境得分，2 requests）
+    ("scoring", lambda s, t, tid: fetch_scoring(s, t, "Team", team_id=tid)),
+]
+
+# 球員類別：結果一律 PlayerID 字串為 key（含 playerName），由呼叫端過濾、換 key。
+# team_id 只影響最近防守者與防守 box：每日 0（全聯盟，球員名次要用），歷史 TEAM_ID（只抓灰狼，新援這兩類留空）。
+# base_kw：fetch_base_box 的額外參數（每日 team_of＝{PlayerID: TEAM_ID}；歷史 with_team_abbr＝標新援舊東家）
+PLAYER_SNAPSHOT_CATEGORIES = [
+    ("base", lambda s, t, tid, base_kw: fetch_base_box(s, t, "Player", **base_kw)),
+    ("tracking", lambda s, t, tid, base_kw: fetch_tracking_data(s, t, "Player")),
+    ("shooting", lambda s, t, tid, base_kw: fetch_shot_locations(s, t, "Player")),
+    ("clutch", lambda s, t, tid, base_kw: fetch_clutch(s, t, "Player")),
+    # 最近防守者＋Hustle＋防守 box
+    ("defense", lambda s, t, tid, base_kw: merge_maps(
+        fetch_matchup_defense(s, t, team_id=tid),
+        fetch_hustle(s, t, "Player"),
+        fetch_defense_box(s, t, "Player", team_id=tid))),
+    # 在場／不在場效率（endpoint 的球員名是 'Last, First'，呼叫端改用 PlayerID 對名字）
+    ("onoff", lambda s, t, tid, base_kw: fetch_onoff(s, t)),
+    ("advanced", lambda s, t, tid, base_kw: fetch_player_advanced(s, t)),
+    ("scoring", lambda s, t, tid, base_kw: fetch_scoring(s, t, "Player")),
+]
+
+
+def fetch_team_snapshot(season, season_type_api, team_id=TEAM_ID):
+    """全隊快照各類別 → {類別: {隊 key: {...}}}（未拆灰狼）。灰狼的 key 是 'MIN'"""
+    return {cat: fn(season, season_type_api, team_id) for cat, fn in TEAM_SNAPSHOT_CATEGORIES}
+
+
+def fetch_player_snapshot(season, season_type_api, team_id=TEAM_ID, base_kw=None):
+    """球員快照各類別 → {類別: {PlayerID: {...}}}（全聯盟原始資料，未過濾）"""
+    return {cat: fn(season, season_type_api, team_id, base_kw or {}) for cat, fn in PLAYER_SNAPSHOT_CATEGORIES}
+
+
 def _rank_rule_match(field, rules):
     """欄名是否符合 RANK_LOWER_BETTER／RANK_SKIP（* 開頭為結尾比對）"""
     return any(field.endswith(r[1:]) if r.startswith("*") else field == r for r in rules)
@@ -1596,10 +1742,17 @@ def rank_all(values, lower=False):
     return {k: 1 + sum(1 for x in nums.values() if (x < v if lower else x > v)) for k, v in nums.items()}
 
 
+_SCHEDULE_CACHE = {"at": 0.0, "data": None}
+SCHEDULE_CACHE_SECONDS = 30 * 60   # 同一次執行（賽別判斷＋賽前預覽）共用，不多發 request
+
+
 def fetch_league_schedule(retries=3):
     """全聯盟賽程（SCHEDULE_URL）→ 正式比賽清單（依開賽時間排序），每場：
     {id, date（美東日期）, utc, status（1 未開打／2 進行中／3 結束）, label, arena, city,
-     home: {id, tri, score, w, l}, away: {…}}；抓不到回 None（呼叫端自行略過，不影響其他抓取）"""
+     home: {id, tri, score, w, l}, away: {…}}；抓不到回 None（呼叫端自行略過，不影響其他抓取）。
+    成功的結果快取 SCHEDULE_CACHE_SECONDS（回傳同一份 list，呼叫端不可改動）"""
+    if _SCHEDULE_CACHE["data"] is not None and time.time() - _SCHEDULE_CACHE["at"] < SCHEDULE_CACHE_SECONDS:
+        return _SCHEDULE_CACHE["data"]
     for i in range(retries):
         try:
             r = nba_get(SCHEDULE_URL, timeout=60)
@@ -1615,7 +1768,9 @@ def fetch_league_schedule(retries=3):
                         out.append({"id": g["gameId"], "date": str(g.get("gameDateEst", ""))[:10], "utc": g.get("gameDateTimeUTC"),
                                     "status": g.get("gameStatus"), "label": g.get("gameLabel") or "", "arena": g.get("arenaName") or "",
                                     "city": g.get("arenaCity") or "", "home": team(g["homeTeam"]), "away": team(g["awayTeam"])})
-                return sorted(out, key=lambda g: g["utc"] or "")
+                out = sorted(out, key=lambda g: g["utc"] or "")
+                _SCHEDULE_CACHE.update(at=time.time(), data=out)
+                return out
             print(f"⚠️ 賽程檔 HTTP {r.status_code}（第 {i + 1} 次）")
         except Exception as e:
             print(f"⚠️ 賽程檔抓取失敗（第 {i + 1} 次）：{e}")

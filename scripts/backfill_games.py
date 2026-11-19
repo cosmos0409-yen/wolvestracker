@@ -239,8 +239,7 @@ def main():
         return
 
     season = args.season
-    season_type_api = "Regular+Season" if args.type == "regular" else "Playoffs"
-    season_type_label = "例行賽" if args.type == "regular" else "季後賽"
+    season_type_api, season_type_label = nc.season_type(args.type)
 
     print(f"=== 單場回補 {season} {season_type_label} ===")
     box_mode = args.box_only or args.adv_only

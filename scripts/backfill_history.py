@@ -28,9 +28,6 @@ from nba_common import (
     init_firebase,
     fetch_roster_with_ids,
     fetch_synergy_data,
-    fetch_tracking_data,
-    fetch_shot_locations,
-    fetch_clutch,
     fetch_lineups,
     fetch_lineup_rows,
     write_lineups,
@@ -42,19 +39,18 @@ from nba_common import (
     fetch_player_advanced,
     fetch_scoring,
     fetch_hustle,
-    fetch_defense_box,
-    fetch_opp_shot_locations,
-    fetch_base_box,
-    fetch_onoff,
     fetch_player_season_teams,
-    merge_maps,
     get_roster_season,
+    season_type,
+    fetch_team_snapshot,
+    fetch_player_snapshot,
+    PLAYER_SNAPSHOT_CATEGORIES,
 )
 
 CURRENT_SEASON = get_roster_season()  # 用來抓現役名單（7/1 起即為新一季名冊）：作為 isCurrentRoster 對照，並讓新援納入回補
 
 # 球員終點快照的類別欄位（除 synergy 走 stats[] 陣列外，其餘為 dict）
-PLAYER_CATEGORY_KEYS = ["base", "tracking", "shooting", "clutch", "defense", "onoff", "advanced", "scoring"]
+PLAYER_CATEGORY_KEYS = [cat for cat, _ in PLAYER_SNAPSHOT_CATEGORIES]
 
 
 def patch_hustle(season, season_type_api, doc_id, dry_run=False):
@@ -236,8 +232,7 @@ def main():
 
     season = args.season
     type_key = args.type
-    season_type_api = "Regular+Season" if type_key == "regular" else "Playoffs"
-    season_type_label = "例行賽" if type_key == "regular" else "季後賽"
+    season_type_api, season_type_label = season_type(type_key)
     doc_id = f"{season}_{type_key}"
 
     print(f"\n=== 開始回補 {season} {season_type_label}（{doc_id}）===\n")
@@ -278,37 +273,16 @@ def main():
 
     # Step 3: 抓球隊數據（完整類別終點快照，比照每日快照結構）
     print(f"\n--- 抓取 {season} {season_type_label} 球隊數據 ---")
+    # 類別在 nba_common.TEAM_SNAPSHOT_CATEGORIES（與每日快照共用）；只抓灰狼（TEAM_ID），歷史快照不存名次
     team_synergy = fetch_synergy_data(season, season_type_api, "T")
-    team_tracking = fetch_tracking_data(season, season_type_api, "Team").get("MIN", {})
-    team_base = fetch_base_box(season, season_type_api, "Team").get("MIN", {})
-    # 投籃拆分（fetch_pt_shots）2026-11-12 起不抓（同 fetch_data.py）
-    team_shooting = fetch_shot_locations(season, season_type_api, "Team").get("MIN", {})
-    team_clutch = fetch_clutch(season, season_type_api, "Team").get("MIN", {})
+    team_cats = {cat: m.get("MIN", {}) for cat, m in fetch_team_snapshot(season, season_type_api).items()}
     team_lineups = fetch_lineups(season, season_type_api)
-    team_defense = merge_maps(
-        fetch_hustle(season, season_type_api, "Team"),
-        fetch_defense_box(season, season_type_api, "Team"),
-        fetch_opp_shot_locations(season, season_type_api),
-        fetch_team_matchup_defense(season, season_type_api),
-    ).get("MIN", {})
-    team_advanced = fetch_team_advanced(season, season_type_api).get("MIN", {})
-    team_scoring = fetch_scoring(season, season_type_api, "Team").get("MIN", {})
 
     # Step 4: 抓全聯盟球員數據（皆 PlayerID 為 key，待過濾）
     print(f"\n--- 抓取全聯盟球員數據（將以歷史名單過濾） ---")
     all_player_synergy = fetch_synergy_data(season, season_type_api, "P")
-    p_base = fetch_base_box(season, season_type_api, "Player", with_team_abbr=True)
-    p_tracking = fetch_tracking_data(season, season_type_api, "Player")
-    p_shooting = fetch_shot_locations(season, season_type_api, "Player")
-    p_clutch = fetch_clutch(season, season_type_api, "Player")
-    p_defense = merge_maps(
-        fetch_matchup_defense(season, season_type_api),
-        fetch_hustle(season, season_type_api, "Player"),
-        fetch_defense_box(season, season_type_api, "Player"),
-    )
-    p_onoff = fetch_onoff(season, season_type_api)
-    p_advanced = fetch_player_advanced(season, season_type_api)
-    p_scoring = fetch_scoring(season, season_type_api, "Player")
+    # 類別在 nba_common.PLAYER_SNAPSHOT_CATEGORIES；最近防守者與防守 box 只抓灰狼（新援這兩類留空，前端標跨隊不適用）
+    p_raw = fetch_player_snapshot(season, season_type_api, base_kw={"with_team_abbr": True})
 
     # Step 5: 過濾與組裝（PlayerID 為主鍵，內層比照每日快照的 per-player 結構）
     #
@@ -341,9 +315,7 @@ def main():
             continue
         ensure(pid_int, pname)["stats"].append(item)
 
-    for field, src in [("base", p_base), ("tracking", p_tracking), ("shooting", p_shooting),
-                       ("clutch", p_clutch), ("defense", p_defense), ("onoff", p_onoff),
-                       ("advanced", p_advanced), ("scoring", p_scoring)]:
+    for field, src in p_raw.items():
         for pid_str, data in src.items():
             pid_int = int(pid_str)
             if pid_int not in include_ids:
@@ -384,14 +356,8 @@ def main():
         "type": "歷史快照",
         "timestamp": int(datetime.now().timestamp() * 1000),
         "stats": team_synergy,
-        "tracking": team_tracking,
-        "base": team_base,
-        "shooting": team_shooting,
-        "clutch": team_clutch,
+        **team_cats,
         "lineups": team_lineups,
-        "defense": team_defense,
-        "advanced": team_advanced,
-        "scoring": team_scoring,
     }
     final_player_data = {
         "season": season,

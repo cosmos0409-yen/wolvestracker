@@ -501,7 +501,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 - `constants.js`：
   - `kickoffTPE(g)`：依 `utc` 用 `Intl` 實算。台北日期剛好是美東＋1 天才寫「台北隔日 HH:MM」，否則寫「台北 M/D HH:MM」，不寫死。
   - `kickoffET(g)`：美東當地時間，含夏令時間。
-  - `etToday()`：與 `get_today_str()` 同為 UTC−5。
+  - `etToday()`：美東今天（Intl America/New_York，含夏令）；後端 `get_today_str()` 2026-11-19 起經 `nc.now_east()` 同規則（舊版後端寫死 UTC−5）。
   - `ordinal(n)`、`teamLogo(id 或三碼)`、`NBA_TEAM_IDS`、`PREVIEW_LABELS`（對照表列名）、`SPECIAL_GAME_TAGS`／`specialTag(label)`（盃賽、宿敵週）。
 - **預覽模式 `PreviewPanel.js`**：`GamePage` 找不到單場文件、但預覽賽程有這天時改畫它（等預覽文件讀完才決定，避免「找不到」閃一下）。
   - 看板：隊徽、W-L、主客、「美東 11/4（三）20:30 · 台北隔日 09:30」、球館、休息天數（0＝背靠背）、本季第 N 次交手、特殊賽事。
@@ -1223,7 +1223,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
 - 單場文件多三個欄位：
-  - `final`：擷取時間是否已過「比賽隔天美東（UTC-5）13:00」（`FINAL_AFTER_HOURS`＝最晚場結束＋12 小時）。未定稿的下次一定重抓——各來源都有值但還沒更新完的半成品，`partial` 抓不到，只能靠時間判斷。
+  - `final`：擷取時間是否已過「比賽隔天美東 13:00」（`nc.now_east()`，含夏令）（`FINAL_AFTER_HOURS`＝最晚場結束＋12 小時）。未定稿的下次一定重抓——各來源都有值但還沒更新完的半成品，`partial` 抓不到，只能靠時間判斷。
   - `partial`：base 有資料但 tracking/hustle 等某來源整個空，或 Tracking 回「整組 0」（`tracking_zero_filled`，2026-10-27 起）；定稿後最多重抓 3 次（`CAPTURE_MAX_TRIES`）。
   - `captureTries`：定稿後的擷取次數（未定稿時為 0）。舊回補文件沒有這些欄位，視為已定稿完整。
   漏跑幾天也會自動補（5 場內）。
@@ -1439,7 +1439,7 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 1. **既有 API 的新欄位**（如籃板再加一欄）：`nba_common.py` 對應的 `*_FIELDS` 設定表加一行 `(輸出欄名, API 欄名, 是否百分比)`
 2. **`leaguedashptstats` 新類型**（如 SpeedDistance）：`TRACKING_TYPES` 加名稱 + `TRACKING_FIELDS` 加對應欄位列表
 3. **最近防守者多一類**（如 `Less Than 10Ft`）：`nba_common.py` 加欄位表＋`MATCHUP_CATEGORIES` 加一列（每日球員＋全隊各 +1、每場 +1 request）＋`RANK_LOWER_BETTER`／`RANK_SKIP`；舊資料用 `backfill_history.py --only-matchup --matchup-cats 標籤`、`backfill_games.py --matchup-only --matchup-cats 標籤` 補；前端 `defenseDefs` 加格子（vs 平常要加進 `GameAgg.NORMAL_DEFS`，並給 `att`／`signed`）
-4. **全新 endpoint**（如 Hustle）：`nba_common.py` 仿照 `fetch_clutch()` 寫一支新函式（用 `fetch_with_retry`），`fetch_data.py` 主流程呼叫並掛進文件欄位與 `DATA_KEYS`
+4. **全新 endpoint**（如 Hustle）：`nba_common.py` 仿照 `fetch_clutch()` 寫一支新函式（用 `fetch_with_retry`）。要成為快照的新類別，在 `TEAM_SNAPSHOT_CATEGORIES`／`PLAYER_SNAPSHOT_CATEGORIES` 加一列（每日 `fetch_data.py` 與歷史 `backfill_history.py` 都會抓、都會寫進同名文件欄位；全隊每日會自動算聯盟名次），再加進 `fetch_data.py` 的 `DATA_KEYS`；併進既有類別（如 defense）就在該列的 `merge_maps` 裡多呼叫一支
 
 前端同步：`components/constants.js` 加 defs（含 `englishLabel`）→ `App.js` 對應區塊 → `python scripts/bundle.py` 重新打包。每日與歷史回補會自動同步生效（共用 nba_common）。
 
@@ -1592,6 +1592,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 ---
 
 ## 更新紀錄
+
+- 2026-11-19 — 技術債 B 批（Phase 1–3）：① 時區：新增 `nc.now_east()`（zoneinfo America/New_York，含夏令；Windows 需 `tzdata`，已列入 requirements；沒裝時退回手寫美國夏令規則），取代 5 處 `utcnow() - 5h`，定稿門檻、今天日期、賽季界線都改用它。② 快照類別表化：`TEAM_SNAPSHOT_CATEGORIES`／`PLAYER_SNAPSHOT_CATEGORIES`＋`fetch_team_snapshot()`／`fetch_player_snapshot()`，`fetch_data.py` 與 `backfill_history.py` 共用；賽別鍵轉換收成 `nc.season_type()`。用假資料對照新舊程式（5 種情境，0 request）：寫入內容、request 集合、結束碼完全相同，只有發出順序不同。③ 賽別改由賽程推導：`get_season_type()` 先讀全聯盟賽程（`season_type_from_schedule`，例行賽／季後賽最後一場＋1 天寬限，總冠軍賽有隊拿 4 勝才算季後賽結束），開季前、附加賽空檔、季後賽結束當休賽期；賽程檔與資料賽季不符也當休賽期；抓不到才退回舊日期規則 `_season_type_by_date`。賽程檔同一次執行快取 30 分鐘（`SCHEDULE_CACHE_SECONDS`），與賽前預覽共用，每日排程不多發 request；看門狗與每週熱圖各多 1 個 cdn.nba.com request。已知未處理：灰狼若打附加賽（gameId 005），單場仍不會擷取（舊規則也沒有）
 
 - 2026-11-19 — 技術債 A 批：`run_fetch.bat`／`run_watchdog.bat`／`run_shotchart.bat` 進版控（`.gitattributes` 固定 CRLF），`run_fetch.bat` 加 `fetch_log.txt` 超過 2 MB 封存到 `_local/logs/fetch_log_YYYYMMDD.txt`；根目錄舊檔搬到 `_local/`，`backfill_history.py` 驗證檔改寫 `_local/backfill/`；source map 不進版控（`--sourcemap=external`）；移除 `.agent/`、`doc/plan.md`、`doc/test/`、`.gitignore` 的 AL 範本段、舊 worktree 與已併入分支
 - 2026-11-18 — 跨季同列小數位對齊（Pace 101.5 → 101.50）

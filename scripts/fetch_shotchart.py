@@ -19,6 +19,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nba_common import (
+    season_type as nc_season_type,
     TEAM_ID,
     get_season_type,
     get_current_season,
@@ -159,8 +160,7 @@ def main():
     if args.season or args.type:
         season = args.season or SEASON
         type_key = args.type or "regular"
-        season_type_api = "Regular+Season" if type_key == "regular" else "Playoffs"
-        season_type_label = "例行賽" if type_key == "regular" else "季後賽"
+        season_type_api, season_type_label = nc_season_type(type_key)
     else:
         season_type_api, season_type_label = get_season_type()
         if season_type_api is None:

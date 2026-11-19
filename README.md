@@ -114,7 +114,7 @@ Google Sheet（人工維護薪資）──(sync_salary.py，每日順跑)──�
 ### 本地測試爬蟲
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt   # 含 tzdata（Windows 沒有系統時區資料庫，美東時間要用）
 python scripts/fetch_data.py
 # 無 Firebase 環境時會輸出 local_test_data.json
 ```
