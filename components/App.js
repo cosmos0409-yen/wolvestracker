@@ -1,17 +1,15 @@
-// 主應用元件
+// 主應用元件：主畫面的狀態、網址同步與畫面組裝。2026-11-19 拆出（技術債 F 批）：
+//   純計算 → appLogic.js（window.AppLogic，有測試）；資料載入 → appData.js（useCloudReady／useSeasonSnapshots／
+//   useScheduleData／useSeasonGames）；獨立整頁路由與開站首頁 → appRoute.js（useRouteState）
 const { useState, useEffect, useMemo, useRef } = React;
 
 const App = () => {
-    const Icons = window.Icons;
-    const PlayTypesList = window.PlayTypesList;
-    const trackingDefs = window.trackingDefs;
-    const shootingDefs = window.shootingDefs || [];
-    const clutchDefs = window.clutchDefs || [];
+    const { TrackingCardRow } = window;
     const defenseDefs = window.defenseDefs || [];
     const oppZonesDefs = window.oppZonesDefs || [];
-    const { PlayTypeCard, TrackingCardRow, SimpleLineChart, MultiLineChart, ShotChart } = window;
+    const L = window.AppLogic;
 
-    // 偏好持久化 helper
+    // 偏好持久化（wt_pref_*：偏好不是快取，不經 window.Cache）
     const loadPref = (key, fallback) => {
         try {
             const v = localStorage.getItem(`wt_pref_${key}`);
@@ -26,8 +24,14 @@ const App = () => {
     const urlInit = useRef(window.UrlState ? window.UrlState.parse(window.location.hash) : {}).current;
     const pick = (k, fallback) => (urlInit[k] !== undefined ? urlInit[k] : fallback);
 
-    const [teamHistory, setTeamHistory] = useState([]);
-    const [playerHistory, setPlayerHistory] = useState([]);
+    const isCloud = window.useCloudReady();
+    // 獨立整頁（單場／薪資／完整賽程／組合／比較／對戰）與開站首頁：狀態與進出都在 appRoute.js
+    const route = window.useRouteState({ urlInit, isCloud });
+    const { gameDate, gamePlayer, setGamePlayer, gameTab, setGameTab, gameBox, setGameBox, homePending,
+        capView, capSeason, setCapSeason, capTab, setCapTab, vs, sched, setSched, lu, cmp, luSeason, luType,
+        openGame, openCap, openSchedule, openLineups, openCompare, openVs, setVsRange, setVsType, changeCmp, changeLu } = route;
+    const leaveGame = route.leave;
+
     const [viewMode, setViewMode] = useState(() => pick('viewMode', loadPref('viewMode', 'TEAM')));
     const [viewSide, setViewSide] = useState(() => pick('viewSide', loadPref('viewSide', 'offensive')));
     // 網址帶球員 ID（p=ID-名字）時先留空，等名單載入後由 wantPlayer 對回名字，免得先閃出 localStorage 記住的另一位
@@ -41,55 +45,17 @@ const App = () => {
         const phase = window.getSeasonPhase ? window.getSeasonPhase() : { type: 'regular' };
         return pick('seasonTypeView', phase.type === 'regular' ? 'regular' : 'playoffs');
     });
-    const [selectedDate, setSelectedDate] = useState(''); // 日曆選定日期（當季）；空=用最新
-    // 網址帶的日期要等快照訂閱建立後才套用：載入 effect 一開始會清空 selectedDate（換季回到最新日）
+    const [selectedDate, setSelectedDate] = useState(''); // 時光機選定日期（當季）；空=用最新
+    // 網址帶的日期要等快照載入建立後才套用：載入 effect 換季時會清空 selectedDate（回到最新日）
     const pendingDateRef = useRef(urlInit.selectedDate || null);
     const [paletteOpen, setPaletteOpen] = useState(false);
     const [selectedCard, setSelectedCard] = useState(null);
-    const [isCloud, setIsCloud] = useState(window.isCloudEnabled);
+    // 賽季不記憶：開站一律看當季，舊賽季只靠網址 s= 打開（舊版存下的 wt_pref_selectedSeasonKey 由 Cache.purge 清掉）
     const [selectedSeasonKey, setSelectedSeasonKey] = useState(() => pick('selectedSeasonKey', 'current'));
-    const [historyLoading, setHistoryLoading] = useState(false);
-    const [compareKeys, setCompareKeys] = useState(() => loadPref('compareKeys', [])); // 疊加的歷史賽季 keys
-    const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 疊加的同季其他球員（雷達）
-    const [compareCache, setCompareCache] = useState({}); // { docId: { team, player (normalized) } }
-    const [gamesIndex, setGamesIndex] = useState([]); // 單場面板的比賽日期清單
-    const [schedule, setSchedule] = useState({ season: null, games: [] }); // 刊頭賽程月曆：整季（例行＋季後）賽程
+    const [compareKeys, setCompareKeys] = useState(() => loadPref('compareKeys', [])); // 雷達疊加的歷史賽季 keys
+    const [comparePlayers, setComparePlayers] = useState(() => loadPref('comparePlayers', [])); // 雷達疊加的同季其他球員
     const [activeTab, setActiveTab] = useState(() => pick('activeTab', loadPref('activeTab', 'overview'))); // 章節
-    // 單場比賽頁（網址 #game=）：有值時主區改顯示 GamePage；gamePlayer＝展開進階的球員（網址 p=）
-    const [gameDate, setGameDate] = useState(() => urlInit.gameDate || null);
-    const [gamePlayer, setGamePlayer] = useState(() => urlInit.gamePlayer || '');
-    const [gameTab, setGameTab] = useState(() => urlInit.gameTab || '');   // 單場分頁（網址 tab=）：''＝概要／box／compare／shots
-    const [gameBox, setGameBox] = useState(() => urlInit.gameBox || '');   // Box Score 欄組（網址 bx=）：''＝傳統／adv＝進階
-    // 首頁＝最新一場：網址完全沒帶畫面時，先找最新一場再開單場頁；找的期間不寫網址、主區顯示載入中（避免先閃總覽）
-    const [homePending, setHomePending] = useState(() => !window.location.hash.replace(/^#/, ''));
-    // 薪資頁（網址 #cap）：有值時主區改顯示 CapPage；capSeason＝薪資賽季（網址 s=，空＝薪資當季）
-    const [capView, setCapView] = useState(() => !!urlInit.capView);
-    const [capSeason, setCapSeason] = useState(() => urlInit.capSeason || '');
-    const [capTab, setCapTab] = useState(() => urlInit.capTab || '');   // 薪資頁分頁（網址 tab=，空＝總覽）
     const [capDoc, setCapDoc] = useState(window.__capDoc);   // 薪資資料（球員身分列顯示該季薪資用；與薪資頁共用同一份）
-    // 對戰分析（網址 #vs）：有值時主區改顯示對戰首頁／單隊頁。vsTeam＝單隊頁對手三碼（網址 vs=，空＝首頁）；
-    // vsRange（r=，空＝近三季）、vsType（t=，空＝例行＋季後）是對戰自己的範圍，與主畫面的賽季／賽別無關；vsMetric（m=）單隊頁標亮的指標
-    const [vs, setVs] = useState(() => urlInit.vsView
-        ? { team: urlInit.vsTeam || '', range: urlInit.vsRange || '', type: urlInit.vsType || '', metric: urlInit.vsMetric || '' } : null);
-    // 完整賽程（網址 #schedule，只有當季）：month（m=，空＝今天所在月份）、filter（f=，''／home／away）
-    const [sched, setSched] = useState(() => urlInit.schedView ? { month: urlInit.schedMonth || '', filter: urlInit.schedFilter || '' } : null);
-    // 組合數據（網址 #lineups）：n 人數、picks「ID-名字」陣列、min（null＝該人數預設）、view（''／'mx'）、season（''＝當季）、type（''＝依時節）
-    // 組合頁自己的賽季，與主畫面的賽季／賽別無關
-    const luOf = (st) => ({ n: st.luN || 2, picks: st.luPicks || [], min: st.luMin == null ? null : st.luMin, view: st.luView2 || '', season: st.luSeason || '', type: st.luType || '' });
-    const [lu, setLu] = useState(() => urlInit.luView ? luOf(urlInit) : null);
-    // 球員比較（網址 #cmp）：a／b「ID-名字」、sa／sb 賽季（''＝當季）、type、per（''／'36'）、pd、metric；與主畫面狀態無關
-    const cmpOf = (st) => ({ a: st.cmpA || '', b: st.cmpB || '', sa: st.cmpSa || '', sb: st.cmpSb || '', type: st.cmpType || '', per: st.cmpPer || '', pd: st.cmpPd || '', metric: st.cmpMetric || '' });
-    const [cmp, setCmp] = useState(() => urlInit.cmpView ? cmpOf(urlInit) : null);
-    const [seasonGames, setSeasonGames] = useState(null); // 當前賽季逐場 bundle（總覽/Splits 共用）；null=載入中
-    // 當季快照是否已收到回應（用來區分「還在載入」與「真的一份都沒有」）
-    const [curSnapReceived, setCurSnapReceived] = useState(false);
-    const [snapError, setSnapError] = useState(null);   // 當季快照訂閱失敗訊息
-    // 當季快照先只讀最近幾天（第一屏只需要「當期＋前一期」），整季序列等真的用到才補讀：
-    // 開走勢視窗、選日期、或目前賽別在近期快照裡湊不到兩份。整季約 120 份、首次傳輸近 9 MB，
-    // 每次開站都整包讀會拖慢手機首屏，也吃 Firestore 每日讀取額度
-    const [snapFull, setSnapFull] = useState(false);
-    const [snapFullReady, setSnapFullReady] = useState(false);   // 整季資料已從伺服器到達
-    const lastSnapSeasonRef = useRef(null);
     // Splits 打開逐場走勢的指標（網址 m=）與圈出的那一場（hl=）。綁定「實體＋章節」：
     // 換球員／球隊或離開 Splits 就自動失效，不會帶著舊的 m/hl 跑到別的畫面
     const focusKeyOf = (vm, p, tab) => `${vm}|${vm === 'PLAYER' ? p : ''}|${tab}`;
@@ -100,15 +66,12 @@ const App = () => {
     // 不存 localStorage（開站不帶著上次的篩選，同「預設一律看進行中賽季」）
     const [period, setPeriod] = useState(() => window.Period ? window.Period.parse(urlInit.periodStr, urlInit.periodCond) : { kind: 'all', conds: [] });
     const [periodOpen, setPeriodOpen] = useState(false);   // 期間面板（掛在章節列底下）
-    const [condTeam, setCondTeam] = useState(null);         // 期間＝條件、球員視角時的母體：全隊逐場
-    const [condPlayers, setCondPlayers] = useState({});     // { pid: games[] } 條件裡提到的球員
-    useEffect(() => savePref('activeTab', activeTab), [activeTab]);
 
     // 同步偏好回 localStorage
+    useEffect(() => savePref('activeTab', activeTab), [activeTab]);
     useEffect(() => savePref('viewMode', viewMode), [viewMode]);
     useEffect(() => savePref('viewSide', viewSide), [viewSide]);
     useEffect(() => savePref('selectedPlayer', selectedPlayer), [selectedPlayer]);
-    // 賽季不記憶：開站一律看當季（舊賽季只靠網址 s= 打開）。清掉舊版存下的值，免得以後誤讀
     useEffect(() => savePref('compareKeys', compareKeys), [compareKeys]);
     useEffect(() => savePref('comparePlayers', comparePlayers), [comparePlayers]);
 
@@ -116,307 +79,42 @@ const App = () => {
     const SEASON_OPTIONS = window.SEASON_OPTIONS || [];
     const COMPARE_COLORS = ['#60a5fa', '#f59e0b', '#ec4899']; // 比較色盤（primary 不用這些）
     const MAX_COMPARE = 2;
+    const curOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
+    // 目前檢視的賽季與賽別（逐場 bundle、Splits、條件戰績、投籃共用）：當季＝CURRENT_SEASON＋刊頭賽別；歷史＝期末快照那季
+    const splitsBundle = !isHistoryMode ? [window.CURRENT_SEASON, seasonTypeView]
+        : (curOpt && curOpt.season ? [curOpt.season, curOpt.type] : [null, null]);
 
-    // 將歷史 player doc（PlayerID-keyed）轉成與 daily 同構（playerName-keyed）
-    // 各類別（tracking/base/shooting/clutch/defense/onoff）皆以球員名展開
-    const HISTORY_CATS = ['tracking', 'base', 'shooting', 'clutch', 'defense', 'onoff', 'advanced', 'scoring'];
-    const normalizeHistoryPlayer = (doc) => {
-        if (!doc) return doc;
-        const out = { stats: {}, meta: {} };
-        HISTORY_CATS.forEach(c => { out[c] = {}; });
-        Object.entries(doc.stats || {}).forEach(([pid, p]) => {
-            const name = p.playerName;
-            if (!name) return;
-            const pidNum = parseInt(pid, 10);
-            out.stats[name] = (p.stats || []).map(s => ({ ...s, playerId: pidNum }));
-            // meta：球員層級的 metadata（非統計值）。teamAbbr 用來標示新援該季的舊東家，
-            // isNewcomer 用來判定對位防守 / On-Off 是「跨隊不適用」而非 0
-            out.meta[name] = {
-                playerId: pidNum,
-                teamAbbr: p.teamAbbr || null,
-                isCurrentRoster: !!p.isCurrentRoster,
-                isNewcomer: !!p.isNewcomer,
-            };
-            HISTORY_CATS.forEach(c => {
-                out[c][name] = {
-                    ...(p[c] || {}), playerId: pidNum,
-                    isCurrentRoster: !!p.isCurrentRoster, teamAbbr: p.teamAbbr || null,
-                };
-            });
-        });
-        return { ...doc, ...out };
-    };
-
-    // 載入比賽索引（單場面板的日期選單用；一份 doc，localStorage 快取，見 gamesData.js 的 loadGamesIndex）
-    // 索引依賽別分開存（backfill_games.py / fetch_data.py 寫 {season}_{type}），必須跟著賽別切換，
-    // 否則看季後賽時選單會列出例行賽場次。
-    useEffect(() => {
-        if (!window.db || !window.firebaseModules || !isCloud || !window.loadGamesIndex) return;   // 等匿名登入完成，否則被安全規則拒絕
-        let cancelled = false;
-        setGamesIndex([]);
-        window.loadGamesIndex(window.CURRENT_SEASON, seasonTypeView)
-            .then(games => { if (!cancelled) setGamesIndex(games); })
-            .catch(e => console.error('games index fetch fail', e));
-        return () => { cancelled = true; };
-    }, [isCloud, seasonTypeView]);
+    // 主畫面快照（當季每日／歷史期末）與跨季比較、雷達疊加的載入
+    const snaps = window.useSeasonSnapshots({ isCloud, selectedSeasonKey, setSelectedDate, pendingDateRef });
+    const { teamHistory, playerHistory, historyLoading, curSnapReceived, snapError, snapFull, snapFullReady, compareCache,
+        loadHistoryByDocId, loadHistoryDoc, loadComparisonSeason } = snaps;
 
     // 賽程月曆的賽季：單場頁跟著那場比賽的賽季（直接開舊場次連結也對得上），其餘跟著刊頭所選賽季
     const scheduleSeason = gameDate
         ? window.seasonForDate(new Date(gameDate + 'T17:00:00Z'))
-        : (selectedSeasonKey === 'current' ? window.CURRENT_SEASON : (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey) || {}).season);
+        : (isHistoryMode ? (curOpt || {}).season : window.CURRENT_SEASON);
+    const { gamesIndex, scheduleGames, previewDoc, futureGames, calendarGames } = window.useScheduleData({ isCloud, scheduleSeason, seasonTypeView });
+
+    // 雷達疊加的歷史賽季：fire-and-forget，但 loadHistoryDoc 會拋錯 → 必須接住避免 unhandled rejection
     useEffect(() => {
-        if (!window.db || !window.firebaseModules || !isCloud || !window.loadSeasonSchedule || !scheduleSeason) return;
-        let cancelled = false;
-        window.loadSeasonSchedule(scheduleSeason)
-            .then(games => { if (!cancelled) setSchedule({ season: scheduleSeason, games }); })
-            .catch(e => console.error('schedule fetch fail', e));
-        return () => { cancelled = true; };
-    }, [isCloud, scheduleSeason]);
-    const scheduleGames = schedule.season === scheduleSeason ? schedule.games : [];
-    // 未開打場次（賽前預覽文件，只有當季）：月曆虛框格、搜尋「下一場」。點進去是單場頁的預覽模式
-    const [previewDoc, setPreviewDoc] = useState(null);
-    useEffect(() => {
-        if (!isCloud || !window.loadPreview || scheduleSeason !== window.CURRENT_SEASON) { setPreviewDoc(null); return; }
-        let cancelled = false;
-        window.loadPreview(scheduleSeason).then(v => { if (!cancelled) setPreviewDoc(v || null); });
-        return () => { cancelled = true; };
-    }, [isCloud, scheduleSeason]);
-    const futureGames = useMemo(() => {
-        if (!previewDoc || previewDoc.season !== scheduleSeason) return [];
-        const last = scheduleGames.length ? scheduleGames[scheduleGames.length - 1].date : '';
-        return (previewDoc.games || []).filter(g => g.date > last).map(g => ({
-            date: g.date, matchup: `MIN ${g.home ? 'vs.' : '@'} ${g.opp}`, wl: '', type: window.gameTypeOfId(g.id),
-            future: true, kickoff: window.kickoffTPE(g),
-        }));
-    }, [previewDoc, scheduleGames, scheduleSeason]);
-    const calendarGames = useMemo(() => [...scheduleGames, ...futureGames], [scheduleGames, futureGames]);
-
-    // 首頁：當季最新一場；當季還沒比賽（開季後到首戰前）就退到上一季最後一場（休賽期 CURRENT_SEASON 仍是剛打完那季，本來就有）
-    useEffect(() => {
-        if (!homePending || !isCloud || !window.loadSeasonSchedule) return;
-        let cancelled = false;
-        (async () => {
-            // 上一季用推算的，不讀手動維護的 HISTORY_SEASONS（開季時那份清單可能還沒加上剛打完的賽季）
-            // 例行賽期間最新一場一定在例行賽索引：先只讀它，不等季後賽索引（那份文件還不存在，查不存在的文件也要近 1 秒）
-            if ((window.getSeasonPhase() || {}).type === 'regular') {
-                // 附加賽（4 月中）也在這段日期內：賽前預覽文件有灰狼已開打的附加賽（gameId 005）才多讀附加賽索引，平常不多讀
-                const [reg, pv] = await Promise.all([window.loadGamesIndex(window.CURRENT_SEASON, 'regular'),
-                    window.loadPreview ? window.loadPreview(window.CURRENT_SEASON).catch(() => null) : null]);
-                const today = window.etToday();
-                const hasPi = !!pv && (pv.games || []).some(g => window.gameTypeOfId(g.id) === 'playin' && g.date <= today);
-                const pi = hasPi ? await window.loadGamesIndex(window.CURRENT_SEASON, 'playin') : [];
-                const all = [...reg, ...pi].sort((a, b) => a.date.localeCompare(b.date));
-                if (all.length) { if (!cancelled) setGameDate(all[all.length - 1].date); return; }
-            }
-            const y = parseInt(window.CURRENT_SEASON.slice(0, 4), 10);
-            const seasons = [window.CURRENT_SEASON, `${y - 1}-${String(y % 100).padStart(2, '0')}`];
-            for (const s of seasons) {
-                const gs = await window.loadSeasonSchedule(s);
-                if (gs.length) { if (!cancelled) setGameDate(gs[gs.length - 1].date); return; }
-            }
-        })().catch(e => console.error('home latest game fail', e))
-            .finally(() => { if (!cancelled) setHomePending(false); });
-        return () => { cancelled = true; };
-    }, [homePending, isCloud]);
-    // 連不上雲端（離線、登入失敗）時別卡在「載入最新一場」：8 秒後放棄，照舊顯示總覽
-    useEffect(() => {
-        if (!homePending || isCloud) return;
-        const t = setTimeout(() => setHomePending(false), 8000);
-        return () => clearTimeout(t);
-    }, [homePending, isCloud]);
-
-    // 註：逐場 games 的載入改在 Splits 分頁需要時才做（lazy），總覽季平均改讀快照的 base 欄位
-
-    // Mount-time setup：移除 loading 畫面、監聽 Firebase ready
-    useEffect(() => {
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            loadingScreen.style.opacity = '0';
-            setTimeout(() => loadingScreen.remove(), 500);
-        }
-        const handleCloudReady = () => setIsCloud(true);
-        window.addEventListener('firebase-ready', handleCloudReady);
-        if (window.isCloudEnabled) setIsCloud(true);
-        return () => window.removeEventListener('firebase-ready', handleCloudReady);
-    }, []);
-
-    // 資料載入：依 selectedSeasonKey 切換 getDocs 範圍查詢（current）或 getDoc + localStorage 快取（history）
-    // （2026-10-28 前是 onSnapshot 即時訂閱；改用 Firestore lite 後沒有 onSnapshot，資料每天才更新一次，重新整理即可）
-    useEffect(() => {
-        // 必須等匿名登入完成（isCloud）：安全規則要求已登入，先讀會被拒且錯誤狀態不會自己清掉
-        if (!window.db || !window.firebaseModules || !isCloud) return;
-        const { collection, getDocs } = window.firebaseModules;
-        // snapFull 從「最新幾份」升級成「整季」時也會重跑本 effect：此時不可清日期、不可回到載入中，
-        // 舊資料留在畫面上直到整季資料到達
-        const seasonChanged = lastSnapSeasonRef.current !== selectedSeasonKey;
-        lastSnapSeasonRef.current = selectedSeasonKey;
-        if (seasonChanged) {
-            setSelectedDate(pendingDateRef.current || ''); // 切賽季時回到最新日期（首次載入則套用網址帶的日期）
-            pendingDateRef.current = null;
-            setCurSnapReceived(false);
-            setSnapError(null);
-        }
-
-        if (selectedSeasonKey === 'current') {
-            setHistoryLoading(false);
-            // 只讀當季快照（doc id 即日期字串）。用範圍過濾而非 orderBy+limit：
-            // 後者需要 Firestore 複合索引，缺索引會被拒讓整個面板空掉。詳見 constants.js 的 SNAPSHOT_SINCE
-            const { query, where, documentId } = window.firebaseModules;
-            // 加上界：doc id 是日期字串，但非日期 id（如 'latest'、'meta'）字典序都大於數字，
-            // 只有下界會把它們一併撈進來，之後 new Date(id) 變 NaN 污染排序。
-            // 只讀最近幾天時，只是把下界往後移（同樣是 doc id 範圍查詢，免建索引）。
-            // 不用 orderBy(documentId,'desc')/limitToLast：那需要 __name__ 降冪索引，已實測會被拒
-            const partial = !snapFull;
-            const since = partial ? window.snapshotWindowStart() : window.SNAPSHOT_SINCE;
-            const recent = (name) => query(collection(window.db, name),
-                where(documentId(), '>=', since), where(documentId(), '<=', window.SNAPSHOT_UNTIL));
-            // 錯誤一定要接住並顯示：查詢被安全規則擋下或缺索引時，不處理畫面就永遠停在骨架，看不出哪裡錯了
-            const onErr = (which) => (err) => {
-                // 近期查詢若因「缺索引」被拒（failed-precondition），退回整季查詢，不讓畫面空掉。
-                // 其他錯誤（權限、網路）改讀整季也不會好，照常顯示錯誤，免得白白多抓整季資料
-                if (partial && err && err.code === 'failed-precondition') { console.warn(`snapshot ${which} partial query failed, loading full season`, err); setSnapFull(true); return; }
-                console.error(`snapshot ${which} failed`, err);
-                setSnapError(`${which}：${err.code || err.message || err}`);
-                setCurSnapReceived(true);
-            };
-            // lite 版沒有離線快取：斷網時 getDocs 直接丟錯（走 onErr），不會有「快取的空結果」被誤當成沒資料
-            // cancelled：快速切換賽季／升級整季時，較晚回來的舊查詢不可覆寫新資料
-            let cancelled = false;
-            const load = (name, setter) => getDocs(recent(name)).then((snapshot) => {
-                if (cancelled) return;
-                if (partial && snapshot.size < 2) { setSnapFull(true); return; }
-                const data = snapshot.docs.map(d => ({ ...d.data(), date: d.id }));
-                data.sort((a, b) => new Date(b.date) - new Date(a.date));
-                setter(data);
-                setCurSnapReceived(true);
-                if (!partial) setSnapFullReady(true);
-            }).catch((err) => { if (!cancelled) onErr(name)(err); });
-            load('wolves_team_stats', setTeamHistory);
-            load('wolves_player_stats', setPlayerHistory);
-            return () => { cancelled = true; };
-        }
-
-        // History mode
-        const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
-        if (!opt || !opt.season) return;
-        const docId = `${opt.season}_${opt.type}`;
-
-        const apply = (teamData, playerData) => {
-            const dateLabel = opt.label;
-            setTeamHistory(teamData ? [{ ...teamData, date: dateLabel }] : []);
-            setPlayerHistory(playerData ? [normalizeHistoryPlayer({ ...playerData, date: dateLabel })] : []);
-        };
-
-        // 有快取就即時套用，不閃 skeleton
-        const cached = window.readHistoryCache(docId);
-        if (cached) { apply(cached.team, cached.player); return; }
-
-        // cancelled 旗標不可省：快速切換賽季時，先前那次較晚 resolve 會用舊賽季的
-        // 資料覆寫 teamHistory/playerHistory（當季查詢同樣有 cancelled 旗標）
-        let cancelled = false;
-        setHistoryLoading(true);
-        (async () => {
-            try {
-                const pair = await fetchHistoryPair(docId);
-                if (cancelled) return;
-                apply(pair.team, pair.player);
-            } catch (e) {
-                if (cancelled) return;
-                console.error('Fetch history failed', e);
-                alert('載入歷史賽季失敗：' + (e.message || e));
-            } finally {
-                if (!cancelled) setHistoryLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [selectedSeasonKey, isCloud, snapFull]);
-
-    // 歷史終點快照的唯一取得路徑（快取 → Firestore），回傳未 normalize 的原始 doc pair。
-    // 刻意「往上拋」而非吞錯回 null：呼叫端需要區分「載入失敗」與「查無此球員」，
-    // 否則斷網時會謊報成「無 NBA 生涯資料」。
-    const fetchHistoryPair = async (docId) => {
-        const cached = window.readHistoryCache(docId);
-        if (cached) return cached;
-        if (!window.db || !window.firebaseModules) throw new Error('Firestore 未就緒');
-        const { doc: docFn, getDoc } = window.firebaseModules;
-        const [teamSnap, playerSnap] = await Promise.all([
-            getDoc(docFn(window.db, 'wolves_team_history', docId)),
-            getDoc(docFn(window.db, 'wolves_player_history', docId)),
-        ]);
-        const pair = {
-            team: teamSnap.exists() ? teamSnap.data() : null,
-            player: playerSnap.exists() ? playerSnap.data() : null,
-        };
-        if (pair.team || pair.player) window.writeHistoryCache(docId, pair);
-        return pair;
-    };
-
-    // 依 docId 載入並 normalize，結果存入 compareCache（記憶體層，單次工作階段內不失效）
-    const loadHistoryByDocId = async (docId) => {
-        if (!docId) return null;
-        if (compareCache[docId]) return compareCache[docId];
-        const raw = await fetchHistoryPair(docId);
-        const v = { team: raw.team, player: normalizeHistoryPlayer(raw.player) };
-        setCompareCache(prev => ({ ...prev, [docId]: v }));
-        return v;
-    };
-
-    // 通用歷史 doc 載入（雷達疊加用）。SEASON_OPTIONS 的 key 本身即 docId，
-    // 保留這層封裝以防未來 key 格式變動。
-    const loadHistoryDoc = (k) => {
-        const opt = SEASON_OPTIONS.find(o => o.key === k);
-        if (!opt || !opt.season) return Promise.resolve(null);
-        return loadHistoryByDocId(`${opt.season}_${opt.type}`);
-    };
-
-    // 比較資料載入（雷達 overlay 用）
-    useEffect(() => {
-        if (compareKeys.length === 0) return;
-        // fire-and-forget，但 loadHistoryDoc 會拋錯 → 必須接住避免 unhandled rejection
-        compareKeys.forEach(k => {
-            loadHistoryDoc(k).catch(e => console.error('compare overlay load fail', k, e));
-        });
+        compareKeys.forEach(k => { loadHistoryDoc(k).catch(e => console.error('compare overlay load fail', k, e)); });
     }, [compareKeys]);
 
     const getCompareEntry = (k) => {
         const opt = SEASON_OPTIONS.find(o => o.key === k);
         if (!opt || !opt.season) return null;
-        const docId = `${opt.season}_${opt.type}`;
-        const data = compareCache[docId];
+        const data = compareCache[`${opt.season}_${opt.type}`];
         if (!data) return null;
-        let stats = [], tracking = {};
-        if (viewMode === 'TEAM') {
-            stats = data.team?.stats || [];
-            tracking = data.team?.tracking || {};
-        } else {
-            stats = data.player?.stats?.[selectedPlayer] || [];
-            tracking = data.player?.tracking?.[selectedPlayer] || {};
-        }
+        const team = viewMode === 'TEAM';
+        const stats = team ? (data.team?.stats || []) : (data.player?.stats?.[selectedPlayer] || []);
+        const tracking = team ? (data.team?.tracking || {}) : (data.player?.tracking?.[selectedPlayer] || {});
         // 新援在該季的舊東家標示：疊加多季時才看得出「這季他在哪一隊」
-        const tag = viewMode === 'PLAYER' ? window.tagOfMeta(data.player?.meta?.[selectedPlayer]) : '';
-        return {
-            key: k, label: opt.label + tag, stats, tracking,
-            shortLabel: (opt.short || opt.label) + tag,
-        };
+        const tag = team ? '' : window.tagOfMeta(data.player?.meta?.[selectedPlayer]);
+        return { key: k, label: opt.label + tag, stats, tracking, shortLabel: (opt.short || opt.label) + tag };
     };
-
-    const toggleCompareKey = (k) => {
-        if (k === 'current' || k === selectedSeasonKey) return;
-        setCompareKeys(prev => {
-            if (prev.includes(k)) return prev.filter(x => x !== k);
-            if (prev.length >= MAX_COMPARE) return prev;
-            return [...prev, k];
-        });
-    };
-
-    const toggleComparePlayer = (name) => {
-        if (name === selectedPlayer) return;
-        setComparePlayers(prev => {
-            if (prev.includes(name)) return prev.filter(x => x !== name);
-            if (prev.length >= MAX_COMPARE) return prev;
-            return [...prev, name];
-        });
-    };
+    const toggleIn = (setter, v) => setter(prev => prev.includes(v) ? prev.filter(x => x !== v) : prev.length >= MAX_COMPARE ? prev : [...prev, v]);
+    const toggleCompareKey = (k) => { if (k !== 'current' && k !== selectedSeasonKey) toggleIn(setCompareKeys, k); };
+    const toggleComparePlayer = (name) => { if (name !== selectedPlayer) toggleIn(setComparePlayers, name); };
 
     const handleStatusClick = () => {
         if (isCloud) {
@@ -449,177 +147,46 @@ const App = () => {
         console.log("[Firebase 診斷]", { dbReady, modulesReady, err, isCloudEnabled: window.isCloudEnabled });
     };
 
-    // Derive Stats
-    let currentStats = []; let currentTracking = {};
-    let prevStats = []; let prevTracking = {};
-    let currentShooting = {}; let prevShooting = {};
-    let currentClutch = {}; let prevClutch = {};
-    let currentDefense = {}; let prevDefense = {};
-    let currentLineups = []; let currentOnoff = {}; let currentBase = {};
-    let displayDate = "尚無數據"; let currentPlayerId = null;
-    // 選定球員的 metadata（僅歷史快照有；當季快照無 meta → null）
-    let selectedMeta = null;
-    let currentSeason = null; let currentSeasonType = null;
-
-    // 當季依賽別過濾快照序列（歷史模式為單筆終點快照）
+    // 當季依賽別過濾快照序列（歷史模式為單筆終點快照）；時光機日期＝selectedDate 或該賽別最新一天
     const stTypeLabel = seasonTypeView === 'regular' ? '例行賽' : '季後賽';
     const teamSeq = isHistoryMode ? teamHistory : teamHistory.filter(d => d.seasonType === stTypeLabel);
     const playerSeq = isHistoryMode ? playerHistory : playerHistory.filter(d => d.seasonType === stTypeLabel);
-    // 日曆有效日期：selectedDate 或該賽別最新一天
     const latestDate = (teamSeq[0] || playerSeq[0] || {}).date || '';
     const effectiveDate = selectedDate || latestDate;
-    // 定位快照（序列 date desc，取第一個 <= effectiveDate）；歷史模式固定單筆
-    const seqIndex = (seq) => {
-        if (isHistoryMode) return 0;
-        const i = seq.findIndex(d => d.date <= effectiveDate);
-        return i === -1 ? 0 : i;
-    };
-    const teamIdx = seqIndex(teamSeq);
-    const playerIdx = seqIndex(playerSeq);
-    // 何時要補讀整季快照（見 snapFull 說明）：選了日期、開了走勢視窗、或目前賽別在近期快照裡不足兩份
+    const teamIdx = L.seqIndex(teamSeq, effectiveDate, isHistoryMode);
+    const playerIdx = L.seqIndex(playerSeq, effectiveDate, isHistoryMode);
+    // 何時要補讀整季快照（見 useSeasonSnapshots 的 snapFull）：選了日期、開了走勢視窗、或目前賽別在近期快照裡不足兩份
     const needFullSnap = !isHistoryMode && !snapFull && curSnapReceived
         && (!!selectedDate || !!selectedCard || (teamSeq.length < 2 && playerSeq.length < 2));
-    useEffect(() => { if (needFullSnap) setSnapFull(true); }, [needFullSnap]);
+    useEffect(() => { if (needFullSnap) snaps.setSnapFull(true); }, [needFullSnap]);
 
-    if (viewMode === 'TEAM') {
-        const current = teamSeq[teamIdx]; const prev = teamSeq[teamIdx + 1];
-        if (current) {
-            currentStats = current.stats || []; currentTracking = current.tracking || {}; displayDate = current.date;
-            currentShooting = current.shooting || {}; currentClutch = current.clutch || {};
-            currentDefense = current.defense || {};
-            currentLineups = current.lineups || []; currentBase = current.base || {};
-            currentSeason = current.season; currentSeasonType = current.seasonType;
-        }
-        if (prev) {
-            prevStats = prev.stats || []; prevTracking = prev.tracking || {};
-            prevShooting = prev.shooting || {}; prevClutch = prev.clutch || {};
-            prevDefense = prev.defense || {};
-        }
-    } else {
-        const current = playerSeq[playerIdx]; const prev = playerSeq[playerIdx + 1];
-        if (current) { currentSeason = current.season; currentSeasonType = current.seasonType; }
-        // 開季初 NBA 尚未釋出 Synergy，快照只有 base 等類別 → 以 base 判定球員存在
-        if (current && (current.stats?.[selectedPlayer] || current.base?.[selectedPlayer])) {
-            currentStats = current.stats?.[selectedPlayer] || []; currentTracking = current.tracking?.[selectedPlayer] || {}; displayDate = current.date;
-            currentShooting = current.shooting?.[selectedPlayer] || {};
-            currentClutch = current.clutch?.[selectedPlayer] || {};
-            currentDefense = current.defense?.[selectedPlayer] || {};
-            currentOnoff = current.onoff?.[selectedPlayer] || {};
-            currentBase = current.base?.[selectedPlayer] || {};
-            if (currentStats.length > 0 && currentStats[0].playerId) currentPlayerId = currentStats[0].playerId;
-            else if (currentTracking.playerId) currentPlayerId = currentTracking.playerId;
-            else if (currentBase.playerId) currentPlayerId = currentBase.playerId;
-            // 第三層 fallback：新援若 Synergy 與 tracking 皆空（例如出賽極少），
-            // 前兩層會撈不到 ID，導致投籃分頁誤顯示「請先選擇球員」
-            else if (current.meta?.[selectedPlayer]?.playerId) currentPlayerId = current.meta[selectedPlayer].playerId;
-        }
-        selectedMeta = current?.meta?.[selectedPlayer] || null;
-        if (prev) {
-            prevStats = prev.stats?.[selectedPlayer] || [];
-            prevTracking = prev.tracking?.[selectedPlayer] || {};
-            prevShooting = prev.shooting?.[selectedPlayer] || {};
-            prevClutch = prev.clutch?.[selectedPlayer] || {};
-            prevDefense = prev.defense?.[selectedPlayer] || {};
-        }
-    }
+    const isTeamView = viewMode === 'TEAM';
+    const viewSeq = isTeamView ? teamSeq : playerSeq;
+    const viewIdx = isTeamView ? teamIdx : playerIdx;
+    const { currentStats, currentTracking, currentClutch, currentDefense, currentLineups, currentOnoff, currentBase,
+        prevStats, prevDefense, displayDate, currentPlayerId, selectedMeta, currentSeasonType } =
+        L.pickView(viewMode, viewSeq[viewIdx], viewSeq[viewIdx + 1], selectedPlayer);
 
-    // 新援＝該季不在灰狼、現在是灰狼。對位防守與 On-Off 的 NBA API 都必須綁 TeamID，
-    // 該季他不在灰狼 → 語意上取不到，必須顯示「不適用」而不是 0。
-    // Hustle / DefenseBox 走 leaguedash（不綁隊），跨隊有值，不可一併標成不適用。
-    const isNewcomerSel = viewMode === 'PLAYER' && !!selectedMeta?.isNewcomer;
-    const naCrossTeam = isNewcomerSel ? window.NA_REASON.CROSS_TEAM : null;
+    // 新援＝該季不在灰狼、現在是灰狼。對位防守與 On-Off 的 NBA API 都必須綁 TeamID，該季他不在灰狼 → 顯示「不適用」而不是 0。
+    // Hustle／DefenseBox 走 leaguedash（不綁隊），跨隊有值，不可一併標成不適用
+    const naCrossTeam = viewMode === 'PLAYER' && !!selectedMeta?.isNewcomer ? window.NA_REASON.CROSS_TEAM : null;
     // 選定球員的球隊標示（留隊球員回空字串 → 畫面完全不變）
     const selTag = viewMode === 'PLAYER' ? window.tagOfMeta(selectedMeta) : '';
-    // normalizeHistoryPlayer 會注入 playerId/isCurrentRoster/teamAbbr，
-    // 用 Object.keys().length 判斷「有沒有防守資料」對歷史快照永遠為真 → 必須排除 metadata
+    // normalizeHistoryPlayer 會注入 playerId 等 metadata，「有沒有防守資料」要排除它們
     const hasDefenseData = window.hasRealData(currentDefense);
-    // 缺防守時的說明：當季每日快照的 defense 類別是賽季中途才加進抓取的，
-    // 舊日期的快照本來就沒有，不可籠統說「此賽季無防守數據」（會讓人以為整季沒資料）。
-    // 回傳 { msg, jumpDate }：jumpDate = 離目前日期最近、有防守數據的快照日（可一鍵跳過去）
-    const defenseMissing = (() => {
-        if (hasDefenseData) return null;
-        if (isHistoryMode) return { msg: '此賽季的期末快照沒有防守數據' };
-        const seq = viewMode === 'TEAM' ? teamSeq : playerSeq;
-        const cur = seq[viewMode === 'TEAM' ? teamIdx : playerIdx];
-        const defOf = d => viewMode === 'TEAM' ? d.defense : d.defense?.[selectedPlayer];
-        if (viewMode === 'PLAYER' && cur && window.hasRealData(cur.defense) && !window.hasRealData(defOf(cur))) {
-            return { msg: `${selectedPlayer} 在 ${cur.date} 的快照沒有防守數據` };
-        }
-        const withDef = seq.filter(d => window.hasRealData(defOf(d))).map(d => d.date);
-        const fallback = `可從賽季選單選「${window.CURRENT_SEASON} ${stTypeLabel}」查看期末完整快照。`;
-        if (!withDef.length) return { msg: `當季${stTypeLabel}的每日快照都沒有防守數據（防守類別較晚才加入抓取）。${fallback}` };
-        const t = new Date(effectiveDate).getTime();
-        const jumpDate = withDef.slice().sort((a, b) => Math.abs(new Date(a) - t) - Math.abs(new Date(b) - t))[0];
-        return { msg: `${cur ? cur.date : effectiveDate} 的快照沒有防守數據（防守類別較晚才加入抓取，只有部分日期有）。`, jumpDate };
-    })();
+    const defenseMissing = L.defenseMissing({ hasData: hasDefenseData, isHistory: isHistoryMode, viewMode, seq: viewSeq, idx: viewIdx,
+        player: selectedPlayer, typeLabel: stTypeLabel, date: effectiveDate, season: window.CURRENT_SEASON });
 
-    // 逐場 bundle（總覽季平均 + Splits 共用）：依賽季/攻守實體/球員切換載入（單一 getDoc，可靠）
-    useEffect(() => {
-        if (!isCloud || !window.loadSeasonGames) return;
-        let cancelled = false;
-        setSeasonGames(null);
-        (async () => {
-            let combos = [];
-            if (selectedSeasonKey === 'current') {
-                combos = [[window.CURRENT_SEASON, seasonTypeView]]; // 依賽別檢視載入單一 bundle
-            } else {
-                const opt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
-                if (opt && opt.season) combos = [[opt.season, opt.type]];
-            }
-            const pid = viewMode === 'PLAYER' ? currentPlayerId : null;
-            if (viewMode === 'PLAYER' && !pid) { if (!cancelled) setSeasonGames([]); return; }
-            const all = [];
-            for (const [s, t] of combos) {
-                try { const { games } = await window.loadSeasonGames(s, t, viewMode, pid); all.push(...games); }
-                catch (e) { console.error('season bundle load fail', s, t, e); }
-            }
-            if (!cancelled) setSeasonGames(all);
-        })();
-        return () => { cancelled = true; };
-    }, [selectedSeasonKey, seasonTypeView, viewMode, currentPlayerId, isCloud]);
+    // 逐場 bundle（總覽季平均、Splits、期間篩選）與條件戰績要的全隊／其他球員逐場
+    const periodNeeds = window.Period ? window.Period.needs(period, isTeamView) : { team: false, pids: [] };
+    const { seasonGames, condTeam, condPlayers } = window.useSeasonGames({
+        isCloud, season: splitsBundle[0], type: splitsBundle[1], viewMode, pid: currentPlayerId, needs: periodNeeds });
 
-    // Splits 條件戰績要讀「同一份 bundle」的全隊與其他球員逐場：賽季／賽別與上面的載入規則一致
-    const splitsBundle = selectedSeasonKey === 'current' ? [window.CURRENT_SEASON, seasonTypeView]
-        : (() => { const o = SEASON_OPTIONS.find(x => x.key === selectedSeasonKey); return o && o.season ? [o.season, o.type] : [null, null]; })();
-
-    // 期間＝條件時才讀需要的逐場（loadSeasonGames 有記憶體快取，切換不重讀）；換賽季先清掉別季的球員逐場
-    const periodNeeds = window.Period ? window.Period.needs(period, viewMode === 'TEAM') : { team: false, pids: [] };
-    useEffect(() => { setCondPlayers({}); setCondTeam(null); }, [splitsBundle[0], splitsBundle[1]]);
-    useEffect(() => {
-        if (!periodNeeds.team || !isCloud || !splitsBundle[0] || !window.loadSeasonGames) return;
-        let off = false;
-        window.loadSeasonGames(splitsBundle[0], splitsBundle[1], 'TEAM')
-            .then(r => { if (!off) setCondTeam(r.games || []); }).catch(e => console.error('cond team games fail', e));
-        return () => { off = true; };
-    }, [periodNeeds.team, isCloud, splitsBundle[0], splitsBundle[1]]);
-    useEffect(() => {
-        const todo = periodNeeds.pids.filter(pid => !condPlayers[pid]);
-        if (!todo.length || !isCloud || !splitsBundle[0] || !window.loadSeasonGames) return;
-        let off = false;
-        Promise.all(todo.map(pid => window.loadSeasonGames(splitsBundle[0], splitsBundle[1], 'PLAYER', pid).then(r => [pid, r.games || []])))
-            .then(list => { if (!off) setCondPlayers(m => ({ ...m, ...Object.fromEntries(list) })); })
-            .catch(e => console.error('cond player games fail', e));
-        return () => { off = true; };
-    }, [periodNeeds.pids.join(','), isCloud, splitsBundle[0], splitsBundle[1]]);
-
-    // 2-C 資料陳舊與休賽期判斷（歷史模式略過）
-    const seasonStatus = useMemo(() => {
-        if (isHistoryMode) return null;
-        const phase = window.getSeasonPhase ? window.getSeasonPhase() : { inSeason: true, label: '' };
-        if (!phase.inSeason) {
-            const s = window.CURRENT_SEASON || '';
-            return { kind: 'offseason', message: `目前為休賽期，以下為 ${s} 賽季最終數據（非即時），下次更新預計 10/20` };
-        }
-        const latest = (viewMode === 'TEAM' ? teamHistory[0] : playerHistory[0])?.date;
-        if (!latest) return null;
-        const latestDate = new Date(latest + 'T00:00:00');
-        if (isNaN(latestDate.getTime())) return null;
-        const ageDays = (Date.now() - latestDate.getTime()) / 86400000;
-        if (ageDays > 2) {
-            return { kind: 'stale', message: `最新資料為 ${latest}，已超過 2 天未更新（${Math.floor(ageDays)} 天前）` };
-        }
-        return null;
-    }, [teamHistory, playerHistory, viewMode, isHistoryMode]);
+    // 休賽期／資料陳舊提示（刊頭下的細條）
+    const seasonStatus = useMemo(() => L.seasonStatus({
+        isHistory: isHistoryMode, phase: window.getSeasonPhase ? window.getSeasonPhase() : { inSeason: true },
+        latest: (isTeamView ? teamHistory[0] : playerHistory[0])?.date, season: window.CURRENT_SEASON,
+    }), [teamHistory, playerHistory, viewMode, isHistoryMode]);
 
     // 新援跳轉：pending 記住「使用者剛點的人 + 目標賽季」。
     // setSelectedSeasonKey 是 async 載入，這段期間 availablePlayers 仍是舊賽季的清單，
@@ -664,38 +231,11 @@ const App = () => {
         setProbeTarget(name);
     };
 
-    // 動態取得當前數據中有的球員清單
-    const availablePlayers = useMemo(() => {
-        const currentData = playerSeq[playerIdx];
-        if (!currentData || (!currentData.stats && !currentData.base)) return [];
-        // 名單取 stats ∪ base：開季初 Synergy 尚未釋出時 stats 為空，球員只出現在 base
-        const names = [...new Set([...Object.keys(currentData.stats || {}), ...Object.keys(currentData.base || {})])];
-        // 依該份快照的輪換強度遞減排序 = 這一季實際的輪換順序。
-        // 刻意不用硬編碼的先發名單：一份全域名單不可能同時對多個賽季正確
-        // （看 2025-26 該是 Randle/Conley 在前，看 2026-27 該是 LaMelo/Kuminga 在前），
-        // 而且每次交易都要手改。改用資料本身的欄位，永遠跟著所選賽季走。
-        //
-        // base 是後期才加進每日快照的，2025-26 的 57 份快照裡只有 1 份有；
-        // 其餘只有 Synergy stats，所以需要 fallback：每場進攻總球權同樣能反映輪換強度。
-        // 尺度在「整份快照」層級擇一，不逐球員混用——MIN(~33) 與 poss(~26) 量級不同，
-        // 混用會讓有 base 的球員被系統性排到前面
-        const possOf = (n) => (currentData.stats?.[n] || [])
-            .filter(x => x.side === 'offensive')
-            .reduce((sum, x) => sum + (typeof x.poss === 'number' ? x.poss : 0), 0);
-        const useMin = !!currentData.base;
-        const weightOf = (n) => {
-            if (!useMin) return possOf(n);
-            const v = currentData.base[n]?.MIN;
-            return typeof v === 'number' ? v : -1;
-        };
-        return names.sort((a, b) => (weightOf(b) - weightOf(a)) || a.localeCompare(b));
-    }, [playerHistory, playerIdx, seasonTypeView, isHistoryMode]);
+    // 頭像列的球員名單（依輪換強度排序，規則見 AppLogic.rosterOrder）
+    const availablePlayers = useMemo(() => L.rosterOrder(playerSeq[playerIdx]), [playerHistory, playerIdx, seasonTypeView, isHistoryMode]);
 
-    // 目前名單屬於哪一季：當季快照的 date 是日期字串，歷史快照的 date 是賽季標籤（見載入 effect 的 apply）
-    const loadedSeasonKey = () => {
-        const d = (playerHistory[0] || {}).date || '';
-        return /^\d{4}-\d{2}-\d{2}$/.test(d) ? 'current' : (SEASON_OPTIONS.find(o => o.label === d) || {}).key;
-    };
+    // 目前名單屬於哪一季（當季快照的 date 是日期字串、歷史快照是賽季標籤）
+    const loadedSeasonKey = () => L.loadedSeasonKey(playerHistory, SEASON_OPTIONS);
 
     // 自動修正 selectedPlayer
     useEffect(() => {
@@ -786,13 +326,13 @@ const App = () => {
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
         : `當季${stTypeLabel}`;
     // 同季其他球員疊加（僅球員模式 + 當季；資料已在當前快照，無需額外抓取）
-    const currentPlayerDoc = playerSeq[playerIdx];
+    const curPlayerDoc = playerSeq[playerIdx];
     const playerCompareSeries = (viewMode === 'PLAYER' && !isHistoryMode ? comparePlayers : [])
-        .filter(name => name !== selectedPlayer && currentPlayerDoc?.stats?.[name])
+        .filter(name => name !== selectedPlayer && curPlayerDoc?.stats?.[name])
         .map((name, i) => ({
             key: 'p_' + name, label: name,
-            stats: currentPlayerDoc.stats[name],
-            tracking: currentPlayerDoc.tracking?.[name] || {},
+            stats: curPlayerDoc.stats[name],
+            tracking: curPlayerDoc.tracking?.[name] || {},
             color: COMPARE_COLORS[(compareKeys.length + i) % COMPARE_COLORS.length],
         }));
 
@@ -814,51 +354,14 @@ const App = () => {
     ];
 
 
-    // History Modal Component (nested for closure access to App state)
-
-    // 投籃分頁參數：賽季/賽別 + 日期→勝負/對戰 對照（勝敗/主客篩選用）
-    const _shootOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
-    const shootSeason = isHistoryMode ? (_shootOpt && _shootOpt.season) : window.CURRENT_SEASON;
-    const shootType = isHistoryMode ? (_shootOpt && _shootOpt.type) : seasonTypeView;
+    // 投籃章節：賽季／賽別同逐場 bundle；日期→勝負／對戰對照（勝敗／主客篩選用）
+    const [shootSeason, shootType] = splitsBundle;
     const gameMeta = {};
     (seasonGames || []).forEach(g => { if (g.date) gameMeta[g.date] = { wl: g.wl, matchup: g.matchup }; });
 
     // 跨季比較的可選賽季：當季讀每日快照最新一份，其餘讀 wolves_*_history 終點快照。
     // 單一來源：constants.js 的 COMPARISON_SEASON_OPTIONS（由 HISTORY_SEASON_OPTIONS 加當季組成），勿再建第二份清單
     const comparisonSeasons = window.COMPARISON_SEASON_OPTIONS || [];
-    // 當季某賽別的最新快照，組成與歷史 doc 同形的 { team, player }（每日快照球員本來就以名字為 key）。
-    // 正在看當季就直接用已載入的序列；看舊賽季時另讀近期快照，該賽別近期沒有才讀整季
-    const loadComparisonSeason = async (key) => {
-        const m = /^current_(regular|playoffs)$/.exec(key || '');
-        if (!m) return loadHistoryByDocId(key);
-        if (compareCache[key]) return compareCache[key];
-        const label = m[1] === 'regular' ? '例行賽' : '季後賽';
-        const latestOf = (arr) => (arr || []).filter(d => d.seasonType === label).sort((a, b) => (a.date < b.date ? 1 : -1))[0] || null;
-        let team = null, player = null;
-        if (selectedSeasonKey === 'current') { team = latestOf(teamHistory); player = latestOf(playerHistory); }
-        // 兩邊都要有才用記憶體裡的序列：剛進頁時全隊快照先到、球員快照還沒到，只拿一邊會把「球員欄全 —」快取起來
-        if (!team || !player) {
-            if (!window.db || !window.firebaseModules) throw new Error('Firestore 未就緒');
-            const { collection, getDocs, query, where, documentId } = window.firebaseModules;
-            const read = async (name, since) => {
-                const snap = await getDocs(query(collection(window.db, name),
-                    where(documentId(), '>=', since), where(documentId(), '<=', window.SNAPSHOT_UNTIL)));
-                return latestOf(snap.docs.map(d => ({ ...d.data(), date: d.id })));
-            };
-            for (const since of [window.snapshotWindowStart(), window.SNAPSHOT_SINCE]) {
-                [team, player] = await Promise.all([read('wolves_team_stats', since), read('wolves_player_stats', since)]);
-                if (team || player || since === window.SNAPSHOT_SINCE) break;
-            }
-        }
-        // 每日快照沒有 meta：補空 meta 讓「疊加其他球員」的名單（取自 meta 的名字）也列得出當季球員
-        if (player && !player.meta) {
-            const names = [...new Set([...Object.keys(player.stats || {}), ...Object.keys(player.base || {})])];
-            player = { ...player, meta: Object.fromEntries(names.map(n => [n, {}])) };
-        }
-        const v = { team, player };
-        if (team && player) setCompareCache(prev => ({ ...prev, [key]: v }));
-        return v;
-    };
 
     // 疊加比較 chips（搬到雷達圖下方）
     const compareChipsUI = (
@@ -943,107 +446,34 @@ const App = () => {
     // 網址狀態同步：狀態一變就 replaceState（不新增瀏覽紀錄，返回鍵不會一格格倒退）
     useEffect(() => {
         if (!window.UrlState || homePending) return;
-        const h = '#' + (gameDate
-            ? window.UrlState.serialize({ gameDate, gamePlayer, gameTab, gameBox })
-            : capView
-            ? window.UrlState.serialize({ capView, capSeason, capTab })
-            : sched
-            ? window.UrlState.serialize({ schedView: true, schedMonth: sched.month, schedFilter: sched.filter })
-            : lu
-            ? window.UrlState.lineupsHref(lu).slice(1)
-            : cmp
-            ? window.UrlState.compareHref(cmp).slice(1)
-            : vs
-            ? window.UrlState.serialize({ vsView: true, vsTeam: vs.team, vsRange: vs.range, vsType: vs.type, vsMetric: vs.metric })
+        const h = '#' + (route.pageHash()
             // 網址帶來的球員還在等名單比對時，原樣寫回（只寫 ID 或舊名字），不可配上前一位球員的名字
-            : window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
+            || window.UrlState.serialize({ viewMode, selectedPlayer: wantPlayer ? wantPlayer.name : selectedPlayer, playerId: wantPlayer ? wantPlayer.pid : currentPlayerId, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide,
                 focusMetric: activeFocus ? activeFocus.m : null, highlightDate: activeFocus ? activeFocus.hl : null,
                 periodStr: window.Period ? window.Period.serialize(period) : '', periodCond: window.Period ? window.Period.condStr(period) : '' }));
         if (window.location.hash !== h) window.history.replaceState(null, '', h);
     }, [viewMode, selectedPlayer, activeTab, selectedSeasonKey, seasonTypeView, selectedDate, viewSide, focus, gameDate, gamePlayer, gameTab, gameBox, capView, capSeason, capTab, vs, sched, lu, cmp, homePending, wantPlayer, currentPlayerId, period]);
-    // 進出單場頁／薪資頁／對戰一律用「新增瀏覽紀錄」的方式（返回鍵可回上一個畫面）：改 location.hash → hashchange 套用
-    const openGame = (date, player) => { window.location.hash = window.UrlState.gameHref(date, player).slice(1); };
-    const openCap = () => { window.location.hash = window.UrlState.capHref(capSeason, capTab).slice(1); };
-    const openSchedule = () => { window.location.hash = window.UrlState.schedHref().slice(1); };
-    // 組合頁：o＝{ n, season, type, picks }（從總覽五人陣容點進來時帶主畫面的賽季）
-    const openLineups = (o) => { window.location.hash = window.UrlState.lineupsHref(o).slice(1); };
-    // 組合頁的賽季與賽別：沒指定＝當季、依時節（季後賽期間預設季後賽）
-    const luSeason = (lu && lu.season) || window.CURRENT_SEASON;
-    const luDefType = (season) => season === window.CURRENT_SEASON && (window.getSeasonPhase() || {}).type === 'playoffs' ? 'playoffs' : 'regular';
-    const luType = (lu && lu.type) || luDefType(luSeason);
-    // 組合頁內的切換（同一頁的狀態變化，replaceState）：換人數時最少分鐘與檢視回到該人數預設；賽季、賽別是預設值時不寫進網址
-    // 比較頁：o＝{ a, b, sa, sb, type }；頁內切換同一頁狀態（replaceState），當季寫成空字串（網址不帶）
-    const openCompare = (o) => { window.location.hash = window.UrlState.compareHref(o).slice(1); };
-    const changeCmp = (patch) => setCmp(c => {
-        const x = { ...c, ...patch };
-        ['sa', 'sb'].forEach(k => { if (k in patch && patch[k] === window.CURRENT_SEASON) x[k] = ''; });
-        return x;
-    });
     // 比較頁的快照（Playtype、在場／不在場）：沿用跨季比較的載入（當季讀最新每日快照、歷史讀期末快照，皆以名字為 key）
     const loadCompareSnap = (season, type) => loadComparisonSeason(season === window.CURRENT_SEASON ? `current_${type}` : `${season}_${type}`);
-    const changeLu = (patch) => setLu(l => {
-        const x = { ...l, ...patch };
-        if ('n' in patch) { x.min = null; x.view = ''; x.picks = (l.picks || []).slice(0, patch.n); }
-        if ('season' in patch) x.season = patch.season === window.CURRENT_SEASON ? '' : patch.season;
-        const season = x.season || window.CURRENT_SEASON;
-        const type = 'type' in patch ? patch.type : (l.type || luDefType(l.season || window.CURRENT_SEASON));
-        x.type = type === luDefType(season) ? '' : type;
-        return x;
-    });
     // 完整賽程入口只在有當季預覽文件時出現（歷史賽季沒有開賽時間與對手 ID）
     const canSchedule = !!previewDoc;
-    // 對戰：沿用目前的對戰範圍（從單隊頁回首頁、首頁點進單隊頁都不會把範圍重設）
-    const openVs = (team, metric) => {
-        window.location.hash = window.UrlState.vsHref(team || '', vs ? vs.range : '', vs ? vs.type : '', metric || '').slice(1);
-    };
-    // 對戰範圍／賽別切換：同一頁內的狀態變化，replaceState（不新增瀏覽紀錄）
-    const setVsRange = (range) => setVs(v => ({ ...v, range: range === 'recent' ? '' : range }));
-    const setVsType = (type) => setVs(v => ({ ...v, type: type === 'all' ? '' : type }));
     // 獨立整頁左上的返回鈕。不用 history.back()：從外部連結直接打開時，上一頁會離開本站
     const backBtn = (label, onClick) => (
         <button type="button" onClick={onClick}
             className="mb-3 inline-flex min-h-[24px] items-center gap-1 text-[12px] text-slate-400 hover:text-slate-100">{label}</button>
     );
-    // 回主畫面（單場頁、薪資頁、對戰共用）：主畫面狀態在這些頁期間保持不動
-    const leaveGame = () => {
-        if (gameDate) { setGameDate(null); setGamePlayer(''); setGameTab(''); setGameBox(''); }
-        if (capView) setCapView(false);
-        if (vs) setVs(null);
-        if (sched) setSched(null);
-        if (lu) setLu(null);
-        if (cmp) setCmp(null);
-    };
 
     // 同一分頁貼上另一個連結時只有 hash 變（不會重新載入）→ 套用新狀態。replaceState 不會觸發 hashchange
     const seasonKeyRef = useRef(selectedSeasonKey);
     seasonKeyRef.current = selectedSeasonKey;
+    const routeRef = useRef(route);
+    routeRef.current = route;
     useEffect(() => {
         if (!window.UrlState) return;
         const onHash = () => {
             const st = window.UrlState.parse(window.location.hash);
-            setHomePending(false);   // 首頁還在找最新一場時使用者已經切走，以使用者的選擇為準
-            // 單場頁：只切換單場狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
-            if (st.gameDate) { setCapView(false); setVs(null); setSched(null); setLu(null); setCmp(null); setGameDate(st.gameDate); setGamePlayer(st.gamePlayer || ''); setGameTab(st.gameTab || ''); setGameBox(st.gameBox || ''); window.scrollTo(0, 0); return; }
-            setGameDate(null); setGamePlayer(''); setGameTab(''); setGameBox('');
-            // 薪資頁：同單場頁，只切換薪資頁狀態
-            if (st.capView) { setVs(null); setSched(null); setLu(null); setCmp(null); setCapView(true); setCapSeason(st.capSeason || ''); setCapTab(st.capTab || ''); window.scrollTo(0, 0); return; }
-            setCapView(false);
-            // 完整賽程：同單場頁，只切換賽程頁狀態
-            if (st.schedView) { setVs(null); setLu(null); setCmp(null); setSched({ month: st.schedMonth || '', filter: st.schedFilter || '' }); window.scrollTo(0, 0); return; }
-            setSched(null);
-            // 組合數據：同單場頁，只切換組合頁狀態
-            if (st.luView) { setVs(null); setCmp(null); setLu(luOf(st)); window.scrollTo(0, 0); return; }
-            setLu(null);
-            // 球員比較：同單場頁，只切換比較頁狀態
-            if (st.cmpView) { setVs(null); setCmp(cmpOf(st)); window.scrollTo(0, 0); return; }
-            setCmp(null);
-            // 對戰：同單場頁，只切換對戰狀態
-            if (st.vsView) {
-                setVs({ team: st.vsTeam || '', range: st.vsRange || '', type: st.vsType || '', metric: st.vsMetric || '' });
-                if (!st.vsMetric) window.scrollTo(0, 0);   // 帶 m= 時由單隊頁自己捲到該指標
-                return;
-            }
-            setVs(null);
+            // 獨立整頁：只切換該頁狀態，主畫面（球員、章節、賽季…）保持原樣，返回時回到原畫面
+            if (routeRef.current.applyPageHash(st)) return;
             setFocus(st.focusMetric ? { m: st.focusMetric, hl: st.highlightDate || null, key: focusKeyOf(st.viewMode, st.selectedPlayer, st.activeTab) } : null);
             if (window.Period) setPeriod(window.Period.parse(st.periodStr, st.periodCond));
             if (st.viewMode) setViewMode(st.viewMode);
@@ -1066,7 +496,7 @@ const App = () => {
 
     // 獨立整頁（單場／薪資／對戰）的數字鍵由該頁自己的分頁列處理（UI.useTabKeys；對戰頁沒有分頁列＝不作用）
     const ownPageRef = useRef(false);
-    ownPageRef.current = !!(gameDate || capView || vs || sched || lu || cmp || homePending);
+    ownPageRef.current = route.ownPage;
     // 快捷鍵：/ 開搜尋、1–6 切章節（只在主畫面）。輸入框聚焦、搜尋面板或走勢 Modal 開著時不攔截
     useEffect(() => {
         const keys = TABS.map(t => t.key);
@@ -1083,7 +513,6 @@ const App = () => {
     }, [paletteOpen, selectedCard]);
 
     // 頭像列用：球員 PlayerID（Synergy → tracking → meta 三層 fallback）與跨隊標示
-    const curPlayerDoc = playerSeq[playerIdx];
     const playerIdOf = (name) => {
         const st = curPlayerDoc?.stats?.[name] || [];
         return st[0]?.playerId || curPlayerDoc?.tracking?.[name]?.playerId || curPlayerDoc?.meta?.[name]?.playerId || 0;
@@ -1091,7 +520,6 @@ const App = () => {
     const tagOf = (name) => window.tagOfMeta(curPlayerDoc?.meta?.[name]);
     const pickPlayer = (name) => { setViewMode('PLAYER'); setSelectedPlayer(name); };
 
-    const curOpt = SEASON_OPTIONS.find(o => o.key === selectedSeasonKey);
     // 刊頭／搜尋面板的「年份＋賽別」→ 既有狀態（selectedSeasonKey＋seasonTypeView），網址 s=/t= 格式不變。
     // 換到歷史年份沿用目前賽別；回到當季改用時節預設（10 月切去「當季季後賽」只會是空畫面）
     const viewYear = isHistoryMode ? (curOpt?.season || '') : 'current';
@@ -1110,34 +538,15 @@ const App = () => {
     };
     // 球員身分列的薪資膠囊：顯示「目前檢視賽季」的 cap hit，用 playerId 對 contracts（不比對名字），點擊開薪資頁
     const salarySeason = isHistoryMode ? curOpt?.season : window.CURRENT_SEASON;
-    const salaryRow = (viewMode === 'PLAYER' && capDoc && currentPlayerId)
-        ? (capDoc.contracts || []).find(c => c.season === salarySeason && c.playerId === Number(currentPlayerId)) : null;
-    const identitySalary = salaryRow ? (() => {
-        const C = window.CapCalc;
-        const twoWay = salaryRow.type === 'TWO-WAY';
-        const team = C.payroll(capDoc, salarySeason).tax;
-        return {
-            season: salarySeason,
-            text: twoWay ? '雙向合約' : C.fmtM(salaryRow.salary),
-            title: twoWay ? '雙向合約，不計入球隊薪資｜點擊開啟薪資頁'
-                : `${C.fmtFull(salaryRow.salary)}｜佔全隊奢侈稅薪資 ${(salaryRow.salary / team * 100).toFixed(1)}%｜點擊開啟薪資頁`,
-            badge: salaryRow.option === 'PO' ? '球員選項' : salaryRow.option === 'TO' ? '球隊選項'
-                : salaryRow.option === 'ETO' ? '提前終止選項' : (!twoWay && salaryRow.guarantee !== 'full') ? '非全額保障' : '',
-        };
-    })() : null;
+    const identitySalary = viewMode === 'PLAYER' ? L.salaryBadge(capDoc, salarySeason, currentPlayerId) : null;
     const openSalary = () => { window.location.hash = window.UrlState.capHref(salarySeason === window.capSeasonForDate() ? '' : salarySeason).slice(1); };
     const seasonDisplay = isHistoryMode
         ? (curOpt?.label || '')
         : `${window.CURRENT_SEASON} ${stTypeLabel}`;
     const untilDateForAvg = isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null);
     // 身分列的附加賽膠囊（只有全隊檢視、該季有附加賽才出現；時光機選的日期之後的不算）：點了開最近一場附加賽
-    const playinSummary = (() => {
-        if (viewMode !== 'TEAM') return null;
-        const gs = scheduleGames.filter(g => g.type === 'playin' && (!untilDateForAvg || g.date <= untilDateForAvg));
-        if (!gs.length) return null;
-        const last = gs[gs.length - 1];
-        return { w: gs.filter(g => g.wl === 'W').length, l: gs.filter(g => g.wl === 'L').length, onOpen: () => openGame(last.date) };
-    })();
+    const pin = isTeamView ? L.playinSummary(scheduleGames, untilDateForAvg) : null;
+    const playinSummary = pin ? { w: pin.w, l: pin.l, onOpen: () => openGame(pin.lastDate) } : null;
     // 章節列黏頂時左側的季別標籤（「26-27 例行」）：捲到下面也看得到正在看哪一季
     const chapterSeasonTag = `${String((isHistoryMode ? curOpt?.season : window.CURRENT_SEASON) || '').slice(2)} ${viewType === 'playoffs' ? '季後' : '例行'}`;
 
@@ -1308,7 +717,7 @@ const App = () => {
                             : <div className="py-16 text-center text-sm text-slate-500 animate-pulse">載入中…</div>)
                         : window.MatchupHome && <window.MatchupHome range={vs.range || 'recent'} type={vs.type || 'all'}
                             onRange={setVsRange} onType={setVsType} onOpenTeam={openVs}
-                            players={availablePlayers.map(n => ({ name: n, id: playerIdOf(n) })).filter(p => p.id)} />}
+                            players={periodPlayers} />}
                 </main>
             ) : (<>
             <window.RosterRail viewMode={viewMode} selectedPlayer={selectedPlayer} players={availablePlayers}
@@ -1345,7 +754,7 @@ const App = () => {
                     {noCurrentSnapshots ? (
                         <div className="min-w-0 border border-amber-500/30 bg-amber-500/[0.06] p-6">
                             {snapError ? (<>
-                                <p className="text-amber-300 font-bold mb-2">當季快照讀取失敗</p>
+                                <p className="text-amber-300 font-bold mb-2">{isHistoryMode ? '歷史賽季快照讀取失敗' : '當季快照讀取失敗'}</p>
                                 <p className="text-slate-400 text-sm leading-relaxed">
                                     <code className="text-slate-300">{snapError}</code><br />
                                     常見原因是該 collection 缺少 Firestore 安全規則的 read 白名單。<br />
@@ -1378,7 +787,7 @@ const App = () => {
                         {activeTab === 'overview' && window.OverviewTab && (
                             <window.OverviewTab
                                 viewMode={viewMode} selectedPlayer={selectedPlayer}
-                                games={seasonGames} untilDate={isHistoryMode ? null : (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : null)}
+                                games={seasonGames} untilDate={untilDateForAvg}
                                 base={currentBase}
                                 snapshotClutch={currentClutch} snapshotOnoff={currentOnoff}
                                 lineups={currentLineups} lineupsHref={window.UrlState.lineupsHref({ n: 5, season: isHistoryMode ? (curOpt?.season || '') : '', type: viewType })}

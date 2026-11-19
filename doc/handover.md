@@ -29,7 +29,7 @@
 |---|---|---|---|
 | 每日抓取、賽別、附加賽 | `fetch_data.py`、`nba_common.py` | 自動化排程、Firebase 資料結構 | 2026-07 六分頁大改版；更新紀錄 2026-11-19（B 批、附加賽） |
 | 看門狗 | `watchdog.py`、`run_watchdog.bat` | 自動化排程 | 2026-10-26 每日抓取看門狗；2026-11-13 資料品質小修 |
-| 版面、網址、快捷鍵 | `App.js`、`urlState.js`、`Masthead.js`、`IdentityBar.js`、`ChapterNav.js` | 版面骨架與網址狀態、規則與指令細節 | 2026-10 Wolves Ledger 改版；2026-10-24 單場分頁＋介面統一；2026-10-24 網址改用球員「ID-名字」＋賽季參數統一；更新紀錄 2026-11-19（刊頭改版） |
+| 版面、網址、快捷鍵 | `App.js`、`appRoute.js`、`urlState.js`、`Masthead.js`、`IdentityBar.js`、`ChapterNav.js` | 版面骨架與網址狀態、規則與指令細節 | 2026-10 Wolves Ledger 改版；2026-10-24 單場分頁＋介面統一；2026-10-24 網址改用球員「ID-名字」＋賽季參數統一；更新紀錄 2026-11-19（刊頭改版） |
 | 單場比賽頁 | `GamePage.js` | 單場比賽頁、單場數據 | 2026-10-19 單場比賽頁＋跨季疊圖；2026-10-24 單場分頁＋介面統一 |
 | 單場題材、歷史定位 | `build_insights.py`、`GamePage.js` | 單場數據（`insights`）、FAQ | 2026-11-04 手機版巡檢與單場題材；2026-11-04 歷史定位 |
 | 賽前預覽、完整賽程 | `build_preview.py`、`PreviewPanel.js`、`SchedulePage.js` | 單場數據（預覽文件）、FAQ | 2026-11-04 賽前預覽與完整賽程 |
@@ -164,7 +164,10 @@ wolvestracker/
 │   ├── urlState.js                  ← 網址 hash 讀寫
 │   ├── Masthead.js / GameCalendar.js / RosterRail.js / IdentityBar.js / ChapterNav.js / CommandPalette.js ← 版面骨架、賽程月曆與快速搜尋
 │   ├── PeriodControl.js             ← 全域期間的膠囊／面板（含條件編輯器）／手機提示列
-│   └── App.js                       ← 主容器：資料訂閱、狀態、版面組裝
+│   ├── appLogic.js                  ← App 的純計算 window.AppLogic（歷史快照轉換、快照定位與取值、季別提示、名單排序、防守缺資料說明、薪資膠囊、未開打場次、附加賽摘要、組合／比較頁狀態更新；有測試）
+│   ├── appData.js                   ← App 的資料載入 hooks：useCloudReady、useSeasonSnapshots（當季／歷史快照、跨季比較與雷達疊加）、useScheduleData（比賽索引、賽程、賽前預覽）、useSeasonGames（逐場 bundle、條件戰績逐場）
+│   ├── appRoute.js                  ← 獨立整頁路由 useRouteState（單場／薪資／完整賽程／組合／比較／對戰的狀態、進出、網址）＋開站首頁＝最新一場
+│   └── App.js                       ← 主畫面：狀態、網址同步（主畫面部分）、期間與引用情境、畫面組裝（2026-11-19 由 1,506 行拆成約 900 行）
 ├── styles/app.css                   ← Tailwind 入口＋全站基礎樣式（背景、焦點框、減少動態）
 ├── tailwind.config.js               ← 字體、slate-500/600 對比調整
 ├── package.json / package-lock.json ← 鎖定 esbuild、tailwindcss、@resvg/resvg-js 版本（npm ci）
@@ -215,7 +218,7 @@ wolvestracker/
   - `test_consistency.py` 逐場對帳（少抓才算異常、多的只記 over、快照未涵蓋的場次不比）
   - `test_fetch_flow.py`＋`fake_nba.py` 抓取流程假資料（每日、只抓單場、強制快照、附加賽期間、季後賽首日補附加賽、歷史回補）：寫入哪些文件與結構、request 清單、旁路呼叫；**新增快照類別沒加進 `DATA_KEYS` 會失敗**；本地輸出經 `WOLVES_LOCAL_DIR` 導到暫存
   - `test_contracts.py` 前後端成對規則（同一組時間點兩邊算出的資料賽季／名冊賽季／美東日期、賽別標籤與 gameId 前綴、`INSIGHT_MARK_RULES`＝`HISTORY_RULES`、`tracking_zero_filled`⇔`cleanGameStats`）；`tests/js/eval_bundle.js` 讓 Python 在 Node 沙盒裡呼叫前端函式
-- 前端 `tests/js/*.test.js`：`gameagg`（Σ分子/Σ分母、eFG、TS、加權、在場效率、vs 平常）、`cache`（到期、開站清理、存滿刪最舊、私密模式）、`format`（fix1／fixSigned／Num／cellNum）、`dates`（含夏令的賽季界線、賽別小工具）、`quote`（貼文格式）、`capcalc`（合成資料手算＋`tests/fixtures/salary_main_2026-11-19.json` 真實快照：兩種總額與 Sheet 的 Spotrac 參考值逐元相符、層級與繳稅紀錄一致、2024-25 稅額手算核對）
+- 前端 `tests/js/*.test.js`：`applogic`（App 拆出的純計算：歷史快照轉換、PlayerID 取法、名單排序、季別提示、防守缺資料、薪資膠囊、附加賽摘要、組合／比較頁狀態）、`gameagg`（Σ分子/Σ分母、eFG、TS、加權、在場效率、vs 平常）、`cache`（到期、開站清理、存滿刪最舊、私密模式）、`format`（fix1／fixSigned／Num／cellNum）、`dates`（含夏令的賽季界線、賽別小工具）、`quote`（貼文格式）、`capcalc`（合成資料手算＋`tests/fixtures/salary_main_2026-11-19.json` 真實快照：兩種總額與 Sheet 的 Spotrac 參考值逐元相符、層級與繳稅紀錄一致、2024-25 稅額手算核對）
 - 每批都做過「故意改壞」檢查（拿掉 `DATA_KEYS` 一欄、寬限天數改 0、季平均改逐場平均），測試都會失敗
 - 加測試：後端照 `test_*.py` 放 `tests/py/`（開頭 `import _common` 取得 scripts 路徑）；前端放 `tests/js/*.test.js`。沙盒建立的陣列／物件原型和 Node 主環境不同，`deepEqual` 前先 `JSON.parse(JSON.stringify(x))`
 
@@ -577,6 +580,13 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 
 ## 前端架構重點
 
+### App.js 的分工（2026-11-19 技術債 F 批）
+- `App.js` 只留主畫面的狀態、主畫面網址同步、期間與引用情境（`CiteCtx`／`RankCtx`）與畫面組裝；畫面（JSX）沒有搬動
+- 純計算放 `appLogic.js` 的 `window.AppLogic`，不碰 React、不讀 Firestore，所以能在 Node 測（`tests/js/applogic.test.js`）。新增「從快照／賽程算出要顯示什麼」的邏輯優先放這裡並加測試
+- 資料載入放 `appData.js` 的 hooks；讀 Firestore 一律等 `isCloud`，快速切換時用 `cancelled` 旗標擋掉較晚回來的舊查詢
+- 獨立整頁放 `appRoute.js` 的 `useRouteState`：新增一種獨立整頁時，在這裡加狀態、`applyPageHash` 的判斷（決定優先順序）、`pageHash` 的組法與 `open*`，App.js 只加一段畫面分支。App 的 hashchange 先交給 `applyPageHash`，回 false 才套用主畫面狀態
+- 新檔都在 `bundle.py` 的 ORDER 裡排在 `App.js` 前面；它們和 App.js 同一個打包作用域，hooks 內一律從 `React` 取（不可在頂層再宣告一次 `const { useState } = React`）
+
 ### 賽季模式（`selectedSeasonKey`）
 - `'current'`：當季 `getDocs` 讀兩個集合（先近期、需要時整季，見「效能與無障礙」；2026-10-28 前是 onSnapshot），date 為實際日期，身分列時光機選日期
 - 其他（如 `'2024-25_playoffs'`）：history mode，`getDoc` 一次拿賽季終點快照，date 顯示賽季 label，日期切換隱藏
@@ -846,7 +856,7 @@ PageSpeed 的效能分數是「模擬推算」，每次會跳動：同一版曾�
 
 ### E. 待辦與可清理
 
-- 技術債（2026-11-19 盤點）：A～D 批與 E 批（文件瘦身）已完成；**F 批 `App.js` 拆分**未做（已有自動化測試保護）；**Firestore 安全規則進版控**未做（需要使用者安裝 firebase CLI 並 `firebase login`）
+- 技術債（2026-11-19 盤點）：A～F 批都已完成（F 批 2026-11-19：`App.js` 拆出 `appLogic.js`／`appData.js`／`appRoute.js`，畫面組裝仍在 App.js）；**Firestore 安全規則進版控**未做（需要使用者安裝 firebase CLI 並 `firebase login`）
 - 對戰分析後續（原 B2，都要先跟使用者確認，緣由見 history.md「對戰分析後續構想」）：對手 Tracking／Hustle 逐場資料從 2026-10 起才有，累積幾季後可加「對手端進階數據」；2022-23～2024-25 補 box score（`--box-only`，約 290 場 × 4 requests）就能讓每節分差、對手 box 涵蓋整個近三季；「急停出手數」等出手次數類指標是否改 `neutral: true`
 - 薪資：Sheet 的 2025-26、2026-27 奢侈稅率（1.0／1.25／3.5／4.75，累犯 3.0～6.75）與 2024-25（1.5／1.75／2.5／3.25）不同，待使用者核對；其他待確認數字見 history.md「2026-10-20 薪資頁（Cap Sheet）」的後續清單
 - 2026-11-19 已清：早期 `debug_*.py`／`test_*.py`、`run_backfill_next.bat`、`scripts/backfill_queue.txt`、舊回補驗證檔與 log 都搬到 `_local/`（未刪除）

@@ -937,6 +937,7 @@ Phase 6 結果（PageSpeed 手機）：無障礙 97→**100**、總傳輸 11.3 M
 
 ## 更新紀錄
 
+- 2026-11-19 — 技術債 F 批（`App.js` 拆分，畫面不動）：1,506 行拆成 `App.js`（約 900 行，主畫面狀態與畫面組裝）＋`appLogic.js`（純計算 `window.AppLogic`，新增 `tests/js/applogic.test.js` 13 個測試）＋`appData.js`（資料載入 hooks）＋`appRoute.js`（獨立整頁路由與開站首頁）。順手修：歷史賽季讀取失敗改在畫面顯示（原本跳 `alert`），錯誤卡標題分當季／歷史；拿掉未使用的變數與 import（`currentShooting`、`prevTracking`、`SimpleLineChart` 等 14 個）；逐場 bundle 與投籃的賽季／賽別改共用 `splitsBundle`；重複的 `untilDate`、球員清單算式改用既有變數；「賽季不記憶」的註解改寫成實際做法（舊值由 `Cache.purge` 清）。瀏覽器逐頁驗證（首頁最新一場、主畫面六章節、時光機、歷史賽季、期間與條件、走勢視窗、搜尋、單場、薪資、完整賽程、組合、比較、對戰含 `m=` 捲動與範圍保留、手機 375px），console 無錯誤
 - 2026-11-19 — 技術債 E 批（文件瘦身）：handover.md 拆成現況（handover.md，約 8.6 萬字，加「文件地圖與維護方式」「功能索引」）與開發紀錄（本檔）；過時敘述逐條對照程式碼改正（快取鍵改 `CACHE_NS`、Blaze 方案、走勢 Modal、單場頁不掛章節列、刊頭站徽、`DATA_KEYS`、反爬蟲現況等）；CLAUDE.md 改查表式（15,750 → 約 5,200 字，舊條文原文移到 handover「規則與指令細節」）；README 移除檔案樹、集合清單、過時反爬蟲說明，改指向手冊。原檔備份在 `~/.claude/ops/backup-20261119/wolvestracker-E/`
 - 2026-11-19 — 技術債 D 批（自動化測試，Phase 1–6）：新增 `scripts/run_tests.py`、`tests/py`（36 個）、`tests/js`（38 個）、`tests/fixtures`；`bundle.py` 打包完自動跑前端測試；`.gitignore` 的 `debug_*.py`／`test_*.py` 改成只忽略根目錄；`backfill_history.py` 本地輸出可用 `WOLVES_LOCAL_DIR` 改目錄。過程中發現 B 批對照測試把 `_local/backfill/backfill_2024-25_{regular,playoffs}.json` 覆蓋成假資料，已由 Firestore 同名歷史快照重建（內容為 2026-11-19 的 Firestore 版本，含之後補的欄位；說明在 `_local/backfill/README_2024-25.txt`）。另發現 Sheet 的 2025-26、2026-27 奢侈稅率（1.0／1.25／3.5／4.75，累犯 3.0～6.75）與 2024-25（1.5／1.75／2.5／3.25）不同，待使用者核對
 

@@ -81,6 +81,9 @@ ORDER = [
     "PeriodControl.js",
     "ChapterNav.js",
     "CommandPalette.js",
+    "appLogic.js",
+    "appData.js",
+    "appRoute.js",
     "App.js",
 ]
 

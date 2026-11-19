@@ -32,6 +32,7 @@
 
 ## 前端
 - `components/*.js` 掛 `window.*`，`bundle.py` 依 ORDER 串接、esbuild 不改名識別字；Tailwind class 要完整寫在原始碼（不可字串拼接）；提交要連 `dist/` 與 `index.html`；圖表自繪 SVG、不引入圖表套件
+- `App.js` 只放主畫面狀態與畫面組裝：純計算放 `appLogic.js`（`window.AppLogic`，要加測試）、資料載入放 `appData.js`、獨立整頁路由放 `appRoute.js` →「App.js 的分工」
 - 資料層：季平均／Splits／趨勢／對戰 → `GameAgg` 算逐場 bundle；Playtype／Clutch／On-Off／防守 → 快照；投籃 → 逐球；單場 → `gamesData.loadGameDocs` →「前端架構、各頁網址與資料層」
 - 逐場重算不可直接平均比率：新比率指標先決定走 `RATIO_DEFS`／`EFG_DEFS`／`TS_DEFS`／`WAVG_DEFS` 哪一種；次數類 defs 加 `neutral: true`
 - 效率：球員效率一律是**在場**效率（`ON_PTS`÷`ON_POSS` 加權），不在場只能用官方單場 On/Off，不可由全隊減在場推算
