@@ -112,7 +112,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const decimalsOf = (x) => { const mt = typeof x === 'number' ? String(x).match(/\.(\d+)$/) : null; return mt ? mt[1].length : 0; };
     const rowDp = (m, who) => Math.min(3, Math.max(0, ...cols.map(c => decimalsOf(getVal(c.key, m, who)))));
     const fmt = (v, m, who) => v == null ? '—'
-        : m.signed ? (v > 0 ? '+' : '') + window.fix1(v)
+        : m.signed ? window.fixSigned(v)
         : m.pct ? v.toFixed(1) + '%'
         : m.playtype ? v.toFixed(2)
         : activeCat === 'base' || activeCat === 'onoff' || activeCat === 'scoring' ? v.toFixed(1)

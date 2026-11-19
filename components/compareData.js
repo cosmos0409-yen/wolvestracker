@@ -5,7 +5,7 @@
 // 「差距最大」：(A − B) ÷ 兩人逐場標準差的合併值（同對戰頁的思路：平常就波動大的指標要差很多才算明顯），每人至少 3 場有值
 window.Compare = (function () {
     const GA = () => window.GameAgg;
-    const isNum = (v) => typeof v === 'number' && isFinite(v);
+    const isNum = window.Num.isNum;
     // 與 GameAgg 的 isAvgKey 同規則：這些是比率／效率，不能換算每 36 分鐘
     const AVG_RE = /_PCT$|_FREQ$|_RATING$|PLUSMINUS$|PER_TOUCH$|REB_DIST$|TIME_OF_POSS$|PACE/;
     const isRate = (k) => !!(GA().RATIO_DEFS[k] || GA().EFG_DEFS[k]) || AVG_RE.test(k);
@@ -45,7 +45,7 @@ window.Compare = (function () {
         if (per36 && !isRate(key) && key !== 'MIN') { const m = (g.stats || {}).MIN; return m > 0 ? v / m * 36 : null; }
         return v;
     };
-    const sd = (xs) => { if (xs.length < 2) return 0; const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1)); };
+    const sd = window.Num.sd;
 
     // 哪一邊比較好：'a'／'b'／null（中性、相等、缺值）
     const winner = (m, a, b) => {

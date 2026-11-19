@@ -1,10 +1,7 @@
 // 單場數據面板：選一場比賽，看該場的 Tracking / 投籃 / 防守單場數值
 // 資料來源 wolves_player_games/{date} 與 wolves_team_games/{date}（backfill_games.py / 每日順抓）
 // 單場只有部分欄位（tracking + 最近防守者 + Hustle + 分區投籃），故只渲染「有資料」的卡片群組
-// 刪掉舊版快取（v1 wt_game_wolves_…、v2 wt_game_v2_…）：內容可能含清理前的非當時隊員，且不刪會永久佔著儲存空間
-try {
-    Object.keys(localStorage).filter(k => k.startsWith('wt_game_wolves_') || k.startsWith('wt_game_v2_') || k.startsWith('wt_game_v3_')).forEach(k => localStorage.removeItem(k));
-} catch (e) { /* 私密模式等無法存取 localStorage */ }
+// 讀取一律經 gamesData.loadGameDocs（與單場頁、對戰頁共用記憶體＋window.Cache 的 gc 快取；2026-11-19 前自有一套 wt_game_v4_ 快取）
 
 const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex }) => {
     const { useState, useEffect } = React;
@@ -23,33 +20,20 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
         if (!dates.includes(selectedDate)) setSelectedDate(lastDate);
     }, [lastDate, dates.length]);
 
-    const coll = viewMode === 'TEAM' ? 'wolves_team_games' : 'wolves_player_games';
+    const side = viewMode === 'TEAM' ? 'team' : 'player';
 
     useEffect(() => {
-        if (!selectedDate || !window.db || !window.firebaseModules) return;
+        if (!selectedDate || !window.db || !window.firebaseModules || !window.loadGameDocs) return;
         let cancelled = false;
         setDoc(undefined);
-        const cacheKey = `wt_game_v4_${coll}_${selectedDate}`;   // v4：2026-11-12 重抓 10/21～10/26 四場；v3：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版（v2 為 2026-10-19 清理 2025-26）
-        let cached = null;
-        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (e) { /* fall through */ }
-        // 舊版會連未定稿的文件一起快取：讀到 final=false 的就丟掉重抓
-        if (cached && cached.final !== false) { setDoc(window.cleanGameDoc(cached)); return; }
-        if (cached) { try { localStorage.removeItem(cacheKey); } catch (e) { /* ignore */ } }
-        (async () => {
-            const { doc: docFn, getDoc } = window.firebaseModules;
-            try {
-                const snap = await getDoc(docFn(window.db, coll, selectedDate));
-                const data = snap.exists() ? snap.data() : null;
-                // 未定稿（final=false）不快取，否則會永久讀到半成品（同 gamesData.loadGameDocs）
-                if (data && data.final !== false) { try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (e) { /* quota */ } }
-                if (!cancelled) setDoc(window.cleanGameDoc(data));
-            } catch (e) {
-                console.error('single game fetch fail', coll, selectedDate, e);
+        window.loadGameDocs(selectedDate)
+            .then(docs => { if (!cancelled) setDoc(docs ? (docs[side] || null) : null); })
+            .catch(e => {
+                console.error('single game fetch fail', side, selectedDate, e);
                 if (!cancelled) setDoc(null);
-            }
-        })();
+            });
         return () => { cancelled = true; };
-    }, [selectedDate, coll]);
+    }, [selectedDate, side]);
 
     if (!dates.length) return null;
 

@@ -109,7 +109,6 @@ const App = () => {
     useEffect(() => savePref('viewSide', viewSide), [viewSide]);
     useEffect(() => savePref('selectedPlayer', selectedPlayer), [selectedPlayer]);
     // 賽季不記憶：開站一律看當季（舊賽季只靠網址 s= 打開）。清掉舊版存下的值，免得以後誤讀
-    useEffect(() => { try { localStorage.removeItem('wt_pref_selectedSeasonKey'); } catch (e) { /* ignore */ } }, []);
     useEffect(() => savePref('compareKeys', compareKeys), [compareKeys]);
     useEffect(() => savePref('comparePlayers', comparePlayers), [comparePlayers]);
 

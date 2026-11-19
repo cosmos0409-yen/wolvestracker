@@ -61,27 +61,22 @@ window.loadSeasonGames = async function (season, type, viewMode, playerId) {
 };
 
 // 單場兩份文件 → { team: wolves_team_games/{date}, player: wolves_player_games/{date} }；兩份都沒有回 null，讀取失敗往上拋。
-// 單場頁與對戰頁共用同一份快取：記憶體 window.__gameDocCache ＋ localStorage（wt_gc_v7_{date}，存 { savedAt, v }）。
+// 單場頁、對戰頁、總覽單場面板共用同一份快取：記憶體 window.__gameDocCache ＋ window.Cache 命名空間 gc（cache.js）。
 //   未定稿（final=false）不寫 localStorage，免得鎖住半成品；persist=false 只讀不寫（對戰頁一次讀十幾場，避免塞爆儲存空間）
 //   有效期限：insights 每天重算（「之後被超越」註記、歷史定位標籤的現在排名），永久快取會讓讀者一直看到舊的 →
 //   本季場次 1 天、舊賽季 7 天後重讀（舊賽季的紀錄也可能被本季打破，但變得少）
 //   v2：2026-10-23 清理 2022-23～2024-25 非當時隊員後換版；v3：2026-10-29 box 補進階＋單場 On/Off 後換版；v4：2026-11-04 單場文件加 insights（本場題材）後換版；
 //   v5：2026-11-04 改存 { savedAt, v } 加有效期限；舊鍵載入時刪掉；v6：2026-11-12 灰狼球員加最近防守者兩分／護框欄位後換版；v7：同日重抓 10/21～10/26 四場（開季 Tracking 切入次數當時少抓）後換版
+//   2026-11-19 起改走 window.Cache（gc），以前的版本歷程（v2～v7）見 git；換版改 cache.js 的 CACHE_NS.gc.ver
 const GAME_DOC_TTL_DAYS = { current: 1, past: 7 };
-try {
-    Object.keys(localStorage).filter(k => /^wt_gc_(v[23456]_)?\d{4}-/.test(k)).forEach(k => localStorage.removeItem(k));
-} catch (e) { /* 私密模式等無法存取 localStorage */ }
 window.loadGameDocs = async function (date, persist = true) {
     const mem = (window.__gameDocCache = window.__gameDocCache || {});
     if (mem[date]) return mem[date];
-    const lsKey = `wt_gc_v7_${date}`;
     const clean = (c) => ({ team: window.cleanGameDoc(c.team), player: window.cleanGameDoc(c.player) });
     // seasonForDate 吃 Date 物件（與 GamePage 同寫法）
     const ttlDays = window.seasonForDate(new Date(date + 'T12:00:00Z')) === window.CURRENT_SEASON ? GAME_DOC_TTL_DAYS.current : GAME_DOC_TTL_DAYS.past;
-    try {
-        const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
-        if (c && c.v && Date.now() - (c.savedAt || 0) < ttlDays * 86400000) { mem[date] = clean(c.v); return mem[date]; }
-    } catch (e) { /* ignore */ }
+    const c = window.Cache.get('gc', date);
+    if (c) { mem[date] = clean(c); return mem[date]; }
     const { doc, getDoc } = window.firebaseModules;
     const [t, p] = await Promise.all([
         getDoc(doc(window.db, 'wolves_team_games', date)),
@@ -91,7 +86,7 @@ window.loadGameDocs = async function (date, persist = true) {
     if (v) {
         mem[date] = clean(v);
         const final = (v.team || v.player || {}).final !== false;
-        if (final && persist) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
+        if (final && persist) window.Cache.set('gc', date, v, ttlDays * window.Cache.DAY);
     }
     return v ? mem[date] : v;
 };
@@ -103,13 +98,10 @@ window.loadGameDocs = async function (date, persist = true) {
 window.loadGamesIndex = async function (season, type) {
     if (!window.db || !window.firebaseModules) return [];
     const indexId = `${season}_${type}`;
-    const cacheKey = `wt_games_index_v3_${indexId}`;
     const cacheable = season !== window.CURRENT_SEASON;
     if (cacheable) {
-        try {
-            const c = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-            if (c && c.games && c.games.length) return c.games;
-        } catch (e) { /* fall through */ }
+        const c = window.Cache.get('idx', indexId);
+        if (c && c.length) return c;
     }
     // 當季索引：同一頁面 5 分鐘內共用同一次讀取（開站時刊頭賽程、首頁最新一場、單場面板、單場頁賽程條會同時要同一份）
     const mem = (window.__gamesIndexMem = window.__gamesIndexMem || {});
@@ -118,9 +110,7 @@ window.loadGamesIndex = async function (season, type) {
     const { doc, getDoc } = window.firebaseModules;
     const p = getDoc(doc(window.db, 'wolves_games_index', indexId)).then(snap => {   // 失敗往上拋，呼叫端決定怎麼顯示
         const games = snap.exists() ? (snap.data().games || []) : [];
-        if (cacheable && games.length) {
-            try { localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), games })); } catch (e) { /* quota */ }
-        }
+        if (cacheable && games.length) window.Cache.set('idx', indexId, games, 30 * window.Cache.DAY);
         return games;
     });
     mem[indexId] = { t: Date.now(), p };
@@ -139,22 +129,19 @@ window.loadSeasonSchedule = async function (season) {
 
 // 賽前預覽 wolves_games_index/{season}_preview（build_preview.py 每日覆寫）：灰狼本季全部賽程（含未開打、開賽時間、oppId）、
 // 30 隊數據與名次、30 隊近 5 場。只有當季有這份 → 其他賽季直接回 null 不讀。
-// 快取：同頁面共用一次讀取＋localStorage wt_pv_v1_{season}（存 { savedAt, v }，3 小時過期；文件一天只更新一次）。
+// 快取：同頁面共用一次讀取＋window.Cache 命名空間 pv（3 小時過期；文件一天只更新一次）。
 // 讀取失敗或文件不存在回 null，呼叫端把入口藏起來即可，不擋畫面
 const PREVIEW_TTL_MS = 3 * 3600 * 1000;
 window.loadPreview = function (season) {
     if (!window.db || !window.firebaseModules || season !== window.CURRENT_SEASON) return Promise.resolve(null);
     const mem = (window.__previewMem = window.__previewMem || {});
     if (mem[season]) return mem[season];
-    const lsKey = `wt_pv_v1_${season}`;
-    try {
-        const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
-        if (c && c.v && Date.now() - (c.savedAt || 0) < PREVIEW_TTL_MS) return (mem[season] = Promise.resolve(c.v));
-    } catch (e) { /* ignore */ }
+    const c = window.Cache.get('pv', season);
+    if (c) return (mem[season] = Promise.resolve(c));
     const { doc, getDoc } = window.firebaseModules;
     const p = getDoc(doc(window.db, 'wolves_games_index', `${season}_preview`)).then(snap => {
         const v = snap.exists() ? snap.data() : null;
-        if (v) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
+        if (v) window.Cache.set('pv', season, v, PREVIEW_TTL_MS);
         return v;
     }).catch(e => { console.warn('preview load fail', e); delete mem[season]; return null; });
     return (mem[season] = p);
@@ -162,7 +149,7 @@ window.loadPreview = function (season) {
 
 // 組合數據 wolves_games_index/{season}_{type}_lineups（fetch_data.py 每日覆寫當季；歷史賽季由 backfill_history.py --only-lineups 寫入）：
 // { season, seasonType, asOf（當季＝快照日、歷史＝'final'）, gp, players: {PlayerID: 縮寫名}, groups: {'2'|'3'|'5': [{ids, gp, min, off, def, net, ts, poss}]}, trimmed }
-// 快取：同頁面共用一次讀取；已結束賽季另存 localStorage wt_lu_v1_{season}_{type}（{ savedAt, v }，7 天），當季不存（每天會變）。
+// 快取：同頁面共用一次讀取；已結束賽季另存 window.Cache 命名空間 lu（7 天），當季不存（每天會變）。
 // 文件不存在回 null；讀取失敗往上拋（頁面顯示「重試」）
 const LINEUPS_TTL_MS = 7 * 24 * 3600 * 1000;
 window.loadLineups = function (season, type) {
@@ -171,17 +158,14 @@ window.loadLineups = function (season, type) {
     const mem = (window.__lineupsMem = window.__lineupsMem || {});
     if (mem[id]) return mem[id];
     const cacheable = season !== window.CURRENT_SEASON;
-    const lsKey = `wt_lu_v1_${season}_${type}`;
     if (cacheable) {
-        try {
-            const c = JSON.parse(localStorage.getItem(lsKey) || 'null');
-            if (c && c.v && Date.now() - (c.savedAt || 0) < LINEUPS_TTL_MS) return (mem[id] = Promise.resolve(c.v));
-        } catch (e) { /* ignore */ }
+        const c = window.Cache.get('lu', `${season}_${type}`);
+        if (c) return (mem[id] = Promise.resolve(c));
     }
     const { doc, getDoc } = window.firebaseModules;
     const p = getDoc(doc(window.db, 'wolves_games_index', id)).then(snap => {
         const v = snap.exists() ? snap.data() : null;
-        if (v && cacheable) { try { localStorage.setItem(lsKey, JSON.stringify({ savedAt: Date.now(), v })); } catch (e) { /* quota */ } }
+        if (v && cacheable) window.Cache.set('lu', `${season}_${type}`, v, LINEUPS_TTL_MS);
         return v;
     });
     p.catch(() => { if (mem[id] === p) delete mem[id]; });   // 失敗不留，重試時重讀

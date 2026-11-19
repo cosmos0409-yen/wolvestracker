@@ -7,8 +7,8 @@
 window.Matchup = (function () {
     const GA = window.GameAgg;
     const rules = () => window.MATCHUP_RULES;
-    const isNum = v => typeof v === 'number' && isFinite(v);
-    const round1 = v => Math.round(v * 10) / 10;
+    const isNum = window.Num.isNum;
+    const round1 = window.Num.round1;
     const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
     // 失分（逐場推得：得分 − 正負值）。舊場次沒有對手數據，這是唯一跨所有賽季都有的防守結果
@@ -118,8 +118,7 @@ window.Matchup = (function () {
         games.forEach(g => { const v = gameValue(g, key); if (v !== null) vals.set(g, v); });
         const xs = [...vals.values()];
         if (xs.length < 2) return null;
-        const m = xs.reduce((a, b) => a + b, 0) / xs.length;
-        const sd = Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1));
+        const sd = window.Num.sd(xs);
         const has = [...vals.keys()];
         return { key, vals, sd, n: has.length, value: GA.metricOf(has, null, 'TEAM', key) };
     }

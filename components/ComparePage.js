@@ -124,7 +124,7 @@ const ComparePage = ({ a = '', b = '', sa = '', sb = '', type = '', per = '', pd
         );
     };
 
-    const fmt = (m, v) => !Number.isFinite(v) ? '—' : (/PLUS_?MINUS$/.test(m.key) ? (v > 0 ? '+' : '') : '') + window.fix1(v) + (m.unit || '');
+    const fmt = (m, v) => !Number.isFinite(v) ? '—' : (/PLUS_?MINUS$/.test(m.key) ? window.fixSigned(v) : window.fix1(v)) + (m.unit || '');
     // 命中率類：小字附成對的出手數（A／B）；最近防守者的 vs 平常用 defs 的 att
     const attOf = (m) => { const r = (window.GameAgg.RATIO_DEFS[m.key] || window.GameAgg.EFG_DEFS[m.key]); return r ? r[r.length - 1] : (m.att || null); };
     const row = (m) => {
@@ -163,7 +163,7 @@ const ComparePage = ({ a = '', b = '', sa = '', sb = '', type = '', per = '', pd
     const pair = sameSeason && luDoc ? ((luDoc.groups || {})['2'] || []).find(r => r.ids.includes(pA.id) && r.ids.includes(pB.id)) : null;
     const onoffOf = (k, p) => { const sp = (snaps[k] || {}).player; const n = sp ? C.snapName(sp, p.id) : null; return n && sp.onoff ? sp.onoff[n] || null : null; };
     const ooA = onoffOf(keyA, pA), ooB = onoffOf(keyB, pB);
-    const sg = (v) => (Number.isFinite(v) ? (v > 0 ? '+' : '') + window.fix1(v) : '—');
+    const sg = (v) => (Number.isFinite(v) ? window.fixSigned(v) : '—');
     const tone = (v) => (v > 0 ? 'text-[#34D399]' : v < 0 ? 'text-[#F87171]' : 'text-slate-50');
     const cellBox = (label, value, sub, cls = 'text-slate-50') => (
         <div className="min-w-0 border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3">

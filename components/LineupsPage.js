@@ -97,7 +97,7 @@ const LineupsPage = ({ season, type, n = 2, picks = [], min = null, view = '', o
     ));
     const textNames = (ids) => order(ids).map(id => names[id] || id).join(' · ');
     const f1 = (v) => typeof v === 'number' ? window.fix1(v) : '—';
-    const sg = (v) => typeof v !== 'number' ? '—' : (v > 0 ? '+' : '') + window.fix1(v);
+    const sg = (v) => typeof v !== 'number' ? '—' : window.fixSigned(v);
     const tone = (v) => v > 0 ? 'text-[#12A150]' : v < 0 ? 'text-[#EF4444]' : 'text-slate-200';
     const typeLabel = type === 'playoffs' ? '季後賽' : '例行賽';
     window.CiteCtx = { subject: 'Minnesota Timberwolves', season: `${season} ${typeLabel}`, asOfSnap: d.asOf === 'final' ? null : d.asOf, asOfAgg: null, isHistory: d.asOf === 'final' };

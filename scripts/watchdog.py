@@ -280,7 +280,7 @@ def check_data(dry_run=False):
                 f"（{it['pct']:+g}%）；可疑：{sus}")
         if dates:
             log(f"   重抓：python scripts/backfill_games.py --type {type_key} --dates {','.join(dates)}"
-                f" → build_bundles.py --season {season} --type {type_key} → build_insights.py → 前端 wt_gc_／wt_game_ 換版")
+                f" → build_bundles.py --season {season} --type {type_key} → build_insights.py → 前端 cache.js 的 CACHE_NS.gc.ver +1")
         body = "；".join(f"{it['label']} {it['pct']:+g}%" for it in issues[:3]) + (f" 等 {len(issues)} 項" if len(issues) > 3 else "")
         body += f"。可疑日期：{'、'.join(d[5:] for d in dates)}" if dates else "。沒有明顯偏低的場次，請看 watchdog_log.txt"
         if not dry_run:

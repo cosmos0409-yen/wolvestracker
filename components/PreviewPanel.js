@@ -101,7 +101,7 @@ const PreviewPanel = ({ date, preview, game }) => {
 
     // ── 雙方對照 ──
     const fields = (preview.fields || []).filter(f => L.MIN && L[opp] && typeof L.MIN[f.key] === 'number' && typeof L[opp][f.key] === 'number');
-    const fmt = (k, v) => k === 'FG3_PCT' ? `${v.toFixed(1)}%` : k === 'NET_RATING' ? `${v > 0 ? '+' : ''}${window.fix1(v)}` : v.toFixed(1);
+    const fmt = (k, v) => k === 'FG3_PCT' ? `${window.fix1(v)}%` : k === 'NET_RATING' ? window.fixSigned(v) : window.fix1(v);
     const cell = (t, f, better, side) => {
         const rk = (R[t] || {})[f.key];
         return (

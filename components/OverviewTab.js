@@ -51,8 +51,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
     const valOf = (v, s) => {
         if (typeof v !== 'number') return null;
-        if (s.plus) return (v > 0 ? '+' : '') + v.toFixed(1);
-        return v.toFixed(1);
+        return s.plus ? window.fixSigned(v) : window.fix1(v);
     };
     // 聯盟名次：全隊與球員（window.RankCtx 已限當季快照）；季平均只在「全季」時有名次。
     // 球員的真實／有效命中率名次在 advanced 類別，所以季平均找 base 再找 advanced

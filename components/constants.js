@@ -10,6 +10,15 @@ window.smallSampleNote = (n, what = '數據') => (typeof n === 'number' && n > 0
     ? `${what}只有 ${n} 場，樣本小、數值波動大（尤其百分位與命中率），看趨勢請等累積到 ${window.SMALL_SAMPLE_GAMES} 場以上` : null;
 // 一位小數，-0.04 這類捨入後為 0 的負數不顯示成「-0.0」
 window.fix1 = (v) => { const s = Number(v).toFixed(1); return s === '-0.0' ? '0.0' : s; };
+// 帶正負號：四捨五入後是 0 就不帶符號（不出現「+0.0」「-0.0」）；dp＝小數位。正負值、淨效率、期間差距等一律用它
+window.fixSigned = (v, dp = 1) => { const s = Number(v).toFixed(dp); return Number(s) === 0 ? (0).toFixed(dp) : (Number(s) > 0 ? '+' : '') + s; };
+// 共用數學小工具（2026-11-19 前 compareData／matchupData／MatchupHome／MatchupPage／gameAggregates／Highlights 各寫一份）
+window.Num = {
+    isNum: (v) => typeof v === 'number' && isFinite(v),
+    round1: (v) => Math.round(v * 10) / 10,
+    // 樣本標準差（n − 1）；少於 2 筆回 0
+    sd: (xs) => { if (xs.length < 2) return 0; const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1)); },
+};
 
 // 名稱比對用 key：去句點/重音/多餘空白後小寫。
 // 必要性：同一人的名字在不同季的 API 回傳不一致
@@ -137,36 +146,10 @@ window.tagOfMeta = (meta) => (meta && meta.isNewcomer) ? window.teamTag(meta.tea
 window.PLAYER_META_KEYS = ['playerId', 'isCurrentRoster', 'teamAbbr'];
 window.hasRealData = (obj) => !!obj && Object.keys(obj).some(k => !window.PLAYER_META_KEYS.includes(k));
 
-// 歷史快照的 localStorage 快取。
-// 版本號：後端 backfill 改變結構時必須 +1，否則使用者瀏覽器會永遠讀到舊資料
-// （舊版程式只要 cache 存在就 return，不再打 Firestore）。
-// 不只「結構」變更要 +1，**每次重跑 backfill_history.py 也要 +1**：
-// 快取只以 docId 為 key，內容變了（例如回補後多出新援）而版本沒動，
-// 已開過頁面的使用者在 TTL 內完全看不到新資料。
-window.HISTORY_CACHE_VER = 6;                 // v6 = 歷史快照補最近防守者兩分／護框、球員進階、得分組成、全隊進階（2026-11-12）；v5 = 補齊 Hustle 欄位（2026-10-23）；v4 = 回補納入新援
-window.HISTORY_CACHE_TTL = 24 * 3600 * 1000;
-const _histKey = (docId) => `wt_history_v${window.HISTORY_CACHE_VER}_${docId}`;
-window.purgeHistoryCache = (all) => {
-    try {
-        Object.keys(localStorage).forEach(k => {
-            if (k.startsWith('wt_history_') && (all || !k.startsWith(`wt_history_v${window.HISTORY_CACHE_VER}_`)))
-                localStorage.removeItem(k);
-        });
-    } catch (e) { /* private mode / quota */ }
-};
-window.readHistoryCache = (docId) => {
-    try {
-        const o = JSON.parse(localStorage.getItem(_histKey(docId)) || 'null');
-        if (!o || o.v !== window.HISTORY_CACHE_VER) return null;
-        if (Date.now() - o.t > window.HISTORY_CACHE_TTL) return null;
-        return o.d;
-    } catch (e) { return null; }
-};
-window.writeHistoryCache = (docId, d) => {
-    try { localStorage.setItem(_histKey(docId), JSON.stringify({ v: window.HISTORY_CACHE_VER, t: Date.now(), d })); }
-    catch (e) { window.purgeHistoryCache(true); }   // quota 滿 → 清掉全部歷史快取
-};
-window.purgeHistoryCache(false);   // 載入時立即清掉舊版 key
+// 歷史快照的 localStorage 快取（window.Cache 命名空間 hist，24 小時；cache.js）。
+// 後端重跑 backfill_history.py 或補欄位後，要把 cache.js 的 CACHE_NS.hist.ver +1，否則已開過的人 24 小時內讀到舊資料
+window.readHistoryCache = (docId) => { const v = window.Cache.get('hist', docId); return v === undefined ? null : v; };
+window.writeHistoryCache = (docId, d) => { window.Cache.set('hist', docId, d, window.Cache.DAY); };
 
 // 每日快照的讀取起始日：doc id 就是日期字串，故以 doc id 範圍過濾出「當季」。
 // 為什麼不用 orderBy(documentId(),'desc') + limit：那需要建 Firestore 複合索引，缺索引時查詢被拒、整個面板空掉。

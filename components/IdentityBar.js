@@ -22,8 +22,7 @@ const IdentityBar = ({ viewMode, playerName, playerId, tag, games, untilDate, ba
 
     const fmt = (v, f) => {
         if (typeof v !== 'number') return '—';
-        if (f.plus) return (v > 0 ? '+' : '') + v.toFixed(1);
-        return v.toFixed(1);
+        return f.plus ? window.fixSigned(v) : window.fix1(v);
     };
     const record = agg ? [`${agg.GP} 場`, (agg.W || agg.L) ? `${agg.W} 勝 ${agg.L} 敗` : null].filter(Boolean).join(' · ') : null;
     const name = viewMode === 'TEAM' ? 'Minnesota Timberwolves' : (playerName || '—');

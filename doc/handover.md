@@ -1218,7 +1218,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
 - **早期單場球員文件含非當時隊員（2025-26 已清理，2026-10-19）**：舊回補是用「後來的名冊名字」過濾全聯盟球員，混進別隊比賽。例行賽 51 份 `wolves_player_games` 共 91 筆（Dosunmu 26、Dillingham 19、Phillips 17、Miller 17、Anderson 12；其中 5 筆是他們以對手身分打灰狼）已從 `players` 移除。判定方法：`playerId` 不在當場 `wolves_team_games.box.players` 的 MIN 上場名單（tricode=='MIN' 且有 stats）。清理後重建了 `build_bundles.py --season 2025-26 --type regular`，讀回驗證 21 份球員 bundle 的每一場都對得上 box。季後賽、球隊 bundle、球隊單場 `stats` 沒受影響。注意：Overview 的 `SingleGamePanel` 以名字讀 `players`，並用 localStorage 永久快取（`wt_game_wolves_player_games_{date}`），清理後已把快取鍵換成 `wt_game_v2_…` 並在載入時刪掉舊鍵，讀者不用手動清快取
 - **2022-23～2024-25 清理（2026-10-23，`backfill_games.py --clean-players`）**：這三季沒有 box，改用**多欄位對帳**（0 request）。每場把 `players` 加總比 `wolves_team_games.stats`：PTS／FGM／FGA／FG3M／FTM／FTA／OREB／DREB／AST／STL／BLK／PF 必須全等，TOV 只要求不超過球隊（球隊失誤含 24 秒違例等團隊失誤），上場時間加總 ≈ 5 × 球隊 MIN（容差 1.5 分鐘）。對不上時找「剔除後全部對得上」的最少人數組合（1～4 人），**該人數下唯一一組才剔除**，否則只列出不動。先用已清理的 2025-26 校準：94 場零誤刪（唯一對不上的 2026-03-01 是 NBA 球員 DREB 加總比球隊少 1，全員都在 box，屬資料落差）。三季例行賽剔除 76 場、105 人次（2022-23：Conley 26、Alexander-Walker 23、Russell 9、Matt Ryan 7、A.J. Lawson 3；2023-24：Troy Brown Jr. 13、Monte Morris 5、Shake Milton 4、Wendell Moore Jr. 1；2024-25：Hyland 13、Tristen Newton 1），剔除日期與真實交易時間吻合；季後賽三季本來就對得上。重建三季 bundle 後，得分加總、對帳腳本、bundle 端反推三種核對全部歸零。用法：先 `--dry-run` 看名單，再拿掉 `--dry-run` 寫入，接著 `build_bundles.py --season X --type Y`
-- **清理資料後一定要讓前端舊快取失效**：`SingleGamePanel` 快取鍵 `wt_game_v4_`（2026-10-23 換 v3、2026-11-12 重抓 4 場換 v4）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v7_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4、同日改存 `{ savedAt, v }` 加有效期限換 v5——本季 1 天、舊季 7 天後重讀；2026-11-12 灰狼球員加最近防守者兩分／護框換 v6、同日重抓 10/21～10/26 換 v7；舊 `wt_gc_{date}`／`wt_gc_v2_`～`wt_gc_v6_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
+- **清理資料後一定要讓前端舊快取失效**（2026-11-19 起只要把 `cache.js` 的 `CACHE_NS.gc.ver` +1；以下為舊版歷程）：`SingleGamePanel` 快取鍵 `wt_game_v4_`（2026-10-23 換 v3、2026-11-12 重抓 4 場換 v4）、單場頁／對戰頁的 `loadGameDocs` 快取鍵 `wt_gc_v7_`（2026-10-29 box 補進階換 v3、2026-11-04 加 `insights` 換 v4、同日改存 `{ savedAt, v }` 加有效期限換 v5——本季 1 天、舊季 7 天後重讀；2026-11-12 灰狼球員加最近防守者兩分／護框換 v6、同日重抓 10/21～10/26 換 v7；舊 `wt_gc_{date}`／`wt_gc_v2_`～`wt_gc_v6_` 在 `gamesData.js` 載入時刪掉。單場文件**新增前端要讀的欄位**也要換版，`SingleGamePanel` 不讀的欄位不必換它）。球隊／球員 bundle 只有記憶體快取，重新整理就是新資料
 - **灰狼單場球員以 box score 上場名單的 PlayerID 過濾，不用名字**：名冊 API 與數據 API 的名字寫法可能不同（2025-26 實例：`Terrence Shannon Jr.` vs `Terrence Shannon Jr`），用名字過濾會整個人漏掉。名字清單只在 box score 抓不到時當後備（`keep_is_fallback`）；`backfill_games.py --min-gp > 0` 時才另外套輪換門檻。
 - **PlayType 單場**只能由每日快照的 Synergy 整數總量相減還原：`stats[]` 每項含 `gp/possTotal/ptsTotal/fgmTotal/fgaTotal`（`fetch_synergy_data` 已改 `PerMode=Totals`，顯示用 `poss` 由總量/GP 推導，比率不變）。兩份 GP 差=1 的快照相減得單場；PERCENTILE 無法還原。
 - **每日補抓（2026-10 起）**：`fetch_data.py` 的 `capture_recent_games()` 每次執行都讀 `teamgamelog`（只列已完賽場次），檢查最近 5 場（`CAPTURE_LOOKBACK_GAMES`）在 `wolves_player_games` 是否缺漏、未定稿（`final=False`）或 `partial=True`，逐場以**賽程上的比賽日期**擷取，並增量更新 bundle（`build_bundles.upsert_game`）與 `wolves_games_index`。不可改回用「執行當天日期」：排程執行時美東日期永遠是比賽隔天，查單場會落空（舊版 `capture_single_game` 即此問題，從未成功寫入過）。
@@ -1305,7 +1305,8 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 其他（如 `'2024-25_playoffs'`）：history mode，`getDoc` 一次拿賽季終點快照，date 顯示賽季 label，日期切換隱藏
 
 ### localStorage 快取
-- key：`wt_history_v{HISTORY_CACHE_VER}_{season}_{type}`（如 `wt_history_v6_2024-25_playoffs`；版本在 `constants.js`，2026-11-12 起 v6）。**歷史快照有任何回補（加欄位或重跑 `backfill_history.py`）都要把 `HISTORY_CACHE_VER` +1**，否則讀者 24 小時內看不到
+- 2026-11-19 起所有資料快取統一走 `window.Cache`（`components/cache.js`）：鍵 `wt_c_{命名空間}_{版本}_{key}`、值 `{ e: 到期, t: 寫入時間, v }`。命名空間與用途：`gc` 單場兩份文件（本季 1 天、舊季 7 天；單場頁、對戰頁、總覽單場面板共用 `loadGameDocs`）、`idx` 舊賽季比賽索引（30 天）、`pv` 賽前預覽（3 小時）、`lu` 舊賽季組合（7 天）、`hist` 歷史快照（24 小時）。換版只改 `CACHE_NS` 的 `ver`；開站時 `Cache.purge()` 清掉過期、版本不對與舊格式（`wt_gc_`／`wt_game_`／`wt_history_` 等）的鍵；存滿時 `evict` 依寫入時間刪最舊的四分之一再重寫（最多 4 輪）。除錯：瀏覽器 console `Cache.stats()` 看各命名空間筆數與 KB
+- 歷史快照 key（舊）：`wt_history_v{HISTORY_CACHE_VER}_{season}_{type}`——已改為 `Cache` 的 `hist`，`HISTORY_CACHE_VER` 已移除。**歷史快照有任何回補（加欄位或重跑 `backfill_history.py`）都要把 `CACHE_NS.hist.ver` +1**，否則讀者 24 小時內看不到
 - 存 `{ team, player }` 原始 doc，永不過期
 - 切換到歷史賽季優先讀 localStorage；讀到才呼 Firestore（Iter 1）
 - 跨賽季比較分頁進入時，逐個歷史賽季走相同邏輯（共用 cache）
@@ -1571,7 +1572,7 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 - **Bash heredoc 裡的 Python 若含 JSX／反引號／`'''`** 容易解析失敗：改寫成檔案再執行
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
-- **清理 Firestore 資料後，前端所有 localStorage 快取鍵都要換版**（2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v4_`）與 `loadGameDocs`（目前 `wt_gc_v7_`，單場頁／對戰頁；2026-11-04 起有 1～7 天期限）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
+- **清理 Firestore 資料後，前端快取要換版**（2026-11-19 起統一改 `cache.js` 的 `CACHE_NS` 版本，見「localStorage 快取」；以下為舊版說明，2026-10-23 踩過）：單場文件有兩處快取——`SingleGamePanel`（`wt_game_v4_`）與 `loadGameDocs`（目前 `wt_gc_v7_`，單場頁／對戰頁；2026-11-04 起有 1～7 天期限）。Phase 0 只換了前者，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。動資料前先 `grep localStorage.setItem` 找出所有快取
 - **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
 - **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 
@@ -1592,6 +1593,8 @@ DevTools → Application → Local Storage → 刪 `wt_history_*` 開頭的 key�
 ---
 
 ## 更新紀錄
+
+- 2026-11-19 — 技術債 C 批（Phase 1–3）：① 新增 `components/cache.js`（`window.Cache`／`CACHE_NS`），單場文件、舊賽季索引、賽前預覽、舊賽季組合、歷史快照五種快取改走它；總覽 `SingleGamePanel` 改用共用 `loadGameDocs`（拿掉永不過期的 `wt_game_v4_`）；`HISTORY_CACHE_VER`、各檔清舊版快取的程式碼、`wt_pref_selectedSeasonKey` 清理改由 `Cache.purge()` 統一處理。驗證：開站清掉 11 種舊鍵且保留偏好／引用籃、快取命中 0 次讀取、模擬存滿時刪最舊 3 筆後寫入成功。② 引用籃讀取丟掉格式不對的項目（`quoteFormat` `validItem`）：之前一筆壞資料就讓整站白屏。③ `window.fixSigned`、`window.Num`（`isNum`／`round1`／`sd`）取代 13 處各寫各的寫法；新舊對照 300 組只有「±0.0 → 0.0」不同（修掉「+0.0」「-0.0」）；8 個頁面實測無錯誤
 
 - 2026-11-19 — 附加賽與刊頭改版（Phase 1–3）：① 後端：`SEASON_TYPES` 加 `playin`（PlayIn／附加賽），`type_key_of()`、`SNAPSHOT_TYPE_KEYS`；`season_type_from_schedule` 依賽程判斷灰狼附加賽（gameId 005 且有灰狼球隊 ID）→ 主排程只擷取單場＋用例行賽數據更新預覽、不寫快照；附加賽最後一場隔天若已是季後賽首日，`capture_all()`／`pending_playin()` 另外補定稿附加賽，看門狗 `latest_watched_game()` 一起檢查；附加賽期間逐場對帳與每週熱圖跳過；`backfill_games.py`／`build_bundles.py`／`fetch_shotchart.py` 支援 `--type playin`。② 回補 2022-23 兩場附加賽（58 requests，各來源完整），`wolves_games_index`／`wolves_games_bundle`／`wolves_pgames_bundle` 的 `2022-23_playin`；投籃點未補。③ 前端：整季賽程含附加賽、月曆標「附加」、未開打的 005 場次標附加賽、首頁最新一場算進附加賽、單場頁附加賽膠囊與「本場 vs 例行賽平均」、引用標頭寫「附加賽」；身分列附加賽膠囊。④ 刊頭方案 A＋B：刊頭左右分區（「資料」群組／頁面入口＋搜尋）、移除複製連結、身分列季別標籤一律顯示、章節列黏頂時顯示季別。⑤ 前端美東時間改 `window.etParts()`（Intl，含夏令），與後端 `now_east()` 一致（B 批時交接手冊誤寫前端已是 Intl，這次才真的改）。未做：附加賽的本場題材（`build_insights` 只看例行／季後）
 

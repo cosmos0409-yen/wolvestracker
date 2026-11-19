@@ -59,15 +59,14 @@ const Highlights = ({ games, untilDate, n = 5, subset = null, subsetLabel = '' }
             if (!r.length) continue;
             rec = r.reduce((a, b) => a + b, 0) / r.length;
         }
-        const mean = perGame.reduce((a, b) => a + b, 0) / perGame.length;
-        const sd = Math.sqrt(perGame.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, perGame.length - 1));
+        const sd = window.Num.sd(perGame);
         const diff = rec - season;
         const score = sd > 0 ? Math.abs(diff) / (sd / Math.sqrt(n)) : 0;
         rows.push({ ...m, season, rec, diff, score, recAtt });
     }
     const top = rows.sort((a, b) => b.score - a.score).slice(0, 4).filter(r => r.score >= 1);
 
-    const fmt = (v, m) => (m.pct ? v.toFixed(1) + '%' : (m.key === 'PLUS_MINUS' && v > 0 ? '+' : '') + v.toFixed(1));
+    const fmt = (v, m) => (m.pct ? window.fix1(v) + '%' : m.key === 'PLUS_MINUS' ? window.fixSigned(v) : window.fix1(v));
     const good = (r) => (r.diff > 0) !== !!r.lowerIsBetter;
 
     return (

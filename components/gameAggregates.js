@@ -44,7 +44,7 @@ window.GameAgg = (function () {
     // 無法精確重算 → 退回逐場平均（比率/效率/頻率/距離類）
     const isAvgKey = k => /_PCT$|_FREQ$|_RATING$|PLUSMINUS$|PER_TOUCH$|REB_DIST$|TIME_OF_POSS$|PACE/.test(k);
 
-    const round1 = v => Math.round(v * 10) / 10;
+    const round1 = window.Num.round1;
 
     function entityOf(game, entityKey, viewMode) {
         if (viewMode === 'TEAM') return game.stats || null;

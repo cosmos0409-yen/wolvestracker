@@ -167,7 +167,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         if (typeof v !== 'number') return '—';
         const m = metaOf(k);
         const s = m.unit === '%' || /_PCT$|PLUSMINUS$|_RATING$/.test(k) ? window.fix1(v) : (Number.isInteger(v) && !isAvg ? String(v) : v.toFixed(1));
-        return ((/PLUSMINUS$/.test(k) || /NET_RATING$/.test(k)) && v > 0 ? '+' : '') + s + (m.unit === '%' ? '%' : '');
+        return ((/PLUSMINUS$/.test(k) || /NET_RATING$/.test(k)) ? window.fixSigned(v) : s) + (m.unit === '%' ? '%' : '');
     };
     // 本場 vs 季平均：中性→不判；樣本少→不判；否則依 betterIsLarger
     const judge = (k, v, avg, ent) => {
@@ -704,7 +704,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
             const v = s[k];
             if (typeof v !== 'number') return '—';
             if (k === 'POSS') return String(Math.round(v));
-            return (k === 'NET_RATING' && v > 0 ? '+' : '') + window.fix1(v);
+            return k === 'NET_RATING' ? window.fixSigned(v) : window.fix1(v);
         }
         if (k === 'FG') return `${s.FGM}-${s.FGA}`;
         if (k === '3P') return `${s.FG3M}-${s.FG3A}`;

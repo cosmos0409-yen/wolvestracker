@@ -203,7 +203,9 @@
     };
     const writeJSON = (k, v) => { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 私密模式等：只留在記憶體 */ } };
     const notify = () => { try { window.dispatchEvent(new CustomEvent(EVENT)); } catch (e) { /* Node 測試環境 */ } };
-    const items = () => { const a = readJSON(KEY, mem); return Array.isArray(a) ? a : []; };
+    // 只收格式正確的項目：localStorage 裡有一筆壞資料（手動改過、舊版格式）時，渲染會丟例外、整站白屏（2026-11-19 發現）
+    const validItem = (it) => !!it && typeof it === 'object' && Array.isArray((it.parts && it.parts[0] ? it.parts[0] : it).values);
+    const items = () => { const a = readJSON(KEY, mem); return Array.isArray(a) ? a.filter(validItem) : []; };
     const save = (a) => { mem = a; writeJSON(KEY, a); notify(); };
     const opts = () => Object.assign({}, DEFAULT_OPTS, readJSON(OPTS_KEY, memOpts) || {});
     const setOpts = (patch) => { memOpts = Object.assign(opts(), patch); writeJSON(OPTS_KEY, memOpts); notify(); };
