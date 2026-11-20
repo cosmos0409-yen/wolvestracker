@@ -3,9 +3,11 @@
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
-// period／periodCtx：全域期間（periodFilter.js）。季平均與近期異動跟著期間；其他區塊（效率、Playtype 強弱項、雷達、On/Off、Clutch、陣容）
-// 是整季快照，篩選時包 UI.Locked（變淡、不能點）；單場面板本來就是單場，不受影響
-const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {}, playerAdvanced = null }) => {
+// period／periodCtx：全域期間（periodFilter.js）。季平均、近期異動、全隊效率、個人效率、在場／不在場跟著期間
+// （後三者 2026-11-20 起，用逐場 bundle 的 adv 重算，見 GameAgg.teamAdvanced／playerAdvanced／onOff；篩選時不排名、近似值標 ≈）；
+// 其他區塊（Playtype 強弱項、雷達、Clutch、陣容）是整季快照，篩選時包 UI.Locked（變淡、不能點）；單場面板本來就是單場，不受影響
+// teamGames：全隊逐場（球員視角的在場／不在場要用全隊場次；全隊視角＝games；還沒載入＝null）
+const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapshotClutch, snapshotOnoff, lineups, lineupsHref, gamesIndex, seasonLabel, onoffNA = null, viewSide = 'offensive', radarSlot = null, stats = [], playerId = null, advanced = null, period = null, periodCtx = {}, playerAdvanced = null, teamGames = null }) => {
     const GA = window.GameAgg;
     const UI = window.UI;
     const clutchDefs = window.clutchDefs || [];
@@ -44,7 +46,8 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     const isRecent = !!(res && seasonAgg && seasonAgg.GP > 0);   // 期間篩選生效（有逐場可篩）
     const agg = isRecent ? bundleAgg : ((bundleAgg && bundleAgg.GP > 0) ? bundleAgg : baseAgg);
     const summary = isRecent ? SUMMARY : SUMMARY.filter(s => !IN_IDENTITY.includes(s.key));
-    const rangeLabel = isRecent ? `${res.label}平均` : '季平均';
+    // 引用：全季寫「季平均」；篩選中不寫說明，由 citeLine 統一補「期間（N 場）」
+    const rangeNote = isRecent ? undefined : '季平均';
     const loadingAvg = games === null && !baseAgg;
     // 近期異動：近 5／10 場時比那幾場；其他期間比「篩選出的場次」（太少場不比）
     const hlSubset = isRecent && !['last5', 'last10'].includes(period.kind) && !condWaiting ? res.games : null;
@@ -60,16 +63,16 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     const rankOf = (cat, key) => window.leagueRank(cat, key);
     const whyOf = (cat, key) => window.rankWhy(cat, key);
 
-    // 全隊效率（Advanced 快照，每 100 回合／百分比）
+    // 全隊效率（Advanced 快照，每 100 回合／百分比）；lower：越低越好（篩選時的 vs 全季箭頭用）；neutral：不判好壞
     const ADVANCED = [
         { key: 'OFF_RATING', label: '進攻效率', en: 'OffRtg' },
-        { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg' },
+        { key: 'DEF_RATING', label: '防守效率', en: 'DefRtg', lower: true },
         { key: 'NET_RATING', label: '淨效率', en: 'NetRtg', plus: true },
-        { key: 'PACE', label: '節奏', en: 'Pace' },
+        { key: 'PACE', label: '節奏', en: 'Pace', neutral: true },
         { key: 'TS_PCT', label: '真實命中率', en: 'TS%', pct: true },
         { key: 'EFG_PCT', label: '有效命中率', en: 'eFG%', pct: true },
         { key: 'AST_PCT', label: '助攻率', en: 'AST%', pct: true },
-        { key: 'TM_TOV_PCT', label: '失誤率', en: 'TOV%', pct: true },
+        { key: 'TM_TOV_PCT', label: '失誤率', en: 'TOV%', pct: true, lower: true },
         { key: 'OREB_PCT', label: '進攻籃板率', en: 'OREB%', pct: true },
         { key: 'DREB_PCT', label: '防守籃板率', en: 'DREB%', pct: true },
     ];
@@ -78,6 +81,19 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     const PLAYER_ADV = window.playerAdvancedDefs || [];
     const hasPlayerAdv = !isTeam && playerAdvanced && typeof playerAdvanced.USG_PCT === 'number';
     const fmtAdv = (m, v) => typeof v !== 'number' ? null : (m.key === 'AST_TO' ? v.toFixed(2) : v.toFixed(1));
+
+    // 期間篩選中（條件到齊）：全隊效率／個人效率／在場不在場改用逐場 adv 重算，箭頭＝vs 全季（同一個「數據截至」）
+    // 在場／不在場的場次範圍依全隊（含該員沒上場的場次），所以球員視角要另外拿全隊逐場套同一個期間
+    const advOn = isRecent && !condWaiting;
+    const teamUntil = isTeam ? gamesUntil : (teamGames ? teamGames.filter(g => !untilDate || g.date <= untilDate) : null);
+    const teamAdvP = advOn && isTeam && hasAdvanced ? { cur: GA.teamAdvanced(res.games), all: GA.teamAdvanced(gamesUntil) } : null;
+    const playerAdvP = advOn && hasPlayerAdv ? { cur: GA.playerAdvanced(res.games), all: GA.playerAdvanced(gamesUntil) } : null;
+    const teamRes = advOn && !isTeam && teamUntil ? P.apply(teamUntil, period, { ...periodCtx, isTeam: true }) : null;
+    const onoffP = teamRes ? { cur: GA.onOff(gamesUntil, teamRes.games), all: GA.onOff(gamesUntil, teamUntil) } : null;
+    const approxOf = (r, k) => !!(r && r.approx.includes(k));
+    const periodSub = (gp, adv) => [`${res.label}（${gp} 場）`, '箭頭＝vs 全季', '篩選時不排名',
+        adv === 0 ? '這個期間沒有單場進階數據' : (adv != null && adv < gp ? `效率類只計有單場進階數據的 ${adv} 場` : null),
+        '≈ 為逐場加權近似'].filter(Boolean).join(' · ');
 
     // Playtype 強弱項（BBall Index 式）：只用 Synergy 百分位（真有聯盟排名的數字）。
     // 攻守兩面百分位皆「越高越好」（已用資料驗證：防守 PPP 越低 → 百分位越高）。
@@ -144,14 +160,29 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                         {summary.map(s => (
                             <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(agg[s.key], s)} unit={s.pct ? '%' : ''}
                                 prevValue={isRecent && seasonAgg ? seasonAgg[s.key] : undefined} betterIsLarger={s.key !== 'TOV'}
-                                gkey={s.key} citeAsOf="agg" citeNote={rangeLabel} rank={isRecent ? null : rankOf(['base', 'advanced'], s.key)}
+                                gkey={s.key} citeAsOf="agg" citeNote={rangeNote} rank={isRecent ? null : rankOf(['base', 'advanced'], s.key)}
                                 rankWhy={isRecent ? null : whyOf(['base', 'advanced'], s.key)} />
                         ))}
                     </UI.Ledger>
                 </>)}
             </UI.Section>
 
-            {hasPlayerAdv && (<UI.Locked on={periodOn}>
+            {playerAdvP && (
+                <UI.Section title="個人效率" en="Player Efficiency" accent="green" sub={periodSub(playerAdvP.cur.GP, playerAdvP.cur.advGP)}>
+                    {playerAdvP.cur.GP === 0 ? <UI.Note>{selectedPlayer} 這個期間沒有出賽</UI.Note> : (
+                        <UI.Ledger cols={UI.ledgerCols(PLAYER_ADV.length)}>
+                            {PLAYER_ADV.map(m => (
+                                <UI.StatCell key={m.key} label={m.label} fullLabel={window.metricLabel(m)} en={m.englishLabel}
+                                    value={fmtAdv(m, playerAdvP.cur[m.key])} unit={m.unit || ''} neutral={!!m.neutral}
+                                    prevValue={playerAdvP.all[m.key]} betterIsLarger={m.betterIsLarger !== false}
+                                    gkey={m.key} citeAsOf="agg" approx={approxOf(playerAdvP.cur, m.key)} />
+                            ))}
+                        </UI.Ledger>
+                    )}
+                </UI.Section>
+            )}
+
+            {hasPlayerAdv && !playerAdvP && (<UI.Locked on={periodOn}>
                 <UI.Section title="個人效率" en="Player Efficiency" accent="green"
                     sub="比率類 · 整季快照（在場的進攻／防守效率見「在場／不在場」）">
                     <UI.Ledger cols={UI.ledgerCols(PLAYER_ADV.length)}>
@@ -165,7 +196,19 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 </UI.Section>
             </UI.Locked>)}
 
-            {hasAdvanced && (<UI.Locked on={periodOn}>
+            {teamAdvP && (
+                <UI.Section title="全隊效率" en="Advanced" accent="green" sub={periodSub(teamAdvP.cur.GP, teamAdvP.cur.advGP)}>
+                    <UI.Ledger cols={UI.ledgerCols(ADVANCED.length)}>
+                        {ADVANCED.map(s => (
+                            <UI.StatCell key={s.key} label={s.label} en={s.en} value={valOf(teamAdvP.cur[s.key], s)} unit={s.pct ? '%' : ''}
+                                prevValue={teamAdvP.all[s.key]} betterIsLarger={!s.lower} neutral={!!s.neutral}
+                                gkey={s.key} citeAsOf="agg" approx={approxOf(teamAdvP.cur, s.key)} />
+                        ))}
+                    </UI.Ledger>
+                </UI.Section>
+            )}
+
+            {hasAdvanced && !teamAdvP && (<UI.Locked on={periodOn}>
                 <UI.Section title="全隊效率" en="Advanced" accent="green"
                     sub={`每 100 回合效率與比率 · 整季快照${window.RankCtx ? ` · 小字為 ${(window.RankCtx.ranks.advanced || {})._n || window.LEAGUE_TEAMS} 隊聯盟名次` : ''}`}>
                     <UI.Ledger cols={UI.ledgerCols(ADVANCED.length)}>
@@ -217,23 +260,28 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
                 </UI.Section>
             </UI.Locked>)}
 
-            {hasOnoff && (<UI.Locked on={periodOn}>
-                <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue" sub="球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）">
+            {/* 期間篩選中（onoffP）：場次範圍依全隊，離場含該員沒上場的場次；離場是單場官方值加權的近似（≈） */}
+            {hasOnoff && (<UI.Locked on={periodOn && !onoffP}>
+                <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue"
+                    sub={onoffP ? [`${res.label}（全隊 ${onoffP.cur.teamGP} 場，出賽 ${onoffP.cur.GP} 場）`, '離場含沒上場的場次', '篩選時不排名', '≈ 離場為單場官方值加權'].join(' · ')
+                        : '球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）'}>
                     <UI.Ledger cols="grid-cols-1 sm:grid-cols-3">
-                        {[
-                            { label: '進攻效率', en: 'OffRtg', gk: 'OFF_RATING', on: onoff.ON_OFF_RATING, off: onoff.OFF_OFF_RATING, better: 'high' },
-                            { label: '防守效率', en: 'DefRtg', gk: 'DEF_RATING', on: onoff.ON_DEF_RATING, off: onoff.OFF_DEF_RATING, better: 'low' },
-                            { label: '淨效率', en: 'NetRtg', gk: 'NET_RATING', on: onoff.ON_NET_RATING, off: onoff.OFF_NET_RATING, better: 'high' },
-                        ].map(m => {
+                        {(() => { const oo = onoffP ? onoffP.cur : onoff; return [
+                            { label: '進攻效率', en: 'OffRtg', gk: 'OFF_RATING', on: oo.ON_OFF_RATING, off: oo.OFF_OFF_RATING, better: 'high' },
+                            { label: '防守效率', en: 'DefRtg', gk: 'DEF_RATING', on: oo.ON_DEF_RATING, off: oo.OFF_DEF_RATING, better: 'low' },
+                            { label: '淨效率', en: 'NetRtg', gk: 'NET_RATING', on: oo.ON_NET_RATING, off: oo.OFF_NET_RATING, better: 'high' },
+                        ]; })().map(m => {
                             const diff = (typeof m.on === 'number' && typeof m.off === 'number') ? m.on - m.off : null;
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
+                            const asOf = onoffP ? 'agg' : 'snap';
                             return (
                                 <div key={m.label} className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}<UI.Info k={m.gk}
-                                        quote={diff == null ? undefined : () => window.Quote.make({ kind: 'compare', sep: 'vs.', label: m.label, en: m.en, gkey: m.gk, better: m.better, asOf: 'snap',
+                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}{onoffP && <UI.ApproxMark />}<UI.Info k={m.gk}
+                                        quote={diff == null ? undefined : () => window.Quote.make({ kind: 'compare', sep: 'vs.', label: m.label, en: m.en, gkey: m.gk, better: m.better, asOf,
+                                            ...(onoffP ? { ctxNote: `離場${UI.APPROX_NOTE}` } : {}),
                                             values: [{ tag: '在場', value: m.on.toFixed(1) }, { tag: '離場', value: m.off.toFixed(1) }] })}
                                         cite={diff == null ? undefined : () => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
-                                            gkey: m.gk, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合）` })} /></div>
+                                            gkey: m.gk, asOf, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合${onoffP ? `；離場${UI.APPROX_NOTE}` : ''}）` })} /></div>
                                     <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>
                                     <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${diff == null ? 'text-slate-600' : good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
                                         {diff == null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1)}

@@ -257,11 +257,14 @@
     const make = (fields) => {
         const c = window.CiteCtx || {};
         const subject = c.subject === 'Minnesota Timberwolves' ? '灰狼全隊' : (c.subject || '');
-        const asOf = fields.asOf === 'none' || c.isHistory ? null : (fields.asOf === 'agg' ? c.asOfAgg : c.asOfSnap) || null;
+        // 全域期間篩選中、逐場加總類（asOf agg）的數字：情境附上期間（例「2026-27 例行賽 勝場（8 場）」），避免被當成季平均；
+        // 日期區間有結束日 → 統計日用結束日。periodless：不跟期間的逐場數字（身分列）。ctxNote：情境補充（例「逐場加權近似」）
+        const inPeriod = fields.asOf === 'agg' && c.period && !fields.periodless;
+        const asOf = fields.asOf === 'none' || c.isHistory ? null
+            : (inPeriod && c.periodEnd) ? c.periodEnd : (fields.asOf === 'agg' ? c.asOfAgg : c.asOfSnap) || null;
         let url = '';
         try { url = `${window.location.origin}${window.location.pathname}${window.location.hash}`; } catch (e) { /* Node */ }
-        // 全域期間篩選中、逐場加總類（asOf agg）的數字：情境附上期間（例「2026-27 例行賽 勝場（8 場）」），避免被當成季平均
-        const context = [c.context || c.season || '', fields.asOf === 'agg' && c.period ? c.period : ''].filter(Boolean).join(' ');
+        const context = [c.context || c.season || '', inPeriod ? c.period : '', fields.ctxNote || ''].filter(Boolean).join(' ');
         const it = Object.assign({ kind: 'single', subject, context, sep: '→', rank: null, pr: null, note: null, better: null, url, game: c.game || null },
             fields, { asOf });
         // 原文只留名稱：畫面小字的補充說明（如「DIFF%（負=守得好）」）不進貼文

@@ -65,3 +65,64 @@ test('主客、勝敗分組', () => {
     assert.deepEqual(plain(GA.splitByHomeAway(games).map(x => [x.label, x.games.length])), [['主場', 1], ['客場', 1]]);
     assert.deepEqual(plain(GA.splitByWinLoss(games).map(x => x.label)), ['勝場', '敗場']);
 });
+
+// ── 總覽區間效率（teamAdvanced／playerAdvanced／onOff，讀 bundle 每場的 adv）──
+const tg = (date, stats, opp, adv) => ({ date, wl: 'W', matchup: 'MIN vs. DEN', stats, opp, adv });
+const team2 = [
+    tg('2026-11-01', { PTS: 120, FGM: 45, FGA: 90, FG3M: 12, FTA: 20, AST: 30, TOV: 10, OREB: 10, DREB: 30, PLUS_MINUS: 10 },
+        { PTS: 110 }, { POSS: 100, OPP_POSS: 101, PACE: 100, GMIN: 240, OREB_CH: 40, DREB_CH: 40 }),
+    tg('2026-11-03', { PTS: 100, FGM: 35, FGA: 85, FG3M: 8, FTA: 30, AST: 20, TOV: 20, OREB: 15, DREB: 35, PLUS_MINUS: -5 },
+        { PTS: 105 }, { POSS: 110, OPP_POSS: 109, PACE: 110, GMIN: 265, OREB_CH: 35, DREB_CH: 45 }),
+];
+
+test('全隊效率：Σ得分 ÷ Σ回合（不是逐場效率平均），失誤率 ÷ 回合，節奏依比賽分鐘加權', () => {
+    const a = plain(GA.teamAdvanced(team2));
+    assert.equal(a.OFF_RATING, 104.8);                 // 220/210；逐場平均會是 105.5
+    assert.equal(a.DEF_RATING, 102.4);                 // 215/210
+    assert.equal(a.NET_RATING, 2.4);
+    assert.equal(a.TM_TOV_PCT, 14.3);                  // 30/210
+    assert.equal(a.PACE, 105.2);                       // (100×240+110×265)/505＝105.25
+    assert.equal(a.AST_PCT, 62.5);                     // 50/80
+    assert.equal(a.OREB_PCT, 33.3);                    // 25/75
+    assert.equal(a.EFG_PCT, 51.4);                     // (80+0.5×20)/175
+    assert.deepEqual([a.GP, a.advGP], [2, 2]);
+    assert.ok(a.approx.includes('OREB_PCT') && !a.approx.includes('OFF_RATING'));
+});
+
+test('全隊效率：沒有 adv 的場次不進效率類（分子分母同一組），比率類照算；全沒有 → null', () => {
+    const a = GA.teamAdvanced([team2[0], { ...team2[1], adv: undefined }]);
+    assert.equal(a.OFF_RATING, 120.0);
+    assert.equal(a.advGP, 1);
+    const none = GA.teamAdvanced(team2.map(x => ({ ...x, adv: undefined })));
+    assert.equal(none.OFF_RATING, null);
+    assert.equal(none.PACE, null);
+    assert.equal(none.TS_PCT, 55.8);                   // 220/(2×(175+0.44×50))
+});
+
+test('個人效率：失誤率含助攻（NBA 球員公式），USG 依回合加權、PIE 依全場分母加權', () => {
+    const pg = [
+        { date: 'a', stats: { FGA: 20, FTA: 10, AST: 5, TOV: 5 }, adv: { POSS: 100, USG_PCT: 30, PIE: 20, PIE_W: 200 } },
+        { date: 'b', stats: { FGA: 10, FTA: 0, AST: 5, TOV: 0 }, adv: { POSS: 50, USG_PCT: 15, PIE: 5, PIE_W: 100 } },
+    ];
+    const a = GA.playerAdvanced(pg);
+    assert.equal(a.TM_TOV_PCT, 10.1);                  // 5/(30+0.44×10+10+5)
+    assert.equal(a.AST_TO, 2);
+    assert.equal(a.USG_PCT, 25.0);                     // (30×100+15×50)/150
+    assert.equal(a.PIE, 15.0);                         // (20×200+5×100)/300
+    assert.equal(GA.playerAdvanced([pg[1]]).AST_TO, null);   // 0 失誤不給比值
+});
+
+test('在場／不在場：沒上場的場次算整場全隊，有上場的用單場官方離場值依 OFF_W 加權', () => {
+    const pg = [{ date: '2026-11-01', stats: { ON_PTS: 90, ON_OPP_PTS: 80, ON_POSS: 75 },
+        adv: { OFF_OFF_RATING: 120, OFF_DEF_RATING: 120, OFF_W: 25 } }];
+    const o = GA.onOff(pg, team2);
+    assert.equal(o.ON_OFF_RATING, 120.0);
+    assert.equal(o.ON_NET_RATING, 13.3);
+    // 離場：第 1 場 25 回合 30 得 30 失；第 2 場沒上場＝整場 100 得 105 失、110 回合 → 130/135, 135/135
+    assert.equal(o.OFF_OFF_RATING, 96.3);
+    assert.equal(o.OFF_DEF_RATING, 100.0);
+    assert.deepEqual([o.GP, o.teamGP, o.missing], [1, 2, 0]);
+    const none = GA.onOff([], team2);                  // 期間內都沒上場：在場 null、離場＝全隊
+    assert.equal(none.ON_OFF_RATING, null);
+    assert.equal(none.OFF_OFF_RATING, 104.8);
+});

@@ -95,14 +95,19 @@ window.UI = (function () {
     };
     // 組引用句：主體｜賽季｜日期或期間｜指標（原文） 數值（聯盟第N）｜資料：來源
     // rank：window.leagueRank／ptRank 回傳的 { rank, n }，有給才在數值後加名次
-    const citeLine = ({ label, en, value, unit = '', gkey, asOf = 'snap', note, rank }) => {
+    // periodless：逐場重算但不跟期間的數字（身分列的全季數字），篩選中也不附期間
+    const citeLine = ({ label, en, value, unit = '', gkey, asOf = 'snap', note, rank, periodless = false }) => {
         const c = window.CiteCtx || {};
         const g = (window.GLOSSARY || {})[gkey] || {};
-        const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
+        // 全域期間篩選中、逐場加總類（asOf agg）的數字：說明文字沒寫到期間時補上「期間（N 場）」（例「2026-11-01 至 2026-11-17（8 場）」）；
+        // 期間有結束日（日期區間）就不再寫「截至」另一天
+        const inPeriod = asOf === 'agg' && c.period && !periodless;
+        const when = asOf === 'none' ? null : c.isHistory ? '期末快照' : (inPeriod && c.periodEnd) ? null : (asOf === 'agg' ? c.asOfAgg : c.asOfSnap);
         // 最後附上當下畫面的網址（hash 記住球員/章節/賽季/日期），日後可從引用直接回到原畫面查證
         const url = `${location.origin}${location.pathname}${location.hash}`;
-        // 全域期間篩選中、逐場加總類（asOf agg）的數字：說明文字沒寫到期間時補上（例「勝場（8 場）」）
-        const per = asOf === 'agg' && c.period && !String(note || '').includes(c.period.split('（')[0]) ? c.period : null;
+        // 說明文字已寫到期間（引用寫法或畫面上的短寫法 periodLabel，如近期異動、Splits）就不重複
+        const noted = (s) => !!s && String(note || '').includes(s);
+        const per = inPeriod && !noted(c.period.split('（')[0]) && !noted(c.periodLabel) ? c.period : null;
         return [c.subject, c.season, per, note, when ? (c.isHistory ? when : `截至 ${when}`) : null,
             `${label}${en ? `（${en}）` : ''} ${value}${unit}${rank ? `（聯盟第${rank.rank}）` : ''}`, `資料：${g.src || 'NBA.com Stats'}`, url].filter(Boolean).join('｜');
     };
@@ -373,8 +378,19 @@ window.UI = (function () {
     // signed：正值顯示「+」（vs 平常這類差值）；引用與複製也帶正負號，箭頭仍以數值計算
     // fullLabel：格子顯示縮寫標籤時的完整名稱（引用、複製用）
     // sub：數值下方的一般補充文字（灰色，如「占總得分 18.4%」；引用不帶）
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null, rankWhy = null }) => {
+    // 「≈」小框：逐場加權的近似值（與官方整季值差約 0.1～1）
+    const APPROX_NOTE = '逐場加權近似';
+    const ApproxMark = () => (
+        <span title="逐場加權的近似值（與官方整季值差約 0.1～1，出賽少的球員差更多）" aria-label="近似值"
+            className="ml-1 inline-flex shrink-0 items-center rounded-[3px] border border-amber-300/50 px-[3px] font-mono text-[10px] leading-[14px] text-amber-300">≈</span>
+    );
+    // approx：逐場加權的近似值（總覽期間篩選的效率類）：標籤旁標「≈」，引用加註「逐場加權近似」
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null, rankWhy = null, approx = false }) => {
         const citeLabel = fullLabel || label;   // 格子標籤是縮寫時（手機 3 欄），引用與複製用完整名稱
+        if (approx) {
+            citeNote = [citeNote, APPROX_NOTE].filter(Boolean).join('，');
+            quote = quote === null ? null : { ctxNote: APPROX_NOTE, ...(quote || {}) };
+        }
         const isNA = naReason && isBlank(value);
         const missing = isBlank(value);
         if (missing) { rank = null; sample = null; sub = null; }
@@ -394,6 +410,7 @@ window.UI = (function () {
                 <div className={`flex items-center text-[11px] leading-tight text-slate-300 min-w-0 ${gkey ? '' : 'pr-8'}`}>
                     {/* 手機 3 欄時每格只剩約 60px：標籤換行而不截斷（「急停三分命中率」會被切成「急停三分…」） */}
                     <span className="min-w-0 break-words">{label}</span>
+                    {approx && <ApproxMark />}
                     {gkey && <Info k={gkey} rank={rank} rankWhy={missing ? null : rankWhy} quote={quoteFn} cite={missing ? undefined : () => citeLine({ label: citeLabel, en, value: shown, unit, gkey, asOf: citeAsOf, note: citeNote, rank })} />}
                 </div>
                 {en && <div className="font-mono text-[10px] leading-tight text-slate-500 break-words">{en}</div>}
@@ -713,5 +730,5 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, cellNum, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, SIDE_OPTIONS, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
+    return { splitTitle, pctColor, cellNum, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, SIDE_OPTIONS, ApproxMark, APPROX_NOTE, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
 })();

@@ -178,7 +178,10 @@ const App = () => {
         player: selectedPlayer, typeLabel: stTypeLabel, date: effectiveDate, season: window.CURRENT_SEASON });
 
     // 逐場 bundle（總覽季平均、Splits、期間篩選）與條件戰績要的全隊／其他球員逐場
-    const periodNeeds = window.Period ? window.Period.needs(period, isTeamView) : { team: false, pids: [] };
+    // 球員視角在總覽篩選期間時也要全隊逐場：在場／不在場的場次範圍依全隊（含該員沒上場的場次，GameAgg.onOff）
+    const periodNeeds0 = window.Period ? window.Period.needs(period, isTeamView) : { team: false, pids: [] };
+    const periodNeeds = (!isTeamView && activeTab === 'overview' && window.Period && window.Period.isActive(period))
+        ? { ...periodNeeds0, team: true } : periodNeeds0;
     const { seasonGames, condTeam, condPlayers } = window.useSeasonGames({
         isCloud, season: splitsBundle[0], type: splitsBundle[1], viewMode, pid: currentPlayerId, needs: periodNeeds });
 
@@ -586,8 +589,11 @@ const App = () => {
         asOfSnap: displayDate,
         asOfAgg: untilDateForAvg || displayDate,
         isHistory: isHistoryMode,
-        // 全域期間（篩選時）：citeLine／Quote.make 對「截至日」類（逐場加總）的數字附上，避免貼出去被當成季平均
-        period: periodOn && periodRes && !periodWaiting ? `${periodLabel}（${periodRes.games.length} 場）` : null,
+        // 全域期間（篩選時）：citeLine／Quote.make 對「截至日」類（逐場加總）的數字附上，避免貼出去被當成季平均。
+        // 引用寫法用 cite（日期區間「A 至 B」），periodLabel＝畫面上的短寫法（說明文字已寫到就不重複）；periodEnd：有結束日就不再寫「截至」
+        period: periodOn && periodRes && !periodWaiting ? `${periodRes.cite || periodLabel}（${periodRes.games.length} 場）` : null,
+        periodLabel: periodOn && periodRes && !periodWaiting ? periodLabel : null,
+        periodEnd: periodOn && period.kind === 'range' && period.end ? period.end : null,
     };
     // 聯盟名次情境（window.leagueRank 讀取）：當季每日快照（時光機選日期時跟著用那天的快照）；歷史賽季沒有名次
     // 球員（2026-11-13 起）：球員文件的 ranks＋該員各類別快照值（「出手未達門檻」的說明要用）
@@ -798,6 +804,7 @@ const App = () => {
                                 seasonLabel={primaryLabel} onoffNA={naCrossTeam} period={period} periodCtx={periodCtx}
                                 advanced={viewMode === 'TEAM' ? (teamSeq[teamIdx] || {}).advanced : null}
                                 playerAdvanced={viewMode === 'PLAYER' ? (((playerSeq[playerIdx] || {}).advanced || {})[selectedPlayer] || null) : null}
+                                teamGames={viewMode === 'TEAM' ? seasonGames : condTeam}
                             />
                         )}
 

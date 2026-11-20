@@ -50,12 +50,23 @@ window.Period = (function () {
         return { team: !isTeam, pids: SC().needPids(st.conds) };
     };
 
-    // ── 套用：games 是目前實體（全隊或球員）的逐場；回傳 { games, label, cond }
+    // 引用用的期間寫法（畫面的 label 維持短的「A~B」，避免膠囊在手機變寬）：日期區間寫「A 至 B」，只填一端寫「A 起」／「至 B」
+    const citeOf = (st, label) => {
+        if (!st || st.kind !== 'range') return label;
+        if (st.start && st.end) return `${st.start} 至 ${st.end}`;
+        return st.start ? `${st.start} 起` : st.end ? `至 ${st.end}` : label;
+    };
+
+    // ── 套用：games 是目前實體（全隊或球員）的逐場；回傳 { games, label, cite, cond }（cite＝引用用的寫法，見 citeOf）
     // ctx：{ isTeam, teamGames（全隊逐場，全隊視角＝games）, playerGames: {pid: games[]}, season, nameOf(pid), isPlayoffs,
     //        rosterIds（當季名冊 PlayerID；「未出賽」的在隊期間用，歷史賽季不傳）}
     // cond：非條件期間為 undefined；條件資料還沒到齊＝null；條件沒填完＝{ ready: false }；
     //       到齊＝{ ready, dates, sum（符合／其他／全季戰績）, label, matched（符合的全隊場次）}
     const apply = (games, st, ctx = {}) => {
+        const r = applyRaw(games, st, ctx);
+        return { ...r, cite: citeOf(st, r.label) };
+    };
+    const applyRaw = (games, st, ctx = {}) => {
         games = games || [];
         st = st || ALL;
         const k = st.kind;

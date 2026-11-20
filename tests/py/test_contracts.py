@@ -31,6 +31,7 @@ class FrontBackContracts(unittest.TestCase):
               historyRules: w.HISTORY_RULES,
               zeroBlanked: zero.map(s => { const c = w.cleanGameStats(s);
                 return Object.keys(s).filter(k => /^(CATCH_SHOOT_|PULL_UP_)/.test(k)).some(k => c[k] === null); }),
+              advKeys: w.GameAgg.ADV_KEYS_READ,
             };
         """ % (json.dumps(INSTANTS), json.dumps(ZERO_CASES)))
 
@@ -59,6 +60,11 @@ class FrontBackContracts(unittest.TestCase):
         """NBA 未釋出的 Tracking「整組 0」：後端標 partial（tracking_zero_filled）⇔ 前端清成「—」（cleanGameStats）"""
         for s, js_blank in zip(ZERO_CASES, self.js["zeroBlanked"]):
             self.assertEqual(nc.tracking_zero_filled(s), js_blank, s)
+
+    def test_bundle_adv_keys_same(self):
+        """逐場 bundle 的 adv：後端寫的欄位（BUNDLE_*_ADV_KEYS）＝前端 GameAgg 讀的欄位（ADV_KEYS_READ）"""
+        self.assertEqual(set(nc.BUNDLE_TEAM_ADV_KEYS), set(self.js["advKeys"]["team"]))
+        self.assertEqual(set(nc.BUNDLE_PLAYER_ADV_KEYS), set(self.js["advKeys"]["player"]))
 
 
 ZERO_CASES = [

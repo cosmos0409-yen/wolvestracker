@@ -211,7 +211,100 @@ window.GameAgg = (function () {
         }).filter(p => typeof p.value === 'number');
     }
 
+    // ── 總覽「全隊效率／個人效率／在場不在場」的區間重算（2026-11-20 起）──
+    // 讀逐場 bundle 每場的 adv（scripts/nba_common.py 的 box_team_adv／box_player_adv；欄位名兩邊一起改，見 tests/py/test_contracts.py）。
+    // 公式與 2026-11-19 整季快照對帳過：approx 列的是逐場加權近似（與官方整季值差約 0.1～1，出賽少的球員差更多），其餘精確。
+    // 缺輸入的指標回 null（不是 0）；advGP＝有單場進階數據的場次（效率類只算這些場，分子分母同一組場次）
+    const num = v => (typeof v === 'number' && isFinite(v) ? v : 0);
+    const isNum = v => typeof v === 'number' && isFinite(v);
+    const r2 = v => Math.round(v * 100) / 100;
+    const sumOf = (rows, f) => rows.reduce((a, r) => a + num(f(r)), 0);
+    const ratio = (n, d, k = 100) => (d ? round1(k * n / d) : null);
+    const wavg = (rows, val, w) => {
+        const ok = rows.filter(r => isNum(val(r)) && isNum(w(r)) && w(r) > 0);
+        const tw = sumOf(ok, w);
+        return tw ? round1(ok.reduce((a, r) => a + val(r) * w(r), 0) / tw) : null;
+    };
+    // 對手得分：有對手數據用 opp.PTS，否則由 得分 − 正負值 推（舊場次）
+    const oppPts = g => (g.opp && isNum(g.opp.PTS) ? g.opp.PTS : num((g.stats || {}).PTS) - num((g.stats || {}).PLUS_MINUS));
+
+    const TEAM_ADV_APPROX = ['OREB_PCT', 'DREB_PCT'];
+    function teamAdvanced(games) {
+        const gs = (games || []).filter(g => g && g.stats);
+        const S = (rows, k) => sumOf(rows, g => g.stats[k]);
+        const fga = S(gs, 'FGA'), fta = S(gs, 'FTA'), fgm = S(gs, 'FGM');
+        const out = { GP: gs.length, approx: TEAM_ADV_APPROX,
+            TS_PCT: fga + fta ? round1(100 * S(gs, 'PTS') / (2 * (fga + 0.44 * fta))) : null,
+            EFG_PCT: ratio(fgm + 0.5 * S(gs, 'FG3M'), fga), AST_PCT: ratio(S(gs, 'AST'), fgm) };
+        const adv = gs.filter(g => g.adv && isNum(g.adv.POSS) && isNum(g.adv.OPP_POSS));
+        out.advGP = adv.length;
+        const poss = sumOf(adv, g => g.adv.POSS), oposs = sumOf(adv, g => g.adv.OPP_POSS);
+        const off = poss ? 100 * S(adv, 'PTS') / poss : null, def = oposs ? 100 * sumOf(adv, oppPts) / oposs : null;
+        out.OFF_RATING = off == null ? null : round1(off);
+        out.DEF_RATING = def == null ? null : round1(def);
+        out.NET_RATING = off == null || def == null ? null : round1(off - def);
+        out.PACE = wavg(adv, g => g.adv.PACE, g => g.adv.GMIN);
+        out.TM_TOV_PCT = ratio(S(adv, 'TOV'), poss);
+        const reb = (k) => { const ok = adv.filter(g => isNum(g.adv[k + '_CH'])); return ratio(S(ok, k), sumOf(ok, g => g.adv[k + '_CH'])); };
+        out.OREB_PCT = reb('OREB');
+        out.DREB_PCT = reb('DREB');
+        return out;
+    }
+
+    const PLAYER_ADV_APPROX = ['USG_PCT', 'AST_PCT', 'OREB_PCT', 'DREB_PCT', 'REB_PCT', 'PIE'];
+    function playerAdvanced(pgames) {
+        const gs = (pgames || []).filter(g => g && g.stats);
+        const S = k => sumOf(gs, g => g.stats[k]);
+        const fga = S('FGA'), fta = S('FTA'), ast = S('AST'), tov = S('TOV');
+        const adv = gs.filter(g => g.adv && isNum(g.adv.POSS));
+        const byPoss = k => wavg(adv, g => g.adv[k], g => g.adv.POSS);
+        return { GP: gs.length, advGP: adv.length, approx: PLAYER_ADV_APPROX,
+            AST_TO: tov ? r2(ast / tov) : null,
+            TM_TOV_PCT: ratio(tov, fga + 0.44 * fta + ast + tov),
+            USG_PCT: byPoss('USG_PCT'), AST_PCT: byPoss('AST_PCT'),
+            OREB_PCT: byPoss('OREB_PCT'), DREB_PCT: byPoss('DREB_PCT'), REB_PCT: byPoss('REB_PCT'),
+            PIE: wavg(adv, g => g.adv.PIE, g => g.adv.PIE_W) };
+    }
+
+    // 在場／不在場（球員）：teamGames＝這個期間的全隊逐場（場次範圍依全隊，含球員沒上場的場次）。
+    // 在場：該員有上場的場次，Σ在場得失分 ÷ Σ在場回合（bundle stats 的 ON_*，精確）。
+    // 不在場：有上場的場次用官方單場不在場效率、依 OFF_W（估計的不在場回合）加權；沒上場的場次（含加入前、缺陣）算整場全隊。
+    //   NBA 整季值也是這樣算（2026-11-20 用只打 1 場、3 場的球員驗證，只從首場起算會差 3 分）。
+    //   不可用「全隊 − 在場」推不在場的效率（CLAUDE.md），這裡全隊整場只用在該員沒上場的場次
+    // 缺資料的場次（沒有單場 On/Off 或全隊 adv）跳過，missing 記場數
+    const ONOFF_APPROX = ['OFF_OFF_RATING', 'OFF_DEF_RATING', 'OFF_NET_RATING'];
+    function onOff(pgames, teamGames) {
+        const tg = (teamGames || []).filter(g => g && g.stats);
+        const byDate = {};
+        (pgames || []).forEach(g => { if (g && g.stats) byDate[g.date] = g; });
+        const played = tg.map(g => byDate[g.date]).filter(Boolean);
+        const onPoss = sumOf(played, g => g.stats.ON_POSS);
+        let op = 0, od = 0, ow = 0, missing = 0;
+        tg.forEach(t => {
+            const p = byDate[t.date];
+            if (p) {
+                const a = p.adv || {};
+                if (isNum(a.OFF_W) && isNum(a.OFF_OFF_RATING) && isNum(a.OFF_DEF_RATING)) {
+                    op += a.OFF_OFF_RATING * a.OFF_W / 100; od += a.OFF_DEF_RATING * a.OFF_W / 100; ow += a.OFF_W;
+                } else missing++;
+            } else if (t.adv && isNum(t.adv.POSS)) {
+                op += num(t.stats.PTS); od += oppPts(t); ow += t.adv.POSS;
+            } else missing++;
+        });
+        const on = onPoss ? [100 * sumOf(played, g => g.stats.ON_PTS) / onPoss, 100 * sumOf(played, g => g.stats.ON_OPP_PTS) / onPoss] : null;
+        const off = ow ? [100 * op / ow, 100 * od / ow] : null;
+        return { GP: played.length, teamGP: tg.length, missing, approx: ONOFF_APPROX,
+            ON_OFF_RATING: on && round1(on[0]), ON_DEF_RATING: on && round1(on[1]), ON_NET_RATING: on && round1(on[0] - on[1]),
+            OFF_OFF_RATING: off && round1(off[0]), OFF_DEF_RATING: off && round1(off[1]), OFF_NET_RATING: off && round1(off[0] - off[1]) };
+    }
+    // 前後端成對：bundle adv 會讀到的欄位（tests/py/test_contracts.py 對照 nba_common.BUNDLE_*_ADV_KEYS）
+    const ADV_KEYS_READ = {
+        team: ['POSS', 'OPP_POSS', 'PACE', 'GMIN', 'OREB_CH', 'DREB_CH'],
+        player: ['POSS', 'USG_PCT', 'AST_PCT', 'OREB_PCT', 'DREB_PCT', 'REB_PCT', 'PIE', 'PIE_W', 'OFF_OFF_RATING', 'OFF_DEF_RATING', 'OFF_W'],
+    };
+
     return {
+        teamAdvanced, playerAdvanced, onOff, ADV_KEYS_READ,
         RATIO_DEFS, EFG_DEFS, TS_DEFS, NORMAL_DEFS, WAVG_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,
