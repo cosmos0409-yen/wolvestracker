@@ -31,13 +31,10 @@ const ChapterNav = ({ tabs, activeTab, onTab, viewSide, onSide, periodPill, peri
             ) : null}
             right={<>
                 {periodPill && <span className="hidden sm:inline-flex">{periodPill}</span>}
-                {/* 只在內容會隨攻守變化的章節顯示（TABS 的 sided），其他章節按了沒反應只會誤導、手機上還擠掉章節 */}
+                {/* 只在整章內容會隨攻守變化的章節顯示（TABS 的 sided），其他章節按了沒反應只會誤導、手機上還擠掉章節。
+                    總覽 2026-11-20 起不是 sided：Playtype 強弱項攻守並列，雷達與單場面板各自帶切換 */}
                 {tabs.find(t => t.key === activeTab)?.sided && (
-                    <UI.Seg ariaLabel="攻守視角" size="sm" value={viewSide} onChange={onSide}
-                        options={[
-                            { value: 'offensive', label: '進攻端', activeClass: 'bg-[#12A150] text-[#0A1626] font-medium' },
-                            { value: 'defensive', label: '防守端', activeClass: 'bg-[#EF4444] text-[#0A1626] font-medium' },
-                        ]} />
+                    <UI.Seg ariaLabel="攻守視角" size="sm" value={viewSide} onChange={onSide} options={UI.SIDE_OPTIONS} />
                 )}
             </>} />
     </>);

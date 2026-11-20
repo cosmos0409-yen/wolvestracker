@@ -543,6 +543,11 @@ window.UI = (function () {
         );
     };
 
+    // 攻守切換的選項（章節列、跨季、總覽的雷達／單場面板共用同一組字與顏色）
+    const SIDE_OPTIONS = [
+        { value: 'offensive', label: '進攻端', activeClass: 'bg-[#12A150] text-[#0A1626] font-medium' },
+        { value: 'defensive', label: '防守端', activeClass: 'bg-[#EF4444] text-[#0A1626] font-medium' },
+    ];
     // 膠囊分段切換。options: [{ value, label, icon?, activeClass? }]；activeClass 讓攻（綠）/守（紅）各自上色
     const Seg = ({ options, value, onChange, ariaLabel, size = 'md' }) => (
         <div role="group" aria-label={ariaLabel} className="inline-flex shrink-0 rounded-full border border-white/15 p-[3px]">
@@ -708,5 +713,5 @@ window.UI = (function () {
         );
     };
 
-    return { splitTitle, pctColor, cellNum, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
+    return { splitTitle, pctColor, cellNum, Delta, PctBar, StatCell, Ledger, ledgerCols, DataTable, Seg, SIDE_OPTIONS, TabBar, useTabKeys, Section, Locked, Note, Chip, selectClass, ExpandRow, copyText, toast, citeLine, doCopy, CopyBtn, Info, exportCSV, exportPNG, ExportMenu, scrollHint };
 })();

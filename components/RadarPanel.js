@@ -47,7 +47,17 @@ const RadarSvg = ({ axes, series, getVal, labelOf }) => {
     );
 };
 
+// 雷達自己管攻守（2026-11-20 起總覽章節列不再有攻守切換）：初始值＝全域 viewSide，之後只控制這張圖。
+// 切攻守時 RadarBody 以 key 重建，軸改讀該面的偏好（wt_radar_axes_{side}）；主序列顏色跟著攻守（進攻綠、防守紅）
 const RadarPanel = ({ series, viewSide }) => {
+    const [side, setSide] = React.useState(viewSide === 'defensive' ? 'defensive' : 'offensive');
+    const color = side === 'offensive' ? '#12A150' : '#ef4444';
+    const ser = (series || []).map((s, i) => (i === 0 ? { ...s, color } : s));
+    return <RadarBody key={side} series={ser} viewSide={side}
+        sideSeg={<window.UI.Seg ariaLabel="雷達攻守" size="sm" value={side} onChange={setSide} options={window.UI.SIDE_OPTIONS} />} />;
+};
+
+const RadarBody = ({ series, viewSide, sideSeg }) => {
     const { useState } = React;
     const PLAY = window.PlayTypesList || [];
     const loadPref = (k, f) => { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } };
@@ -100,8 +110,11 @@ const RadarPanel = ({ series, viewSide }) => {
 
     return (
         <div className="flex flex-col items-center border border-white/10 p-3">
-            <div className="w-full flex justify-between items-center px-2 mt-1">
-                <h3 className="text-[13px] font-medium text-slate-200">{viewSide === 'offensive' ? '進攻雷達網' : '防守雷達網'}</h3>
+            <div className="w-full flex flex-wrap justify-between items-center gap-2 px-2 mt-1">
+                <span className="flex items-center gap-2">
+                    <h3 className="whitespace-nowrap text-[13px] font-medium text-slate-200">雷達網</h3>
+                    {sideSeg}
+                </span>
                 <span className="flex items-center gap-2">
                 <window.UI.ExportMenu title={viewSide === 'offensive' ? '進攻雷達' : '防守雷達'} getNode={() => chartRef.current}
                     csv={() => ({ header: ['軸', ...series.map(s => s.label)], rows: axes.map(k => { const c = catMap[k]; return [c ? axisName(c) : k, ...series.map(s => { const v = getVal(c, s); return v == null ? '' : v; })]; }) })} />

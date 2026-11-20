@@ -1,4 +1,5 @@
-// 總覽章節：季平均（扣掉身分列已顯示的 4 項）＋ Playtype 強弱項 ＋ 雷達 ＋ On/Off（球員）＋ Clutch ＋ Lineups（球隊）＋ 單場面板
+// 總覽章節（不隨章節列攻守切換：Playtype 強弱項攻守並列，雷達與單場面板各自帶切換；viewSide 只當它們的初始值）：
+// 季平均（扣掉身分列已顯示的 4 項）＋ Playtype 強弱項 ＋ 雷達 ＋ On/Off（球員）＋ Clutch ＋ Lineups（球隊）＋ 單場面板
 // games：逐場 bundle（每場 {stats}）；untilDate：截至日期；base：快照 base（bundle 缺時退回，如更早無 games 的歷史季）
 // stats：該實體的 Synergy 陣列（強弱項用）；radarSlot：App 組好的雷達＋疊加比較
 // advanced：全隊進階快照（doc.advanced，只有全隊視角、2026-10-28 起的快照才有），有值才顯示「全隊效率」
@@ -82,13 +83,17 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
     // 攻守兩面百分位皆「越高越好」（已用資料驗證：防守 PPP 越低 → 百分位越高）。
     // 門檻：每場球權 ≥ 1.0（球權太少的類型百分位很極端）；排除 Misc（雜項，不是戰術類型）。
     // 強項只列百分位 ≥ 50、弱項只列 < 50：「排最後三名」不等於弱項，高於中位數的不可標成弱項
+    // 攻守兩面並列（2026-11-20 起；之前跟著章節列的攻守切換，只看得到一面）
     const MIN_POSS_PG = 1.0;
-    const ranked = (stats || [])
-        .filter(x => (x.side || 'offensive') === viewSide && typeof x.percentile === 'number' && x.playType !== 'Misc')
+    const rankSide = (side) => (stats || [])
+        .filter(x => (x.side || 'offensive') === side && typeof x.percentile === 'number' && x.playType !== 'Misc')
         .filter(x => typeof x.poss === 'number' && x.poss >= MIN_POSS_PG)
         .sort((a, b) => b.percentile - a.percentile);
-    const strengths = ranked.filter(x => x.percentile >= 50).slice(0, 3);
-    const weaknesses = ranked.filter(x => x.percentile < 50).slice(-3).reverse();
+    const ptSides = ['offensive', 'defensive'].map(side => {
+        const r = rankSide(side);
+        return { side, ranked: r, strengths: r.filter(x => x.percentile >= 50).slice(0, 3), weaknesses: r.filter(x => x.percentile < 50).slice(-3).reverse() };
+    }).filter(s => s.ranked.length > 0);
+    const ranked = ptSides.flatMap(s => s.ranked);
 
     // On/Off（球員快照）
     const onoff = viewMode === 'PLAYER' ? (snapshotOnoff || {}) : null;
@@ -173,22 +178,25 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             </UI.Locked>)}
 
             {ranked.length > 0 && (<UI.Locked on={periodOn}>
-                <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent={viewSide === 'offensive' ? 'green' : 'red'}
-                    sub={`${viewSide === 'offensive' ? '進攻' : '防守'}面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
+                <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent="green"
+                    sub={`攻守兩面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
                     {window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照') && (
                         <div className="mb-4"><UI.Note tone="warn">{window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照')}</UI.Note></div>
                     )}
-                    <div className="grid gap-x-10 gap-y-6 md:grid-cols-2">
-                        <div>
-                            <h3 className="mb-1 text-[12px] font-medium text-[#12A150]">強項 · 高於聯盟中位數</h3>
-                            {strengths.length ? <ul>{strengths.map(x => <PtRow key={x.playType} x={x} />)}</ul>
-                                : <p className="py-3 text-[13px] text-slate-500">沒有高於聯盟中位數的類型</p>}
-                        </div>
-                        <div>
-                            <h3 className="mb-1 text-[12px] font-medium text-[#EF4444]">弱項 · 低於聯盟中位數</h3>
-                            {weaknesses.length ? <ul>{weaknesses.map(x => <PtRow key={x.playType} x={x} />)}</ul>
-                                : <p className="py-3 text-[13px] text-slate-500">沒有低於聯盟中位數的類型</p>}
-                        </div>
+                    <div className="grid gap-x-10 gap-y-8 md:grid-cols-2">
+                        {ptSides.map(s => (
+                            <div key={s.side} className="min-w-0">
+                                <h3 className={`mb-2 flex items-baseline gap-2 whitespace-nowrap text-[14px] font-medium ${s.side === 'offensive' ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
+                                    {s.side === 'offensive' ? '進攻端' : '防守端'}<span className="font-mono text-[10px] font-normal text-slate-500">{s.side === 'offensive' ? 'Offense' : 'Defense'}</span>
+                                </h3>
+                                <h4 className="mt-1 text-[12px] font-medium text-[#12A150]">強項 · 高於聯盟中位數</h4>
+                                {s.strengths.length ? <ul>{s.strengths.map(x => <PtRow key={x.playType} x={x} />)}</ul>
+                                    : <p className="py-3 text-[13px] text-slate-500">沒有高於聯盟中位數的類型</p>}
+                                <h4 className="mt-3 text-[12px] font-medium text-[#EF4444]">弱項 · 低於聯盟中位數</h4>
+                                {s.weaknesses.length ? <ul>{s.weaknesses.map(x => <PtRow key={x.playType} x={x} />)}</ul>
+                                    : <p className="py-3 text-[13px] text-slate-500">沒有低於聯盟中位數的類型</p>}
+                            </div>
+                        ))}
                     </div>
                 </UI.Section>
             </UI.Locked>)}

@@ -321,7 +321,8 @@ const App = () => {
 
 
     // Series 列表：primary + compare（雷達軸與繪製由 RadarPanel 處理）
-    const primaryColor = viewSide === 'offensive' ? '#12A150' : '#ef4444';
+    // 雷達主序列的顏色：RadarPanel 依自己的攻守切換覆寫（進攻綠、防守紅），這裡給預設值
+    const primaryColor = '#12A150';
     const primaryLabel = isHistoryMode
         ? (SEASON_OPTIONS.find(o => o.key === selectedSeasonKey)?.label || '主賽季')
         : `當季${stTypeLabel}`;
@@ -415,7 +416,8 @@ const App = () => {
     const TABS = [
         // sided：該章節內容會隨攻／守切換（章節列只在這些章節顯示攻守切換；新章節用到 viewSide 就加上）
         // period：內容跟著全域期間篩選（其他章節篩選時顯示「整季數據」提示）
-        { key: 'overview', label: '總覽', sided: true, period: true },
+        // 總覽不是 sided（2026-11-20）：只有 Playtype 強弱項、雷達、單場面板分攻守，前者並列、後兩者各自帶切換
+        { key: 'overview', label: '總覽', period: true },
         { key: 'splits', label: 'Splits', period: true },
         { key: 'shooting', label: '投籃', period: true },
         { key: 'defense', label: '防守', period: true },

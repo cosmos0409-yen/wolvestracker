@@ -10,6 +10,8 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
     const defenseDefs = window.defenseDefs || [];
     const TrackingCardRow = window.TrackingCardRow;
 
+    // 攻守：面板自己管（2026-11-20 起總覽章節列不再有攻守切換），初始值＝全域 viewSide
+    const [panelSide, setPanelSide] = useState(viewSide === 'defensive' ? 'defensive' : 'offensive');
     const dates = (gamesIndex || []).map(g => g.date);
     const [selectedDate, setSelectedDate] = useState(dates.length ? dates[dates.length - 1] : '');
     const [doc, setDoc] = useState(undefined); // undefined=載入中, null=無, obj=資料
@@ -44,13 +46,14 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
     const meta = gamesIndex.find(g => g.date === selectedDate) || {};
 
     // 依攻守選 defs，只保留「該實體有資料」的群組
-    const groups = (viewSide === 'offensive' ? [...trackingDefs, ...shootingDefs] : defenseDefs)
+    const groups = (panelSide === 'offensive' ? [...trackingDefs, ...shootingDefs] : defenseDefs)
         .filter(def => entity && def.metrics.some(m => entity[m.key] !== undefined));
 
     return (
         <window.UI.Section title="單場數據" en="Single Game" accent="blue"
             sub="單場僅含 Tracking／最近防守者／Hustle／分區投籃（PlayType 無單場資料）"
             right={<>
+                <window.UI.Seg ariaLabel="單場攻守" size="sm" value={panelSide} onChange={setPanelSide} options={window.UI.SIDE_OPTIONS} />
                 {meta.wl && <span className={`px-2 py-0.5 font-mono text-[11px] ${meta.wl === 'W' ? 'bg-[#12A150]/[0.08] text-[#12A150]' : 'bg-[#EF4444]/[0.08] text-[#EF4444]'}`}>{meta.matchup} {meta.wl}</span>}
                 <label className="sr-only" htmlFor="single-game-date">選擇比賽</label>
                 <select id="single-game-date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
@@ -69,7 +72,7 @@ const SingleGamePanel = ({ viewMode, playerName, playerId, viewSide, gamesIndex 
             {doc === undefined && <div className="py-6 text-center text-sm text-slate-500 animate-pulse">載入單場資料中…</div>}
             {doc !== undefined && groups.length === 0 && (
                 <div className="py-6 text-center text-sm text-slate-500">
-                    {viewMode === 'PLAYER' ? `${playerName} 該場無${viewSide === 'offensive' ? '進攻' : '防守'}單場資料` : '該場無此側單場資料'}
+                    {viewMode === 'PLAYER' ? `${playerName} 該場無${panelSide === 'offensive' ? '進攻' : '防守'}端單場資料` : `該場無${panelSide === 'offensive' ? '進攻' : '防守'}端單場資料`}
                 </div>
             )}
             {groups.map(def => (
