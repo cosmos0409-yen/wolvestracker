@@ -1,6 +1,6 @@
 # Wolves Tracker 交接手冊
 
-> 最後更新：2026-11-19（技術債 E 批：手冊拆成現況〔本檔〕與開發紀錄〔`doc/history.md`〕，過時敘述逐條改正；CLAUDE.md 的完整條文移到「規則與指令細節」）
+> 最後更新：2026-11-20（總覽期間篩選擴大：全隊效率／個人效率／在場不在場跟著期間、bundle 每場加 `adv`、引用期間寫法；總覽攻守切換移到各區塊）
 
 ## 文件地圖與維護方式
 
@@ -42,6 +42,7 @@
 | 組合、全域期間、球員比較 | `LineupsPage.js`、`periodFilter.js`、`PeriodControl.js`、`compareData.js`、`ComparePage.js` | FAQ「組合頁」「期間篩選」「比較頁」 | 2026-11-12 組合數據、全域期間篩選、球員比較 |
 | 防守（最近防守者、護框、Hustle） | `nba_common.py`（`MATCHUP_*`、`HUSTLE_FIELDS`）、`constants.js`（`defenseDefs`） | 防守數據：Hustle 欄位與全隊最近防守者 | 2026-11-12 護框與兩分／三分防守 |
 | 個人效率、得分組成 | `nba_common.py`（`PLAYER_ADVANCED_FIELDS`、`SCORING_FIELDS`） | 指標命名對照 | 2026-11-12 個人效率、得分組成與抓取對帳 |
+| 總覽區間效率（全隊效率、個人效率、在場／不在場跟著期間）、總覽攻守切換 | `gameAggregates.js`（`teamAdvanced`／`playerAdvanced`／`onOff`）、`OverviewTab.js`、`nba_common.py`（`box_team_adv`／`box_player_adv`）、`build_bundles.py` | 各章節、單場數據（bundle 的 `adv`）、FAQ「期間篩選」 | 2026-11-20 總覽期間篩選擴大與攻守切換移位 |
 | 單場資料清理（整組 0） | `gamesData.js`（`cleanGameStats`） | 單場數據 | 2026-10-27 正式站掃描：資料顯示修正 |
 | 效能、手機入口、圖示 | `index.html`、`RadarPanel.js`、`icons/`、`build_icons.py` | 效能與無障礙 | 2026-10-28 效能與手機入口；2026-10-24 網站圖示（PWA／加入主畫面） |
 | 前端快取、測試、時區 | `cache.js`、`tests/`、`run_tests.py` | localStorage 快取、自動化測試 | 更新紀錄 2026-11-19（B、C、D 批） |
@@ -104,7 +105,7 @@
 - 提交前端改動要連 `dist/` 與 `index.html`（`?v=` 內容雜湊）一起提交
 - 圖表一律自繪 SVG（雷達 `RadarSvg`、疊圖 `LineOverlay` 等），不引入圖表套件（Recharts 已於 2026-10-28 移除，省約 120 KB gzip）
 - **開站首頁＝最新一場單場頁**（網址沒帶畫面時；當季未開打退上一季最後一場，`homePending` 期間不寫網址）
-- 版面（無側欄）：刊頭 `Masthead`（左：字標＋**「資料」群組**＝賽季下拉＋例行／季後，只在主畫面；右：頁面入口 賽程月曆 `GameCalendar`・對戰・組合・薪資｜搜尋；手機三列＝字標＋搜尋／資料群組／入口一排四格；沒有「複製連結」，2026-11-19 移除）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar`（**季別標籤**「2026-27 例行賽」純標示、手機也顯示；戰績；全隊且該季有附加賽時「附加賽 N 勝 N 敗 ↗」膠囊；時光機「數據截至」，僅當季）→ 章節列 `ChapterNav`（sticky，含攻守；**黏頂時左側出現季別小標籤**「26-27 例行」，點了回頁首）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
+- 版面（無側欄）：刊頭 `Masthead`（左：字標＋**「資料」群組**＝賽季下拉＋例行／季後，只在主畫面；右：頁面入口 賽程月曆 `GameCalendar`・對戰・組合・薪資｜搜尋；手機三列＝字標＋搜尋／資料群組／入口一排四格；沒有「複製連結」，2026-11-19 移除）→ 頭像列 `RosterRail`（全隊＋球員）→ 身分列 `IdentityBar`（**季別標籤**「2026-27 例行賽」純標示、手機也顯示；戰績；全隊且該季有附加賽時「附加賽 N 勝 N 敗 ↗」膠囊；時光機「數據截至」，僅當季）→ 章節列 `ChapterNav`（sticky；攻守切換只在 `TABS` 標 `sided` 的章節＝Playtype，總覽 2026-11-20 起不顯示；**黏頂時左側出現季別小標籤**「26-27 例行」，點了回頁首）→ 六章節：總覽(`OverviewTab`，含雷達)/Splits(`SplitsTab`)/投籃(`ShootingTab`)/防守/Playtype/跨季(`ComparisonTab`＋`SeasonPaceChart`)
 - 單場比賽頁 `GamePage`（`#game=日期[&tab=box|compare|shots][&bx=adv][&p=球員]`，獨立整頁；**附加賽場次**（`window.gameTypeOfId`／`typeKeyOfLabel`）：比分看板加「附加賽」膠囊、賽程條只列附加賽、「本場 vs 例行賽平均」（`avgType`）、球員連結帶回例行賽、沒有本場題材與歷史定位、引用標頭寫「附加賽」不寫 G 場次；開站首頁「最新一場」也算附加賽（例行賽期間預覽文件有已開打的 005 場次才多讀附加賽索引），取代主區，**不掛章節列**、用「← 回主畫面」返回）：賽程條＋比分看板常駐（手機另有精簡比分區），下方單場分頁 概要（本場焦點→本場題材→本場 vs 季平均，題材讀單場文件 `insights`、文案在前端組；本場 vs 季平均只在灰狼場次前 3 名的格子標「灰狼第 N 高」（`insights.marks`），Box Score 展開列「?」點開才讀該員各季 bundle 算歷史定位，門檻 `HISTORY_RULES`，與 `INSIGHT_MARK_RULES` 的 min_att／min_n 同值）／Box Score／對比／投籃（沒內容的分頁不顯示、舊場次無 box 時第二頁叫「球員進階」；`p=` 只在 Box Score，舊連結只帶 `p=` 視為 `tab=box`；賽程條換場次保留分頁與 `bx`）；Box Score「傳統｜進階」（`bx=adv`，進階 box＋灰狼「不在場」，2026-27 起才有，舊場次不出現切換）；對手球員列點開只有本場數據一行可加入引用籃（主體「名字（拓荒者）」，展開狀態不寫網址）；球員效率一律是**在場**效率，不在場只能用單場 On/Off 官方數字、不可由全隊減在場推算；賽程月曆讀 `loadSeasonSchedule`（例行＋季後合併），單場頁跟著該場賽季、其餘跟刊頭所選賽季；**預覽模式**：沒有單場文件、但當季預覽文件（`gamesData.loadPreview`）有這天 → `PreviewPanel`（雙方對照＋英文序數名次 `window.ordinal`、交手、近況），賽程條尾端「下一場」卡、月曆未開打格子（虛框）也來自預覽文件；灰狼球員一律用 box `personId` 對 players 文件 `playerId`，不用名字；點指標一律跳 Splits 逐場走勢（`m=`/`hl=`）
 - 薪資頁 `CapPage`（`#cap[&s=賽季][&tab=contracts|picks|rules]`，獨立整頁）：四分頁＋分頁列上唯一的賽季選單（刊頭在薪資頁隱藏賽季／賽別／日期）；狀態資訊用狀態列＋色點，膠囊只給可點控制項；縮寫金額要能懸停看完整金額；球員對應一律用 `playerId`；薪資×表現可用 Sheet `settings.show_value` 關閉、公式常駐
 - 條件戰績（全域期間面板的「條件」，編輯器在 `PeriodControl.js`；符合／其他／全季戰績摘要在 Splits）：計算在 `splitConditions.js` 的 `window.SplitCond`（以全隊逐場為母體篩選、未出賽只算在隊期間＝從第一次出賽起，當季仍在名冊上的算到最新一場、歷史賽季最後一次出賽在交易截止日後的才算到季末），門檻在 `constants.js` 的 `CONDITION_RULES`；跟著所選賽季、最多 2 個條件；當季名冊由 App 以 `periodCtx.rosterIds` 傳入
@@ -114,11 +115,11 @@
 - **日期規則**：資料、網址、月曆、月份分組一律**美東**（前端 `window.etParts()`＝Intl America/New_York 含夏令，與後端 `nc.now_east()` 同規則；`seasonForDate`／`capSeasonForDate`／`getSeasonPhase`／`etToday` 都走它）；開賽時間一律經 `window.kickoffTPE`（「台北隔日 09:30」，依 utc 實算、不寫死＋1 天），美東今天用 `window.etToday()`，不要自己加減時區
 - 對戰分析（`#vs` 首頁 `MatchupHome`／`#vs=三碼` 單隊頁 `MatchupPage`，獨立整頁）：計算全在 `matchupData.js` 的 `window.Matchup`（只讀既有逐場 bundle＋交手場次單場文件）；範圍預設近三季（當季例行賽未滿 41 場多含一季）、`r=`／`t=` 不影響主畫面賽季；排序上色看偏離程度 z（差距 ÷ 逐場標準差/√n）；門檻全在 `constants.js` 的 `MATCHUP_RULES`；每節分差／對手 box 只有 2025-26 起的場次
 - 網址 hash 記住畫面（`urlState.js`；有 `v=` 時完全以網址為準，不退回 localStorage 偏好；球員 `p=ID-名字`（如 `1630162-anthony-edwards`，**只用 ID 對人**，`UrlState.playerToken`／`tokenPlayerId`、名字部分 `window.nameSlug`；舊連結的完整名字仍可讀）；賽季 `s=年份&t=賽別`（當季不寫 `s`；舊格式 `s=2025-26_playoffs` 仍可讀）；Splits 走勢 `m=指標&hl=日期`；全域期間 `pd=`（`W`、`last5`、`month:2026-11`、`opp:DEN`、`range:起:訖`）與條件 `c=`（如 `c=1630162:PTS:ge:30~T:TOV:le:12`，主畫面各章節都有效，`c=` 優先）；單場頁 `game=`（＋`tab=`）、薪資頁 `cap`、完整賽程 `schedule`、對戰 `vs`、組合 `lineups`、比較 `cmp` 都沒有 `v=`——**獨立整頁的參數不可叫 `v`**，否則會被當成主畫面連結）；快捷鍵 `/` 搜尋（`CommandPalette`）、數字鍵切目前畫面的分頁列（主畫面 `1–6` 章節、單場／薪資頁各自分頁）
-- **資料層分工**：季平均/Splits/趨勢/對戰 → `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score（含進階欄位與灰狼不在場 `OFF_*_RATING`）→ `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（單場頁與對戰頁一律經 `gamesData.loadGameDocs` 讀）（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
+- **資料層分工**：季平均/Splits/趨勢/對戰、總覽篩選期間時的全隊效率／個人效率／在場不在場（bundle 每場的 `adv`，2026-27 起）→ `GameAgg`(`gameAggregates.js`) 算 **bundle 逐場**（`gamesData.loadSeasonGames`，讀 `wolves_games_bundle`/`wolves_pgames_bundle` 單一 doc，避免 90+ 併發 getDoc 卡死）；Playtype/Clutch/Lineups/On-Off/防守 → 每日/歷史快照；投籃 → `wolves_shotcharts` 逐球；單場對手與 box score（含進階欄位與灰狼不在場 `OFF_*_RATING`）→ `wolves_team_games/{date}` 的 `opp`/`box`、`wolves_player_games/{date}` 的 `oppPlayers`（單場頁與對戰頁一律經 `gamesData.loadGameDocs` 讀）（2026-10 起的場次；box 另補了 2025-26）；跨季疊圖 → 各季 bundle（`GameAgg.metricOf`）＋多序列 `LineOverlay`
 - 季平均加權：百分比欄以 Σ分子/Σ分母 重算（`GameAgg.RATIO_DEFS`），非平均百分比；在場效率 `ON_OFF_RATING`／`ON_DEF_RATING` 以 bundle 的 `ON_PTS`÷`ON_POSS` 加權（`ON_NET_RATING` 為兩者相減）
 - 最近防守者（Defense Dashboard）：類別在 `nba_common.MATCHUP_CATEGORIES`（總體／三分／兩分／籃下 < 6 Ft，加類別加一列；單場對手只抓 `MATCHUP_OPP_CATEGORIES`）；「vs 平常」（`*_PLUSMINUS`）期間值一律用 `GameAgg.NORMAL_DEFS` 依出手數加權；小樣本門檻 `DEF_SHOT_RULES`（整季／期間 < 20 次標「樣本小」、單場 < 3 次 vs 平常不計），格子給 `att`／`signed`；逐場的「平常」是擷取當下的射手本季命中率，會漂移（見 doc/handover.md）
 - 逐場重算規則都在 `GameAgg`：命中率類 `RATIO_DEFS`（含三分出手占比 `FG3A_FREQ`）、eFG `EFG_DEFS`、真實命中率 `TS_DEFS`、沒存分子的比率用 `WAVG_DEFS` 依權重欄加權（如切入助攻率 × 切入次數）；新增比率指標先決定走哪一種，不可落到逐場直接平均
-- 球員個人效率（`playerAdvancedDefs`）與得分組成（`scoringShareDefs`／`scoringSituationDefs`）只有整季快照 → 期間篩選時 `UI.Locked`；`TM_TOV_PCT` 在 API 已是百分比，欄位表不乘 100；全隊 Misc 沒有 `PFD`
+- 總覽的全隊效率、個人效率（`playerAdvancedDefs`）、在場／不在場：沒篩選時顯示整季快照（含名次）；篩選期間時改用 `GameAgg.teamAdvanced`／`playerAdvanced`／`onOff` 讀 bundle 的 `adv` 重算（2026-11-20 起，公式與近似值見「各章節」總覽），沒有 `adv` 的賽季（2025-26 以前）效率類顯示「—」。得分組成（`scoringShareDefs`／`scoringSituationDefs`）只有整季快照 → 期間篩選時 `UI.Locked`；`TM_TOV_PCT` 在 API 已是百分比，欄位表不乘 100；全隊 Misc 沒有 `PFD`
 - 單場 Tracking 是賽後 12 小時內擷取，NBA 之後可能補正（2026-11-12 發現開季頭 4 場切入次數少一半）；看門狗每天自動比對全隊，通知後用 `backfill_games.py --dates` 重抓（見 doc/handover.md FAQ）
 - 最近防守者的「場均」分母只算有防守到出手的場次（快照另存 `D_GP`）：「樣本小 · N 次」用場均 × `D_GP`，不可用 base 出賽場數
 - 單場數值讀進來一律經 `cleanGameStats`／`cleanGameDoc`（`gamesData.js`）：NBA 未釋出時回的 C&S／Pull Up「整組 0」（同時缺 `TOUCHES`）與 0 分母命中率清成 `null` 顯示「—」，不當真的 0；新增讀 bundle／單場文件的地方要套用。抓取端同規則 `nba_common.tracking_zero_filled` 標 `partial` 讓每日補抓重抓，改規則兩邊一起改
@@ -280,7 +281,7 @@ wolvestracker/
 - 全站捲軸：`styles/app.css` 的 `scrollbar-color`（月光銀半透明＋透明軌道）
 
 ### 寫作工具（2026-10 Phase 5）
-- **複製引用**：`UI.citeLine` 組字串；入口是「?」小卡底部的「複製引用」（`UI.Info` 帶 `cite`，2026-10-23 起每格只留一個圖示），沒有 glossary 定義或沒有「?」的地方才用獨立 `UI.CopyBtn`。`cite`／`text` 一律傳**函式**（點擊當下才組字串，句尾網址才是當下畫面），格式「主體｜賽季｜（期間）｜截至日期｜指標（原文） 數值｜資料：來源｜當下畫面網址」（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
+- **複製引用**：`UI.citeLine` 組字串；入口是「?」小卡底部的「複製引用」（`UI.Info` 帶 `cite`，2026-10-23 起每格只留一個圖示），沒有 glossary 定義或沒有「?」的地方才用獨立 `UI.CopyBtn`。`cite`／`text` 一律傳**函式**（點擊當下才組字串，句尾網址才是當下畫面），格式「主體｜賽季｜（期間（N 場））｜（補充，如逐場加權近似）｜截至日期（期間是有結束日的日期區間時省略）｜指標（原文） 數值｜資料：來源｜當下畫面網址」（期間寫法見 FAQ「期間篩選」）（網址含 hash，可從引用回到原畫面查證；總覽「近 N 場」切換不在網址裡，但期間已寫在引用文字中）。情境由 App 每次 render 寫入 `window.CiteCtx`：**快照數字引用快照日（asOfSnap）、GameAgg 逐場重算的平均引用截至日（asOfAgg）**，兩者可能不同；Splits/單場/Clutch 以 `citeNote` 附期間或場次。`StatCell` 的 `citeAsOf`／`citeNote` 由 `TrackingCardRow` 傳入
 - **引用籃**（2026-10-28）：跨頁收集數值、排成貼文用純文字（不附來源網址為預設），見history.md「2026-10-28 聯盟名次與引用籃」
 - **指標定義**：`components/glossary.js`（`window.GLOSSARY`，key → def/calc/src/verify），`UI.Info` 顯示「?」小卡；名稱仍以 constants.js 為單一來源，glossary 只寫意思。`verify: true` 的條目畫面會標「待確認」
 - **近期異動**：`components/Highlights.js`，近 N 場 vs 全季（截至 untilDate；N 由 `OverviewTab` 依「平均期間」傳入，近 5／近 10，全季時用 5，本區不另放切換），排序＝|Δ| ÷ (逐場標準差 ÷ √N)，|分數| < 1 不列；命中率需近 N 場出手達門檻（FG 25、3P 10、FT 8）
@@ -305,7 +306,14 @@ wolvestracker/
 - 新區塊一律用這些元件組，標籤寫「中文＋小字原文」，風格自動一致
 
 ### 各章節（2026-10 Phase 4）
-- 總覽：季平均可切「全季｜近 5 場｜近 10 場」（同一截至日，`GameAgg.lastN`＋`aggregate`；全季只列身分列沒有的 6 項，近 N 場列完整 10 項）；**Playtype 強弱項**（Synergy 百分位，門檻每場球權 ≥ 1.0、排除 Misc；強項只列 ≥ 50、弱項只列 < 50——攻守百分位皆越高越好，已用資料驗證：防守 PPP 越低百分位越高）；雷達移入；On/Off 顯示「在場 − 離場」差值；陣容手機只顯示姓氏
+- 總覽：季平均跟著全域期間（同一截至日，`GameAgg.aggregate`；全季只列身分列沒有的項目，篩選時列完整項目、箭頭＝vs 全季）；**Playtype 強弱項**（Synergy 百分位，門檻每場球權 ≥ 1.0、排除 Misc；強項只列 ≥ 50、弱項只列 < 50——攻守百分位皆越高越好，已用資料驗證：防守 PPP 越低百分位越高；2026-11-20 起**進攻端／防守端並列**，桌機兩欄、手機上下排）；雷達移入；On/Off 顯示「在場 − 離場」差值；陣容手機只顯示姓氏
+  - **攻守切換**（2026-11-20 起）：總覽不是 `sided` 章節，章節列不顯示攻守；雷達（`RadarPanel` 外層管攻守、`RadarBody` 以 `key` 重建換軸，主序列顏色依自己的攻守）與單場面板各自在標題旁有 `UI.Seg`（選項共用 `UI.SIDE_OPTIONS`），初始值＝全域 `viewSide`，之後互不影響
+  - **期間篩選時跟著期間的效率三塊**（2026-11-20 起，讀 bundle 每場的 `adv`，見「單場數據」）：全隊效率（`GameAgg.teamAdvanced`）、個人效率（`playerAdvanced`）、在場／不在場（`onOff`）。沒篩選時照舊顯示整季快照與名次；篩選時顯示期間值、箭頭＝vs 全季（同一截至日）、**不排名**（聯盟名次只有整季資料）、近似值格子標「≈」（`StatCell approx`／`UI.ApproxMark`）。公式（2026-11-19 整季快照對帳）：
+    - 精確：全隊進攻／防守效率＝Σ得分÷Σ回合（防守用對手得分與對手回合）、淨效率、節奏（依比賽分鐘加權）、TS%、eFG%、助攻率＝AST÷FGM、失誤率＝TOV÷回合（全隊精確項最大差 0.05）；球員 AST/TO、失誤率＝TOV÷(FGA＋0.44FTA＋AST＋TOV)、在場效率
+    - 近似（≈）：全隊籃板率（每場官方比率反推籃板機會再加總，差約 0.4）；球員使用率、助攻率、三種籃板率（依回合加權）、PIE（依全場 PIE 分母加權，同一場各球員反推的分母不一致，無法做到精確）——出賽 10 場以上大多差 1 以內，出賽少的球員差到 2～4；不在場（單場官方值依估計的不在場回合加權，差約 0.2）
+    - **不在場的場次範圍＝期間內所有全隊場次**：該員有上場的場次用單場官方「不在場」值，沒上場的場次（含加入前、缺陣）算整場全隊。NBA 整季值就是這樣算（2026-11-20 用只打 1 場的 Zikarsky 驗證，只從首場起算會差 3 分）。不可用「全隊 − 在場」推不在場效率
+    - 場次範圍：個人效率依該員自己的出賽場次套期間（同季平均，例：近 10 場＝該員最近出賽 10 場）；在場／不在場依全隊場次套期間（球員視角在總覽篩選時，App 另讀全隊 bundle，`needs.team`）。所以缺陣多的球員（如 Edwards 只打開季 4 場）「近 10 場」的個人效率是他那 4 場、在場／不在場是全隊近 10 場（出賽 0 場，在場顯示「—」）
+    - 缺 `adv` 的場次不進效率類（分子分母同一組場次），說明列寫「效率類只計有單場進階數據的 N 場」；整個期間都沒有 → 「這個期間沒有單場進階數據」
 - Playtype：`PlaytypeSection.js`，預設 Synergy 式可排序表格（Freq/Poss/PPP/百分位/FG%），可切卡片（`wt_pref_playtypeView`）
 - 投籃：命中率格可點看趨勢；熱圖命中＝實心綠點、未中＝空心紅環，球場線月光銀畫在點下方
 - 投籃「與上季比」（2026-10-19，分區組）：打開時才讀上一季同實體 shotchart（`loadShotDoc`，與本季共用解析與 `__shootTabCache`）；本季套期間篩選、上季一律全季；格子加「上季 % ／差／占比」，下方 `ZoneDiffCourt` 半場圖；任一季該區出手 < 10 標灰；上季無文件時按鈕顯示「XXXX 無資料」
@@ -494,6 +502,7 @@ wolves_team_games/{YYYY-MM-DD}     stats:{...}（灰狼）、opp:{...}（對手�
   - 單場 On/Off（同日起）：`teamplayeronoffdetails` **吃 `DateFrom=DateTo`**（舊註解說沒有單場版本是錯的；實測 GP=1、在場與進階 box 完全一致）。`add_box_onoff` 每場 1 request，把灰狼球員的「不在場」`OFF_OFF_RATING`／`OFF_DEF_RATING`／`OFF_NET_RATING`／`OFF_MIN` 併進 box 球員 `stats`（對手沒有）。**不可用「全隊 − 在場」推不在場**：NBA 依每段上場分開算回合，在場＋不在場回合 ≠ 全隊回合（10/26 Kuminga 77＋36＝113，全隊 111），推算差 7～16 分。
   - 進階或 On/Off 沒抓到 → `complete=False`／`partial`，每日補抓會重抓。只缺這兩項的舊場次用 `backfill_games.py --adv-only --dates …`（每場 2 requests）。
   - 逐場 bundle（`build_bundles`）把 box 的在場效率還原成 `ON_PTS`＝`OFF_RATING×POSS/100`、`ON_OPP_PTS`、`ON_POSS` 併進球員逐場（`nba_common.box_oncourt_totals`，每日 `upsert_game` 帶 `box`）。前端 `GameAgg.RATIO_DEFS` 的 `ON_OFF_RATING`／`ON_DEF_RATING`＝Σ得失分 ÷ Σ回合、`DIFF_DEFS.ON_NET_RATING`＝兩者相減。2026-10-29 用本季前 4 場驗證：加權進攻效率與 On/Off 整季快照完全一致、防守效率差 ≤ 0.9（NBA 防守回合另計）。單場頁展開列的效率「季均」就是此場之前各場的加權值（原本想用 On/Off 快照，但快照會缺日子——10/26 沒有快照時退回 10/25，少算一場）。
+  - **bundle 每場的 `adv`**（2026-11-20 起，總覽區間效率用；只有有進階 box 的場次＝2026-27 起，舊場次沒有這個欄位）：球隊 `nc.box_team_adv` → `{ POSS, OPP_POSS, PACE, GMIN（比賽分鐘）, OREB_CH, DREB_CH（籃板機會，由本場官方 OREB_PCT／DREB_PCT 反推；比率 0 時退回己方＋對方籃板）}`；球員 `nc.box_player_adv` → `{ POSS, USG_PCT, AST_PCT, OREB_PCT, DREB_PCT, REB_PCT, PIE, PIE_W（全場兩隊 PIE 分母）, OFF_OFF_RATING, OFF_DEF_RATING, OFF_W（估計的不在場回合＝全隊回合 × 不在場分鐘 ÷ (比賽分鐘÷5)）}`。放 `adv` 不放 `stats`：`stats` 會被 `GameAgg.aggregate` 逐欄平均、被看門狗逐場對帳加總。欄位名前後端一起改（`nc.BUNDLE_TEAM_ADV_KEYS`／`BUNDLE_PLAYER_ADV_KEYS` ⇔ `GameAgg.ADV_KEYS_READ`，`tests/py/test_contracts.py` 檢查）；改了要 `build_bundles.py --all` 重建。每日 `upsert_game` 用傳入的 `box` 自動帶入
   - Game ID 來自 `teamgamelog`（`fetch_team_game_log` 回傳 5 元組，第 5 個是 game_id；`wolves_games_index` 每場也帶 `gameId`）。
   - 球隊 bundle 的每場多 `opp`/`oppAbbr`（舊場次維持原形狀）；box score 不放 bundle（整季約 0.9 MB，會逼近 1 MiB 上限），前端看單場時讀 `wolves_team_games/{date}` 一份即可。
   - 大小（2026-04-03 實測）：team_games 約 14 KB（box 11 KB）、player_games 約 30 KB（灰狼 15＋對手 15）。
@@ -602,7 +611,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - `comparePlayers` state：勾選的同季其他球員（Phase D，球員 + 當季模式；資料已在 `playerHistory`，無需額外抓取）
 - `radarSeries` = 主序列 + `compareKeys` 賽季 + `comparePlayers` 球員；比較時主序列標籤改用球員名
 - `compareCache` state：已載入的歷史 doc，多源共用
-- 主色：進攻綠 / 防守紅；比較色盤：藍 / 黃 / 粉（賽季與球員共用索引）
+- 主色：進攻綠 / 防守紅（2026-11-20 起由 `RadarPanel` 依自己的攻守切換決定，App 的 `primaryColor` 只是預設值）；比較色盤：藍 / 黃 / 粉（賽季與球員共用索引）
 - 球員模式才顯示
 
 ### 單場數據面板（`SingleGamePanel.js`）
@@ -610,7 +619,7 @@ wolves_player_history/{season}_{type}    例：2023-24_playoffs
 - 切換賽別後原選日期不在新清單 → 自動跳到新清單最後一場；缺值卡片顯示「—」（不印孤立單位）
 - 選日期後經 `gamesData.loadGameDocs(date)` 讀兩份單場文件（與單場頁共用快取，**未定稿 `final=false` 不寫入快取**），依攻守取 defs，**只渲染該實體有資料的群組**（`def.metrics.some(有值)`）→ 自動隱藏單場沒有的 ShotProfile/DefenseBox/PlayType
 - 卡片用 `TrackingCardRow clickable={false}`（單場無走勢，不可點）
-- 攻守跟隨右側攻/守切換（`OverviewTab` 的 `viewSide` prop）：防守側顯示最近防守者／Hustle／抄截阻攻單場值
+- 攻守由面板標題旁自己的「進攻端｜防守端」切換（2026-11-20 起；初始值＝全域 `viewSide`，之後不受其他區塊影響）：防守側顯示最近防守者／Hustle／抄截阻攻單場值
 
 - 面板右上「看完整比賽 →」連到該場單場頁（2026-10-19）
 
@@ -756,6 +765,8 @@ Firestore Rules 沒涵蓋 history collections。貼上本文件「Firestore 安�
 ### Q: 期間篩選想加新類型，或新區塊該不該跟著期間
 - **新期間類型**：只改 `periodFilter.js`（`apply` 加分支、`serialize`／`parse` 加寫法）與 `PeriodControl.js` 的選項，各章節不用動
 - **新區塊**：資料來自逐場 bundle／逐球 → 吃 `periodCtx`／`periodDates`；來自整季快照 → 包 `UI.Locked on={periodOn}`。不可默默顯示沒篩選的數字
+- **整季快照的區塊想改成跟著期間**：先看單場文件有沒有能重算的原始數（2026-11-20 總覽效率三塊就是從單場 box 的進階欄位還原）。需要的單場欄位放進 bundle 每場的 `adv`（`build_bundles.py`，不放 `stats`），計算寫成 `GameAgg` 的純函式＋測試，再用整季重算對帳快照：對得上的當精確值，對不上的標「≈」（`StatCell approx`）並在說明寫明。篩選時不給聯盟名次（只有整季資料能排名）
+- **引用的期間寫法**：`Period.apply` 回傳 `label`（畫面短寫法，如「2026-11-01~2026-11-17」）與 `cite`（引用寫法：日期區間「A 至 B」、只填一端「A 起」／「至 B」，其他同 label）；App 把 `CiteCtx.period`＝「cite（N 場）」、`periodLabel`、`periodEnd`（日期區間的結束日）寫進引用情境。`citeLine`／`Quote.make` 對 `asOf: 'agg'` 的數字自動補期間（說明文字已寫到 cite 或 label 就不重複），有 `periodEnd` 就不寫「截至」、引用籃統計日用結束日；不跟期間的逐場數字（身分列的全季值）傳 `periodless: true`。新區塊的引用不要自己寫期間，交給 `citeLine` 補
 - **新章節**：`App.js` 的 `TABS` 標 `period: true` 才會有綠點、不顯示「整季數據」提示
 - **條件編輯器**在 `PeriodControl.js` 的 `PeriodPanel`（原本在 SplitsTab）
 
@@ -842,6 +853,8 @@ PageSpeed 的效能分數是「模擬推算」，每次會跳動：同一版曾�
 - **季末／每日快照的球員數據是「整季合併」**（`backfill_history.py` 不加 TeamID 篩選）：季中轉隊的球員含他隊比賽。要「只算灰狼」的累計值，一律用逐場 bundle（2026-10-20 薪資×表現踩過）
 - **薪資頁的 apron 空間要用 apron 薪資**（含 unlikely incentives），不是奢侈稅薪資；Sheet 漏填 unlikely 時頁面會出黃色「資料對帳」提示
 - **清理 Firestore 資料後，前端快取要換版**：一律改 `cache.js` 的 `CACHE_NS` 版本（見「localStorage 快取」）。2026-10-23 踩過：當時單場文件有兩處各自的快取，只換了一處，單場頁的永久快取差點把清理前的資料留在讀者瀏覽器裡。現在全站只有 `Cache` 一處；`grep localStorage.setItem` 只該剩偏好（`wt_pref_*`、雷達軸）與引用籃
+- **不在場效率的場次範圍要含該員沒上場的全隊場次**（2026-11-20）：只算他出賽期間（從首場起）會和 NBA 整季值差 3 分；沒上場的場次算整場全隊。也不可用「全隊 − 在場」推不在場效率（回合數對不上）
+- **新的單場欄位要進 bundle 時放每場的 `adv`，不放 `stats`**：`stats` 每個數字欄都會被 `GameAgg.aggregate` 平均、被看門狗逐場對帳加總，放錯會多出無意義的欄位或誤報
 - **「近 N 季」這類範圍不要嚴格照季數切**：開季時當季只有幾場，嚴格三季等於兩季的量；對戰分析用「當季未過半多含一季」解決
 - **對戰分析的標籤要有場數門檻**：「前 3 名」在只看本季、只有 1 個對手時也會選到它（曾把只打 1 場的 MIA 標成勁敵）
 

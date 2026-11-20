@@ -1,13 +1,13 @@
 # Wolves Tracker 專案快速查表
 
-> 本檔只放常用指令與「漏了就出錯」的規則，一條一行。完整條文在 `doc/handover.md`「規則與指令細節」，箭頭後是 handover 的章節名；各功能的設計過程與使用者確認過的決定在 `doc/history.md`。
+> 本檔只放常用指令與「漏了就出錯」的規則，一條一行。箭頭後是 `doc/handover.md`（現況，完整條文在「規則與指令細節」）的章節名；設計與使用者的決定在 `doc/history.md`；對外說明在 `README.md`。
 
 ## 常用指令（Python 一律用 Python312；有 `--dry-run` 的先跑它）
 - 每日抓取 `python scripts/fetch_data.py`：賽別依全聯盟賽程判斷，附加賽日只抓單場＋預覽；被擋結束碼 2；補期末快照 `--force-type playoffs --date D`、只抓單場 `--games-only` →「自動化排程」
-- 看門狗 `python scripts/watchdog.py`（排程台北 15:00＋早上 `--morning`；手動 `--dry-run`／`--test-notify`／`--check-data`）→「自動化排程」
+- 看門狗 `python scripts/watchdog.py`（排程台北 15:00＋早上 `--morning`；手動參數見該章）→「自動化排程」
 - 投籃熱圖每週 `python scripts/fetch_shotchart.py`（每日抓取已順帶增量；跨季 `--season 2024-25 --type regular`）
 - 單場回補 `python scripts/backfill_games.py --season S --type regular|playoffs|playin`（`--dates`／`--box-only`／`--adv-only`／`--matchup-only`；混入外隊 `--clean-players --dry-run`）→「單場數據」
-- 歷史回補 `python scripts/backfill_history.py --season S --type T`（只補單項 `--only-hustle`／`--only-team-matchup`／`--only-matchup`／`--only-adv-scoring`／`--only-lineups`）→「歷史賽季快照」
+- 歷史回補 `python scripts/backfill_history.py --season S --type T`（只補單項 `--only-*`，清單見「指令完整參數」）→「歷史賽季快照」
 - 回補 games 後必跑 `python scripts/build_bundles.py --all`；單場題材 `build_insights.py`（改 `INSIGHT_*` 先 `--dry-run --date …`）；賽前預覽 `build_preview.py`；薪資同步 `sync_salary.py`
 - 前端：改 `components/*.js` 後必跑 `python scripts/bundle.py`（勿手改 dist/；新電腦先 `npm ci`）；改 `icons/*.svg` 跑 `build_icons.py`；預覽 `python -m http.server 8000`
 - 測試 `python scripts/run_tests.py`（`--py`／`--js`；0 request）：改抓取流程、季平均、快取、薪資計算、前後端成對規則後必跑；新增「兩邊一起改」的規則在 `tests/py/test_contracts.py` 加一條；測試輸出走 `WOLVES_LOCAL_DIR`，不可寫進 `_local/`
@@ -33,9 +33,9 @@
 ## 前端
 - `components/*.js` 掛 `window.*`，`bundle.py` 依 ORDER 串接、esbuild 不改名識別字；Tailwind class 要完整寫在原始碼（不可字串拼接）；提交要連 `dist/` 與 `index.html`；圖表自繪 SVG、不引入圖表套件
 - `App.js` 只放主畫面狀態與畫面組裝：純計算放 `appLogic.js`（`window.AppLogic`，要加測試）、資料載入放 `appData.js`、獨立整頁路由放 `appRoute.js` →「App.js 的分工」
-- 資料層：季平均／Splits／趨勢／對戰 → `GameAgg` 算逐場 bundle；Playtype／Clutch／On-Off／防守 → 快照；投籃 → 逐球；單場 → `gamesData.loadGameDocs` →「前端架構、各頁網址與資料層」
+- 資料層：季平均／Splits／趨勢／對戰／總覽篩選時的效率三塊 → `GameAgg` 算逐場 bundle（讀 `adv`；新單場欄位放 `adv` 不放 `stats`）；Playtype／Clutch／防守 → 快照；投籃 → 逐球；單場 → `loadGameDocs` →「前端架構、各頁網址與資料層」
 - 逐場重算不可直接平均比率：新比率指標先決定走 `RATIO_DEFS`／`EFG_DEFS`／`TS_DEFS`／`WAVG_DEFS` 哪一種；次數類 defs 加 `neutral: true`
-- 效率：球員效率一律是**在場**效率（`ON_PTS`÷`ON_POSS` 加權），不在場只能用官方單場 On/Off，不可由全隊減在場推算
+- 效率：球員效率一律是**在場**效率（`ON_PTS`÷`ON_POSS` 加權）；不在場只用官方單場 On/Off（不可全隊減在場；區間要含該員沒上場的全隊場次）→「各章節」
 - 最近防守者：「vs 平常」期間值用 `GameAgg.NORMAL_DEFS` 依出手數加權；場均分母用 `D_GP`，不可用 base 出賽場數
 - 欄位單位：`TM_TOV_PCT` 在 API 已是百分比、不再乘 100；全隊 Misc 沒有 `PFD`
 - 全域期間：逐場來源吃 `periodCtx`；整季快照包 `UI.Locked on={periodOn}`，**不可默默顯示沒篩選的數字**；新章節在 `TABS` 標 `period: true`
@@ -49,7 +49,7 @@
 - 用詞中性，不貶低對手球隊或球員（勁敵／順手／棘手）；攻守切換叫「進攻端／防守端」
 
 ## 色票與字體
-- 主色 `#12A150`、結構藍 `#236192`、底色 `#0A1626`、月光銀 `#C4CED2`、負值 `#EF4444`（hex 直寫在元件，改色用 sed 全域替換）
+- 主色 `#12A150`、結構藍 `#236192`、底色 `#0A1626`、月光銀 `#C4CED2`、負值 `#EF4444`（hex 直寫在元件，改色全域替換）
 - 字體 `font-sans` Noto Sans TC／`font-display` Barlow Condensed／`font-mono` JetBrains Mono
 
 ## 頁面與網址
@@ -64,5 +64,4 @@
 | 完整賽程 | `#schedule[&m=YYYY-MM][&f=home\|away]` | `SchedulePage.js` |
 
 ## 規格文件
-- `doc/handover.md` 現況（含功能索引）；`doc/history.md` 設計紀錄與更新紀錄；`README.md` 對外說明
 - 改完功能：現況改寫進 handover 對應章節、過程與決定寫進 history.md；本檔只在新增「漏了就出錯」的規則或指令時加一行，維持 8,000 字內
