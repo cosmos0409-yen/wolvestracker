@@ -1977,6 +1977,95 @@ def box_oncourt_totals(box):
     return out
 
 
+# ── 逐場 bundle 的 adv 欄位（總覽「全隊效率／個人效率／在場不在場」跟著期間重算用，2026-11-20 起）──
+# 放在 bundle 每場的 adv（不混進 stats：stats 會被 GameAgg.aggregate 逐欄平均、被逐場對帳加總）。
+# 公式與 2026-11-19 整季快照對帳過，見 doc/handover.md「總覽」；前端讀法在 gameAggregates.js 的 teamAdvanced／playerAdvanced／onOff
+BUNDLE_TEAM_ADV_KEYS = ("POSS", "OPP_POSS", "PACE", "GMIN", "OREB_CH", "DREB_CH")
+BUNDLE_PLAYER_ADV_KEYS = ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE", "PIE_W",
+                          "OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_W")
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _box_minutes(v):
+    """box 的 MIN（"240:00" 或數字）→ 分鐘數；抓不到回 0"""
+    if _num(v):
+        return float(v)
+    if not v or not isinstance(v, str):
+        return 0.0
+    m, _, s = v.partition(":")
+    try:
+        return int(m) + int(s or 0) / 60
+    except ValueError:
+        return 0.0
+
+
+def _pie_part(s):
+    """PIE 公式的一邊（球員或球隊）：PTS+FGM+FTM−FGA−FTA+DREB+OREB/2+AST+STL+BLK/2−PF−TOV"""
+    g = lambda k: s.get(k) or 0
+    return (g("PTS") + g("FGM") + g("FTM") - g("FGA") - g("FTA") + g("DREB") + g("OREB") / 2
+            + g("AST") + g("STL") + g("BLK") / 2 - g("PF") - g("TOV"))
+
+
+def _box_two_teams(box):
+    """(灰狼 totals, 對手 totals)；任一缺回 (None, None)"""
+    teams = (box or {}).get("teams") or []
+    mine = next((t for t in teams if t.get("tricode") == "MIN"), None)
+    opp = next((t for t in teams if t.get("tricode") != "MIN"), None)
+    if not mine or not opp:
+        return None, None
+    return mine.get("totals") or {}, opp.get("totals") or {}
+
+
+def box_team_adv(box):
+    """逐場 bundle 球隊那場的 adv：{POSS, OPP_POSS, PACE, GMIN, OREB_CH, DREB_CH}；沒有進階 box（2026-10-29 前的場次）回 {}。
+    POSS／OPP_POSS：兩隊回合（進攻效率＝Σ得分÷ΣPOSS、防守效率＝Σ對手得分÷ΣOPP_POSS，與整季快照一致）；
+    GMIN：比賽分鐘（節奏依此加權）；OREB_CH／DREB_CH：籃板機會，由本場官方 OREB_PCT／DREB_PCT 反推
+    （NBA 的分母不是單純「己方＋對方籃板」，直接相加整季差 5 個百分點；反推後差約 0.4）。比率是 0（本場 0 個）無法反推 → 退回己方＋對方籃板"""
+    tt, ot = _box_two_teams(box)
+    if tt is None or not _num(tt.get("POSS")) or not _num(ot.get("POSS")):
+        return {}
+    gmin = _box_minutes(tt.get("MIN"))
+    out = {"POSS": tt["POSS"], "OPP_POSS": ot["POSS"]}
+    if _num(tt.get("PACE")):
+        out["PACE"] = tt["PACE"]
+    if gmin:
+        out["GMIN"] = round(gmin, 2)
+    for k, other in (("OREB", "DREB"), ("DREB", "OREB")):
+        n, pct = tt.get(k), tt.get(k + "_PCT")
+        if _num(n) and _num(pct) and pct > 0:
+            out[k + "_CH"] = round(n * 100 / pct, 2)
+        elif _num(n) and _num(ot.get(other)):
+            out[k + "_CH"] = n + ot[other]
+    return out
+
+
+def box_player_adv(box):
+    """逐場 bundle 灰狼球員那場的 adv：{personId字串: {...}}；沒有進階 box 回 {}。
+    USG_PCT／AST_PCT／籃板率／PIE 是本場官方值，前端依 POSS（PIE 依 PIE_W＝全場兩隊 PIE 分母）加權成區間近似值；
+    不在場：OFF_OFF_RATING／OFF_DEF_RATING 是單場官方值，OFF_W＝估計的不在場回合（全隊回合 × 不在場分鐘 ÷ (比賽分鐘÷5)），
+    前端加權用（不可用「全隊−在場」推不在場的效率，見 BOX_ONOFF_KEYS 註解；這裡只拿來當權重）"""
+    tt, ot = _box_two_teams(box)
+    if tt is None or not _num(tt.get("POSS")):
+        return {}
+    gmin = _box_minutes(tt.get("MIN"))
+    pie_w = round(_pie_part(tt) + _pie_part(ot), 2)
+    out = {}
+    for pl in (box or {}).get("players", []):
+        s = pl.get("stats") or {}
+        if pl.get("tricode") != "MIN" or not _num(s.get("POSS")):
+            continue
+        rec = {k: s[k] for k in ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE") if _num(s.get(k))}
+        rec["PIE_W"] = pie_w
+        if gmin and _num(s.get("OFF_OFF_RATING")) and _num(s.get("OFF_DEF_RATING")) and _num(s.get("OFF_MIN")):
+            rec["OFF_OFF_RATING"], rec["OFF_DEF_RATING"] = s["OFF_OFF_RATING"], s["OFF_DEF_RATING"]
+            rec["OFF_W"] = round(tt["POSS"] * s["OFF_MIN"] / (gmin / 5), 2)
+        out[str(pl["personId"])] = rec
+    return out
+
+
 def add_box_onoff(box, season, season_type_api, api_date):
     """單場 On/Off（teamplayeronoffdetails 帶單場日期，1 request）：灰狼球員的「不在場」併進 box 球員 stats。
     回傳是否抓到（False → 呼叫端視為 partial）。"""

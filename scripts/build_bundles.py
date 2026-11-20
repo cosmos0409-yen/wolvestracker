@@ -2,7 +2,8 @@
 """
 Wolves Tracker - 逐場資料打包
 
-把某季某賽別的所有單場濃縮成 bundle doc（每場統一為 {date,matchup,wl,stats} 形狀）：
+把某季某賽別的所有單場濃縮成 bundle doc（每場統一為 {date,matchup,wl,stats} 形狀；
+球隊另有 opp/oppAbbr（2026-10 起）、球隊與球員有進階 box 的場次另帶 adv（2026-10-29 起，總覽區間效率用））：
     wolves_games_bundle/{season}_{type}              球隊逐場（stats=球隊當場數據）
     wolves_pgames_bundle/{season}_{type}_{playerId}  逐球員逐場（stats=該員當場數據）
 
@@ -48,12 +49,14 @@ def build_one(db, index_id):
     for d in dates:
         tg = db.collection("wolves_team_games").document(d).get()
         m = w = ""
-        oncourt = {}
+        oncourt, padv = {}, {}
         if tg.exists:
             t = tg.to_dict()
             oncourt = nc.box_oncourt_totals(t.get("box"))
+            padv = nc.box_player_adv(t.get("box"))
             m, w = t.get("matchup", ""), t.get("wl", "")
-            team_games.append(_team_entry(d, m, w, t.get("stats", {}), t.get("opp"), t.get("oppAbbr", "")))
+            team_games.append(_team_entry(d, m, w, t.get("stats", {}), t.get("opp"), t.get("oppAbbr", ""),
+                                          nc.box_team_adv(t.get("box"))))
         pg = db.collection("wolves_player_games").document(d).get()
         if pg.exists:
             p = pg.to_dict()
@@ -64,7 +67,7 @@ def build_one(db, index_id):
                     continue
                 rec = per_player.setdefault(pid, {"playerName": name, "games": []})
                 rec["playerName"] = name
-                rec["games"].append({"date": d, "matchup": m, "wl": w, "stats": {**pdata, **oncourt.get(pid, {})}})
+                rec["games"].append(_player_entry(d, m, w, pdata, oncourt.get(pid), padv.get(pid)))
 
     team_doc = {"season": season, "seasonType": season_type_label, "type": "逐場打包",
                 "count": len(team_games), "timestamp": ts, "games": team_games}
@@ -93,11 +96,22 @@ def _upsert_entry(games, entry):
     return out
 
 
-def _team_entry(date, matchup, wl, stats, opp=None, opp_abbr=""):
-    """球隊 bundle 的一場；有對手數據（2026-10 起擷取的場次）才帶 opp/oppAbbr，舊場次維持原形狀"""
+def _team_entry(date, matchup, wl, stats, opp=None, opp_abbr="", adv=None):
+    """球隊 bundle 的一場；有對手數據（2026-10 起擷取的場次）才帶 opp/oppAbbr，有進階 box（2026-10-29 起）才帶 adv
+    （nba_common.box_team_adv），舊場次維持原形狀"""
     e = {"date": date, "matchup": matchup, "wl": wl, "stats": stats}
     if opp:
         e["opp"], e["oppAbbr"] = opp, opp_abbr
+    if adv:
+        e["adv"] = adv
+    return e
+
+
+def _player_entry(date, matchup, wl, pdata, oncourt=None, adv=None):
+    """球員 bundle 的一場：stats＝單場數據＋在場得失分／回合（box_oncourt_totals）；有進階 box 才帶 adv（box_player_adv）"""
+    e = {"date": date, "matchup": matchup, "wl": wl, "stats": {**pdata, **(oncourt or {})}}
+    if adv:
+        e["adv"] = adv
     return e
 
 
@@ -106,7 +120,8 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
     """增量更新：把單場併入既有 bundle（每日 fetch_data.py 用；同日重抓會取代舊的那場）。
     只讀寫這場有關的 doc（球隊 1 份 + 當場出賽球員各 1 份），不像 build_one 重讀整季。
     players：球員名為 key 的 dict（同 wolves_player_games.players），值須含 playerId。
-    box：本場 box score（有進階欄位時把在場得失分／回合數併進球員逐場，見 nba_common.box_oncourt_totals）。"""
+    box：本場 box score（有進階欄位時把在場得失分／回合數併進球員逐場，見 nba_common.box_oncourt_totals；
+         並在球隊與球員那場帶 adv，見 box_team_adv／box_player_adv）。"""
     import json
     ts = int(datetime.now().timestamp() * 1000)
     base = {"season": season, "seasonType": season_type_label, "type": "逐場打包", "timestamp": ts}
@@ -115,10 +130,11 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
         ref = db.collection("wolves_games_bundle").document(index_id)
         snap = ref.get()
         games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
-                              _team_entry(date, matchup, wl, team_stats, opp_stats, opp_abbr))
+                              _team_entry(date, matchup, wl, team_stats, opp_stats, opp_abbr, nc.box_team_adv(box)))
         ref.set({**base, "count": len(games), "games": games})
 
     oncourt = nc.box_oncourt_totals(box)
+    padv = nc.box_player_adv(box)
     n = 0
     for name, pdata in (players or {}).items():
         pid = str(pdata.get("playerId", ""))
@@ -127,7 +143,7 @@ def upsert_game(db, index_id, season, season_type_label, date, matchup, wl, team
         ref = db.collection("wolves_pgames_bundle").document(f"{index_id}_{pid}")
         snap = ref.get()
         games = _upsert_entry((snap.to_dict() or {}).get("games", []) if snap.exists else [],
-                              {"date": date, "matchup": matchup, "wl": wl, "stats": {**pdata, **oncourt.get(pid, {})}})
+                              _player_entry(date, matchup, wl, pdata, oncourt.get(pid), padv.get(pid)))
         pdoc = {**base, "playerId": int(pid), "playerName": name, "count": len(games), "games": games}
         if len(json.dumps(pdoc, ensure_ascii=False).encode("utf-8")) > 0.95 * MiB:
             print(f"   ⚠️ {name} bundle 逼近 1 MiB")
