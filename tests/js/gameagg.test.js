@@ -126,3 +126,18 @@ test('在場／不在場：沒上場的場次算整場全隊，有上場的用�
     assert.equal(none.ON_OFF_RATING, null);
     assert.equal(none.OFF_OFF_RATING, 104.8);
 });
+
+test('在場／不在場節奏：在場依上場分鐘加權；不在場依不在場分鐘加權，沒上場的場次用全隊整場節奏', () => {
+    // team2：第 1 場 PACE 100、240 分鐘；第 2 場 PACE 110、265 分鐘（延長賽）
+    const pg = [{ date: '2026-11-01', stats: { MIN: 36, ON_PTS: 90, ON_OPP_PTS: 80, ON_POSS: 75 },
+        adv: { PACE: 102, OFF_OFF_RATING: 120, OFF_DEF_RATING: 120, OFF_W: 25, OFF_PACE: 96, OFF_MIN: 12 } }];
+    const o = GA.onOff(pg, team2);
+    assert.equal(o.ON_PACE, 102.0);
+    // 不在場：96×12（有上場）＋ 110×53（沒上場，265÷5）＝ 6982；分鐘 12＋53＝65 → 107.4
+    assert.equal(o.OFF_PACE, 107.4);
+    // 舊資料沒有不在場節奏：有上場的場次不計入，只剩沒上場的整場
+    const old = GA.onOff([{ ...pg[0], adv: { PACE: 102, OFF_OFF_RATING: 120, OFF_DEF_RATING: 120, OFF_W: 25 } }], team2);
+    assert.equal(old.OFF_PACE, 110.0);
+    // 沒有在場節奏（舊場次）→ null
+    assert.equal(GA.onOff([{ ...pg[0], adv: {} }], team2).ON_PACE, null);
+});

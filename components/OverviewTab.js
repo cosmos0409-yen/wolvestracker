@@ -263,27 +263,31 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
             {/* 期間篩選中（onoffP）：場次範圍依全隊，離場含該員沒上場的場次；離場是單場官方值加權的近似（≈） */}
             {hasOnoff && (<UI.Locked on={periodOn && !onoffP}>
                 <UI.Section title="在場 / 不在場" en="On/Off Court" accent="blue"
-                    sub={onoffP ? [`${res.label}（全隊 ${onoffP.cur.teamGP} 場，出賽 ${onoffP.cur.GP} 場）`, '離場含沒上場的場次', '篩選時不排名', '≈ 離場為單場官方值加權'].join(' · ')
-                        : '球隊在該球員上場 / 下場時的每 100 回合效率（整季快照）'}>
-                    <UI.Ledger cols="grid-cols-1 sm:grid-cols-3">
+                    sub={onoffP ? [`${res.label}（全隊 ${onoffP.cur.teamGP} 場，出賽 ${onoffP.cur.GP} 場）`, '離場含沒上場的場次', '篩選時不排名', '≈ 離場效率為單場官方值加權', '節奏＝每 48 分鐘回合（快慢，不分好壞）'].join(' · ')
+                        : '球隊在該球員上場 / 下場時的每 100 回合效率與節奏（整季快照）· 節奏＝每 48 分鐘回合（快慢，不分好壞）'}>
+                    <UI.Ledger cols="grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                         {(() => { const oo = onoffP ? onoffP.cur : onoff; return [
                             { label: '進攻效率', en: 'OffRtg', gk: 'OFF_RATING', on: oo.ON_OFF_RATING, off: oo.OFF_OFF_RATING, better: 'high' },
                             { label: '防守效率', en: 'DefRtg', gk: 'DEF_RATING', on: oo.ON_DEF_RATING, off: oo.OFF_DEF_RATING, better: 'low' },
                             { label: '淨效率', en: 'NetRtg', gk: 'NET_RATING', on: oo.ON_NET_RATING, off: oo.OFF_NET_RATING, better: 'high' },
+                            // 節奏（2026-11-21 起）：快慢不分好壞（better: null，不上綠紅色）；期間值與快照一致，不標 ≈
+                            { label: '節奏', en: 'Pace', gk: 'PACE', on: oo.ON_PACE, off: oo.OFF_PACE, better: null, exact: true },
                         ]; })().map(m => {
                             const diff = (typeof m.on === 'number' && typeof m.off === 'number') ? m.on - m.off : null;
                             const good = diff != null && (m.better === 'high' ? diff > 0 : diff < 0);
                             const asOf = onoffP ? 'agg' : 'snap';
+                            const approx = !!onoffP && !m.exact;
+                            const tone = diff == null ? 'text-slate-600' : !m.better ? 'text-slate-50' : good ? 'text-[#12A150]' : 'text-[#EF4444]';
                             return (
                                 <div key={m.label} className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
-                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}{onoffP && <UI.ApproxMark />}<UI.Info k={m.gk}
+                                    <div className="flex items-center text-[11px] leading-tight text-slate-300">{m.label}{approx && <UI.ApproxMark />}<UI.Info k={m.gk}
                                         quote={diff == null ? undefined : () => window.Quote.make({ kind: 'compare', sep: 'vs.', label: m.label, en: m.en, gkey: m.gk, better: m.better, asOf,
-                                            ...(onoffP ? { ctxNote: `離場${UI.APPROX_NOTE}` } : {}),
+                                            ...(approx ? { ctxNote: `離場${UI.APPROX_NOTE}` } : {}),
                                             values: [{ tag: '在場', value: m.on.toFixed(1) }, { tag: '離場', value: m.off.toFixed(1) }] })}
                                         cite={diff == null ? undefined : () => UI.citeLine({ label: `${m.label}在場 − 離場`, en: m.en, value: (diff > 0 ? '+' : '') + diff.toFixed(1),
-                                            gkey: m.gk, asOf, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，每 100 回合${onoffP ? `；離場${UI.APPROX_NOTE}` : ''}）` })} /></div>
+                                            gkey: m.gk, asOf, note: `On/Off（在場 ${m.on.toFixed(1)}／離場 ${m.off.toFixed(1)}，${m.gk === 'PACE' ? '每 48 分鐘回合' : '每 100 回合'}${approx ? `；離場${UI.APPROX_NOTE}` : ''}）` })} /></div>
                                     <div className="font-mono text-[10px] leading-tight text-slate-500">{m.en} · 在場 − 離場</div>
-                                    <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${diff == null ? 'text-slate-600' : good ? 'text-[#12A150]' : 'text-[#EF4444]'}`}>
+                                    <div className={`mt-2 font-display text-[26px] font-semibold leading-none tabular-nums ${tone}`}>
                                         {diff == null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1)}
                                     </div>
                                     <div className="mt-1.5 font-mono text-[11px] tabular-nums text-slate-400">

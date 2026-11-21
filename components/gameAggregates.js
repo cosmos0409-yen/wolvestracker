@@ -271,6 +271,8 @@ window.GameAgg = (function () {
     // 不在場：有上場的場次用官方單場不在場效率、依 OFF_W（估計的不在場回合）加權；沒上場的場次（含加入前、缺陣）算整場全隊。
     //   NBA 整季值也是這樣算（2026-11-20 用只打 1 場、3 場的球員驗證，只從首場起算會差 3 分）。
     //   不可用「全隊 − 在場」推不在場的效率（CLAUDE.md），這裡全隊整場只用在該員沒上場的場次
+    // 節奏（2026-11-21 起）：在場＝Σ(單場在場節奏 × 上場分鐘) ÷ Σ上場分鐘；不在場＝Σ(單場不在場節奏 × 不在場分鐘)，
+    //   沒上場的場次用全隊整場節奏 × (比賽分鐘÷5)，再除以總分鐘。兩者與 On/Off 快照差 ≤ 0.06（精確）；缺節奏的場次不計入節奏
     // 缺資料的場次（沒有單場 On/Off 或全隊 adv）跳過，missing 記場數
     const ONOFF_APPROX = ['OFF_OFF_RATING', 'OFF_DEF_RATING', 'OFF_NET_RATING'];
     function onOff(pgames, teamGames) {
@@ -279,7 +281,7 @@ window.GameAgg = (function () {
         (pgames || []).forEach(g => { if (g && g.stats) byDate[g.date] = g; });
         const played = tg.map(g => byDate[g.date]).filter(Boolean);
         const onPoss = sumOf(played, g => g.stats.ON_POSS);
-        let op = 0, od = 0, ow = 0, missing = 0;
+        let op = 0, od = 0, ow = 0, missing = 0, offPn = 0, offPm = 0;
         tg.forEach(t => {
             const p = byDate[t.date];
             if (p) {
@@ -287,15 +289,19 @@ window.GameAgg = (function () {
                 if (isNum(a.OFF_W) && isNum(a.OFF_OFF_RATING) && isNum(a.OFF_DEF_RATING)) {
                     op += a.OFF_OFF_RATING * a.OFF_W / 100; od += a.OFF_DEF_RATING * a.OFF_W / 100; ow += a.OFF_W;
                 } else missing++;
+                if (isNum(a.OFF_PACE) && isNum(a.OFF_MIN)) { offPn += a.OFF_PACE * a.OFF_MIN; offPm += a.OFF_MIN; }
             } else if (t.adv && isNum(t.adv.POSS)) {
                 op += num(t.stats.PTS); od += oppPts(t); ow += t.adv.POSS;
+                if (isNum(t.adv.PACE) && isNum(t.adv.GMIN)) { offPn += t.adv.PACE * t.adv.GMIN / 5; offPm += t.adv.GMIN / 5; }
             } else missing++;
         });
         const on = onPoss ? [100 * sumOf(played, g => g.stats.ON_PTS) / onPoss, 100 * sumOf(played, g => g.stats.ON_OPP_PTS) / onPoss] : null;
         const off = ow ? [100 * op / ow, 100 * od / ow] : null;
+        const onPaced = played.filter(g => g.adv && isNum(g.adv.PACE) && num(g.stats.MIN) > 0);
         return { GP: played.length, teamGP: tg.length, missing, approx: ONOFF_APPROX,
             ON_OFF_RATING: on && round1(on[0]), ON_DEF_RATING: on && round1(on[1]), ON_NET_RATING: on && round1(on[0] - on[1]),
-            OFF_OFF_RATING: off && round1(off[0]), OFF_DEF_RATING: off && round1(off[1]), OFF_NET_RATING: off && round1(off[0] - off[1]) };
+            OFF_OFF_RATING: off && round1(off[0]), OFF_DEF_RATING: off && round1(off[1]), OFF_NET_RATING: off && round1(off[0] - off[1]),
+            ON_PACE: wavg(onPaced, g => g.adv.PACE, g => g.stats.MIN), OFF_PACE: offPm ? round1(offPn / offPm) : null };
     }
     // 前後端成對：bundle adv 會讀到的欄位（tests/py/test_contracts.py 對照 nba_common.BUNDLE_*_ADV_KEYS）
     const ADV_KEYS_READ = {
