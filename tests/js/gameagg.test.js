@@ -141,3 +141,49 @@ test('在場／不在場節奏：在場依上場分鐘加權；不在場依不�
     // 沒有在場節奏（舊場次）→ null
     assert.equal(GA.onOff([{ ...pg[0], adv: {} }], team2).ON_PACE, null);
 });
+
+// ── 防守章節、得分組成的期間值（defenseExtras／scoringMix）──
+const dg = (date, stats, opp, adv) => ({ date, wl: 'W', matchup: 'MIN vs. DEN', stats, opp, adv });
+const def2 = [
+    dg('2026-11-01', { PTS: 120, DREB: 30, PLUS_MINUS: 10, RA_FGM: 10, PAINT_FGM: 5, MID_FGM: 2, FG3M: 12, FTM: 20 },
+        { PTS: 110, FGA: 90, FGM: 40, FG3A: 30, FG3M: 10, RA_FGA: 25, RA_FGM: 15, PAINT_FGA: 20, PAINT_FGM: 8, MID_FGA: 10, MID_FGM: 4, C3_FGA: 8, C3_FGM: 3, AB3_FGA: 22, AB3_FGM: 7 },
+        { POSS: 100, OPP_POSS: 101, DREB_CH: 40 }),
+    dg('2026-11-03', { PTS: 100, DREB: 35, PLUS_MINUS: -5, RA_FGM: 8, PAINT_FGM: 4, MID_FGM: 4, FG3M: 10, FTM: 18 },
+        { PTS: 105, FGA: 80, FGM: 35, FG3A: 40, FG3M: 12, RA_FGA: 15, RA_FGM: 10, PAINT_FGA: 15, PAINT_FGM: 6, MID_FGA: 10, MID_FGM: 3, C3_FGA: 10, C3_FGM: 4, AB3_FGA: 30, AB3_FGM: 8 },
+        { POSS: 110, OPP_POSS: 109, DREB_CH: 45 }),
+];
+
+test('防守期間值（全隊）：防守效率用對手回合、最近防守者＝對手全部出手、對手禁區得分＝2×(RA＋PAINT 命中)', () => {
+    const d = plain(GA.defenseExtras(def2, true));
+    assert.equal(d.DEF_RATING, 102.4);          // 215/210
+    assert.equal(d.DREB_PCT, 76.5);             // 65/85
+    assert.equal(d.D_FGA, 85.0);                // (90+80)/2
+    assert.equal(d.D_FG_PCT, 44.1);             // 75/170
+    assert.equal(d.D_FG3_PCT, 31.4);            // 22/70
+    assert.equal(d.D_FG2_PCT, 53.0);            // 53/100
+    assert.equal(d.OPP_PTS_PAINT, 39.0);        // 2×(25+14)/2
+    assert.equal(d.RA_OPP_FG_PCT, 62.5);        // 25/40
+    assert.equal(d.PCT_PLUSMINUS, undefined);   // 平常命中率逐場沒有 → 不給
+    assert.ok(d.approx.includes('DREB_PCT'));
+    // 舊場次沒有對手數據：對手類欄位不給（null），不是 0
+    const old = GA.defenseExtras(def2.map(g => ({ ...g, opp: undefined })), true);
+    assert.equal(old.D_FGA, undefined);
+    assert.equal(old.RA_OPP_FG_PCT, null);
+});
+
+test('防守期間值（球員）：防守效率＝在場防守效率、防守籃板率依回合加權', () => {
+    const pg = [{ date: 'a', stats: { ON_OPP_PTS: 100, ON_POSS: 100 }, adv: { POSS: 100, DREB_PCT: 20 } },
+        { date: 'b', stats: { ON_OPP_PTS: 45, ON_POSS: 50 }, adv: { POSS: 50, DREB_PCT: 11 } }];
+    const d = GA.defenseExtras(pg, false);
+    assert.equal(d.DEF_RATING, 96.7);           // 145/150
+    assert.equal(d.DREB_PCT, 17.0);             // (20×100+11×50)/150
+});
+
+test('得分組成期間值：四項占比合計 100%、禁區得分場均；沒有分區資料回 null', () => {
+    const s = GA.scoringMix(def2);
+    // 得分 220：禁區 2×(RA 18＋PAINT 9)＝54、三分 3×22＝66（假資料只驗算式，四項不必剛好湊滿 220）
+    assert.equal(s.PCT_PTS_PAINT, 24.5);        // 54/220
+    assert.equal(s.PCT_PTS_3PT, 30.0);          // 66/220
+    assert.equal(s.PTS_PAINT, 27.0);            // 54/2
+    assert.equal(GA.scoringMix(def2.map(g => ({ ...g, stats: { PTS: 100 } }))), null);
+});

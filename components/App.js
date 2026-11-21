@@ -572,10 +572,13 @@ const App = () => {
     // 條件資料還沒到齊或沒填完（各章節顯示等待，不可先顯示全季數字）
     const periodWaiting = !!(periodOn && (!periodRes || (periodRes.cond !== undefined && !(periodRes.cond && periodRes.cond.ready))));
     const periodDates = periodOn && periodRes && !periodWaiting ? new Set(periodRes.games.map(g => g.date)) : null;
-    // 防守章節：有逐場的群組（GAME_DEFENSE_IDS）改用逐場加總，箭頭＝vs 全季；全季同 Splits（不套「數據截至」）
-    const defPeriod = periodDates && seasonGames ? {
-        cur: window.GameAgg.aggregate(periodRes.games, null, 'TEAM'), all: window.GameAgg.aggregate(seasonGames, null, 'TEAM'),
-    } : null;
+    // 防守章節：逐場加總（GameAgg.aggregate）＋逐場能還原的防守欄位（GameAgg.defenseExtras：防守效率、籃板率、對手分區、全隊最近防守者），
+    // 箭頭＝vs 全季；全季同 Splits（不套「數據截至」）。extras 是 null 的欄位不蓋掉 aggregate 的值
+    const defAgg = (gs) => {
+        const ex = window.GameAgg.defenseExtras(gs, viewMode === 'TEAM');
+        return Object.assign(window.GameAgg.aggregate(gs, null, 'TEAM'), Object.fromEntries(Object.entries(ex).filter(([, v]) => v != null)));
+    };
+    const defPeriod = periodDates && seasonGames ? { cur: defAgg(periodRes.games), all: defAgg(seasonGames) } : null;
     const clearPeriod = () => { setPeriod(window.Period.ALL); setPeriodOpen(false); };
     const periodPill = (withRecord) => window.PeriodPill && (
         <window.PeriodPill label={periodLabel} rec={periodRec} active={periodOn} open={periodOpen} withRecord={withRecord}
@@ -833,6 +836,8 @@ const App = () => {
                                     scoring={viewMode === 'TEAM' ? ((teamSeq[teamIdx] || {}).scoring || null) : (((playerSeq[playerIdx] || {}).scoring || {})[selectedPlayer] || null)}
                                     seasonLabel={primaryLabel} gameMeta={gameMeta}
                                     periodDates={periodDates} periodLabel={periodLabel} periodWaiting={periodWaiting}
+                                    scoringPeriod={periodDates && seasonGames ? { cur: window.GameAgg.scoringMix(seasonGames.filter(g => periodDates.has(g.date))),
+                                        all: window.GameAgg.scoringMix(seasonGames), label: periodLabel } : null}
                                 />
                         )}
 
@@ -844,17 +849,22 @@ const App = () => {
                                 ) : hasDefenseData ? (
                                     <window.UI.Section title="防守數據" en="Defense" accent="red"
                                         sub={defPeriod
-                                            ? `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · ${periodLabel}（${defPeriod.cur.GP} 場）· 有逐場資料的群組跟著期間，箭頭＝vs 全季；其他為整季快照（停用）`
+                                            ? `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · ${periodLabel}（${defPeriod.cur.GP} 場）· 箭頭＝vs 全季 · 篩選時不排名 · 沒有逐場資料的格子顯示「—」；整組都沒有的為整季快照（停用）`
                                             : `${viewMode === 'PLAYER' ? selectedPlayer + selTag : '全隊'} · 對手命中率、防守效率越低越好；vs 平常負數＝守得好 · 箭頭為 vs 前一份快照 · 點群組看走勢`}>
                                         {/* 球隊：防守 Box → 最近防守者（全隊版 2026-11 起有）→ 護框 → 對手分區 → 拼勁 → 掩護與卡位（重要性順序；球員沿用 defenseDefs 順序） */}
                                         {(viewMode === 'PLAYER' ? defenseDefs : [...defenseDefs.filter(d => d.id === 'DefenseBox'), ...defenseDefs.filter(d => d.id === 'MatchupDefense' || d.id === 'RimProtection'), ...oppZonesDefs, ...defenseDefs.filter(d => !['MatchupDefense', 'RimProtection', 'DefenseBox'].includes(d.id))]
                                             .map(d => ({ ...d, metrics: d.metrics.filter(m => !m.playerOnly) }))).map(def => {
-                                            // 期間篩選：逐場有這組數字 → 用期間加總；沒有（防守 Box、對手分區、全隊最近防守者）→ 整季快照、停用
-                                            const live = defPeriod && (window.GAME_DEFENSE_IDS || []).includes(def.id)
-                                                && def.metrics.some(m => typeof defPeriod.all[m.key] === 'number');
+                                            // 期間篩選：群組裡有任一指標拿得到逐場值 → 跟著期間（2026-11-21 起不再只限 GAME_DEFENSE_IDS）；
+                                            // 拿不到的格子變淡、寫「期間無逐場資料（整季 X）」（如快攻失分、全隊 vs 平常）；整組都沒有（全隊護框）→ 整季快照、停用
+                                            const live = defPeriod && def.metrics.some(m => typeof defPeriod.all[m.key] === 'number');
+                                            const naNotes = live ? Object.fromEntries(def.metrics.filter(m => typeof defPeriod.cur[m.key] !== 'number').map(m => {
+                                                const v = currentDefense[m.key];
+                                                return [m.key, typeof v === 'number' ? `期間無逐場資料（整季 ${m.signed ? window.fixSigned(v) : window.fix1(v)}${m.unit || ''}）` : '期間無逐場資料'];
+                                            })) : null;
                                             return live ? (
                                                 <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense" clickable={false}
                                                     metrics={def.metrics} current={defPeriod.cur} prev={defPeriod.all} cols={def.cols} gp={defPeriod.cur.GP}
+                                                    naNotes={naNotes} approxKeys={defPeriod.cur.approx}
                                                     citeAsOf="none" citeNote={`${periodLabel}（${defPeriod.cur.GP} 場）`} compareTags={['全季', periodLabel]} />
                                             ) : (
                                                 <window.UI.Locked key={def.id} on={periodOn}>
@@ -881,7 +891,10 @@ const App = () => {
                                     </window.UI.Note>
                                 )}
                                 {viewMode === 'TEAM' && window.DefenseHeatmap && hasDefenseData && !periodWaiting && (
-                                    <window.UI.Locked on={periodOn}><window.DefenseHeatmap defense={currentDefense} /></window.UI.Locked>
+                                    // 期間篩選：對手分區命中由逐場還原（defenseExtras）→ 熱圖跟著期間；還原不了（舊賽季沒有對手分區）才停用
+                                    (() => { const heat = defPeriod && typeof defPeriod.cur.RA_OPP_FG_PCT === 'number' ? { ...currentDefense, ...defPeriod.cur } : null;
+                                        return <window.UI.Locked on={periodOn && !heat}><window.DefenseHeatmap defense={heat || currentDefense}
+                                            periodNote={heat ? `${periodLabel}（${defPeriod.cur.GP} 場）` : null} /></window.UI.Locked>; })()
                                 )}
                             </div>
                         )}

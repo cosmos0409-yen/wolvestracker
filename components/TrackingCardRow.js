@@ -8,7 +8,8 @@
 // compareTags：[prev 標籤, current 標籤]（Splits 期間 vs 全季）→ 加入引用籃時存成前後比較「全季 → 近 5 場」
 // cols：每列格數（群組 defs 的 cols，如最近防守者 3 層 × 3 格手機也排 3 欄）；不給依指標數（UI.ledgerCols）
 // gp：current 的場數（快照用 base GP、期間用 GameAgg 的 GP）→ 指標有 att 時以「場均出手 × gp」判斷 DEF_SHOT_RULES.seasonMin 小樣本
-const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote, rankCats = null, compareTags = null, cols = null, gp = null }) => {
+// naNotes：{ 欄位: 說明 }（期間篩選時沒有逐場資料的格子，傳給 StatCell 的 naNote）；approxKeys：近似值欄位（StatCell 的 approx）
+const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, source = 'tracking', clickable = true, naReason = null, actionLabel = '走勢', citeAsOf = 'snap', citeNote, rankCats = null, compareTags = null, cols = null, gp = null, naNotes = null, approxKeys = null }) => {
     if (!current) return null;
     const UI = window.UI;
     const [zh, en] = UI.splitTitle(title);
@@ -44,6 +45,7 @@ const TrackingCardRow = ({ title, category, metrics, current, prev, onClick, sou
                         rank={rankCats ? window.leagueRank(rankCats, m.key) : null} neutral={!!m.neutral}
                         rankWhy={rankCats ? window.rankWhy(rankCats, m.key) : null}
                         sample={sampleOf(m)} signed={!!m.signed}
+                        naNote={naNotes ? naNotes[m.key] || null : null} approx={!!(approxKeys && approxKeys.includes(m.key))}
                         quote={compareTags && typeof prev?.[m.key] === 'number' && typeof current[m.key] === 'number'
                             ? { kind: 'compare', sep: '→', label: window.metricLabel(m), rank: null,
                                 values: [{ tag: compareTags[0], value: cmpVal(m, prev[m.key], current[m.key]), unit: m.unit },

@@ -385,7 +385,8 @@ window.UI = (function () {
             className="ml-1 inline-flex shrink-0 items-center rounded-[3px] border border-amber-300/50 px-[3px] font-mono text-[10px] leading-[14px] text-amber-300">≈</span>
     );
     // approx：逐場加權的近似值（總覽期間篩選的效率類）：標籤旁標「≈」，引用加註「逐場加權近似」
-    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null, rankWhy = null, approx = false }) => {
+    // naNote：值缺的時候在「—」下方的說明（期間篩選時沒有逐場資料的格子：「期間無逐場資料（整季 X）」），格子變淡
+    const StatCell = ({ label, en, value, unit = '', prevValue, betterIsLarger = true, naReason = null, pct = null, pctLabel, gkey, citeAsOf = 'snap', citeNote, valueTitle, rank = null, neutral = false, quote, sample = null, signed = false, fullLabel, sub = null, rankWhy = null, approx = false, naNote = null }) => {
         const citeLabel = fullLabel || label;   // 格子標籤是縮寫時（手機 3 欄），引用與複製用完整名稱
         if (approx) {
             citeNote = [citeNote, APPROX_NOTE].filter(Boolean).join('，');
@@ -399,8 +400,9 @@ window.UI = (function () {
             label: citeLabel, en, gkey, values: [{ value: shown, unit }], rank: rank ? { rank: rank.rank, n: rank.n } : null,
             better: neutral ? null : (betterIsLarger ? 'high' : 'low'), asOf: citeAsOf,
         }, quote || {}));
+        const dimNA = missing && !!naNote;
         return (
-            <div className="group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0">
+            <div className={`group/cell relative border-r border-b border-white/[0.08] px-3 pt-2.5 pb-3 min-w-0 ${dimNA ? 'opacity-50' : ''}`}>
                 {/* 有 gkey：複製引用收進「?」小卡；沒有 gkey 才放右上角獨立複製鈕 */}
                 {!gkey && !missing && (
                     <CopyBtn className="absolute right-1 top-1"
@@ -428,6 +430,8 @@ window.UI = (function () {
                 </div>
                 {rank && <div className={`mt-1.5 font-mono text-[11px] tabular-nums ${rank.top ? 'text-[#12A150]' : 'text-slate-400'}`}>聯盟第{rank.rank}</div>}
                 {sub && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-slate-400">{sub}</div>}
+                {/* 說明文字可換行（手機 3 欄時每格很窄，截斷會看不到整季值） */}
+                {dimNA && <div className="mt-1.5 break-words text-[11px] leading-snug tabular-nums text-slate-400">{naNote}</div>}
                 {sample != null && <div className="mt-1.5 whitespace-nowrap text-[11px] tabular-nums text-amber-300" title="樣本少，數值波動大">樣本小 · {sample} 次</div>}
                 {pct != null && <PctBar value={pct} label={pctLabel} />}
             </div>

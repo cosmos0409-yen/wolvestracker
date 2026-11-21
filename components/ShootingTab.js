@@ -27,7 +27,7 @@ window.loadShotDoc = loadShotDoc;   // 對戰頁共用（同一份快取）
 // '2025-26' → '2024-25'
 const prevSeasonOf = (season) => { const y = parseInt(String(season).slice(0, 4), 10) - 1; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
 
-const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta, periodDates = null, periodLabel: pLabel = '全季', periodWaiting = false, scoring = null }) => {
+const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLabel, gameMeta, periodDates = null, periodLabel: pLabel = '全季', periodWaiting = false, scoring = null, scoringPeriod = null }) => {
     const { useState, useEffect } = React;
     const TrendChart = window.TrendChart;
     const ShotChart = window.ShotChart;
@@ -233,9 +233,10 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
                 )}
             </UI.Section>
 
-            {/* 得分組成（整季快照 scoring，2026-11-12 起；篩選時停用） */}
-            {scoring && typeof scoring.PCT_PTS_PAINT === 'number' && (<UI.Locked on={filtered}>
-                <ScoringMix scoring={scoring} teamMode={teamMode} />
+            {/* 得分組成（整季快照 scoring，2026-11-12 起）：篩選時四項占比與禁區得分改用逐場還原（scoringPeriod，GameAgg.scoringMix），
+                還原不了（沒有逐場分區）才停用 */}
+            {scoring && typeof scoring.PCT_PTS_PAINT === 'number' && (<UI.Locked on={filtered && !(scoringPeriod && scoringPeriod.cur)}>
+                <ScoringMix scoring={scoring} teamMode={teamMode} period={filtered && scoringPeriod && scoringPeriod.cur ? scoringPeriod : null} />
             </UI.Locked>)}
 
             {/* 受助攻（全季快照，不隨篩選） */}
@@ -259,39 +260,50 @@ const ShootingTab = ({ playerId, teamMode, season, typeKey, playerName, seasonLa
 };
 
 // 得分組成：長條（禁區＋中距離＋三分＋罰球＝100%）＋圖例＋情境得分格子。全隊帶聯盟名次（window.RankCtx，只限當季最新快照）
-const ScoringMix = ({ scoring, teamMode }) => {
+// period：期間篩選時的 { cur, all, label }（GameAgg.scoringMix）：長條、四項占比、禁區得分改用期間值（箭頭＝vs 全季、不排名），
+// 快攻／二波／失誤後得分與造成犯規逐場沒有資料 → 變淡、寫「期間無逐場資料（整季 X）」
+const ScoringMix = ({ scoring, teamMode, period = null }) => {
     const UI = window.UI;
     const SHARE = window.scoringShareDefs || [], SIT = (window.scoringSituationDefs || []).filter(m => !(teamMode && m.playerOnly));
-    // 名次：全隊 30 隊、球員全聯盟合格球員（window.RankCtx 已限當季快照）
-    const rk = (k) => window.leagueRank('scoring', k);
+    const src = period ? period.cur : scoring;
+    // 名次：全隊 30 隊、球員全聯盟合格球員（window.RankCtx 已限當季快照）；篩選時不排名
+    const rk = (k) => period ? null : window.leagueRank('scoring', k);
     const ctx = window.RankCtx;
-    const nOf = !ctx || !ctx.ranks ? null : ctx.kind === 'player' ? (ctx.ranks._rules || {}).n_qualified
+    const nOf = period || !ctx || !ctx.ranks ? null : ctx.kind === 'player' ? (ctx.ranks._rules || {}).n_qualified
         : (ctx.ranks.scoring ? ctx.ranks.scoring._n : null);
-    const line = SHARE.map(m => `${m.label} ${Number(scoring[m.key]).toFixed(1)}%`).join('、');
+    const line = SHARE.map(m => `${m.label} ${Number(src[m.key]).toFixed(1)}%`).join('、');
     const addLine = () => {
-        const r = window.Quote.add(window.Quote.make({ kind: 'line', label: '得分組成', en: 'Scoring Breakdown', gkey: 'SCORING_MIX', values: [{ value: `得分組成：${line}` }], asOf: 'snap' }));
+        const r = window.Quote.add(window.Quote.make({ kind: 'line', label: '得分組成', en: 'Scoring Breakdown', gkey: 'SCORING_MIX', values: [{ value: `得分組成：${line}` }], asOf: period ? 'agg' : 'snap' }));
         UI.toast(r.added ? `已加入引用籃（共 ${r.total} 項）` : '這一行已在引用籃裡');
     };
+    const deltaOf = (k) => {
+        if (!period || typeof period.cur[k] !== 'number' || typeof period.all[k] !== 'number') return null;
+        const d = period.cur[k] - period.all[k];
+        return Math.abs(d) < 0.05 ? '＝' : `${d > 0 ? '▲' : '▼'}${Math.abs(d).toFixed(1)}`;
+    };
+    const sub = period
+        ? `${period.label}（${period.cur.GP} 場）· 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 箭頭＝vs 全季 · 篩選時不排名`
+        : `得分從哪裡來 · 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 整季快照${nOf ? ` · 小字為${teamMode ? ` ${nOf} 隊名次` : `聯盟名次（${nOf} 人）`}（占比依大小排，不是好壞）` : ''}`;
     return (
-        <UI.Section title="得分組成" en="Scoring Breakdown" accent="green"
-            sub={`得分從哪裡來 · 長條＝禁區＋中距離＋三分＋罰球（合計 100%）· 整季快照（期間篩選時停用）${nOf ? ` · 小字為${teamMode ? ` ${nOf} 隊名次` : `聯盟名次（${nOf} 人）`}（占比依大小排，不是好壞）` : ''}`}
+        <UI.Section title="得分組成" en="Scoring Breakdown" accent="green" sub={sub}
             right={<button type="button" onClick={addLine}
                 className="inline-flex min-h-[28px] items-center whitespace-nowrap rounded-full border border-white/15 px-3 text-[12px] text-slate-300 hover:border-[#12A150] hover:text-[#12A150]">＋ 整組加入</button>}>
             <div className="mb-2.5 flex h-[30px] border border-white/[0.08]" role="img" aria-label={`得分組成：${line}`}>
                 {SHARE.map(m => {
-                    const w = Math.max(0, Number(scoring[m.key]) || 0);
+                    const w = Math.max(0, Number(src[m.key]) || 0);
                     return <div key={m.key} style={{ width: `${w}%`, background: m.color }}
                         className="flex min-w-0 items-center justify-center overflow-hidden whitespace-nowrap font-mono text-[11.5px] font-medium text-[#0A1626]">{w >= 9 ? `${Math.round(w)}%` : ''}</div>;
                 })}
             </div>
             <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
                 {SHARE.map(m => {
-                    const r = rk(m.key);
+                    const r = rk(m.key), d = deltaOf(m.key);
                     return (
                         <div key={m.key} className="flex items-baseline gap-1.5 whitespace-nowrap text-[12px] text-slate-200">
                             <i className="inline-block h-2.5 w-2.5 shrink-0 translate-y-px" style={{ background: m.color }}></i>{m.label}
-                            <span className="font-display text-[20px] font-semibold tabular-nums text-slate-50">{Number(scoring[m.key]).toFixed(1)}<span className="ml-0.5 text-[11px] text-slate-400">%</span></span>
+                            <span className="font-display text-[20px] font-semibold tabular-nums text-slate-50">{Number(src[m.key]).toFixed(1)}<span className="ml-0.5 text-[11px] text-slate-400">%</span></span>
                             {r && <span className={`font-mono text-[10.5px] ${r.top ? 'text-[#12A150]' : 'text-slate-400'}`}>第{r.rank}</span>}
+                            {d && <span className="font-mono text-[10.5px] text-slate-400" title={`vs 全季 ${Number(period.all[m.key]).toFixed(1)}%`}>{d}</span>}
                         </div>
                     );
                 })}
@@ -301,11 +313,20 @@ const ScoringMix = ({ scoring, teamMode }) => {
                 <span className="truncate font-mono text-[10px] text-slate-500">場均 · 禁區與快攻、二波、失誤後彼此重疊，不相加</span>
             </div>
             <UI.Ledger cols={SIT.length === 5 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}>
-                {SIT.map(m => (
-                    <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} citeNote="整季快照"
-                        value={typeof scoring[m.key] === 'number' ? scoring[m.key] : null} rank={rk(m.key)} rankWhy={window.rankWhy('scoring', m.key)}
-                        sub={m.shareKey && typeof scoring[m.shareKey] === 'number' ? `占總得分 ${Number(scoring[m.shareKey]).toFixed(1)}%` : null} />
-                ))}
+                {SIT.map(m => {
+                    const pv = period ? period.cur[m.key] : null;
+                    const snap = scoring[m.key];
+                    if (period && typeof pv !== 'number') {
+                        return <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} value={null}
+                            naNote={typeof snap === 'number' ? `期間無逐場資料（整季 ${window.fix1(snap)}）` : '期間無逐場資料'} />;
+                    }
+                    return period
+                        ? <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} value={pv} prevValue={period.all[m.key]} citeAsOf="agg"
+                            sub={m.shareKey && typeof period.cur[m.shareKey] === 'number' ? `占總得分 ${Number(period.cur[m.shareKey]).toFixed(1)}%` : null} />
+                        : <UI.StatCell key={m.key} label={m.label} en={m.englishLabel} gkey={m.key} citeNote="整季快照"
+                            value={typeof snap === 'number' ? snap : null} rank={rk(m.key)} rankWhy={window.rankWhy('scoring', m.key)}
+                            sub={m.shareKey && typeof scoring[m.shareKey] === 'number' ? `占總得分 ${Number(scoring[m.shareKey]).toFixed(1)}%` : null} />;
+                })}
             </UI.Ledger>
         </UI.Section>
     );

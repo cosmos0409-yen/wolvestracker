@@ -303,6 +303,52 @@ window.GameAgg = (function () {
             OFF_OFF_RATING: off && round1(off[0]), OFF_DEF_RATING: off && round1(off[1]), OFF_NET_RATING: off && round1(off[0] - off[1]),
             ON_PACE: wavg(onPaced, g => g.adv.PACE, g => g.stats.MIN), OFF_PACE: offPm ? round1(offPn / offPm) : null };
     }
+    // ── 防守章節、得分組成的期間值（2026-11-21 起，與 11-20 整季快照對帳）──
+    // defenseExtras：aggregate 算不到、但逐場能還原的防守欄位（抄截、阻攻 aggregate 本來就有）。缺輸入回 null，approx 列近似值
+    //   全隊（讀逐場的 opp／adv）：防守效率＝Σ對手得分÷Σ對手回合；防守籃板率＝ΣDREB÷Σ籃板機會（≈）；
+    //     對手禁區得分＝2×(對手 RA＋PAINT 命中)÷場數；對手分區命中＝對手各區命中÷出手；
+    //     最近防守者（全隊版＝對手全部出手，含沒有灰狼防守者紀錄的出手；球員加總會少約 2%）：被投＝對手出手、對手命中率＝對手命中率（總體／兩分／三分）。
+    //     「vs 平常」要對手射手的平常命中率、護框要 6 呎內出手，逐場都沒有 → 不給（顯示「期間無逐場資料」）
+    //   球員：防守效率＝在場防守效率（Σ在場失分÷Σ在場回合，與防守 Box 快照一致）；防守籃板率＝單場值依回合加權（≈）
+    const DEF_APPROX = ['DREB_PCT'];
+    function defenseExtras(games, isTeam) {
+        const gs = (games || []).filter(g => g && g.stats);
+        if (!isTeam) {
+            const onPoss = sumOf(gs, g => g.stats.ON_POSS);
+            const adv = gs.filter(g => g.adv && isNum(g.adv.POSS));
+            return { approx: DEF_APPROX, DEF_RATING: onPoss ? round1(100 * sumOf(gs, g => g.stats.ON_OPP_PTS) / onPoss) : null,
+                DREB_PCT: wavg(adv, g => g.adv.DREB_PCT, g => g.adv.POSS) };
+        }
+        const out = { approx: DEF_APPROX };
+        const adv = gs.filter(g => g.adv && isNum(g.adv.OPP_POSS));
+        const oposs = sumOf(adv, g => g.adv.OPP_POSS);
+        out.DEF_RATING = oposs ? round1(100 * sumOf(adv, oppPts) / oposs) : null;
+        const ch = gs.filter(g => g.adv && isNum(g.adv.DREB_CH));
+        out.DREB_PCT = ratio(sumOf(ch, g => g.stats.DREB), sumOf(ch, g => g.adv.DREB_CH));
+        // 對手分區與最近防守者：只用有對手數據的場次（2026-10 起擷取）
+        const op = gs.filter(g => g.opp && isNum(g.opp.FGA));
+        const O = (k) => sumOf(op, g => g.opp[k]);
+        const zoned = op.filter(g => isNum(g.opp.RA_FGA));
+        const Z = (k) => sumOf(zoned, g => g.opp[k]);
+        out.OPP_PTS_PAINT = zoned.length ? round1(2 * (Z('RA_FGM') + Z('PAINT_FGM')) / zoned.length) : null;
+        ['RA', 'PAINT', 'MID', 'C3', 'AB3'].forEach(z => { out[`${z}_OPP_FG_PCT`] = zoned.length ? ratio(Z(`${z}_FGM`), Z(`${z}_FGA`)) : null; });
+        if (op.length) {
+            const n = op.length, fga = O('FGA'), fgm = O('FGM'), f3a = O('FG3A'), f3m = O('FG3M');
+            Object.assign(out, { D_FGA: round1(fga / n), D_FG_PCT: ratio(fgm, fga), D_FG3A: round1(f3a / n), D_FG3_PCT: ratio(f3m, f3a),
+                D_FG2A: round1((fga - f3a) / n), D_FG2_PCT: ratio(fgm - f3m, fga - f3a) });
+        }
+        return out;
+    }
+    // scoringMix：得分組成四項占比（禁區＝2×(RA＋PAINT 命中)、中距離＝2×MID 命中、三分＝3×三分命中、罰球＝罰球命中，各÷得分）與禁區得分（場均）。
+    //   全隊與球員都能算（逐場分區命中）；沒有分區資料的場次不計，整組都沒有回 null
+    function scoringMix(games) {
+        const gs = (games || []).filter(g => g && g.stats && isNum(g.stats.RA_FGM));
+        if (!gs.length) return null;
+        const S = k => sumOf(gs, g => g.stats[k]);
+        const pts = S('PTS'), paint = 2 * (S('RA_FGM') + S('PAINT_FGM'));
+        return { GP: gs.length, PCT_PTS_PAINT: ratio(paint, pts), PCT_PTS_2PT_MR: ratio(2 * S('MID_FGM'), pts),
+            PCT_PTS_3PT: ratio(3 * S('FG3M'), pts), PCT_PTS_FT: ratio(S('FTM'), pts), PTS_PAINT: round1(paint / gs.length) };
+    }
     // 前後端成對：bundle adv 會讀到的欄位（tests/py/test_contracts.py 對照 nba_common.BUNDLE_*_ADV_KEYS）
     const ADV_KEYS_READ = {
         team: ['POSS', 'OPP_POSS', 'PACE', 'GMIN', 'OREB_CH', 'DREB_CH'],
@@ -311,7 +357,7 @@ window.GameAgg = (function () {
     };
 
     return {
-        teamAdvanced, playerAdvanced, onOff, ADV_KEYS_READ,
+        teamAdvanced, playerAdvanced, onOff, defenseExtras, scoringMix, ADV_KEYS_READ,
         RATIO_DEFS, EFG_DEFS, TS_DEFS, NORMAL_DEFS, WAVG_DEFS, aggregate, metricOf, seasonToDate,
         splitByMonth, splitByWinLoss, splitByHomeAway, lastN, byDateRange, splitBySeries,
         trendSeries, weekKey,

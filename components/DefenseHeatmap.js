@@ -1,7 +1,8 @@
 // 防守熱圖：半場 5 區依「對手命中率 − 該區聯盟約略均值」上色
 // 綠 = 守得比平均好、紅 = 較差（用偏差而非絕對命中率，否則合理衝撞區永遠最紅、失去防守意義）
 // 座標系同 ShotChart（0.1 呎，籃框在原點，y 取負向上）
-const DefenseHeatmap = ({ defense }) => {
+// periodNote：期間篩選時的期間說明（「近 10 場（10 場）」）；defense 換成逐場還原的對手分區命中（App 的 defPeriod）
+const DefenseHeatmap = ({ defense, periodNote = null }) => {
     // 各區聯盟約略均值(對手命中率 %)，供偏差著色的基準；隨賽季略有漂移，可微調
     const ZONE_REF = { RA: 63, PAINT: 42, MID: 41, C3: 39, AB3: 36 };
 
@@ -38,7 +39,7 @@ const DefenseHeatmap = ({ defense }) => {
 
     return (
         <window.UI.Section title="防守熱圖" en="Opponent FG% by Zone" accent="red"
-            sub={`數字為對手在各區的命中率；顏色為與聯盟約略均值的偏差（綠＝守得較好、紅＝較差、銀＝±1 以內）。基準為寫死的參考值，非官方即時數字：合理衝撞區 ${ZONE_REF.RA}%、禁區（非 RA）${ZONE_REF.PAINT}%、中距離 ${ZONE_REF.MID}%、底角三分 ${ZONE_REF.C3}%、非底角三分 ${ZONE_REF.AB3}%`}>
+            sub={`${periodNote ? `${periodNote} · ` : ''}數字為對手在各區的命中率；顏色為與聯盟約略均值的偏差（綠＝守得較好、紅＝較差、銀＝±1 以內）。基準為寫死的參考值，非官方即時數字：合理衝撞區 ${ZONE_REF.RA}%、禁區（非 RA）${ZONE_REF.PAINT}%、中距離 ${ZONE_REF.MID}%、底角三分 ${ZONE_REF.C3}%、非底角三分 ${ZONE_REF.AB3}%`}>
             <div className="flex flex-col items-center">
                 <svg viewBox="-285 -470 570 522" className="w-full max-w-[560px]" role="img" aria-label="防守熱圖：對手分區命中率">
                     {/* 分區色塊（由外而內疊，內層蓋外層） */}
