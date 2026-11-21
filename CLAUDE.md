@@ -6,7 +6,7 @@
 - 每日抓取 `python scripts/fetch_data.py`：賽別依全聯盟賽程判斷，附加賽日只抓單場＋預覽；被擋結束碼 2；補期末快照 `--force-type playoffs --date D`、只抓單場 `--games-only` →「自動化排程」
 - 看門狗 `python scripts/watchdog.py`（排程台北 15:00＋早上 `--morning`；手動參數見該章）→「自動化排程」
 - 投籃熱圖每週 `python scripts/fetch_shotchart.py`（每日抓取已順帶增量；跨季 `--season 2024-25 --type regular`）
-- 單場回補 `python scripts/backfill_games.py --season S --type regular|playoffs|playin`（`--dates`／`--box-only`／`--adv-only`／`--matchup-only`；混入外隊 `--clean-players --dry-run`）→「單場數據」
+- 單場回補 `python scripts/backfill_games.py --season S --type regular|playoffs|playin`（`--dates`／`--box-only`／`--adv-only`／`--matchup-only`；混入外隊 `--clean-players --dry-run`；單場 Playtype 重算 `--playtype-only --dry-run`，0 request）→「單場數據」
 - 歷史回補 `python scripts/backfill_history.py --season S --type T`（只補單項 `--only-*`，清單見「指令完整參數」）→「歷史賽季快照」
 - 回補 games 後必跑 `python scripts/build_bundles.py --all`；單場題材 `build_insights.py`（改 `INSIGHT_*` 先 `--dry-run --date …`）；賽前預覽 `build_preview.py`；薪資同步 `sync_salary.py`
 - 前端：改 `components/*.js` 後必跑 `python scripts/bundle.py`（勿手改 dist/；新電腦先 `npm ci`）；改 `icons/*.svg` 跑 `build_icons.py`；預覽 `python -m http.server 8000`
@@ -19,6 +19,7 @@
 - 鍵：每日快照球員用 playerName、歷史快照用 PlayerID（前端 `normalizeHistoryPlayer` 對齊），勿更動；單場與網址一律用 PlayerID 對人
 - 聯盟名次：全隊類別 `team_id=0`＋`split_league()`；新欄位判斷方向（`RANK_LOWER_BETTER`／`RANK_SKIP`）；新命中率欄加 `PLAYER_RANK_ATT_PAIRS` →「Q: 想新增數據」
 - 快照的球員數據是整季合併（含季中轉隊前）：只算灰狼的累計值用逐場 bundle
+- 單場 Playtype 只由每日快照相減（`nc.split_game_playtypes` → `wolves_team_games.playtype`，欄位與前端 `GamePT.derive` 成對）；單場整份 `.set()` 重寫會洗掉 `playtype`，整場重補後要跑 `--playtype-only` →「單場數據」
 - NBA 請求：逐球員 shotchartdetail 只能每週；每日只准單場全隊查詢；回補分批；全部逾時多半是指紋被擋（會自動換）→ FAQ「NBA API 跑失敗」
 - Tracking「整組 0」前後端同規則（`tracking_zero_filled`⇔`cleanGameStats`）；前端讀單場數值一律經 `cleanGameStats`／`cleanGameDoc`
 - 不用 GitHub Actions（機房 IP 被擋），排程是 Windows Task Scheduler；.bat 必 CRLF、`chcp 65001`、無中文註解、Python 絕對路徑；`run_watchdog.bat` 的 stderr 不可導到 `watchdog_log.txt`（檔案鎖）；本機雜物放 `_local/`
@@ -46,7 +47,7 @@
 - 日期一律美東（`etParts`／`etToday`），開賽時間經 `kickoffTPE`，不自己加減時區
 - 預設看進行中賽季（`selectedSeasonKey` 不存 localStorage）；開站首頁＝最新一場單場頁
 - 無障礙：slate-500/600 只當文字色；品牌色當底字用 `#0A1626`；`#236192` 不當小字色；按鈕 ≥ 24×24 且不重疊（「?」不可用左右負邊距）；手機不放逐列次要按鈕
-- 用詞中性，不貶低對手球隊或球員（勁敵／順手／棘手）；攻守切換叫「進攻端／防守端」
+- 用詞中性，不貶低對手球隊或球員（勁敵／順手／棘手）；攻守切換叫「進攻端／防守端」；Playtype 寫「回合數／每回合得分（失分）」，不寫「球權」
 
 ## 色票與字體
 - 主色 `#12A150`、結構藍 `#236192`、底色 `#0A1626`、月光銀 `#C4CED2`、負值 `#EF4444`（hex 直寫在元件，改色全域替換）
@@ -56,7 +57,7 @@
 | 畫面 | 網址 | 主要檔案 |
 |---|---|---|
 | 主畫面六章節 | `#v=…&p=ID-名字&tab=&s=年份&t=&pd=&c=&m=&hl=` | `App.js`、`*Tab.js` |
-| 單場 | `#game=日期[&tab=box\|compare\|shots][&bx=adv][&p=]` | `GamePage.js`、`PreviewPanel.js` |
+| 單場 | `#game=日期[&tab=box\|compare\|shots\|pt][&bx=adv][&p=]` | `GamePage.js`、`PreviewPanel.js`、`GamePlaytype.js` |
 | 薪資 | `#cap[&s=][&tab=contracts\|picks\|rules]` | `CapPage.js` |
 | 對戰 | `#vs[=三碼][&r=][&t=][&m=]` | `MatchupHome.js`、`MatchupPage.js` |
 | 組合 | `#lineups[&n=2\|3\|5][&p=][&min=][&view=mx][&s=][&t=]` | `LineupsPage.js` |
