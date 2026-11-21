@@ -55,7 +55,8 @@ const QuoteBasket = () => {
         const ps = it.parts || [it];
         const v = (x) => x ? `${x.value}${x.unit || ''}` : '—';
         // 合成比較的項目：比較對象已在預覽，清單只列數值（例「進攻效率：112.8 vs. 117.3」）
-        if (it.src) return `${it.label}：${it.values.map(v).join(it.sep === 'vs.' ? ' vs. ' : ' → ')}`;
+        // 三個以上值（多值比較）是並列的對象，清單用「／」分隔
+        if (it.src && !it.parts) return `${it.label}：${it.values.map(v).join(it.values.length > 2 ? '／' : it.sep === 'vs.' ? ' vs. ' : ' → ')}`;
         const vals = it.kind === 'compare'
             ? ps[0].values.map((x, i) => `${x.tag} ${ps.map(p => v(p.values[i])).join('／')}`).join(it.sep === 'vs.' ? ' vs. ' : ' → ')
             : ps.map(p => v(p.values[0])).join('／');
@@ -153,6 +154,10 @@ const QuoteBasket = () => {
                                                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
                                                     <button type="button" className={iconBtn} aria-label="上移" disabled={i === 0} onClick={() => Q.move(it.id, -1)}>↑</button>
                                                     <button type="button" className={iconBtn} aria-label="下移" disabled={i === items.length - 1} onClick={() => Q.move(it.id, 1)}>↓</button>
+                                                    {/* 已合併／已合成的項目還能和下一項合成（多值比較再加一個對象、兩組成對指標合成前後比較）→ 多一顆「合成比較」 */}
+                                                    {(it.parts || it.src) && cmpOk && (
+                                                        <button type="button" title={why} onClick={() => Q.compare(it.id)} className={`${hotBtn} w-auto px-1.5`}>合成比較</button>
+                                                    )}
                                                     {it.parts || it.src
                                                         ? <button type="button" className={`${iconBtn} w-auto px-1.5`} onClick={() => Q.split(it.id)}
                                                             title={it.src ? '還原成合成前的兩項' : '還原成合併前的兩項'}>拆開</button>

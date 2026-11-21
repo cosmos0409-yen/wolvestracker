@@ -258,9 +258,39 @@
     };
 
     // ── 合成比較：同主體、同指標、只差在情境（條件、期間、賽季）或統計日的兩個單值 → 一個比較項 ──
-    const canCompare = (a, b) => !!(a && b && a.kind === 'single' && b.kind === 'single' && !a.parts && !b.parts && !a.src && !b.src
+    const canCompareSingles = (a, b) => !!(a && b && a.kind === 'single' && b.kind === 'single' && !a.parts && !b.parts && !a.src && !b.src
         && a.values.length === 1 && b.values.length === 1 && a.subject === b.subject && sameMetric(a, b)
         && (a.context !== b.context || (!!a.asOf && !!b.asOf && a.asOf !== b.asOf)));
+    // 比較項的延伸（2026-11-21）：比較項＋比較項（同情境、同基準＝第一個對象的標籤與數值都一樣，例：兩個 Splits「全季 → 期間」），
+    // 或比較項＋同指標的單值（單值的期間當新的對象）→ 多值比較，三個以上值排成「主體｜情境｜指標」＋每個對象一行（3C）。
+    // 新對象不可和既有的重複；全季的單值排最前。回傳 { cmp, values } 或 null
+    const singleTag = (it) => { const c = ctxSplit(it); return [c.per || '全季', c.note].filter(Boolean).join(' '); };
+    const extendShape = (a, b) => {
+        if (!a || !b || a.parts || b.parts || a.kind === 'line' || b.kind === 'line' || a.subject !== b.subject || !sameMetric(a, b)) return null;
+        if (a.kind !== 'compare' && b.kind !== 'compare') return null;   // 兩個單值走 compareShape
+        const [cmp, other] = a.kind === 'compare' ? [a, b] : [b, a];
+        if (!Array.isArray(cmp.values) || cmp.values.length < 2) return null;
+        const tags = cmp.values.map(v => v.tag);
+        let add;
+        if (other.kind === 'compare') {
+            if (other.context !== cmp.context || !Array.isArray(other.values) || other.values.length < 2) return null;
+            const [a0, b0] = [cmp.values[0], other.values[0]];
+            if (a0.tag !== b0.tag || String(a0.value) !== String(b0.value)) return null;
+            add = other.values.slice(1);
+        } else {
+            if (other.values.length !== 1 || (other.ctxBase == null ? other.context : other.ctxBase) !== cmp.context) return null;
+            add = [Object.assign({}, other.values[0], { tag: singleTag(other) })];
+        }
+        if (!add.length || add.some(v => tags.includes(v.tag)) || new Set(add.map(v => v.tag)).size !== add.length) return null;
+        const values = add.length === 1 && add[0].tag === '全季' ? [add[0], ...cmp.values] : [...cmp.values, ...add];
+        return { cmp, values };
+    };
+    // 兩組已併成一行的成對指標（例：「出手數／命中率」全季、近 10 場），指標依序相同、只差情境或統計日 →
+    // 合成「※出手數／命中率：5.6／68.0 → 5.9／70.1」（每組各自是比較項，同 Splits 併成一行的寫法）
+    const canComparePairs = (a, b) => !!(a && b && a.parts && b.parts && !a.src && !b.src && a.kind === 'single' && b.kind === 'single'
+        && a.subject === b.subject && a.parts.length === b.parts.length && a.parts.every((p, k) => sameMetric(p, b.parts[k]))
+        && a.parts.every((p, k) => canCompareSingles(p, b.parts[k])));
+    const canCompare = (a, b) => canCompareSingles(a, b) || canComparePairs(a, b) || !!extendShape(a, b);
     // 情境拆成 { base 共同情境, per 比較對象, note 補充 }；舊項目沒有 ctxBase → 整段情境當 base
     const ctxSplit = (it) => it.ctxBase == null ? { base: it.context || '', per: '', note: '' }
         : { base: it.ctxBase || '', per: it.ctxPeriod || '', note: it.ctxNote || '' };
@@ -296,6 +326,24 @@
     const compare = (id) => {
         const a = items(), i = a.findIndex(x => x.id === id);
         if (i < 0 || !canCompare(a[i], a[i + 1])) return;
+        if (canComparePairs(a[i], a[i + 1])) {   // 兩組成對指標：各組依序合成比較項，再併成一行；src 保留原兩組供「拆開」
+            const s = compareShape(a[i].parts[0], a[i + 1].parts[0]);
+            const [x, y] = s.swap ? [a[i + 1], a[i]] : [a[i], a[i + 1]];
+            const parts = x.parts.map((p, k) => Object.assign({}, p, { kind: 'compare', context: s.context, sep: s.sep, rank: null, pr: null, note: null,
+                values: [Object.assign({}, p.values[0], { tag: s.tags[0] }), Object.assign({}, y.parts[k].values[0], { tag: s.tags[1] })] }));
+            a.splice(i, 2, { id: uid(), kind: 'compare', subject: x.subject, context: s.context, sep: s.sep, parts, src: [a[i], a[i + 1]] });
+            save(a);
+            return;
+        }
+        const ext = canCompareSingles(a[i], a[i + 1]) ? null : extendShape(a[i], a[i + 1]);
+        if (ext) {   // 比較項延伸成多值比較；src 保留原兩項供「拆開」
+            const c = ext.cmp;
+            a.splice(i, 2, { id: uid(), kind: 'compare', subject: c.subject, context: c.context, label: c.label, en: c.en, gkey: c.gkey,
+                pre: c.pre, values: ext.values, sep: c.sep, rank: null, pr: null, note: null, better: c.better || null,
+                asOf: [a[i].asOf, a[i + 1].asOf].filter(Boolean).sort().pop() || null, url: c.url || '', game: null, src: [a[i], a[i + 1]] });
+            save(a);
+            return;
+        }
         const s = compareShape(a[i], a[i + 1]);
         const [x, y] = s.swap ? [a[i + 1], a[i]] : [a[i], a[i + 1]];
         const v = (it, tag) => Object.assign({}, it.values[0], { tag });
@@ -309,7 +357,8 @@
     const split = (id) => {
         const a = items(), i = a.findIndex(x => x.id === id);
         if (i < 0 || !(a[i].parts || a[i].src)) return;
-        a.splice(i, 1, ...(a[i].parts || a[i].src));
+        // 合成比較的成對指標同時有 parts 與 src：還原成合成前的兩組（src）
+        a.splice(i, 1, ...(a[i].src || a[i].parts));
         save(a);
     };
     const clear = () => save([]);

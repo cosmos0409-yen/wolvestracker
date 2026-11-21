@@ -865,7 +865,7 @@ const App = () => {
                                                 <TrackingCardRow key={def.id} title={def.title} category={def.id} source="defense" clickable={false}
                                                     metrics={def.metrics} current={defPeriod.cur} prev={defPeriod.all} cols={def.cols} gp={defPeriod.cur.GP}
                                                     naNotes={naNotes} approxKeys={defPeriod.cur.approx}
-                                                    citeAsOf="none" citeNote={`${periodLabel}（${defPeriod.cur.GP} 場）`} compareTags={['全季', periodLabel]} />
+                                                    citeAsOf="none" citeNote={`${periodRes.cite || periodLabel}（${defPeriod.cur.GP} 場）`} compareTags={['全季', `${periodRes.cite || periodLabel}（${defPeriod.cur.GP} 場）`]} />
                                             ) : (
                                                 <window.UI.Locked key={def.id} on={periodOn}>
                                                     <TrackingCardRow title={def.title} category={def.id} source="defense"

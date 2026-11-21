@@ -65,6 +65,8 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
     const condOn = pst.kind === 'cond' && !!SC;
     const res = P.apply(games, pst, { ...periodCtx, isTeam, isPlayoffs });
     const periodGames = res.games, periodLabel = res.label;
+    // 引用用的期間寫法（日期區間「A 至 B」，見 periodFilter 的 cite）＋場數：和其他章節加入的引用同一種寫法，合成比較時才不會混用（2026-11-21）
+    const citePeriod = (n) => `${res.cite || periodLabel}（${n} 場）`;
     const cond = condOn ? res.cond : null;
     const oppKey = pst.kind === 'opp' ? pst.opp : '';
 
@@ -168,9 +170,9 @@ const SplitsTab = ({ games, seasonLabel, isPlayoffs, focusMetric, highlightDate,
                     <div key={def.id}>
                         <TrackingCardRow title={def.title} actionLabel="點看趨勢" category={def.id} metrics={def.metrics}
                             current={periodAgg} prev={seasonAgg} onClick={() => openTrend(def)} source="stats"
-                            citeAsOf="none" citeNote={`Splits：${periodLabel}（${periodAgg.GP} 場）`}
+                            citeAsOf="none" citeNote={`Splits：${citePeriod(periodAgg.GP)}`}
                             rankCats={rankable && pst.kind === 'all' ? RANK_CATS[group] : null}
-                            compareTags={pst.kind === 'all' ? null : ['全季', periodLabel]} />
+                            compareTags={pst.kind === 'all' ? null : ['全季', citePeriod(periodAgg.GP)]} />
                         {openGroup && openGroup.id === def.id && (
                             <div ref={trendRef} className="-mt-3 mb-6 border border-white/10 p-4">
                                 <div className="mb-3 flex flex-wrap items-center gap-3">

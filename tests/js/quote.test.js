@@ -241,3 +241,70 @@ test('拆開還原：合成比較 → 原本兩項（順序、內容不變）；
     assert.equal(Q.items().length, 3);
     Q.clear();
 });
+
+// ── 比較項的延伸（2026-11-21）：比較項＋比較項（同基準）、比較項＋單值 → 多值比較，三個以上值每個對象一行 ──
+const cmpItem = (tags, vals, extra = {}) => ({ kind: 'compare', subject: 'Rudy Gobert', context: '2026-27 例行賽', label: '掩護助攻', gkey: 'SCREEN_ASSISTS',
+    sep: '→', values: vals.map((v, i) => ({ tag: tags[i], value: v, unit: '' })), ...extra });
+
+test('合成比較：兩個「全季 → 期間」比較項（同基準）合成三行', () => {
+    Q.clear();
+    Q.add(cmpItem(['全季', 'A. Edwards 有出賽'], ['3.9', '4.5']));
+    Q.add(cmpItem(['全季', 'A. Edwards 未出賽'], ['3.9', '3.7']));
+    const [a, b] = Q.items();
+    assert.equal(Q.canMerge(a, b), false);
+    assert.equal(Q.canCompare(a, b), true);
+    Q.compare(a.id);
+    assert.equal(Q.render(Q.items()), 'Rudy Gobert｜2026-27 例行賽｜掩護助攻\n全季：3.9\nA. Edwards 有出賽：4.5\nA. Edwards 未出賽：3.7');
+    Q.split(Q.items()[0].id);
+    assert.equal(Q.items().length, 2);
+});
+
+test('合成比較：基準不同（全季數值不同）、對象重複、不同主體都不能合成', () => {
+    const a = cmpItem(['全季', '近 10 場'], ['3.9', '4.1']);
+    assert.equal(Q.canCompare(a, cmpItem(['全季', '近 5 場'], ['3.8', '4.0'])), false);
+    assert.equal(Q.canCompare(a, cmpItem(['全季', '近 10 場'], ['3.9', '4.2'])), false);
+    assert.equal(Q.canCompare(a, { ...cmpItem(['全季', '近 5 場'], ['3.9', '4.0']), subject: 'Joan Beringer' }), false);
+});
+
+test('合成比較：比較項＋同指標單值，單值的期間成為新的對象；全季單值排最前', () => {
+    const single = (per, value) => ({ kind: 'single', subject: 'Rudy Gobert', context: ['2026-27 例行賽', per].filter(Boolean).join(' '),
+        ctxBase: '2026-27 例行賽', ctxPeriod: per, label: '掩護助攻', gkey: 'SCREEN_ASSISTS', values: [{ tag: '', value, unit: '' }], sep: '→' });
+    Q.clear();
+    Q.add(cmpItem(['全季', '近 10 場'], ['3.9', '4.1']));
+    Q.add(single('近 5 場（5 場）', '4.0'));
+    Q.compare(Q.items()[0].id);
+    assert.equal(Q.render(Q.items()), 'Rudy Gobert｜2026-27 例行賽｜掩護助攻\n全季：3.9\n近 10 場：4.1\n近 5 場（5 場）：4.0');
+    // 比較項裡已經有全季 → 再加全季單值不能合成（重複）
+    assert.equal(Q.canCompare(cmpItem(['全季', '近 10 場'], ['3.9', '4.1']), single('', '3.9')), false);
+    // 比較項沒有全季（兩個條件）＋全季單值 → 全季排最前
+    Q.clear();
+    Q.add(cmpItem(['A. Edwards 有出賽', 'A. Edwards 未出賽'], ['4.5', '3.7'], { sep: 'vs.' }));
+    Q.add(single('', '3.9'));
+    Q.compare(Q.items()[0].id);
+    assert.equal(Q.items()[0].values.map(v => v.tag).join('|'), '全季|A. Edwards 有出賽|A. Edwards 未出賽');   // 沙盒陣列原型不同，比字串
+});
+
+test('合成比較：兩組已併一行的「出手數／命中率」（全季、近 10 場）→ 併成一行的前後比較，可拆回兩組', () => {
+    const one = (label, gkey, value, unit, per) => ({ kind: 'single', subject: 'Rudy Gobert', context: ['2026-27 例行賽', per].filter(Boolean).join(' '),
+        ctxBase: '2026-27 例行賽', ctxPeriod: per, label, gkey, values: [{ tag: '', value, unit }], sep: '→' });
+    Q.clear();
+    Q.add(one('出手數', 'FGA', '5.6', '', ''));
+    Q.add(one('命中率', 'FG_PCT', '68.0', '%', ''));
+    Q.merge(Q.items()[0].id);
+    Q.add(one('出手數', 'FGA', '5.9', '', '近 10 場（10 場）'));
+    Q.add(one('命中率', 'FG_PCT', '70.1', '%', '近 10 場（10 場）'));
+    Q.merge(Q.items()[1].id);
+    const [a, b] = Q.items();
+    assert.equal(Q.canMerge(a, b), false);
+    assert.equal(Q.canCompare(a, b), true);
+    Q.compare(a.id);
+    assert.equal(Q.render(Q.items()), 'Rudy Gobert｜2026-27 例行賽：全季 → 近 10 場（10 場）\n※出手數／命中率：5.6／68.0% → 5.9／70.1%');
+    Q.split(Q.items()[0].id);
+    assert.equal(Q.items().length, 2);
+    assert.equal(Q.items().every(it => it.parts && it.parts.length === 2), true);   // 還原成合成前的兩組
+    // 指標不同的兩組（出手數／命中率 vs 三分出手數／命中率）不能合成
+    Q.clear();
+    Q.add(one('出手數', 'FGA', '5.6', '', '')); Q.add(one('命中率', 'FG_PCT', '68.0', '%', '')); Q.merge(Q.items()[0].id);
+    Q.add(one('三分出手數', 'FG3A', '0.3', '', '近 10 場（10 場）')); Q.add(one('三分命中率', 'FG3_PCT', '0.0', '%', '近 10 場（10 場）')); Q.merge(Q.items()[1].id);
+    assert.equal(Q.canCompare(Q.items()[0], Q.items()[1]), false);
+});
