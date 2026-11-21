@@ -4,7 +4,9 @@
 //        rank: { rank, n }|null, pr: 百分位|null（Playtype）, note: 補充說明|null（歷史定位等，跟「名次」開關）, better: 'high'|'low'|null, asOf, url,
 //        game: { date, home, opp, ms, os, wl, periods: [[灰狼, 對手]…], gameNo }|null（單場頁加入的才有，供「單場比分」標頭） }
 //   kind 'line'：球員本場數據一行（values[0].value 是整行文字）
-//   合併後的項目：{ id, kind, subject, context, sep, parts: [項目A, 項目B] }（成對指標寫成一行「A／B」）
+//   合併後的項目：{ id, kind, subject, context, sep, parts: [項目A, 項目B] }（成對指標寫成一行「A／B」，PAIRS 一律排成「出手數／命中率」）
+//   合成比較（compare）：同主體同指標、情境或統計日不同的兩個單值 → kind 'compare'，src 保留原兩項供「拆開」；
+//     make 另記 ctxBase（賽季情境）／ctxPeriod（篩選中的期間）／ctxNote，共同情境＝ctxBase、比較對象＝各自期間（沒有＝全季）
 // 排版規則（使用者確認的格式）：「：」分隔名稱與數值、「／」成對指標、「→」時間先後、「vs.」並列
 //   段標頭前的「●」是選項 opts.bullet（2026-11-18 起預設不加：使用者文章用「●」當小節標題）
 //   單值 1A：主體｜情境（括號為聯盟排名）＋ ※指標：值（第8）
@@ -85,6 +87,10 @@
             const s = d.toFixed(dec);
             return d > 0 ? `+${s}` : Number(s) === 0 ? (0).toFixed(dec) : s;
         };
+        // 合併後的比較：📈📉 各自接在該指標的後值後面（例「15.4／40.7% → 18.0／33.3% 📉」；次數類 better 為 null 不標）
+        const trendAfter = (it) => it.parts
+            ? it.parts.map(p => `${val(p.values[p.values.length - 1])}${trend(p)}`).join('／')
+            : `${valsAt(it, 1)}${trend(it)}`;
         const trend = (it) => {
             if (it.parts || !it.better) return '';
             const x = num(it.values[0]), y = num(it.values[it.values.length - 1]);
@@ -172,7 +178,7 @@
                             : `${val(it.values[1])}（${delta(it.values[0], it.values[1])}）`}`)];
                 }
                 return [headLine(`${w ? `${w}：` : ''}${A} → ${Bt}`),
-                    ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} → ${valsAt(it, 1)}${o.cmpStyle === 'trend' ? trend(it) : ''}`)];
+                    ...g.items.map(it => `${P}${nameOf(it)}：${valsAt(it, 0)} → ${o.cmpStyle === 'trend' ? trendAfter(it) : valsAt(it, 1)}`)];
             }
             const note = o.rank && g.items.some(hasLeague) ? '（括號為聯盟排名）' : '';
             return [headLine(`${w}${note}`),
@@ -234,21 +240,76 @@
         [a[i], a[j]] = [a[j], a[i]];
         save(a);
     };
-    // 能否和下一項合併：都是未合併的同類項目、同主體同情境，比較項目還要比較對象相同
+    // 同一個指標：gkey 相同（兩邊都有時），或名稱相同
+    const sameMetric = (a, b) => (a.gkey && b.gkey) ? a.gkey === b.gkey : a.label === b.label;
+    // 能否和下一項併成一行：都是未合併的同類項目、同主體同情境、不同指標（同指標併成「得分／得分」沒有意義 → 改用合成比較），
+    // 比較項目還要比較對象相同
     const canMerge = (a, b) => !!(a && b && !a.parts && !b.parts && a.kind !== 'line' && a.kind === b.kind && a.subject === b.subject
-        && a.context === b.context && (a.kind !== 'compare'
+        && a.context === b.context && !(a.gkey && a.gkey === b.gkey) && a.label !== b.label && (a.kind !== 'compare'
             || (a.sep === b.sep && JSON.stringify(a.values.map(v => v.tag)) === JSON.stringify(b.values.map(v => v.tag)))));
     const merge = (id) => {
         const a = items(), i = a.findIndex(x => x.id === id);
         if (i < 0 || !canMerge(a[i], a[i + 1])) return;
-        const [x, y] = [a[i], a[i + 1]];
+        let [x, y] = [a[i], a[i + 1]];
+        // 成對指標一律排成貼文格式「出手數／命中率」，不管加入先後
+        if (PAIRS.some(([p, q]) => p === y.gkey && q === x.gkey)) [x, y] = [y, x];
         a.splice(i, 2, { id: uid(), kind: x.kind, subject: x.subject, context: x.context, sep: x.sep, parts: [x, y] });
         save(a);
     };
+
+    // ── 合成比較：同主體、同指標、只差在情境（條件、期間、賽季）或統計日的兩個單值 → 一個比較項 ──
+    const canCompare = (a, b) => !!(a && b && a.kind === 'single' && b.kind === 'single' && !a.parts && !b.parts && !a.src && !b.src
+        && a.values.length === 1 && b.values.length === 1 && a.subject === b.subject && sameMetric(a, b)
+        && (a.context !== b.context || (!!a.asOf && !!b.asOf && a.asOf !== b.asOf)));
+    // 情境拆成 { base 共同情境, per 比較對象, note 補充 }；舊項目沒有 ctxBase → 整段情境當 base
+    const ctxSplit = (it) => it.ctxBase == null ? { base: it.context || '', per: '', note: '' }
+        : { base: it.ctxBase || '', per: it.ctxPeriod || '', note: it.ctxNote || '' };
+    const md = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${d.slice(5, 7)}/${d.slice(8, 10)}` : '';
+    const seasonOf = (s) => (String(s || '').match(/\d{4}-\d{2}/) || [''])[0];
+    // 回傳 { context, tags: [A, B], sep, swap }（swap：舊的／全季排前面時兩項對調）
+    const compareShape = (x, y) => {
+        const cx = ctxSplit(x), cy = ctxSplit(y);
+        const ax = x.asOf || '', ay = y.asOf || '';
+        const join = (...s) => s.filter(Boolean).join(' ');
+        // 情境完全一樣、只差統計日（時光機）：比較對象寫「截至 M/D」，舊的在前
+        if (x.context === y.context) {
+            const [o, n] = ay < ax ? [ay, ax] : [ax, ay];
+            return { context: x.context || '', tags: [`截至 ${md(o)}`, `截至 ${md(n)}`], sep: '→', swap: ay < ax };
+        }
+        const sameNote = cx.note === cy.note;
+        if (cx.base === cy.base) {
+            const tx = join(cx.per || '全季', sameNote ? '' : cx.note), ty = join(cy.per || '全季', sameNote ? '' : cy.note);
+            const context = join(cx.base, sameNote ? cx.note : '');
+            // 一項是全季：「全季 → 期間」（同 Splits）
+            if (!cx.per !== !cy.per) return { context, tags: cy.per ? [tx, ty] : [ty, tx], sep: '→', swap: !!cx.per };
+            // 統計日不同（例：兩段日期區間）：舊的在前；其他（條件）並列
+            if (ax && ay && ax !== ay) return { context, tags: ay < ax ? [ty, tx] : [tx, ty], sep: '→', swap: ay < ax };
+            return { context, tags: [tx, ty], sep: 'vs.', swap: false };
+        }
+        // 共同情境不同（不同賽季，或舊項目退回整段情境）：整段情境當比較對象
+        const sx = seasonOf(cx.base), sy = seasonOf(cy.base);
+        const tx = x.context || '', ty = y.context || '';
+        if (sx && sy && sx !== sy) return { context: '', tags: sy < sx ? [ty, tx] : [tx, ty], sep: '→', swap: sy < sx };
+        if (ax && ay && ax !== ay) return { context: '', tags: ay < ax ? [ty, tx] : [tx, ty], sep: '→', swap: ay < ax };
+        return { context: '', tags: [tx, ty], sep: 'vs.', swap: false };
+    };
+    const compare = (id) => {
+        const a = items(), i = a.findIndex(x => x.id === id);
+        if (i < 0 || !canCompare(a[i], a[i + 1])) return;
+        const s = compareShape(a[i], a[i + 1]);
+        const [x, y] = s.swap ? [a[i + 1], a[i]] : [a[i], a[i + 1]];
+        const v = (it, tag) => Object.assign({}, it.values[0], { tag });
+        // 名次不帶（兩個情境的名次不能並排）；src 保留原兩項（照籃子順序），供「拆開」還原
+        a.splice(i, 2, { id: uid(), kind: 'compare', subject: x.subject, context: s.context, label: x.label, en: x.en, gkey: x.gkey,
+            pre: x.pre, values: [v(x, s.tags[0]), v(y, s.tags[1])], sep: s.sep, rank: null, pr: null, note: null, better: x.better || null,
+            asOf: [x.asOf, y.asOf].filter(Boolean).sort().pop() || null, url: y.url || x.url || '', game: null, src: [a[i], a[i + 1]] });
+        save(a);
+    };
+    // 拆開：併成一行的還原成兩項、合成比較的還原成原本兩個單值
     const split = (id) => {
         const a = items(), i = a.findIndex(x => x.id === id);
-        if (i < 0 || !a[i].parts) return;
-        a.splice(i, 1, ...a[i].parts);
+        if (i < 0 || !(a[i].parts || a[i].src)) return;
+        a.splice(i, 1, ...(a[i].parts || a[i].src));
         save(a);
     };
     const clear = () => save([]);
@@ -271,13 +332,16 @@
             : (inPeriod && c.periodEnd) ? c.periodEnd : (fields.asOf === 'agg' ? c.asOfAgg : c.asOfSnap) || null;
         let url = '';
         try { url = `${window.location.origin}${window.location.pathname}${window.location.hash}`; } catch (e) { /* Node */ }
-        const context = [c.context || c.season || '', inPeriod ? c.period : '', fields.ctxNote || ''].filter(Boolean).join(' ');
+        // ctxBase／ctxPeriod：情境拆開記，合成比較時共同情境用 ctxBase、比較對象用各自的 ctxPeriod（沒有期間＝全季）
+        const ctxBase = c.context || c.season || '';
+        const ctxPeriod = inPeriod ? c.period : '';
+        const context = [ctxBase, ctxPeriod, fields.ctxNote || ''].filter(Boolean).join(' ');
         const it = Object.assign({ kind: 'single', subject, context, sep: '→', rank: null, pr: null, note: null, better: null, url, game: c.game || null },
-            fields, { asOf });
+            fields, { asOf, ctxBase, ctxPeriod });
         // 原文只留名稱：畫面小字的補充說明（如「DIFF%（負=守得好）」）不進貼文
         if (it.en) it.en = String(it.en).replace(/（[^）]*）/g, '').trim();
         return it;
     };
 
-    window.Quote = { render, renderBlocks, items, add, remove, move, merge, split, canMerge, clear, opts, setOpts, subscribe, make, EVENT, DEFAULT_OPTS, PAIRS };
+    window.Quote = { render, renderBlocks, items, add, remove, move, merge, split, canMerge, canCompare, compare, clear, opts, setOpts, subscribe, make, EVENT, DEFAULT_OPTS, PAIRS };
 })();

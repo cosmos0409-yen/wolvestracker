@@ -109,3 +109,135 @@ test('單場 Playtype 引用：單列與整組（單場比分標頭）', () => {
     assert.equal(JSON.stringify(Q.items().map(x => x.label)), JSON.stringify(['轉換進攻回合數', '轉換進攻每回合得分']));
     Q.clear();
 });
+
+// ── 合併規則（Phase 4，預覽 _mockup/quote-merge.html 情境 A～E 的輸出逐字一致）──
+// 用 Quote.make 走真實流程：CiteCtx（賽季／期間／統計日）→ 項目 → 加入籃子 → 合成比較／併下一項
+const TEAM = { subject: 'Minnesota Timberwolves', season: '2026-27 例行賽', asOfSnap: '2026-11-19', asOfAgg: '2026-11-19', isHistory: false };
+const LB = { ...TEAM, subject: 'LaMelo Ball' };
+const mk = (ctx, fields) => { w.CiteCtx = { period: null, periodLabel: null, periodEnd: null, ...ctx }; return Q.make(fields); };
+const ortg = (v) => ({ label: '進攻效率', en: 'OffRtg', gkey: 'OFF_RATING', values: [{ value: v }], asOf: 'agg', better: 'high', rank: { rank: 12, n: 30 } });
+const fill = (...its) => { Q.clear(); its.forEach(it => Q.add(it)); return Q.items(); };
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
+test('情境 A：同指標、不同條件 → 合成比較，並列 vs.、不帶名次', () => {
+    const a = mk({ ...TEAM, period: 'A. Edwards 未出賽（12 場）' }, ortg('112.8'));
+    const b = mk({ ...TEAM, period: 'A. Edwards 有出賽（4 場）' }, ortg('117.3'));
+    assert.equal(a.ctxBase, '2026-27 例行賽');
+    assert.equal(a.ctxPeriod, 'A. Edwards 未出賽（12 場）');
+    const [x, y] = fill(a, b);
+    assert.equal(Q.canMerge(x, y), false, '同一指標不能併成一行');
+    assert.equal(Q.canCompare(x, y), true);
+    Q.compare(x.id);
+    assert.equal(Q.items().length, 1);
+    assert.equal(Q.render(Q.items()),
+        '（以下為 灰狼全隊｜2026-27 例行賽，A. Edwards 未出賽（12 場） vs. A. Edwards 有出賽（4 場））\n※進攻效率：112.8 vs. 117.3');
+    Q.clear();
+});
+
+test('情境 B：全季 vs 期間 → 「全季 → 期間」，期間先加入也是全季在前', () => {
+    const all = mk(TEAM, ortg('113.9'));
+    const l10 = mk({ ...TEAM, period: '近 10 場（10 場）' }, ortg('112.1'));
+    const want = '灰狼全隊｜2026-27 例行賽：全季 → 近 10 場（10 場）\n※進攻效率：113.9 → 112.1';
+    Q.compare(fill(all, l10)[0].id);
+    assert.equal(Q.render(Q.items()), want);
+    Q.compare(fill(l10, all)[0].id);
+    assert.equal(Q.render(Q.items()), want);
+    Q.clear();
+});
+
+test('情境 C：時光機同指標不同統計日 → 不可併成「得分／得分」，合成「截至 M/D → 截至 M/D」舊的在前', () => {
+    const pts = (v) => ({ label: '得分', en: 'PTS', gkey: 'PTS', values: [{ value: v }], asOf: 'snap', better: 'high' });
+    const old = mk({ ...TEAM, asOfSnap: '2026-11-08', asOfAgg: '2026-11-08' }, pts('118.1'));
+    const now = mk(TEAM, pts('115.6'));
+    const [x, y] = fill(now, old);
+    assert.equal(Q.canMerge(x, y), false);
+    assert.equal(Q.canCompare(x, y), true);
+    Q.compare(x.id);
+    assert.equal(Q.render(Q.items()), '灰狼全隊｜2026-27 例行賽：截至 11/08 → 截至 11/19\n※得分：118.1 → 115.6');
+    Q.clear();
+});
+
+test('情境 D：成對指標先加命中率 → 併下一項自動排成「出手數／命中率」', () => {
+    const pct = mk(LB, { label: '命中率', en: 'FG%', gkey: 'FG_PCT', values: [{ value: '40.7', unit: '%' }], asOf: 'agg', better: 'high' });
+    const fga = mk(LB, { label: '出手數', en: 'FGA', gkey: 'FGA', values: [{ value: '15.4' }], asOf: 'agg' });
+    const [x, y] = fill(pct, fga);
+    assert.equal(Q.canMerge(x, y), true);
+    assert.equal(Q.canCompare(x, y), false, '不同指標不能合成比較');
+    Q.merge(x.id);
+    assert.equal(Q.render(Q.items()), 'LaMelo Ball｜2026-27 例行賽\n※出手數／命中率：15.4／40.7%');
+    Q.clear();
+});
+
+test('情境 E：合併後的比較在 📈📉 格式下，符號接在各指標的後值後面（次數類不標）', () => {
+    const fga = cmp('f', '出手數', 'FGA', '15.4', '18.0');
+    const pct = { ...cmp('p', '命中率', 'FG%', '40.7', '33.3', '%'), better: 'high' };
+    Object.assign(fga, { subject: 'LaMelo Ball', gkey: 'FGA', better: null });
+    Object.assign(pct, { subject: 'LaMelo Ball', gkey: 'FG_PCT' });
+    const m = { id: 'm', kind: 'compare', subject: 'LaMelo Ball', context: '2026-27 例行賽', sep: '→', parts: [fga, pct] };
+    assert.equal(Q.render([m], { cmpStyle: 'trend' }),
+        'LaMelo Ball｜2026-27 例行賽：全季 → 近 5 場\n※出手數／命中率：15.4／40.7% → 18.0／33.3% 📉');
+    // 兩個都有好壞方向：各自標
+    assert.equal(Q.render([{ ...m, parts: [{ ...fga, better: 'high' }, pct] }], { cmpStyle: 'trend' }).split('\n')[1],
+        '※出手數／命中率：15.4／40.7% → 18.0 📈／33.3% 📉');
+    // 箭頭格式不加
+    assert.equal(Q.render([m]).split('\n')[1], '※出手數／命中率：15.4／40.7% → 18.0／33.3%');
+});
+
+test('合成比較：不同賽季寫「→」舊的在前；兩段日期區間依統計日；舊項目沒有 ctxBase 退回整段情境', () => {
+    const pts = (v) => ({ label: '得分', gkey: 'PTS', values: [{ value: v }], asOf: 'agg' });
+    const last = mk({ ...TEAM, subject: 'Anthony Edwards', season: '2025-26 例行賽', isHistory: true }, pts('27.6'));
+    const cur = mk({ ...TEAM, subject: 'Anthony Edwards' }, pts('29.1'));
+    Q.compare(fill(cur, last)[0].id);
+    assert.equal(Q.render(Q.items()), 'Anthony Edwards：2025-26 例行賽 → 2026-27 例行賽\n※得分：27.6 → 29.1');
+    const r1 = mk({ ...TEAM, period: '2026-11-01 至 2026-11-10（5 場）', periodEnd: '2026-11-10' }, pts('120.0'));
+    const r2 = mk({ ...TEAM, period: '2026-11-11 至 2026-11-19（5 場）', periodEnd: '2026-11-19' }, pts('110.0'));
+    Q.compare(fill(r2, r1)[0].id);
+    assert.equal(Q.render(Q.items()),
+        '灰狼全隊｜2026-27 例行賽：2026-11-01 至 2026-11-10（5 場） → 2026-11-11 至 2026-11-19（5 場）\n※得分：120.0 → 110.0');
+    const legacy = (id, context, v) => ({ id, kind: 'single', subject: '灰狼全隊', context, label: '得分', gkey: 'PTS',
+        values: [{ tag: '', value: v, unit: '' }], sep: '→', asOf: '2026-11-19' });
+    Q.clear();
+    Q.add(legacy('l1', '2026-27 例行賽 主場（8 場）', '118.0'));
+    Q.add(legacy('l2', '2026-27 例行賽 客場（8 場）', '115.2'));
+    Q.compare(Q.items()[0].id);
+    assert.equal(Q.render(Q.items()), '（以下為 灰狼全隊，2026-27 例行賽 主場（8 場） vs. 2026-27 例行賽 客場（8 場））\n※得分：118.0 vs. 115.2');
+    Q.clear();
+});
+
+test('A／A 被擋：同主體同指標同情境同統計日，不能併也不能比；不同主體不能比', () => {
+    const a = mk(TEAM, ortg('113.9'));
+    const b = { ...a, id: 'b2', values: [{ value: '113.9' }] };
+    assert.equal(Q.canMerge(a, b), false);
+    assert.equal(Q.canCompare(a, b), false);
+    const lb = mk({ ...LB, period: '近 10 場（10 場）' }, ortg('110.0'));
+    assert.equal(Q.canCompare(a, lb), false);
+    // 比較項目同指標（同 gkey）也不能併成一行
+    assert.equal(Q.canMerge(cmp('x', '得分', 'PTS', '1', '2'), cmp('y', '得分', 'PTS', '3', '4')), false);
+});
+
+test('拆開還原：合成比較 → 原本兩項（順序、內容不變）；合成後可和同比較對象的項目併成一行再拆回', () => {
+    const a = mk({ ...TEAM, period: 'A. Edwards 未出賽（12 場）' }, ortg('112.8'));
+    const b = mk({ ...TEAM, period: 'A. Edwards 有出賽（4 場）' }, ortg('117.3'));
+    const before = plain(fill(a, b));
+    Q.compare(before[0].id);
+    const c = Q.items()[0];
+    assert.equal(c.kind, 'compare');
+    assert.equal(c.rank, null);
+    Q.split(c.id);
+    assert.deepEqual(plain(Q.items()), before);
+    // 全季 → 近 10 場：進攻效率、防守效率各合成後併成一行，再一層層拆回
+    const drtg = (v) => ({ label: '防守效率', en: 'DefRtg', gkey: 'DEF_RATING', values: [{ value: v }], asOf: 'agg', better: 'low' });
+    fill(mk(TEAM, ortg('113.9')), mk({ ...TEAM, period: '近 10 場（10 場）' }, ortg('112.1')),
+        mk(TEAM, drtg('110.2')), mk({ ...TEAM, period: '近 10 場（10 場）' }, drtg('108.0')));
+    Q.compare(Q.items()[0].id);
+    Q.compare(Q.items()[1].id);
+    const [o, d] = Q.items();
+    assert.equal(Q.canMerge(o, d), true);
+    Q.merge(o.id);
+    assert.equal(Q.render(Q.items(), { cmpStyle: 'trend' }),
+        '灰狼全隊｜2026-27 例行賽：全季 → 近 10 場（10 場）\n※進攻效率／防守效率：113.9／110.2 → 112.1 📉／108.0 📈');
+    Q.split(Q.items()[0].id);
+    Q.split(Q.items()[0].id);
+    assert.equal(Q.items().length, 3);
+    Q.clear();
+});

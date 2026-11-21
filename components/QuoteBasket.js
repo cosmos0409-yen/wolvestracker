@@ -54,6 +54,8 @@ const QuoteBasket = () => {
     const summary = (it) => {
         const ps = it.parts || [it];
         const v = (x) => x ? `${x.value}${x.unit || ''}` : '—';
+        // 合成比較的項目：比較對象已在預覽，清單只列數值（例「進攻效率：112.8 vs. 117.3」）
+        if (it.src) return `${it.label}：${it.values.map(v).join(it.sep === 'vs.' ? ' vs. ' : ' → ')}`;
         const vals = it.kind === 'compare'
             ? ps[0].values.map((x, i) => `${x.tag} ${ps.map(p => v(p.values[i])).join('／')}`).join(it.sep === 'vs.' ? ' vs. ' : ' → ')
             : ps.map(p => v(p.values[0])).join('／');
@@ -63,6 +65,8 @@ const QuoteBasket = () => {
     const hasGame = items.some(it => (it.parts || [it]).some(p => p.game));
 
     const iconBtn = 'inline-flex h-7 w-7 shrink-0 items-center justify-center border border-white/10 text-[12px] text-slate-400 hover:border-white/30 hover:text-slate-100 disabled:opacity-30 disabled:hover:border-white/10 disabled:hover:text-slate-400';
+    // 「合成比較」可按時綠框（和「併下一項」同一顆按鈕，提示這次是合成比較）
+    const hotBtn = 'inline-flex h-7 shrink-0 items-center justify-center border border-[#12A150] text-[12px] text-[#12A150] hover:brightness-110';
     const OPT_ROWS = [
         { k: 'header', label: '整段標頭', options: [{ value: 'none', label: '無' }, { value: 'key', label: '●關鍵數據：' },
             ...(hasGame ? [{ value: 'game', label: '單場比分' }] : []), { value: 'custom', label: '自訂' }] },
@@ -134,19 +138,28 @@ const QuoteBasket = () => {
                                 <ol id="qb-items" className="border-t border-white/[0.08]">
                                     {items.map((it, i) => {
                                         const next = items[i + 1];
+                                        // 同一顆按鈕依下一項判斷：可併成一行 →「併下一項」；同指標只差情境 →「合成比較」；都不行 → 停用
+                                        const mergeOk = Q.canMerge(it, next), cmpOk = !mergeOk && Q.canCompare(it, next);
+                                        const why = !next ? '已是最後一項'
+                                            : mergeOk ? '和下一項寫成同一行（例：出手數／命中率）'
+                                            : cmpOk ? '和下一項合成比較（同指標、不同情境或統計日）'
+                                            : '下一項的主體、情境或比較對象不同，不能合併';
                                         return (
                                             <li key={it.id} className="flex items-start gap-2 border-b border-white/[0.08] py-2">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="break-words text-[13px] text-slate-100">{summary(it)}{noteOf(it) && <span className="text-slate-500">（{noteOf(it)}）</span>}</div>
-                                                    <div className="font-mono text-[10px] text-slate-500">{[it.subject, it.context].filter(Boolean).join('｜')}{it.parts ? ' · 已合併' : ''}</div>
+                                                    <div className="font-mono text-[10px] text-slate-500">{[it.subject, it.context].filter(Boolean).join('｜')}{it.parts ? ' · 已合併' : it.src ? ' · 已合成比較' : ''}</div>
                                                 </div>
                                                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
                                                     <button type="button" className={iconBtn} aria-label="上移" disabled={i === 0} onClick={() => Q.move(it.id, -1)}>↑</button>
                                                     <button type="button" className={iconBtn} aria-label="下移" disabled={i === items.length - 1} onClick={() => Q.move(it.id, 1)}>↓</button>
-                                                    {it.parts
-                                                        ? <button type="button" className={`${iconBtn} w-auto px-1.5`} onClick={() => Q.split(it.id)}>拆開</button>
-                                                        : <button type="button" className={`${iconBtn} w-auto px-1.5`} disabled={!Q.canMerge(it, next)} onClick={() => Q.merge(it.id)}
-                                                            title={Q.canMerge(it, next) ? '和下一項寫成同一行（例：出手數／命中率）' : '下一項的主體、情境或比較對象不同，不能合併'}>併下一項</button>}
+                                                    {it.parts || it.src
+                                                        ? <button type="button" className={`${iconBtn} w-auto px-1.5`} onClick={() => Q.split(it.id)}
+                                                            title={it.src ? '還原成合成前的兩項' : '還原成合併前的兩項'}>拆開</button>
+                                                        : <button type="button" disabled={!mergeOk && !cmpOk} title={why}
+                                                            onClick={() => (cmpOk ? Q.compare(it.id) : Q.merge(it.id))}
+                                                            className={`${cmpOk ? hotBtn : iconBtn} w-auto px-1.5`}>
+                                                            {cmpOk ? '合成比較' : '併下一項'}</button>}
                                                     <button type="button" className={iconBtn} aria-label="刪除" onClick={() => Q.remove(it.id)}>✕</button>
                                                 </div>
                                             </li>
