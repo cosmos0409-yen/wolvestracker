@@ -43,6 +43,7 @@ from nba_common import (
     fetch_base_box,
     fetch_team_advanced,
     fetch_player_snapshot,
+    write_game_playtypes,
 )
 from build_bundles import upsert_game
 import build_insights
@@ -209,6 +210,13 @@ def capture_recent_games(db, season, season_type_api, season_type_label, normali
             build_insights.run(db)
         except Exception as e:
             print(f"⚠️ 單場題材計算失敗（不影響抓取）：{e}")
+
+    # 單場 Playtype：每日快照相減（0 request）。單場重抓是 .set() 整份覆寫會洗掉 playtype，
+    # 所以每次擷取後都重算（內容相同不寫）；主排程與 --games-only 都經過這裡
+    try:
+        write_game_playtypes(db, season, type_key)
+    except Exception as e:
+        print(f"⚠️ 單場 Playtype 計算失敗（不影響抓取）：{e}")
 
     capture_recent_shots(db, season, season_type_api, season_type_label, game_log[-CAPTURE_LOOKBACK_GAMES:])
     return ok

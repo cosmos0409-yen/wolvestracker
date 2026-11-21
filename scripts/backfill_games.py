@@ -232,11 +232,20 @@ def main():
                         help="搭配 --matchup-only：類別標籤（nba_common.MATCHUP_CATEGORIES 第三欄），預設 2PT,Rim")
     parser.add_argument("--clean-players", action="store_true",
                         help="對帳剔除單場球員文件裡混入的非當時隊員（只讀寫 Firestore，0 request）")
-    parser.add_argument("--dry-run", action="store_true", help="搭配 --clean-players：只列出、不寫入")
+    parser.add_argument("--playtype-only", action="store_true",
+                        help="由每日快照相減重算單場 Playtype，寫進 wolves_team_games.playtype（只讀寫 Firestore，0 request）")
+    parser.add_argument("--dry-run", action="store_true", help="搭配 --clean-players／--playtype-only：只列出、不寫入")
     args = parser.parse_args()
 
     if args.clean_players:   # 不碰 NBA：日期取自既有索引
         clean_players(nc.init_firebase(), args.season, args.type, args.dry_run)
+        return
+    if args.playtype_only:   # 不碰 NBA：場次取自既有索引、數字取自每日快照
+        db = nc.init_firebase()
+        if not db:
+            print("❌ --playtype-only 需要 Firebase（找不到憑證），終止")
+            sys.exit(1)
+        nc.write_game_playtypes(db, args.season, args.type, dry_run=args.dry_run)
         return
 
     season = args.season

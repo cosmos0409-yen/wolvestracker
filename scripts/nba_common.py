@@ -957,6 +957,104 @@ def fetch_synergy_data(season, season_type_api, player_or_team="T"):
 
 
 # ==========================================
+# 單場 Playtype（每日快照相減還原，0 request）
+# ==========================================
+# Synergy 不吃日期 → 單場只能拿「賽前最後一份、賽後第一份」每日快照的整數總量相減（fetch_synergy_data 存的 *Total）。
+# 寫進 wolves_team_games/{date}.playtype；前端單場頁 Playtype 分頁讀（GamePlaytype.js 的 GamePT.derive，欄位名兩邊一起改）。
+PT_TOTAL_FIELDS = (("poss", "possTotal"), ("pts", "ptsTotal"), ("fgm", "fgmTotal"), ("fga", "fgaTotal"))
+
+
+def _pt_gp(stats):
+    return max((s.get("gp") or 0) for s in stats) if stats else 0
+
+
+def split_game_playtypes(snaps, game_dates):
+    """snaps：同一季同一賽別的全隊快照 [(doc_id, stats), …]（依 doc id 排序）；game_dates：該賽別場次日期（由舊到新）。
+    第 n 場＝第一份 gp ≥ n 的快照 − 最後一份 gp == n-1 的快照（n=1 以 0 為基底）。回傳 {date: playtype}：
+      可拆：{ok: True, n, preGP, snaps: [賽前 doc id|None, 賽後 doc id], off: [列], def: [列]}，
+            列 {t, poss, pts, fgm, fga, prePoss, prePts}（全為整數；比率由前端算）。NBA 事後修正造成的負差照實保留
+      拆不開（賽後快照一次多了兩場以上，或缺 gp == n-1 的快照）：{ok: False}
+      還沒有賽後快照：不輸出（下次執行再補）
+    只用含整數總量（possTotal）的快照：2025-26 以前的舊結構沒有，自然不輸出。"""
+    usable = [(d, st) for d, st in snaps if st and all("possTotal" in s for s in st)]
+    out = {}
+    for n, date in enumerate(game_dates, 1):
+        after = next(((d, st) for d, st in usable if _pt_gp(st) >= n), None)
+        if after is None:
+            continue
+        before = None
+        if n > 1:
+            before = next(((d, st) for d, st in reversed(usable) if _pt_gp(st) == n - 1 and d < after[0]), None)
+        if _pt_gp(after[1]) != n or (n > 1 and before is None):
+            out[date] = {"ok": False}
+            continue
+        ka = {(s["side"], s["playType"]): s for s in (before[1] if before else [])}
+        doc = {"ok": True, "n": n, "preGP": n - 1, "snaps": [before[0] if before else None, after[0]]}
+        for side, key in (("offensive", "off"), ("defensive", "def")):
+            rows = []
+            for s in after[1]:
+                if s["side"] != side:
+                    continue
+                p = ka.get((side, s["playType"]), {})
+                row = {"t": s["playType"]}
+                for k, f in PT_TOTAL_FIELDS:
+                    row[k] = int(s.get(f) or 0) - int(p.get(f) or 0)
+                row["prePoss"] = int(p.get("possTotal") or 0)
+                row["prePts"] = int(p.get("ptsTotal") or 0)
+                rows.append(row)
+            rows.sort(key=lambda r: (-r["poss"], r["t"]))
+            doc[key] = rows
+        out[date] = doc
+    return out
+
+
+def write_game_playtypes(db, season, type_key, dry_run=False):
+    """讀當季該賽別的全隊每日快照與比賽索引，把 split_game_playtypes 的結果寫進 wolves_team_games/{date}.playtype。
+    只在單場文件存在、且內容不同時 update（冪等，可天天跑）。單場重抓是 .set() 整份覆寫會洗掉 playtype，
+    所以每日抓取在擷取單場之後呼叫（同一輪補回）。附加賽沒有快照，跳過。回傳統計 dict。"""
+    stat = {"ok": 0, "na": 0, "written": 0, "same": 0, "noDoc": 0}
+    if type_key == "playin" or not db:
+        return stat
+    from google.cloud.firestore_v1.base_query import FieldFilter
+    _api, label = season_type(type_key)
+    idx = db.collection("wolves_games_index").document(f"{season}_{type_key}").get()
+    dates = [g["date"] for g in (idx.to_dict() or {}).get("games", [])] if idx.exists else []
+    if not dates:
+        return stat
+    y = int(season[:4])
+    coll = db.collection("wolves_team_stats")
+    q = (coll.where(filter=FieldFilter("__name__", ">=", coll.document(f"{y}-09-01")))
+             .where(filter=FieldFilter("__name__", "<=", coll.document(f"{y + 1}-08-31")))
+             .select(["stats", "seasonType"]))
+    snaps = sorted((d.id, (d.to_dict() or {}).get("stats") or []) for d in q.stream()
+                   if (d.to_dict() or {}).get("seasonType") == label)
+    result = split_game_playtypes(snaps, dates)
+    for date in dates:
+        if date not in result:
+            continue
+        pt = result[date]
+        stat["ok" if pt["ok"] else "na"] += 1
+        ref = db.collection("wolves_team_games").document(date)
+        cur = ref.get(field_paths=["playtype"])
+        if not cur.exists:
+            stat["noDoc"] += 1
+            continue
+        if (cur.to_dict() or {}).get("playtype") == pt:
+            stat["same"] += 1
+            continue
+        if dry_run:
+            off = sum(r["pts"] for r in pt.get("off", []))
+            print(f"  [dry-run] {date} 第 {pt.get('n', '?')} 場：{'可拆，進攻得分合計 ' + str(off) if pt['ok'] else '拆不開（ok=False）'}")
+        else:
+            ref.update({"playtype": pt})
+        stat["written"] += 1
+    print(f"🧩 單場 Playtype {season} {label}：可拆 {stat['ok']}、拆不開 {stat['na']}、"
+          f"{'待寫入' if dry_run else '寫入'} {stat['written']}、未變 {stat['same']}、無單場文件 {stat['noDoc']}"
+          f"（快照 {len(snaps)} 份、{len(dates)} 場）")
+    return stat
+
+
+# ==========================================
 # Tracking（leaguedashptstats 進階數據）
 # ==========================================
 def fetch_tracking_data(season, season_type_api, player_or_team="Team", game_date=None, team_id=TEAM_ID):
