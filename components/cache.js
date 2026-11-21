@@ -5,7 +5,7 @@
 //   不是快取、不經這裡、也不會被清：偏好 wt_pref_*、雷達軸 wt_radar_axes_*、引用籃 wt_quote_*
 //   localStorage 不能用（私密模式等）時 get 一律回 undefined、set 回 false，畫面照常（只是不快取）
 window.CACHE_NS = {
-    gc: { ver: 1, note: '單場兩份文件 wolves_team_games＋wolves_player_games（loadGameDocs；單場頁、對戰頁、總覽單場面板共用）' },
+    gc: { ver: 2, note: 'v2：2026-11-21 全隊文件加 playtype（單場 Playtype）。單場兩份文件 wolves_team_games＋wolves_player_games（loadGameDocs；單場頁、對戰頁、總覽單場面板共用）' },
     idx: { ver: 1, note: '已結束賽季的比賽索引 wolves_games_index/{season}_{type}（loadGamesIndex）' },
     pv: { ver: 1, note: '當季賽前預覽 wolves_games_index/{season}_preview（loadPreview）' },
     lu: { ver: 1, note: '已結束賽季的組合文件（loadLineups）' },

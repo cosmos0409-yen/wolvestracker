@@ -66,6 +66,23 @@ class FrontBackContracts(unittest.TestCase):
         self.assertEqual(set(nc.BUNDLE_TEAM_ADV_KEYS), set(self.js["advKeys"]["team"]))
         self.assertEqual(set(nc.BUNDLE_PLAYER_ADV_KEYS), set(self.js["advKeys"]["player"]))
 
+    def test_game_playtype_fields_same(self):
+        """單場 Playtype：後端 split_game_playtypes 寫的欄位＝前端 GamePT.derive 讀的（同一份快照兩邊算出相同的回合數／PPP），
+        且網址 tab=pt 會被單場頁接受"""
+        def snap(gp, poss, pts):
+            return [{"side": "offensive", "playType": "Spotup", "gp": gp, "possTotal": poss, "ptsTotal": pts, "fgmTotal": 0, "fgaTotal": 0},
+                    {"side": "defensive", "playType": "Isolation", "gp": gp, "possTotal": poss // 4, "ptsTotal": pts // 4, "fgmTotal": 0, "fgaTotal": 0}]
+        pt = nc.split_game_playtypes([("2026-11-02", snap(1, 20, 22)), ("2026-11-04", snap(2, 43, 51))],
+                                     ["2026-11-01", "2026-11-03"])["2026-11-03"]
+        js = eval_js("""
+            const pt = %s, d = w.GamePT.derive(pt, 'offensive'), e = w.GamePT.derive(pt, 'defensive');
+            return { off: d.rows.map(r => [r.t, r.poss, r.ppp, r.prePpp]), def: e.rows.map(r => [r.t, r.poss, r.ppp]),
+                     tab: w.UrlState.parse('#game=2026-11-03&tab=pt').gameTab };
+        """ % json.dumps(pt))
+        self.assertEqual(js["off"], [["Spotup", 23, round(29 / 23, 2), round(22 / 20, 2)]])
+        self.assertEqual(js["def"], [["Isolation", 43 // 4 - 20 // 4, round((51 // 4 - 22 // 4) / (43 // 4 - 20 // 4), 2)]])
+        self.assertEqual(js["tab"], "pt")
+
 
 ZERO_CASES = [
     {"CATCH_SHOOT_FGA": 0, "CATCH_SHOOT_FGM": 0, "PULL_UP_FGA": 5, "PULL_UP_FGM": 2},                    # 缺 TOUCHES＋C&S 全 0 → 是

@@ -35,12 +35,13 @@ test('開站清理：舊格式、版本不對、過期、未知命名空間都�
 test('存滿：刪最舊的快取再寫入成功，不動偏好與引用籃', () => {
     const big = 'x'.repeat(2000);
     const storage = { 'wt_quote_v1': '[]', 'wt_pref_viewMode': '"TEAM"' };
-    for (let i = 0; i < 8; i++) storage[`wt_c_gc_1_old${i}`] = entry(big, 0, 1000 + i);   // 越小越舊
+    const V = load().CACHE_NS.gc.ver;   // 版號會隨後端補欄位換版，鍵名不寫死
+    for (let i = 0; i < 8; i++) storage[`wt_c_gc_${V}_old${i}`] = entry(big, 0, 1000 + i);   // 越小越舊
     const w = load({ storage, quotaChars: 8 * 2100 + 200 });
     assert.equal(w.Cache.set('gc', 'new', big, w.Cache.DAY), true);
     const keys = Object.keys(w.localStorage._dump());
-    assert.ok(!keys.includes('wt_c_gc_1_old0') && !keys.includes('wt_c_gc_1_old1'), '最舊的先刪');
-    assert.ok(keys.includes('wt_c_gc_1_old7'), '較新的保留');
+    assert.ok(!keys.includes(`wt_c_gc_${V}_old0`) && !keys.includes(`wt_c_gc_${V}_old1`), '最舊的先刪');
+    assert.ok(keys.includes(`wt_c_gc_${V}_old7`), '較新的保留');
     assert.ok(keys.includes('wt_quote_v1') && keys.includes('wt_pref_viewMode'));
     assert.equal(w.Cache.get('gc', 'new'), big);
 });

@@ -56,6 +56,11 @@
         const pairName = (a, b) => {
             const hit = PAIRS.find(([x, y]) => (x === a.gkey && y === b.gkey) || (x === b.gkey && y === a.gkey));
             if (hit && o.names !== 'en') return hit[0] === a.gkey ? hit[2] : `${nm(a)}／${nm(b)}`;
+            // 單場 Playtype 一列（GamePT.rowQuote）：兩個 part 同一個類型名 pre → 類型名只寫一次「轉換進攻 回合數／每回合得分」
+            if (a.pre && a.pre === b.pre && o.names !== 'en') {
+                const rest = (it) => { const s = nm(it); return s.startsWith(a.pre) ? s.slice(a.pre.length) : s; };
+                return `${a.pre} ${rest(a)}／${rest(b)}`;
+            }
             return `${nm(a)}／${nm(b)}`;
         };
         const nameOf = (it) => it.parts ? pairName(it.parts[0], it.parts[1]) : nm(it);
@@ -97,7 +102,9 @@
 
         // 標頭「單場比分」：取籃子裡第一個帶 game 的項目；同一場的項目省略情境（比分已寫在最上面）
         const hg = o.header === 'game' ? (flat.find(it => it.game) || {}).game : null;
-        const ctxOf = (it) => hg && it.game && it.game.date === hg.date ? '' : (it.context || '');
+        // 合併後的項目（parts）本身沒有 game，看第一個 part 的
+        const gameOf = (it) => (it.parts ? it.parts[0] : it).game;
+        const ctxOf = (it) => hg && gameOf(it) && gameOf(it).date === hg.date ? '' : (it.context || '');
         const who = (it) => [it.subject, ctxOf(it)].filter(Boolean).join('｜');
 
         // 排列：added 照籃子順序；player 同主體＋情境集中；metric 另把「同指標、不同主體」的單值項目合成一段

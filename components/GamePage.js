@@ -1,5 +1,6 @@
-// 單場比賽頁（Game Center）：網址 #game=YYYY-MM-DD[&tab=box|compare|shots][&p=球員]
-// 版面：賽程條＋比分看板常駐，下方單場分頁（概要／Box Score／對比／投籃，UI.TabBar；數字鍵切分頁）
+// 單場比賽頁（Game Center）：網址 #game=YYYY-MM-DD[&tab=box|compare|shots|pt][&p=球員]
+// 版面：賽程條＋比分看板常駐，下方單場分頁（概要／Box Score／對比／投籃／Playtype，UI.TabBar；數字鍵切分頁）
+//   Playtype 分頁畫面在 GamePlaytype.js（資料＝wolves_team_games.playtype，每日快照相減）
 // 資料：wolves_team_games/{date}（box/stats/opp）＋ wolves_player_games/{date}（players/oppPlayers）
 //   季平均：該員逐場 bundle 取「此場之前」的比賽（GameAgg）；投籃點：wolves_shotcharts 以 gdate 篩（每日增量、每週整季對帳）
 // 灰狼球員一律用 box score 的 personId 對應 players 文件的 playerId（名字寫法兩邊可能不同，且早期文件含非當時隊員）
@@ -1045,6 +1046,9 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         (boxSection || noBoxPlayers) && { key: 'box', label: box ? 'Box Score' : '球員進階', body: boxSection || noBoxPlayers },
         cmpSection && { key: 'compare', label: '對比', body: cmpSection },
         { key: 'shots', label: '投籃', body: shotSection },
+        // Playtype（全隊）：單場文件有 playtype 才顯示（2026-27 起、賽後快照寫好後；拆不開的場次 ok=false 顯示無資料說明）
+        docs && docs.team && docs.team.playtype && { key: 'pt', label: 'Playtype',
+            body: <window.GamePlaytypeSection pt={docs.team.playtype} pts={minTeam ? minTeam.score : null} oppPts={oppTeam ? oppTeam.score : null} /> },
     ].filter(Boolean);
     tabKeysRef.current = TABS.map(t => t.key);
     const cur = TABS.find(t => t.key === gameTab) || TABS[0];

@@ -45,7 +45,7 @@ window.UrlState = (function () {
     const SEASON_RE = /^\d{4}-\d{2}$/;
     const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
     const CAP_TABS = ['contracts', 'picks', 'rules'];
-    const GAME_TABS = ['box', 'compare', 'shots'];
+    const GAME_TABS = ['box', 'compare', 'shots', 'pt'];
     // 球員在網址裡的寫法：ID-名字（沒有 ID 才退回完整名字）；解析只看開頭的 ID，解不出＝舊連結的名字
     const playerToken = (id, name) => (Number(id) > 0 ? [Number(id), window.nameSlug(name || '')].filter(Boolean).join('-') : (name || ''));
     const tokenPlayerId = (p) => { const m = /^(\d+)(-[a-z0-9-]*)?$/.exec(p || ''); return m ? Number(m[1]) : null; };

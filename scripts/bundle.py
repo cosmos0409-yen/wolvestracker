@@ -58,6 +58,7 @@ ORDER = [
     "compareData.js",
     "SingleGamePanel.js",
     "PreviewPanel.js",
+    "GamePlaytype.js",
     "GamePage.js",
     "CapPage.js",
     "SchedulePage.js",

@@ -85,3 +85,27 @@ test('Quote.make：篩選中情境附期間與補充、統計日用區間結束�
     assert.equal(it.asOf, '2026-11-17');
     assert.equal(Q.make({ label: 'x', values: [], asOf: 'agg', periodless: true }).context, '2026-27 例行賽');
 });
+
+// ── 單場 Playtype（GamePT.rowQuote）：成對「回合數／每回合得分」，類型名只寫一次；主體固定灰狼全隊 ──
+test('單場 Playtype 引用：單列與整組（單場比分標頭）', () => {
+    w.CiteCtx = { subject: 'Anthony Edwards', season: '2026-27 例行賽', context: '11/19 vs. 尼克 99:102 敗', isHistory: false,
+        game: { date: '2026-11-19', home: true, opp: 'NYK', ms: 99, os: 102, wl: 'L', gameNo: 16, stage: null } };
+    const pt = { ok: true, n: 16, preGP: 15, off: [
+        { t: 'Transition', poss: 26, pts: 37, fgm: 14, fga: 18, prePoss: 335, prePts: 385 },
+        { t: 'Spotup', poss: 21, pts: 16, fgm: 5, fga: 18, prePoss: 400, prePts: 460 }],
+        def: [{ t: 'Transition', poss: 8, pts: 10, fgm: 4, fga: 6, prePoss: 340, prePts: 364 }] };
+    const off = w.GamePT.derive(pt, 'offensive').rows.map(r => w.GamePT.rowQuote(r, 'offensive'));
+    assert.equal(Q.render([off[0]]),
+        '灰狼全隊｜11/19 vs. 尼克 99:102 敗：賽前季均 → 本場\n※轉換進攻 回合數／每回合得分：22.3／1.15 → 26／1.42');
+    assert.equal(Q.render(off, { header: 'game' }),
+        'G16 vs. 紐約尼克 99:102 灰狼敗\n\n灰狼全隊：賽前季均 → 本場\n※轉換進攻 回合數／每回合得分：22.3／1.15 → 26／1.42\n※定點投籃 回合數／每回合得分：26.7／1.15 → 21／0.76');
+    const def = w.GamePT.rowQuote(w.GamePT.derive(pt, 'defensive').rows[0], 'defensive');
+    assert.equal(Q.render([def]), '灰狼全隊｜11/19 vs. 尼克 99:102 敗：賽前季均 → 本場\n※防守轉換進攻 回合數／每回合失分：22.7／1.07 → 8／1.25');
+    // 引用籃：可加入、拆開後每個 part 各自成一行（名稱仍含類型名）
+    Q.clear();
+    assert.ok(Q.add(off[0]).added);
+    assert.equal(Q.add(off[0]).added, false, '同一列不重複加入');
+    Q.split(Q.items()[0].id);
+    assert.equal(JSON.stringify(Q.items().map(x => x.label)), JSON.stringify(['轉換進攻回合數', '轉換進攻每回合得分']));
+    Q.clear();
+});
