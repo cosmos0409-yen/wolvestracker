@@ -222,7 +222,7 @@ const OverviewTab = ({ viewMode, selectedPlayer, games, untilDate, base, snapsho
 
             {ranked.length > 0 && (<UI.Locked on={periodOn}>
                 <UI.Section title="Playtype 強弱項" en="Strengths & Weaknesses" accent="green"
-                    sub={`攻守兩面 · Synergy 聯盟百分位 · 只計每場球權 ≥ ${MIN_POSS_PG} 的類型（球權太少百分位會失真），不含 Misc`}>
+                    sub={`攻守兩面 · Synergy 聯盟百分位 · 只計每場回合數 ≥ ${MIN_POSS_PG} 的類型（回合數太少百分位會失真），不含 Misc`}>
                     {window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照') && (
                         <div className="mb-4"><UI.Note tone="warn">{window.smallSampleNote(Math.max(...ranked.map(x => x.gp || 0)), 'Synergy 快照')}</UI.Note></div>
                     )}

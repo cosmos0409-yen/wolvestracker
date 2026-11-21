@@ -279,7 +279,7 @@ const ComparePage = ({ a = '', b = '', sa = '', sb = '', type = '', per = '', pd
                 </UI.Section>
 
                 <UI.Section className="mt-8" title="Playtype" en="Synergy · 進攻端" accent="green"
-                    sub="整季快照（含季中轉隊前在他隊的比賽；不受上方期間影響）· 場均次數／每球權得分 · 橫條＝聯盟百分位">
+                    sub="整季快照（含季中轉隊前在他隊的比賽；不受上方期間影響）· 場均次數／每回合得分 · 橫條＝聯盟百分位">
                     {ptTypes.length === 0 ? <UI.Note>{(keyA in snaps) && (keyB in snaps) ? '沒有 Playtype 資料' : '載入快照中…'}</UI.Note> : (<>
                         <div className="hidden grid-cols-[130px_minmax(0,1fr)_minmax(0,1fr)] gap-5 border-b border-white/[0.08] pb-1 text-[11px] text-slate-500 sm:grid">
                             <span>類型</span><span style={{ color: CMP_COLORS.a }}>{pA.short}</span><span style={{ color: CMP_COLORS.b }}>{pB.short}</span>

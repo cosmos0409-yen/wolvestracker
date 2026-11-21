@@ -34,12 +34,12 @@ const PlayTypeCard = ({ type, current, prev, onClick, side }) => {
                     <UI.Delta value={current.fgPct} prevValue={prev?.fgPct} unit="%" betterIsLarger={!isDefensive} />
                 </div>
                 <div className="min-w-0">
-                    <dt className="font-mono text-[10px] text-slate-500" title="此類型佔全部球權的比例">Freq</dt>
+                    <dt className="font-mono text-[10px] text-slate-500" title="此類型佔全部回合的比例">Freq</dt>
                     <dd className={`font-mono text-[12px] tabular-nums ${freq != null ? 'text-slate-200' : 'text-slate-600'}`}
                         title={freqMissing ? 'NBA 未提供此快照的使用率（POSS_PCT 回傳 0）' : undefined}>{freq != null ? freq + '%' : '—'}</dd>
                 </div>
                 <div className="min-w-0">
-                    <dt className="font-mono text-[10px] text-slate-500" title="每場球權數">Poss/G</dt>
+                    <dt className="font-mono text-[10px] text-slate-500" title="每場回合數">Poss/G</dt>
                     <dd className="font-mono text-[12px] tabular-nums text-slate-200">{num(current.poss) != null ? current.poss : '—'}</dd>
                 </div>
             </dl>

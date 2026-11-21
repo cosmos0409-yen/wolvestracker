@@ -686,7 +686,7 @@ const GamePage = ({ date, gamePlayer, onExpand, gameTab = '', onGameTab, gameBox
         ['USG_PCT', 'USG%'], ['TS_PCT', 'TS%'], ['AST_PCT', 'AST%'], ['REB_PCT', 'REB%'], ['PIE', 'PIE']];
     const OFFCOURT_COLS = [['OFF_OFF_RATING', 'OffRtg'], ['OFF_DEF_RATING', 'DefRtg']];
     const COL_TITLE = { POSS: '回合數（在場時）', OFF_RATING: '進攻效率：在場時球隊每 100 回合得分', DEF_RATING: '防守效率：在場時球隊每 100 回合失分（越低越好）',
-        NET_RATING: '淨效率：進攻效率 − 防守效率', USG_PCT: '使用率：在場時由他結束的球權比例', TS_PCT: '真實命中率：三分與罰球都算進去的得分效率',
+        NET_RATING: '淨效率：進攻效率 − 防守效率', USG_PCT: '使用率：在場時由他結束的回合比例', TS_PCT: '真實命中率：三分與罰球都算進去的得分效率',
         AST_PCT: '助攻率：在場時隊友進球中由他助攻的比例', REB_PCT: '籃板率：在場時搶下的可搶籃板比例', PIE: 'PIE：本場所有數據中由他貢獻的比例（NBA 綜合指標）',
         OFF_OFF_RATING: '不在場進攻效率：他坐板凳時球隊每 100 回合得分', OFF_DEF_RATING: '不在場防守效率：他坐板凳時球隊每 100 回合失分' };
     const ADV_KEYS = new Set([...ADV_COLS, ...OFFCOURT_COLS].map(c => c[0]).filter(k => k !== 'MIN'));

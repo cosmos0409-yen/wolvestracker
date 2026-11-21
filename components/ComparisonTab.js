@@ -137,7 +137,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const quoteOf = (m) => () => {
         const sameType = cols.length && cols.every(c => c.type === cols[0].type) && TYPE_LABEL_Q[cols[0].type];
         // Playtype 列的 l/e 是表格用（英文 key／「進攻 PPP」），引用改成與 Playtype 章節同名：中文名每球權得分（防守端：防守…每球權失分）／Cut PPP
-        const label = m.playtype ? (ptDef ? `防守${window.ptName(m.k)}每球權失分` : `${window.ptName(m.k)}每球權得分`) : m.l;
+        const label = m.playtype ? (ptDef ? `防守${window.ptName(m.k)}每回合失分` : `${window.ptName(m.k)}每回合得分`) : m.l;
         const en = m.playtype ? `${m.k} PPP` : m.e;
         const it = window.Quote.make({
             kind: 'compare', sep: '→', label, en, gkey: m.playtype ? 'PPP' : m.k, context: sameType || '', asOf: 'none',
@@ -268,7 +268,7 @@ const ComparisonTab = ({ viewMode, selectedPlayer, playerId, seasons, loadSeason
     const UI = window.UI;
     const catSub = {
         base: '傳統數據，各季終點快照',
-        playtype: ptDef ? 'Synergy 防守面 PPP（對手每球權得分，越低越好），各季終點快照' : 'Synergy 進攻面 PPP（每球權得分），各季終點快照',
+        playtype: ptDef ? 'Synergy 防守面 PPP（對手每回合得分，越低越好），各季終點快照' : 'Synergy 進攻面 PPP（每回合得分），各季終點快照',
         tracking: 'NBA Tracking，各季終點快照',
         shooting: '分區命中率，各季終點快照',
         defense: '最近防守者／Hustle／防守 box，各季終點快照',

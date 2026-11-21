@@ -143,23 +143,23 @@ window.GLOSSARY = (function () {
         GP: { def: '出賽場次。', src: BASE },
 
         // ── Synergy Playtype 欄位 ──
-        PPP: { def: '每球權得分：以這種打法結束的球權，平均得幾分。防守面是對手每球權得分，越低越好。', calc: '得分 ÷ 球權', src: SYN },
-        PERCENTILE: { def: '聯盟百分位：PPP 在全聯盟同類型中的排名百分位（0–100），攻守兩面都是越高越好。球權太少時會很極端。', src: SYN },
-        FREQ: { def: '使用率：這種打法佔全部球權的比例。', calc: '該類型球權 ÷ 總球權', src: SYN },
-        POSS: { def: '每場以這種打法結束的球權數。', src: SYN },
+        PPP: { def: '每回合得分：以這種打法結束的回合，平均得幾分。防守面是對手每回合得分，越低越好。', calc: '得分 ÷ 回合數', src: SYN },
+        PERCENTILE: { def: '聯盟百分位：PPP 在全聯盟同類型中的排名百分位（0–100），攻守兩面都是越高越好。回合數太少時會很極端。', src: SYN },
+        FREQ: { def: '使用率：這種打法佔全部回合的比例。', calc: '該類型回合數 ÷ 總回合數', src: SYN },
+        POSS: { def: '每場以這種打法結束的回合數。', src: SYN },
 
         // ── Synergy Playtype 類型（key 加 PT_ 前綴） ──
-        PT_Transition: { def: '轉換進攻：搶到球權後在對方防守站定前發動的快攻或早期進攻。', src: SYN },
+        PT_Transition: { def: '轉換進攻：搶下籃板、抄截或對手得分後，在對方防守站定前發動的快攻或早期進攻。', src: SYN },
         PT_Isolation: { def: '單打：持球者在半場一對一，隊友拉開空間。', src: SYN },
-        PT_PRBallHandler: { def: '擋拆持球者：擋拆中由持球者結束球權（自己出手、造犯規或失誤）。', src: SYN },
-        PT_PRRollMan: { def: '擋拆掩護者：擋拆中由掩護者順下或外彈後結束球權。', src: SYN },
+        PT_PRBallHandler: { def: '擋拆持球者：擋拆中由持球者結束這一回合（自己出手、造犯規或失誤）。', src: SYN },
+        PT_PRRollMan: { def: '擋拆掩護者：擋拆中由掩護者順下或外彈後結束這一回合。', src: SYN },
         PT_Postup: { def: '背框單打：在低位或中位背對籃框接球進攻。', src: SYN },
         PT_Spotup: { def: '定點投籃：接球後直接出手，或接球後少量運球出手（無掩護、非手遞手）。', src: SYN },
-        PT_Handoff: { def: '手遞手：從隊友手上直接接過球後結束球權。', src: SYN },
+        PT_Handoff: { def: '手遞手：從隊友手上直接接過球後結束這一回合。', src: SYN },
         PT_Cut: { def: '空切：無球跑動切向籃下接球得分機會。', src: SYN },
         PT_OffScreen: { def: '繞掩護：無球繞過隊友掩護後接球出手。', src: SYN },
         PT_OffRebound: { def: '進攻籃板補進（Putbacks）：搶到進攻籃板後直接出手。', src: SYN },
-        PT_Misc: { def: '其他：不屬於以上類型的球權（例如殘局、特殊狀況），分析時通常排除。', src: SYN },
+        PT_Misc: { def: '其他：不屬於以上類型的回合（例如殘局、特殊狀況），分析時通常排除。', src: SYN },
         // ── 薪資頁（Cap Sheet） ──
         CAP_TAX_PAYROLL: { def: '計算薪資帽與奢侈稅用的球隊薪資。', calc: 'Σ 標準合約 cap hit（含 likely incentives）＋ 死錢；不含雙向合約', src: CAP },
         CAP_APRON_PAYROLL: { def: '判定第一／第二 apron 用的球隊薪資，比奢侈稅薪資多算 unlikely incentives。', calc: '奢侈稅薪資 ＋ Σ unlikely incentives', src: CAP },

@@ -29,15 +29,15 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = fal
             after: (r) => (<>
                 <UI.Info k={`PT_${r.playType}`}
                     quote={typeof r.ppp === 'number' ? () => window.Quote.make({
-                        label: isDef ? `防守${window.ptName(r.playType)}每球權失分` : `${window.ptName(r.playType)}每球權得分`,
+                        label: isDef ? `防守${window.ptName(r.playType)}每回合失分` : `${window.ptName(r.playType)}每回合得分`,
                         en: `${r.playType} PPP`, gkey: 'PPP', values: [{ value: r.ppp.toFixed(2) }],
                         rank: r._rank, pr: typeof r.percentile === 'number' ? r.percentile : null, better: isDef ? 'low' : 'high', asOf: 'snap' }) : undefined}
                     cite={() => UI.citeLine({ label: `${r.playType} Playtype（${isDef ? '防守' : '進攻'}）`, gkey: 'PPP',
-                        value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}${r._rank ? `（聯盟第${r._rank.rank}）` : ''}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場球權 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
+                        value: `PPP ${typeof r.ppp === 'number' ? r.ppp.toFixed(2) : '—'}、聯盟百分位 ${typeof r.percentile === 'number' ? r.percentile.toFixed(1) : '—'}${r._rank ? `（聯盟第${r._rank.rank}）` : ''}、使用率 ${r._freq != null ? r._freq.toFixed(1) + '%' : '未提供'}、每場回合數 ${typeof r.poss === 'number' ? r.poss.toFixed(1) : '—'}` })} />
             </>) },
         { key: '_freq', label: '使用率', en: 'Freq%', gkey: 'FREQ', render: (r) => r._freq == null ? <span className="text-slate-600" title={freqMissing ? 'NBA 未提供此快照的使用率' : undefined}>—</span> : r._freq.toFixed(1) + '%' },
-        { key: 'poss', label: '每場球權', en: 'Poss/G', gkey: 'POSS', render: (r) => typeof r.poss === 'number' ? r.poss.toFixed(1) : '—' },
-        { key: 'ppp', label: 'PPP', en: isDef ? '被得分效率' : '每球權得分', gkey: 'PPP',
+        { key: 'poss', label: '每場回合數', en: 'Poss/G', gkey: 'POSS', render: (r) => typeof r.poss === 'number' ? r.poss.toFixed(1) : '—' },
+        { key: 'ppp', label: 'PPP', en: isDef ? '被得分效率' : '每回合得分', gkey: 'PPP',
             render: (r) => (
                 <span className="inline-flex items-baseline gap-2">
                     <UI.Delta value={r.ppp} prevValue={r._prev?.ppp} betterIsLarger={!isDef} digits={2} />
@@ -57,7 +57,7 @@ const PlaytypeSection = ({ title, stats, prevStats, side, onOpen, teamRank = fal
 
     return (
         <UI.Section title={title} en="Synergy Playtype" accent={isDef ? 'red' : 'green'}
-            sub={`${isDef ? '防守面：PPP 為對手每球權得分，越低越好' : '進攻面：PPP 為每球權得分'} · 聯盟百分位越高越好 · 變化箭頭為 vs 前一份快照`}
+            sub={`${isDef ? '防守面：PPP 為對手每回合得分，越低越好' : '進攻面：PPP 為每回合得分'} · 聯盟百分位越高越好 · 變化箭頭為 vs 前一份快照`}
             right={<UI.Seg ariaLabel="檢視方式" size="sm" value={view} onChange={changeView}
                 options={[{ value: 'table', label: '表格' }, { value: 'cards', label: '卡片' }]} />}>
             {rows.length > 0 && window.smallSampleNote(Math.max(...rows.map(r => r.gp || 0)), 'Synergy 快照') && (
