@@ -15,6 +15,7 @@ Usage:
     python backfill_games.py --season 2025-26 --type regular --start 40 --limit 20  # 分批(第40場起20場)
     python backfill_games.py --season 2025-26 --type regular --box-only  # 只替既有單場補 box score（每場約 4 requests）
     python backfill_games.py --type regular --adv-only                   # 已有 box 的場次只補進階＋單場 On/Off（每場 2 requests）
+    python backfill_games.py --type regular --onoff-only                 # 已有 box 的場次只重抓單場 On/Off（每場 1 request；2026-11-21 補存不在場節奏用）
     python backfill_games.py --type regular --matchup-only                # 既有單場只補灰狼球員的最近防守者兩分／護框（每場 2 requests）
     python backfill_games.py --season 2023-24 --type regular --clean-players --dry-run  # 對帳找出混入的非當時隊員（0 request）
 """
@@ -45,13 +46,14 @@ def fetch_rotation_names(season, season_type_api, min_gp):
     return {r[name_i].strip() for r in data['resultSets'][0]['rowSet'] if r[gp_i] >= min_gp}
 
 
-def backfill_box_only(db, games, season, season_type_api, adv_only=False):
+def backfill_box_only(db, games, season, season_type_api, adv_only=False, onoff_only=False):
     """只替既有單場文件補 box score（2026-10 前的場次沒抓過 box）。
     用 update 合併寫入 box/gameId，不覆寫 stats/opp 等既有欄位；文件不存在的場次跳過（不建空文件）。
     summary／進階／On/Off 沒抓到（complete=False）的場次標 [PARTIAL]，之後用 --dates 重補。
-    adv_only：已有 box 的場次只補進階 box＋單場 On/Off（每場 2 requests），沒有 box 的場次跳過。"""
+    adv_only：已有 box 的場次只補進階 box＋單場 On/Off（每場 2 requests），沒有 box 的場次跳過。
+    onoff_only：已有 box 的場次只重抓單場 On/Off（每場 1 request），其他 box 內容不動。"""
     if not db:
-        print("❌ --box-only／--adv-only 需要 Firebase（找不到憑證），終止")
+        print("❌ --box-only／--adv-only／--onoff-only 需要 Firebase（找不到憑證），終止")
         sys.exit(1)
     done, partial, skipped, failed = 0, [], [], []
     for doc_date, api_date, matchup, wl, gid in games:
@@ -61,13 +63,13 @@ def backfill_box_only(db, games, season, season_type_api, adv_only=False):
             print(f"[SKIP] {doc_date} {matchup}：wolves_team_games 無此文件")
             skipped.append(doc_date)
             continue
-        if adv_only:
+        if adv_only or onoff_only:
             box = (snap.to_dict() or {}).get("box")
             if not box:
                 print(f"[SKIP] {doc_date} {matchup}：沒有 box（先用 --box-only 補）")
                 skipped.append(doc_date)
                 continue
-            complete = nc.add_box_advanced(box, gid)
+            complete = True if onoff_only else nc.add_box_advanced(box, gid)
         else:
             box, complete = nc.fetch_boxscore(gid)
         if box and not nc.add_box_onoff(box, season, season_type_api, api_date):
@@ -226,6 +228,8 @@ def main():
                         help="只補 box score（每場約 4 requests，含進階＋單場 On/Off），合併寫入既有 wolves_team_games，不動其他欄位")
     parser.add_argument("--adv-only", action="store_true",
                         help="已有 box 的場次只補進階 box＋單場 On/Off（每場 2 requests）")
+    parser.add_argument("--onoff-only", action="store_true",
+                        help="已有 box 的場次只重抓單場 On/Off（每場 1 request），合併寫入 box")
     parser.add_argument("--matchup-only", action="store_true",
                         help="既有單場只補灰狼球員的最近防守者 --matchup-cats 類別（每類每場 1 request），合併寫入 wolves_player_games")
     parser.add_argument("--matchup-cats", default="2PT,Rim",
@@ -252,7 +256,7 @@ def main():
     season_type_api, season_type_label = nc.season_type(args.type)
 
     print(f"=== 單場回補 {season} {season_type_label} ===")
-    box_mode = args.box_only or args.adv_only
+    box_mode = args.box_only or args.adv_only or args.onoff_only
     if not box_mode and not args.matchup_only:   # --box-only／--adv-only／--matchup-only 不需要球員名單，省一次 request
         rotation = fetch_rotation_names(season, season_type_api, args.min_gp)
         print(f"輪換球員（GP>={args.min_gp}）：{len(rotation)} 人 — {', '.join(sorted(rotation))}")
@@ -290,7 +294,7 @@ def main():
         backfill_matchup_only(db, games, season, season_type_api, args.matchup_cats)
         return
     if box_mode:
-        backfill_box_only(db, games, season, season_type_api, adv_only=args.adv_only)
+        backfill_box_only(db, games, season, season_type_api, adv_only=args.adv_only, onoff_only=args.onoff_only)
         return
 
     done = 0

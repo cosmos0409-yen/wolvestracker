@@ -300,7 +300,8 @@ window.GameAgg = (function () {
     // 前後端成對：bundle adv 會讀到的欄位（tests/py/test_contracts.py 對照 nba_common.BUNDLE_*_ADV_KEYS）
     const ADV_KEYS_READ = {
         team: ['POSS', 'OPP_POSS', 'PACE', 'GMIN', 'OREB_CH', 'DREB_CH'],
-        player: ['POSS', 'USG_PCT', 'AST_PCT', 'OREB_PCT', 'DREB_PCT', 'REB_PCT', 'PIE', 'PIE_W', 'OFF_OFF_RATING', 'OFF_DEF_RATING', 'OFF_W'],
+        player: ['POSS', 'USG_PCT', 'AST_PCT', 'OREB_PCT', 'DREB_PCT', 'REB_PCT', 'PIE', 'PIE_W', 'PACE',
+            'OFF_OFF_RATING', 'OFF_DEF_RATING', 'OFF_W', 'OFF_PACE', 'OFF_MIN'],
     };
 
     return {

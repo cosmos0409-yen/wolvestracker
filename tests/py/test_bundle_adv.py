@@ -7,7 +7,7 @@ import nba_common as nc
 import build_bundles as bb
 
 
-def make_box(adv=True, onoff=True, oreb_pct=40.0):
+def make_box(adv=True, onoff=True, oreb_pct=40.0, off_pace=None):
     mine = {"PTS": 120, "FGM": 44, "FTM": 20, "FGA": 90, "FTA": 25, "OREB": 12, "DREB": 33, "AST": 28,
             "STL": 8, "BLK": 5, "PF": 18, "TOV": 13, "MIN": "240:00"}
     opp = {"PTS": 110, "FGM": 40, "FTM": 15, "FGA": 88, "FTA": 20, "OREB": 10, "DREB": 30, "AST": 24,
@@ -17,9 +17,11 @@ def make_box(adv=True, onoff=True, oreb_pct=40.0):
         opp.update({"POSS": 101.0, "PACE": 100.5})
     p1 = {"PTS": 30, "FGM": 11, "FGA": 20, "MIN": "36:00"}
     if adv:
-        p1.update({"POSS": 75.0, "USG_PCT": 30.0, "AST_PCT": 25.0, "OREB_PCT": 2.0, "DREB_PCT": 12.0, "REB_PCT": 7.0, "PIE": 18.0})
+        p1.update({"POSS": 75.0, "USG_PCT": 30.0, "AST_PCT": 25.0, "OREB_PCT": 2.0, "DREB_PCT": 12.0, "REB_PCT": 7.0, "PIE": 18.0, "PACE": 101.5})
         if onoff:
             p1.update({"OFF_OFF_RATING": 105.0, "OFF_DEF_RATING": 110.0, "OFF_MIN": 12.0})
+            if off_pace is not None:
+                p1["OFF_PACE"] = off_pace
     return {"teams": [{"tricode": "MIN", "totals": mine}, {"tricode": "DEN", "totals": opp}],
             "players": [{"personId": 1, "tricode": "MIN", "stats": p1},
                         {"personId": 2, "tricode": "MIN", "stats": {}},                       # DNP
@@ -56,7 +58,16 @@ class PlayerAdv(unittest.TestCase):
         self.assertEqual(r["POSS"], 75.0)
         pie_w = nc._pie_part(make_box()["teams"][0]["totals"]) + nc._pie_part(make_box()["teams"][1]["totals"])
         self.assertAlmostEqual(r["PIE_W"], pie_w)
-        self.assertAlmostEqual(r["OFF_W"], 100.0 * 12.0 / 48.0)  # 全隊回合 × 不在場分鐘 ÷ (240/5)
+        self.assertAlmostEqual(r["OFF_W"], 100.0 * 12.0 / 48.0)  # 舊資料（沒有不在場節奏）：全隊回合 × 不在場分鐘 ÷ (240/5)
+        self.assertEqual(r["PACE"], 101.5)
+        self.assertEqual(r["OFF_MIN"], 12.0)
+        self.assertNotIn("OFF_PACE", r)
+        self.assertTrue(set(r) <= set(nc.BUNDLE_PLAYER_ADV_KEYS))
+
+    def test_off_pace_used_for_off_possessions(self):
+        r = nc.box_player_adv(make_box(off_pace=96.0))["1"]
+        self.assertEqual(r["OFF_PACE"], 96.0)
+        self.assertAlmostEqual(r["OFF_W"], 96.0 * 12.0 / 48.0)  # 有不在場節奏：節奏 × 不在場分鐘 ÷ 48
         self.assertTrue(set(r) <= set(nc.BUNDLE_PLAYER_ADV_KEYS))
 
     def test_without_single_game_onoff(self):

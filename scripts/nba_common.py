@@ -1963,7 +1963,8 @@ BOX_ADV_FIELDS = [
 ]
 # 單場 On/Off 只存「不在場」（在場＝進階 box 的 OFF/DEF/NET_RATING）；只有灰狼球員。
 # 不能用「全隊－在場」推：NBA 依每段上場分開算回合數，在場＋不在場回合 ≠ 全隊回合，推算差 7～16 分（2026-10-29 實測）
-BOX_ONOFF_KEYS = ["OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_NET_RATING", "OFF_MIN"]
+# OFF_PACE（不在場節奏）2026-11-21 起存：同一個回應本來就有，總覽在場／不在場的「節奏」與不在場回合估計要用
+BOX_ONOFF_KEYS = ["OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_NET_RATING", "OFF_MIN", "OFF_PACE"]
 
 
 def _box_stats(st, fields=BOX_STAT_FIELDS):
@@ -2079,8 +2080,8 @@ def box_oncourt_totals(box):
 # 放在 bundle 每場的 adv（不混進 stats：stats 會被 GameAgg.aggregate 逐欄平均、被逐場對帳加總）。
 # 公式與 2026-11-19 整季快照對帳過，見 doc/handover.md「總覽」；前端讀法在 gameAggregates.js 的 teamAdvanced／playerAdvanced／onOff
 BUNDLE_TEAM_ADV_KEYS = ("POSS", "OPP_POSS", "PACE", "GMIN", "OREB_CH", "DREB_CH")
-BUNDLE_PLAYER_ADV_KEYS = ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE", "PIE_W",
-                          "OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_W")
+BUNDLE_PLAYER_ADV_KEYS = ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE", "PIE_W", "PACE",
+                          "OFF_OFF_RATING", "OFF_DEF_RATING", "OFF_W", "OFF_PACE", "OFF_MIN")
 
 
 def _num(v):
@@ -2143,7 +2144,9 @@ def box_team_adv(box):
 def box_player_adv(box):
     """逐場 bundle 灰狼球員那場的 adv：{personId字串: {...}}；沒有進階 box 回 {}。
     USG_PCT／AST_PCT／籃板率／PIE 是本場官方值，前端依 POSS（PIE 依 PIE_W＝全場兩隊 PIE 分母）加權成區間近似值；
-    不在場：OFF_OFF_RATING／OFF_DEF_RATING 是單場官方值，OFF_W＝估計的不在場回合（全隊回合 × 不在場分鐘 ÷ (比賽分鐘÷5)），
+    PACE＝本場在場節奏（box 官方值，前端依上場分鐘加權，與 On/Off 快照的 ON_PACE 一致）；
+    不在場：OFF_OFF_RATING／OFF_DEF_RATING／OFF_PACE／OFF_MIN 是單場官方值，OFF_W＝估計的不在場回合
+    （有 OFF_PACE 時＝OFF_PACE × OFF_MIN ÷ 48；舊資料＝全隊回合 × 不在場分鐘 ÷ (比賽分鐘÷5)），
     前端加權用（不可用「全隊−在場」推不在場的效率，見 BOX_ONOFF_KEYS 註解；這裡只拿來當權重）"""
     tt, ot = _box_two_teams(box)
     if tt is None or not _num(tt.get("POSS")):
@@ -2155,11 +2158,16 @@ def box_player_adv(box):
         s = pl.get("stats") or {}
         if pl.get("tricode") != "MIN" or not _num(s.get("POSS")):
             continue
-        rec = {k: s[k] for k in ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE") if _num(s.get(k))}
+        rec = {k: s[k] for k in ("POSS", "USG_PCT", "AST_PCT", "OREB_PCT", "DREB_PCT", "REB_PCT", "PIE", "PACE") if _num(s.get(k))}
         rec["PIE_W"] = pie_w
         if gmin and _num(s.get("OFF_OFF_RATING")) and _num(s.get("OFF_DEF_RATING")) and _num(s.get("OFF_MIN")):
-            rec["OFF_OFF_RATING"], rec["OFF_DEF_RATING"] = s["OFF_OFF_RATING"], s["OFF_DEF_RATING"]
-            rec["OFF_W"] = round(tt["POSS"] * s["OFF_MIN"] / (gmin / 5), 2)
+            rec["OFF_OFF_RATING"], rec["OFF_DEF_RATING"], rec["OFF_MIN"] = s["OFF_OFF_RATING"], s["OFF_DEF_RATING"], s["OFF_MIN"]
+            # 不在場回合：有單場不在場節奏（2026-11-21 起存）就用它估（節奏 × 不在場分鐘 ÷ 48），否則用全隊回合按分鐘比例
+            if _num(s.get("OFF_PACE")):
+                rec["OFF_PACE"] = s["OFF_PACE"]
+                rec["OFF_W"] = round(s["OFF_PACE"] * s["OFF_MIN"] / 48, 2)
+            else:
+                rec["OFF_W"] = round(tt["POSS"] * s["OFF_MIN"] / (gmin / 5), 2)
         out[str(pl["personId"])] = rec
     return out
 
